@@ -174,6 +174,7 @@ struct ScreenHeader: View {
 
 // MARK: - Haptics
 
+@MainActor
 enum Haptics {
     static func selection() {
         #if os(iOS)

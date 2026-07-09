@@ -11,12 +11,8 @@ let package = Package(
         .library(name: "ZotEatsKit", targets: ["ZotEatsKit"])
     ],
     targets: [
-        .target(
-            name: "ZotEatsKit",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
-            ]
-        ),
+        // Strict concurrency is implied by swift-tools-version 6.0.
+        .target(name: "ZotEatsKit"),
         .testTarget(
             name: "ZotEatsKitTests",
             dependencies: ["ZotEatsKit"],
