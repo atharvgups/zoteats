@@ -36,3 +36,14 @@ renderer (`renderer/`). See `README.md` and `project-plans/` for the design and 
 - To run a service standalone (e.g. for a smoke test), stub the SDK `logger` in an ephemeral
   shim under `node_modules/@glaze/core` (gitignored) and run the service with `npx tsx`.
   `@shared/*` imports are type-only and erase at runtime.
+
+### Native iOS app (`apple/`)
+- `apple/` holds a SwiftUI iOS app defined by an XcodeGen spec (`apple/project.yml`);
+  the `.xcodeproj` is **not committed** — CI runs `xcodegen generate` first. All Xcode
+  builds happen on GitHub Actions macOS runners (`.github/workflows/ios.yml`,
+  `testflight.yml`); they cannot run on this Linux VM.
+- What CAN run here: the `ZotEatsKit` package tests, via
+  `swift test --package-path apple/ZotEatsKit` (fixture-based by default; set
+  `ZOTEATS_LIVE_TESTS=1` to also hit the live APIs).
+- Swift is installed via swiftly and is not on `PATH` by default — activate with
+  `. ~/.swiftly/env.sh` before running `swift`.

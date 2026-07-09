@@ -1,0 +1,92 @@
+# CI for the native iOS app (apple/).
+# - kit-tests: ZotEatsKit unit tests on Linux (fixtures only; live tests need ZOTEATS_LIVE_TESTS=1).
+# - app-build: generates the Xcode project with XcodeGen (no .xcodeproj in git), builds for the
+#   iOS Simulator, and captures per-tab screenshots against live UCI data.
+name: iOS
+
+on:
+  push:
+    branches: ["main", "cursor/**"]
+    paths:
+      - "apple/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+jobs:
+  kit-tests:
+    name: ZotEatsKit tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      # Fixtures only — live-API tests are gated behind ZOTEATS_LIVE_TESTS=1 and are
+      # intentionally not run in CI to keep it deterministic.
+      - name: Run package tests
+        run: swift test --package-path apple/ZotEatsKit
+
+  app-build:
+    name: App build + screenshots (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The Xcode project is not committed; generate it from the spec.
+      - name: Generate Xcode project
+        run: xcodegen generate --spec apple/project.yml --project apple/
+
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          build() {
+            xcodebuild \
+              -project apple/ZotEats.xcodeproj \
+              -scheme ZotEats \
+              -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+              -configuration Debug \
+              -derivedDataPath apple/DerivedData \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          }
+          # Beautify output when xcbeautify is present, but never fail because it isn't.
+          if command -v xcbeautify >/dev/null 2>&1; then
+            build | xcbeautify
+          else
+            build
+          fi
+
+      - name: Capture screenshots
+        run: |
+          set -euo pipefail
+          xcrun simctl boot "iPhone 16 Pro"
+          # Wait until the simulator has fully booted before interacting with it.
+          xcrun simctl bootstatus "iPhone 16 Pro" -b
+          # Clean status bar for App Store-style screenshots.
+          xcrun simctl status_bar booted override \
+            --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4
+          APP_PATH="apple/DerivedData/Build/Products/Debug-iphonesimulator/ZotEats.app"
+          xcrun simctl install booted "$APP_PATH"
+          mkdir -p screenshots
+          for tab in dining gym busyness; do
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab "$tab"
+            # The app fetches live UCI data on launch; give it time to render.
+            sleep 12
+            xcrun simctl io booted screenshot "screenshots/${tab}.png"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-screenshots
+          path: screenshots/
+          if-no-files-found: warn
