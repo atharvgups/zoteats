@@ -182,8 +182,16 @@ public struct DiningService: Sendable {
         }
     }
 
+    /// Served periods in chronological order (the API returns an unordered dictionary).
     private static func servedPeriods(_ today: APIRestaurantToday) -> [APIPeriod] {
-        (today.periods ?? [:]).values.filter { !($0.stationToDishes ?? [:]).isEmpty }
+        (today.periods ?? [:]).values
+            .filter { !($0.stationToDishes ?? [:]).isEmpty }
+            .sorted { lhs, rhs in
+                let l = PacificTime.parseMinutes(lhs.startTime) ?? Int.max
+                let r = PacificTime.parseMinutes(rhs.startTime) ?? Int.max
+                if l != r { return l < r }
+                return lhs.name < rhs.name
+            }
     }
 
     private static func menuItem(from dish: APIDish) -> MenuItem {
