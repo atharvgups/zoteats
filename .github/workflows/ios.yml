@@ -12,6 +12,11 @@ on:
       - ".github/workflows/ios.yml"
   workflow_dispatch:
 
+# Newer pushes supersede in-flight runs on the same branch (saves macOS minutes).
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   kit-tests:
     name: ZotEatsKit tests (Linux)
@@ -48,11 +53,12 @@ jobs:
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
+          # Generic destination: no dependency on which simulator devices this runner image ships.
           build() {
             xcodebuild \
               -project apple/ZotEats.xcodeproj \
               -scheme ZotEats \
-              -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+              -destination 'generic/platform=iOS Simulator' \
               -configuration Debug \
               -derivedDataPath apple/DerivedData \
               CODE_SIGNING_ALLOWED=NO \
@@ -68,9 +74,12 @@ jobs:
       - name: Capture screenshots
         run: |
           set -euo pipefail
-          xcrun simctl boot "iPhone 16 Pro"
+          # Pick whatever iPhone simulator this runner image ships (names vary by Xcode version).
+          DEVICE=$(xcrun simctl list devices available | grep -E "^\s+iPhone" | head -1 | sed -E 's/^ +//; s/ \([-0-9A-F]+\).*$//')
+          echo "Using simulator: $DEVICE"
+          xcrun simctl boot "$DEVICE"
           # Wait until the simulator has fully booted before interacting with it.
-          xcrun simctl bootstatus "iPhone 16 Pro" -b
+          xcrun simctl bootstatus "$DEVICE" -b
           # Clean status bar for App Store-style screenshots.
           xcrun simctl status_bar booted override \
             --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4
