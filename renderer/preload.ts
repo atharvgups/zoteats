@@ -215,20 +215,21 @@ const glazeAPI = {
     /** @deprecated Use beep() for fire-and-forget behavior. */
     beepAsync: (): Promise<void> => ipcRenderer.invoke("shell:beep"),
 
+    // Opens official UCI pages (dining site, Campus Rec, Waitz) in the default browser.
+    openExternal: async (
+      url: string,
+      options?: { activate?: boolean; workingDirectory?: string; logUsage?: boolean },
+    ): Promise<void> => {
+      const didOpen = await ipcRenderer.invoke("shell:openExternalWithResult", url, options);
+      if (!didOpen) {
+        throw new Error("Failed to open URL");
+      }
+    },
+
     // ⚠️ SENSITIVE - Uncomment ONLY if your app needs these:
     //
     // openPath: (path: string): Promise<string> =>
     //   ipcRenderer.invoke("shell:openPath", path),
-    //
-    // openExternal: async (
-    //   url: string,
-    //   options?: { activate?: boolean; workingDirectory?: string; logUsage?: boolean },
-    // ): Promise<void> => {
-    //   const didOpen = await ipcRenderer.invoke("shell:openExternalWithResult", url, options);
-    //   if (!didOpen) {
-    //     throw new Error("Failed to open URL");
-    //   }
-    // },
     //
     // /** @deprecated Use openExternal() for Electron-compatible Promise<void> behavior. */
     // openExternalWithResult: (

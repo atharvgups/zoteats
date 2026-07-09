@@ -8,3 +8,13 @@
 @source "./**/*.{ts,tsx}";
 @source not "./preload.ts";
 @source not "./dev/**/*";
+
+/* ── UCI brand accent ─────────────────────────────────────────────────
+ * Anteater blue drives buttons, sidebar/tab selection, and busyness bars.
+ * Backgrounds stay neutral so menus and hours read cleanly. */
+:root {
+  --theme-accent: #0064a4;
+}
+.dark {
+  --theme-accent: #4ba3e3;
+}

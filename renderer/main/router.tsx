@@ -5,6 +5,8 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { HomeView } from "./home-view";
+import { GymView } from "./gym-view";
+import { BusynessView } from "./busyness-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
 import { ErrorBoundaryView } from "@glaze/core/components";
@@ -28,12 +30,24 @@ const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomeView,
-  staticData: {
-    title: "Home",
-  },
+  staticData: { title: "Dining" },
 });
 
-const routeTree = rootRoute.addChildren([homeRoute]);
+const gymRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/gym",
+  component: GymView,
+  staticData: { title: "Gym" },
+});
+
+const busynessRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/busyness",
+  component: BusynessView,
+  staticData: { title: "Busyness" },
+});
+
+const routeTree = rootRoute.addChildren([homeRoute, gymRoute, busynessRoute]);
 
 const queryClient = new QueryClient();
 

@@ -8,6 +8,9 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { appHandlers } from "./app.js";
+import { registerDiningHandlers } from "./dining.js";
+import { registerGymHandlers } from "./gym.js";
+import { registerBusynessHandlers } from "./busyness.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
 import { ipcMain, logger } from "@glaze/core/backend";
@@ -37,6 +40,11 @@ export function registerHandlers(): void {
   ipcMain.handle("window:closeSettings", async (_event) => {
     getSettingsWindow()?.close();
   });
+
+  // ZotEats data handlers
+  registerDiningHandlers();
+  registerGymHandlers();
+  registerBusynessHandlers();
 
   logger.info("handlers", "✓ IPC handlers registered");
 

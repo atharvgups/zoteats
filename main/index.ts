@@ -55,8 +55,9 @@ async function createMainWindow() {
 
   const minWindowWidth = 390;
   const minWindowHeight = 456;
-  const windowWidth = 1000;
-  const windowHeight = 700;
+  // Two-column app: sidebar nav (~200px) + content capped for readable menus/hours.
+  const windowWidth = 920;
+  const windowHeight = 720;
   let windowTitle = "Glaze App";
 
   try {
