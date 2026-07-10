@@ -60,13 +60,35 @@ public struct GymService: Sendable {
 
         let todayHours = liveHours ?? today.map { "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))" }
 
+        // Live sensor data wins; otherwise fall back to the typical-pattern
+        // estimate, clearly flagged so the UI can label it.
+        let typical = TypicalBusyness.arc(now: currentDate)
+        let openNow = liveOpen ?? scheduleOpenNow
+        let typicalPoint: BusynessPoint? = typical.percentNow > 0 ? BusynessPoint(
+            id: -100,
+            name: "Anteater Recreation Center",
+            category: "Recreation",
+            count: nil,
+            capacity: nil,
+            percent: typical.percentNow,
+            level: typical.levelNow,
+            isOpen: openNow,
+            hoursSummary: nil,
+            updatedAt: currentDate,
+            subLocations: nil,
+            source: .typical
+        ) : nil
+
         return GymStatus(
             name: "Anteater Recreation Center",
-            openNow: liveOpen ?? scheduleOpenNow,
+            openNow: openNow,
             todayHours: todayHours,
             weekHours: weekHours,
-            busyness: liveBusyness,
-            hoursApproximate: liveHours == nil
+            busyness: liveBusyness ?? typicalPoint,
+            hoursApproximate: liveHours == nil,
+            typicalCurve: typical.dayCurve,
+            busiestSummary: typical.busiestSummary,
+            quietestSummary: typical.quietestSummary
         )
     }
 }

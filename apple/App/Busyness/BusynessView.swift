@@ -14,7 +14,7 @@ struct BusynessView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Busyness", subtitle: "Live campus occupancy", onSettings: openSettings)
+                    ScreenHeader(title: "Crowds", subtitle: "Live campus occupancy", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
@@ -309,7 +309,7 @@ struct BusynessSubLocationRow: View {
 #Preview("Facility cards") {
     ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-            ScreenHeader(title: "Busyness", subtitle: "Live campus occupancy")
+            ScreenHeader(title: "Crowds", subtitle: "Live campus occupancy")
             VStack(alignment: .leading, spacing: 16) {
                 BusynessGroupSection(
                     category: "Library",

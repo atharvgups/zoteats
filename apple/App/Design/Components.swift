@@ -104,6 +104,75 @@ struct PillRow<Item: Hashable>: View {
     }
 }
 
+// MARK: - "Typical" estimate tag
+
+/// Tiny label marking a busyness reading as a typical-pattern estimate, not live data.
+struct TypicalTag: View {
+    var body: some View {
+        Text("TYPICAL")
+            .font(.system(size: 9, weight: .semibold))
+            .tracking(0.5)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2.5)
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Typical estimate, not live data")
+    }
+}
+
+// MARK: - Day rush strip (24 hourly bars)
+
+/// Compact hour-by-hour rush chart: one thin bar per hour, current hour highlighted.
+struct RushStrip: View {
+    /// 24 hourly percents (0 = closed).
+    let curve: [Int]
+    let currentHour: Int
+    var barMaxHeight: CGFloat = 34
+
+    var body: some View {
+        VStack(spacing: 5) {
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(0..<24, id: \.self) { hour in
+                    let value = hour < curve.count ? curve[hour] : 0
+                    let isNow = hour == currentHour
+                    Capsule()
+                        .fill(
+                            isNow
+                                ? AnyShapeStyle(Color.uciBlue)
+                                : value == 0
+                                    ? AnyShapeStyle(Color.primary.opacity(0.06))
+                                    : AnyShapeStyle(Color.uciBlue.opacity(0.28))
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(3, barMaxHeight * CGFloat(value) / 100))
+                }
+            }
+            .frame(height: barMaxHeight, alignment: .bottom)
+
+            // Approximate tick labels: 6 AM sits a quarter in, 12 PM centered, 6 PM three-quarters.
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    Text("6 AM").position(x: geo.size.width * 6.5 / 24, y: 6)
+                    Text("12 PM").position(x: geo.size.width * 12.5 / 24, y: 6)
+                    Text("6 PM").position(x: geo.size.width * 18.5 / 24, y: 6)
+                }
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
+            }
+            .frame(height: 12)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        guard let peak = curve.enumerated().max(by: { $0.element < $1.element }), peak.element > 0 else {
+            return "No rush data for today"
+        }
+        return "Today's rush chart. Peak around \(peak.offset % 12 == 0 ? 12 : peak.offset % 12) \(peak.offset < 12 ? "AM" : "PM")"
+    }
+}
+
 // MARK: - Occupancy bar with level color
 
 struct OccupancyBar: View {

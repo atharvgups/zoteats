@@ -54,14 +54,16 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1.5)
 
-        // ── Gym ───────────────────────────────────────────────────────────
+        // ── Gym: busyness hero, rush chart, expandable hours ──────────────
         tapIfPresent(app.tabBars.buttons["Gym"])
         pause(3.5)
+        tapFirstMatch(app.buttons, labelPrefixes: ["Show this week's hours"])
+        pause(2.5)
         app.swipeUp()
         pause(2)
 
-        // ── Busyness ──────────────────────────────────────────────────────
-        tapIfPresent(app.tabBars.buttons["Busyness"])
+        // ── Crowds ────────────────────────────────────────────────────────
+        tapIfPresent(app.tabBars.buttons["Crowds"])
         pause(3.5)
         // Expand the first facility's sub-areas.
         tapFirstMatch(app.buttons, labelPrefixes: ["Show areas inside"])
@@ -72,7 +74,7 @@ final class DemoTourUITests: XCTestCase {
         pause(1.5)
 
         // ── Settings (top-right gear): live appearance toggle ─────────────
-        tapIfPresent(app.tabBars.buttons["Dining"])
+        tapIfPresent(app.tabBars.buttons["Eat"])
         pause(2)
         tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)

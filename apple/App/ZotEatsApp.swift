@@ -95,10 +95,12 @@ struct RootTabView: View {
             }
     }
 
+    // Visible labels are Eat / Gym / Crowds; internal AppTab ids and the
+    // -initialTab launch args keep their historical names for CI stability.
     private var tabs: some View {
         TabView(selection: $selection) {
             DiningView()
-                .tabItem { Label("Dining", systemImage: "fork.knife") }
+                .tabItem { Label("Eat", systemImage: "fork.knife") }
                 .tag(AppTab.dining)
 
             GymView()
@@ -106,7 +108,7 @@ struct RootTabView: View {
                 .tag(AppTab.gym)
 
             BusynessView()
-                .tabItem { Label("Busyness", systemImage: "chart.bar.fill") }
+                .tabItem { Label("Crowds", systemImage: "chart.bar.fill") }
                 .tag(AppTab.busyness)
         }
     }

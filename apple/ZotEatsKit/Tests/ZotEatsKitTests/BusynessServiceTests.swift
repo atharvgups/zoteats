@@ -69,7 +69,8 @@ struct GymServiceTests {
         #expect(status.hoursApproximate)
         #expect(status.todayHours == "6:00 AM – 12:00 AM")
         #expect(status.weekHours.count == 7)
-        #expect(status.busyness == nil)
+        // No live feed -> busyness is the typical-pattern estimate, flagged as such.
+        #expect(status.busyness?.source == .typical)
     }
 
     @Test func usesLiveFeedWhenArcIsTracked() async {

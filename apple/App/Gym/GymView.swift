@@ -1,8 +1,11 @@
 import SwiftUI
 import ZotEatsKit
 
-// Gym screen — Anteater Recreation Center status: hero card with live
-// occupancy, weekly hours, and a schedule-source footnote when applicable.
+// Gym screen, busyness-first: everyone already knows the ARC's hours — what
+// they want is "how packed is it right now / when should I go". The gauge is
+// live when the Waitz feed tracks the ARC, otherwise the typical-pattern
+// estimate (clearly tagged). Hours are demoted to a compact line + an
+// expandable week schedule.
 
 struct GymView: View {
     @State private var store = GymStore()
@@ -12,7 +15,7 @@ struct GymView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Gym", subtitle: "Anteater Recreation Center", onSettings: openSettings)
+                    ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
@@ -31,8 +34,8 @@ struct GymView: View {
         switch store.status {
         case .idle, .loading:
             VStack(spacing: 16) {
-                SkeletonCard(height: 220)
-                SkeletonCard(height: 300)
+                SkeletonCard(height: 240)
+                SkeletonCard(height: 120)
             }
         case .failed(let message):
             EmptyStateView(
@@ -43,8 +46,11 @@ struct GymView: View {
             )
             .zotCard()
         case .loaded(let status):
-            GymHeroCard(status: status)
-            GymWeekHoursCard(weekHours: status.weekHours)
+            GymBusynessHero(status: status)
+            if let curve = status.typicalCurve, curve.contains(where: { $0 > 0 }) {
+                GymRushCard(curve: curve, status: status)
+            }
+            GymHoursCard(status: status)
             if status.hoursApproximate {
                 GymApproximateHoursFootnote()
             }
@@ -52,9 +58,9 @@ struct GymView: View {
     }
 }
 
-// MARK: - Hero card
+// MARK: - Busyness hero
 
-struct GymHeroCard: View {
+struct GymBusynessHero: View {
     let status: GymStatus
 
     var body: some View {
@@ -71,130 +77,167 @@ struct GymHeroCard: View {
                 StatusPill(isOpen: status.openNow)
             }
 
-            HStack(spacing: 6) {
-                Image(systemName: "clock")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text("Today")
-                    .font(ZotFont.pill)
-                    .foregroundStyle(.secondary)
-                Text(status.todayHours ?? "Hours unavailable")
-                    .font(ZotFont.pill)
-                    .foregroundStyle(.primary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Today's hours: \(status.todayHours ?? "unavailable")")
+            if let point = status.busyness, let percent = point.percent {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("\(percent)%")
+                            .font(.system(size: 44, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(point.level.color)
+                        Text(point.level.label)
+                            .font(ZotFont.sectionTitle)
+                            .foregroundStyle(point.level.color)
+                        Spacer()
+                        if point.source == .typical {
+                            TypicalTag()
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "\(percent) percent full, \(point.level.label)\(point.source == .typical ? ", typical estimate" : "")"
+                    )
 
-            Divider()
+                    OccupancyBar(percent: percent, level: point.level)
 
-            if let busyness = status.busyness {
-                GymLiveOccupancySection(point: busyness)
+                    HStack {
+                        if let count = point.count {
+                            HStack(spacing: 4) {
+                                Image(systemName: "person.2.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text("\(count) people")
+                                    .font(ZotFont.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if point.source == .live {
+                            UpdatedAgoText(date: point.updatedAt)
+                        }
+                    }
+                }
             } else {
                 HStack(spacing: 8) {
-                    Image(systemName: "person.3")
+                    Image(systemName: "moon.zzz")
                         .foregroundStyle(.secondary)
-                    Text("Live crowd data isn't available for the ARC right now")
+                    Text(status.openNow ? "No busyness estimate right now" : "Closed — see you tomorrow")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
             }
+
+            // Hours, demoted to one quiet line.
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text(hoursLine)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
+
+    private var hoursLine: String {
+        guard let hours = status.todayHours else { return "Hours unavailable" }
+        // "6:00 AM – 12:00 AM" -> "Open until 12:00 AM" while open.
+        if status.openNow, let close = hours.components(separatedBy: "–").last?.trimmingCharacters(in: .whitespaces) {
+            return "Open until \(close)"
+        }
+        return "Today: \(hours)"
+    }
 }
 
-private struct GymLiveOccupancySection: View {
-    let point: BusynessPoint
+// MARK: - Today's rush card
+
+struct GymRushCard: View {
+    let curve: [Int]
+    let status: GymStatus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Live occupancy")
-                .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                if let percent = point.percent {
-                    Text("\(percent)%")
-                        .font(.system(size: 46, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(point.level.color)
-                } else {
-                    Text("—")
-                        .font(.system(size: 46, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-                Text(point.level.label)
+            HStack(spacing: 8) {
+                Text("Today at the ARC")
                     .font(ZotFont.sectionTitle)
-                    .foregroundStyle(point.level.color)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(occupancyAccessibilityLabel)
-
-            OccupancyBar(percent: point.percent, level: point.level)
-
-            HStack {
-                if let count = point.count {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.2.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("\(count) people")
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                TypicalTag()
                 Spacer()
-                UpdatedAgoText(date: point.updatedAt)
+            }
+            RushStrip(curve: curve, currentHour: UCITime.nowMinutes() / 60)
+            if let busiest = status.busiestSummary {
+                Text([busiest, status.quietestSummary].compactMap(\.self).joined(separator: " · "))
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-    }
-
-    private var occupancyAccessibilityLabel: String {
-        if let percent = point.percent {
-            return "\(percent) percent full, \(point.level.label)"
-        }
-        return point.level.label
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
     }
 }
 
-// MARK: - Week hours card
+// MARK: - Collapsible week hours
 
-struct GymWeekHoursCard: View {
-    let weekHours: [DayHours]
+struct GymHoursCard: View {
+    let status: GymStatus
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("This Week")
-                .font(ZotFont.sectionTitle)
-                .padding(.bottom, 4)
-
-            ForEach(weekHours) { day in
-                let isToday = day.day == Self.todayName()
-                HStack {
-                    Text(day.day)
-                        .font(isToday ? ZotFont.body.weight(.bold) : ZotFont.body)
-                        .foregroundStyle(isToday ? Color.uciBlue : Color.primary)
-                    Spacer()
-                    Text(day.hours)
-                        .font(isToday ? ZotFont.body.weight(.bold) : ZotFont.body)
-                        .foregroundStyle(isToday ? Color.uciBlue : Color.secondary)
+            Button {
+                withAnimation(.snappy(duration: 0.3)) {
+                    isExpanded.toggle()
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    isToday ? Color.uciBlue.opacity(0.1) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(
-                    isToday ? "Today, \(day.day): \(day.hours)" : "\(day.day): \(day.hours)"
-                )
+                Haptics.selection()
+            } label: {
+                HStack {
+                    Text("This week's hours")
+                        .font(ZotFont.sectionTitle)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Hide this week's hours" : "Show this week's hours")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(status.weekHours) { day in
+                        let isToday = day.day == Self.todayName()
+                        HStack {
+                            Text(day.day)
+                                .font(isToday ? ZotFont.body.weight(.semibold) : ZotFont.body)
+                                .foregroundStyle(isToday ? Color.uciBlue : Color.primary)
+                            Spacer()
+                            Text(day.hours)
+                                .font(isToday ? ZotFont.body.weight(.semibold) : ZotFont.body)
+                                .foregroundStyle(isToday ? Color.uciBlue : Color.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(
+                            isToday ? Color.uciBlue.opacity(0.08) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(
+                            isToday ? "Today, \(day.day): \(day.hours)" : "\(day.day): \(day.hours)"
+                        )
+                    }
+                }
+                .padding(.top, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
@@ -238,72 +281,55 @@ struct GymApproximateHoursFootnote: View {
 
 // MARK: - Previews (fixture data only; no network)
 
-#Preview("Loaded") {
+#Preview("Typical estimate") {
     ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-            ScreenHeader(title: "Gym", subtitle: "Anteater Recreation Center")
+            ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC")
             VStack(alignment: .leading, spacing: 16) {
-                GymHeroCard(
+                GymBusynessHero(
                     status: GymStatus(
                         name: "Anteater Recreation Center",
                         openNow: true,
-                        todayHours: "6:00 AM – 11:00 PM",
-                        weekHours: [
-                            DayHours(day: "Sunday", hours: "8:00 AM – 11:00 PM"),
-                            DayHours(day: "Monday", hours: "6:00 AM – 11:00 PM"),
-                            DayHours(day: "Tuesday", hours: "6:00 AM – 11:00 PM"),
-                            DayHours(day: "Wednesday", hours: "6:00 AM – 11:00 PM"),
-                            DayHours(day: "Thursday", hours: "6:00 AM – 11:00 PM"),
-                            DayHours(day: "Friday", hours: "6:00 AM – 10:00 PM"),
-                            DayHours(day: "Saturday", hours: "8:00 AM – 10:00 PM"),
-                        ],
+                        todayHours: "6:00 AM – 12:00 AM",
+                        weekHours: [],
                         busyness: BusynessPoint(
-                            id: 1,
+                            id: -100,
                             name: "ARC",
                             category: "Recreation",
-                            count: 214,
-                            capacity: 500,
-                            percent: 43,
+                            count: nil,
+                            capacity: nil,
+                            percent: 75,
                             level: .busy,
                             isOpen: true,
                             hoursSummary: nil,
                             updatedAt: Date(),
-                            subLocations: nil
+                            subLocations: nil,
+                            source: .typical
                         ),
+                        hoursApproximate: true,
+                        typicalCurve: nil,
+                        busiestSummary: "Usually busiest 5 PM–8 PM",
+                        quietestSummary: "usually quietest around 10 AM"
+                    )
+                )
+                GymHoursCard(
+                    status: GymStatus(
+                        name: "ARC",
+                        openNow: true,
+                        todayHours: "6:00 AM – 12:00 AM",
+                        weekHours: [
+                            DayHours(day: "Sunday", hours: "8:00 AM – 12:00 AM"),
+                            DayHours(day: "Monday", hours: "6:00 AM – 12:00 AM"),
+                        ],
+                        busyness: nil,
                         hoursApproximate: true
                     )
                 )
-                GymWeekHoursCard(weekHours: [
-                    DayHours(day: "Sunday", hours: "8:00 AM – 11:00 PM"),
-                    DayHours(day: "Monday", hours: "6:00 AM – 11:00 PM"),
-                    DayHours(day: "Tuesday", hours: "6:00 AM – 11:00 PM"),
-                    DayHours(day: "Wednesday", hours: "6:00 AM – 11:00 PM"),
-                    DayHours(day: "Thursday", hours: "6:00 AM – 11:00 PM"),
-                    DayHours(day: "Friday", hours: "6:00 AM – 10:00 PM"),
-                    DayHours(day: "Saturday", hours: "8:00 AM – 10:00 PM"),
-                ])
                 GymApproximateHoursFootnote()
             }
             .padding(.horizontal, 20)
         }
         .padding(.vertical, 16)
-    }
-    .background(Color.screen)
-}
-
-#Preview("No live data") {
-    ScrollView {
-        GymHeroCard(
-            status: GymStatus(
-                name: "Anteater Recreation Center",
-                openNow: false,
-                todayHours: nil,
-                weekHours: [],
-                busyness: nil,
-                hoursApproximate: false
-            )
-        )
-        .padding(20)
     }
     .background(Color.screen)
 }

@@ -20,7 +20,7 @@ struct DiningView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ScreenHeader(title: "Dining", subtitle: Self.greeting(), onSettings: openSettings)
+                    ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
 
                     hallSelector
                         .padding(.horizontal, 20)
@@ -105,6 +105,8 @@ struct DiningView: View {
                 allowsDeselect: true
             )
             .accessibilityLabel("Dietary filter")
+
+            rushCard
 
             menuContent
         }
@@ -239,6 +241,39 @@ struct DiningView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+
+    /// "Today's rush" typical-busyness strip for the selected hall.
+    @ViewBuilder
+    private var rushCard: some View {
+        if let location = selectedLocation, !location.periods.isEmpty {
+            let estimate = TypicalBusyness.dining(periods: location.periods)
+            if estimate.dayCurve.contains(where: { $0 > 0 }) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Text("Today's rush")
+                            .font(ZotFont.sectionTitle)
+                        TypicalTag()
+                        Spacer()
+                        if let label = TypicalBusyness.nowLabel(forPercent: estimate.percentNow) {
+                            Text(label)
+                                .font(ZotFont.caption.weight(.medium))
+                                .foregroundStyle(estimate.levelNow.color)
+                        }
+                    }
+                    RushStrip(curve: estimate.dayCurve, currentHour: UCITime.nowMinutes() / 60)
+                    if let busiest = estimate.busiestSummary {
+                        Text([busiest, estimate.quietestSummary].compactMap(\.self).joined(separator: " · "))
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .zotCard()
+                .padding(.horizontal, 20)
+            }
+        }
     }
 
     private var loadingPlaceholder: some View {
@@ -391,6 +426,13 @@ private struct HallCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .padding(.top, 2)
+                    if let busyLine {
+                        Label(busyLine.text, systemImage: "chart.bar.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(busyLine.tint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
                 } else if let hours = location?.todayHours {
                     Label(hours, systemImage: "clock")
                         .font(.system(size: 11, weight: .medium))
@@ -419,6 +461,14 @@ private struct HallCard: View {
         .accessibilityLabel("\(hall.displayName), \(hall.area)")
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// Typical-busyness one-liner, shown only while the hall is serving.
+    private var busyLine: (text: String, tint: Color)? {
+        guard let location, location.openNow, !location.periods.isEmpty else { return nil }
+        let estimate = TypicalBusyness.dining(periods: location.periods)
+        guard let label = TypicalBusyness.nowLabel(forPercent: estimate.percentNow) else { return nil }
+        return (label, estimate.levelNow.color)
     }
 
     /// Live "when" intelligence: what's serving now and when it ends, or what's next.

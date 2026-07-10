@@ -175,7 +175,8 @@ public enum BusynessLevel: String, Codable, Sendable {
     case unknown
 }
 
-/// Live occupancy for a tracked campus facility (from Occuspace/Waitz).
+/// Occupancy for a campus facility — live from Occuspace/Waitz sensors,
+/// or a typical-pattern estimate (see `source`).
 public struct BusynessPoint: Codable, Sendable, Identifiable, Equatable {
     public let id: Int
     public let name: String
@@ -187,9 +188,11 @@ public struct BusynessPoint: Codable, Sendable, Identifiable, Equatable {
     public let level: BusynessLevel
     public let isOpen: Bool
     public let hoursSummary: String?
-    /// When this snapshot was fetched.
+    /// When this snapshot was fetched (live) or computed (typical).
     public let updatedAt: Date
     public let subLocations: [BusynessPoint]?
+    /// Live sensor reading vs typical-pattern estimate.
+    public let source: BusynessSource
 
     public init(
         id: Int,
@@ -202,7 +205,8 @@ public struct BusynessPoint: Codable, Sendable, Identifiable, Equatable {
         isOpen: Bool,
         hoursSummary: String?,
         updatedAt: Date,
-        subLocations: [BusynessPoint]?
+        subLocations: [BusynessPoint]?,
+        source: BusynessSource = .live
     ) {
         self.id = id
         self.name = name
@@ -215,6 +219,7 @@ public struct BusynessPoint: Codable, Sendable, Identifiable, Equatable {
         self.hoursSummary = hoursSummary
         self.updatedAt = updatedAt
         self.subLocations = subLocations
+        self.source = source
     }
 }
 
@@ -230,16 +235,24 @@ public struct DayHours: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-/// Anteater Recreation Center status: hours + live busyness when available.
+/// Anteater Recreation Center status: busyness (live when tracked, typical
+/// estimate otherwise), today's rush curve, and hours.
 public struct GymStatus: Codable, Sendable, Equatable {
     public let name: String
     public let openNow: Bool
     public let todayHours: String?
     public let weekHours: [DayHours]
-    /// Nil when the ARC is not present in the live busyness feed.
+    /// Live sensor point when the feed tracks the ARC; otherwise the typical
+    /// estimate (`source == .typical`). Nil only when there is no estimate at all.
     public let busyness: BusynessPoint?
     /// True when hours come from a maintained schedule rather than a live source.
     public let hoursApproximate: Bool
+    /// Typical 24-hour rush curve for today (index = hour, 0 = closed).
+    public let typicalCurve: [Int]?
+    /// e.g. "Usually busiest 6–8 PM".
+    public let busiestSummary: String?
+    /// e.g. "usually quietest around 10 AM".
+    public let quietestSummary: String?
 
     public init(
         name: String,
@@ -247,7 +260,10 @@ public struct GymStatus: Codable, Sendable, Equatable {
         todayHours: String?,
         weekHours: [DayHours],
         busyness: BusynessPoint?,
-        hoursApproximate: Bool
+        hoursApproximate: Bool,
+        typicalCurve: [Int]? = nil,
+        busiestSummary: String? = nil,
+        quietestSummary: String? = nil
     ) {
         self.name = name
         self.openNow = openNow
@@ -255,5 +271,8 @@ public struct GymStatus: Codable, Sendable, Equatable {
         self.weekHours = weekHours
         self.busyness = busyness
         self.hoursApproximate = hoursApproximate
+        self.typicalCurve = typicalCurve
+        self.busiestSummary = busiestSummary
+        self.quietestSummary = quietestSummary
     }
 }
