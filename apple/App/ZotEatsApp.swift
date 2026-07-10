@@ -24,12 +24,31 @@ enum AppearanceSetting: String, CaseIterable, Identifiable {
         }
     }
 
-    /// nil lets SwiftUI follow the device setting.
-    var colorScheme: ColorScheme? {
+    /// UIKit window override; .unspecified follows the device setting.
+    var interfaceStyle: UIUserInterfaceStyle {
         switch self {
-        case .system: nil
+        case .system: .unspecified
         case .light: .light
         case .dark: .dark
+        }
+    }
+}
+
+/// Applies the appearance by setting the hosting window's interface style directly —
+/// deterministic, flips live, and avoids SwiftUI preferredColorScheme re-layout issues.
+private struct AppearanceApplier: UIViewRepresentable {
+    let style: UIUserInterfaceStyle
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        // The window isn't attached yet during the first update; defer one runloop turn.
+        DispatchQueue.main.async {
+            view.window?.overrideUserInterfaceStyle = style
         }
     }
 }
@@ -51,15 +70,17 @@ enum AppTab: String, Hashable {
 struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
 
-    // Applied here (not on the App struct) so the theme flips reactively
+    // Observed here (not on the App struct) so the theme flips reactively
     // the moment Settings writes a new appearance value.
     @AppStorage(AppearanceSetting.storageKey)
     private var appearanceRaw: String = AppearanceSetting.system.rawValue
 
     var body: some View {
         tabs
-            .preferredColorScheme(
-                (AppearanceSetting(rawValue: appearanceRaw) ?? .system).colorScheme
+            .background(
+                AppearanceApplier(
+                    style: (AppearanceSetting(rawValue: appearanceRaw) ?? .system).interfaceStyle
+                )
             )
     }
 
