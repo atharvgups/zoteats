@@ -296,7 +296,13 @@ public struct DiningService: Sendable {
 
         var stations: [MenuStation] = []
         for (stationID, dishIDs) in stationToDishes.sorted(by: { $0.key < $1.key }) {
-            let items = dishIDs.compactMap { dishMap[$0] }.map(Self.menuItem(from:))
+            // The API occasionally lists multiple dish ids that resolve to the same
+            // dish name within one station; keep the first of each.
+            var seenNames = Set<String>()
+            let items = dishIDs
+                .compactMap { dishMap[$0] }
+                .map(Self.menuItem(from:))
+                .filter { seenNames.insert($0.name.lowercased()).inserted }
             if !items.isEmpty {
                 stations.append(MenuStation(name: stationNames[stationID] ?? "Menu", items: items))
             }
