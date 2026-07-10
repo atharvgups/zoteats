@@ -23,10 +23,8 @@ struct BusynessView: View {
             }
             .background(Color.screen)
             .refreshable { await store.load() }
-            // Keep an inline (empty) nav bar so scrolled content gets a material
-            // backdrop under the status bar instead of colliding with it.
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .statusBarBackdrop()
         }
         .task { await store.load() }
     }

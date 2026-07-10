@@ -284,6 +284,28 @@ struct ScreenHeader: View {
     }
 }
 
+// MARK: - Status bar backdrop
+
+/// Blurs content that scrolls under the status bar / Dynamic Island on screens
+/// with hidden navigation bars. The zero-height rectangle expands upward into
+/// the ignored top safe area only, so layout is unaffected.
+struct StatusBarBackdrop: ViewModifier {
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            Rectangle()
+                .fill(.regularMaterial)
+                .frame(height: 0)
+                .ignoresSafeArea(edges: .top)
+        }
+    }
+}
+
+extension View {
+    func statusBarBackdrop() -> some View {
+        modifier(StatusBarBackdrop())
+    }
+}
+
 // MARK: - Haptics
 
 @MainActor
