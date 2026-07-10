@@ -24,7 +24,10 @@ struct GymView: View {
             }
             .background(Color.screen)
             .refreshable { await store.load() }
-            .toolbar(.hidden, for: .navigationBar)
+            // Keep an inline (empty) nav bar so scrolled content gets a material
+            // backdrop under the status bar instead of colliding with it.
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .task { await store.load() }
     }

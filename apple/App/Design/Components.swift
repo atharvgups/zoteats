@@ -205,9 +205,9 @@ struct SkeletonCard: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-            .fill(.quaternary)
+            .fill(Color.primary.opacity(0.08))
             .frame(height: height)
-            .opacity(pulse ? 0.45 : 1)
+            .opacity(pulse ? 0.55 : 1)
             .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
             .onAppear { pulse = true }
     }
