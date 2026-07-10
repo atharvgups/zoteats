@@ -292,10 +292,14 @@ struct ScreenHeader: View {
 struct StatusBarBackdrop: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(alignment: .top) {
-            Rectangle()
-                .fill(.regularMaterial)
+            // A zero-height view pinned to the top safe-area boundary: ShapeStyle
+            // backgrounds extend into adjacent safe areas by default
+            // (ignoresSafeAreaEdges: .all), so the material fills exactly the
+            // status bar / Dynamic Island region without affecting layout.
+            Color.clear
+                .frame(maxWidth: .infinity)
                 .frame(height: 0)
-                .ignoresSafeArea(edges: .top)
+                .background(.regularMaterial)
         }
     }
 }
