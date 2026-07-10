@@ -68,11 +68,11 @@ enum AppTab: String, Hashable {
 
 /// Environment action child screens use to open the Settings sheet from their headers.
 private struct OpenSettingsKey: EnvironmentKey {
-    static let defaultValue: (() -> Void)? = nil
+    static let defaultValue: (@MainActor @Sendable () -> Void)? = nil
 }
 
 extension EnvironmentValues {
-    var openSettings: (() -> Void)? {
+    var openSettings: (@MainActor @Sendable () -> Void)? {
         get { self[OpenSettingsKey.self] }
         set { self[OpenSettingsKey.self] = newValue }
     }
