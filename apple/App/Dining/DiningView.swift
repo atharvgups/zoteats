@@ -367,7 +367,7 @@ private struct HallCard: View {
                         .symbolEffect(.bounce, value: isSelected)
                     Spacer(minLength: 4)
                     if let location {
-                        StatusPill(isOpen: location.openNow)
+                        StatusPill(isOpen: location.openNow, onAccent: isSelected)
                     }
                 }
 

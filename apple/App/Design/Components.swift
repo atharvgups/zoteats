@@ -9,19 +9,36 @@ struct StatusPill: View {
     let isOpen: Bool
     var openText: String = "Open"
     var closedText: String = "Closed"
+    /// Set when the pill sits on a colored (accent/gradient) background.
+    var onAccent = false
+
+    private var dotColor: Color {
+        if onAccent { return isOpen ? .uciGold : .white.opacity(0.75) }
+        return isOpen ? .openGreen : Color.secondary.opacity(0.5)
+    }
+
+    private var textColor: Color {
+        if onAccent { return .white }
+        return isOpen ? .openGreen : .secondary
+    }
+
+    private var fillColor: Color {
+        if onAccent { return .white.opacity(0.18) }
+        return (isOpen ? Color.openGreen : Color.secondary).opacity(0.12)
+    }
 
     var body: some View {
         HStack(spacing: 5) {
             Circle()
-                .fill(isOpen ? Color.openGreen : Color.secondary.opacity(0.5))
+                .fill(dotColor)
                 .frame(width: 7, height: 7)
             Text(isOpen ? openText : closedText)
                 .font(ZotFont.pill)
-                .foregroundStyle(isOpen ? Color.openGreen : Color.secondary)
+                .foregroundStyle(textColor)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background((isOpen ? Color.openGreen : Color.secondary).opacity(0.12), in: Capsule())
+        .background(fillColor, in: Capsule())
         .accessibilityLabel(isOpen ? openText : closedText)
     }
 }
