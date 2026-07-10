@@ -59,9 +59,13 @@ struct GymHeroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("ARC")
-                    .font(ZotFont.hero(40))
-                    .foregroundStyle(Color.uciBlue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("ARC")
+                        .font(ZotFont.cardTitle)
+                    Text("Anteater Recreation Center")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 StatusPill(isOpen: status.openNow)
             }
