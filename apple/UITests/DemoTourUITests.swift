@@ -28,7 +28,7 @@ final class DemoTourUITests: XCTestCase {
         pause(2.5)
 
         // Open the first dish's detail sheet.
-        let firstDish = app.buttons.matching(NSPredicate(format: "hint == 'Shows dish details'")).firstMatch
+        let firstDish = app.buttons.matching(identifier: "dish-row").firstMatch
         if firstDish.waitForExistence(timeout: 5) {
             firstDish.tap()
             pause(3)

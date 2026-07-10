@@ -101,9 +101,22 @@ jobs:
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
 
       # Screen-record the simulator while the scripted XCUITest demo tour drives the app.
+      # Compile the test bundle FIRST so the recording contains only the tour itself,
+      # not minutes of idle screen while xcodebuild builds.
       - name: Record demo video
         run: |
           set -euo pipefail
+          xcodebuild \
+            -project apple/ZotEats.xcodeproj \
+            -scheme ZotEats \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -derivedDataPath apple/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build-for-testing
+          # Clear the stale instance left over from the screenshot step so the
+          # video opens on a clean launch instead of an old app state.
+          xcrun simctl terminate booted com.atharvgupta.zoteats 2>/dev/null || true
+          sleep 2
           mkdir -p demo
           xcrun simctl io "$DEVICE" recordVideo --codec h264 --force demo/demo_tour.mov &
           RECORD_PID=$!
@@ -116,7 +129,7 @@ jobs:
             -derivedDataPath apple/DerivedData \
             -only-testing:ZotEatsUITests \
             CODE_SIGNING_ALLOWED=NO \
-            test
+            test-without-building
           TEST_STATUS=$?
           set -e
           # SIGINT finalizes the recording cleanly.

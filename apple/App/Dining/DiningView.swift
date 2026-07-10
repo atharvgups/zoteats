@@ -206,6 +206,7 @@ struct DiningView: View {
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
             onOpen: { selectedDish = item }
         )
+        .accessibilityIdentifier("dish-row")
     }
 
     private func sectionHeader(
