@@ -24,6 +24,19 @@ public enum DiningLocationID: String, Codable, Sendable, CaseIterable, Identifia
     }
 }
 
+/// One meal period's serving window, in minutes since midnight Pacific.
+public struct MealPeriodWindow: Codable, Sendable, Equatable {
+    public let name: String
+    public let startMinutes: Int?
+    public let endMinutes: Int?
+
+    public init(name: String, startMinutes: Int?, endMinutes: Int?) {
+        self.name = name
+        self.startMinutes = startMinutes
+        self.endMinutes = endMinutes
+    }
+}
+
 /// A UCI dining commons with today's hours and which meal periods it serves.
 public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let id: DiningLocationID
@@ -34,6 +47,8 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let todayHours: String?
     /// Meal-period names served today, in order.
     public let availablePeriods: [String]
+    /// Today's serving windows in chronological order (drives "opens in"/"closes in").
+    public let periods: [MealPeriodWindow]
     /// True when hours come from a maintained schedule rather than a live source.
     public let hoursApproximate: Bool
 
@@ -44,6 +59,7 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         openNow: Bool,
         todayHours: String?,
         availablePeriods: [String],
+        periods: [MealPeriodWindow] = [],
         hoursApproximate: Bool
     ) {
         self.id = id
@@ -52,7 +68,45 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         self.openNow = openNow
         self.todayHours = todayHours
         self.availablePeriods = availablePeriods
+        self.periods = periods
         self.hoursApproximate = hoursApproximate
+    }
+}
+
+/// The hall's live state relative to today's meal windows — the "when" intelligence
+/// behind status lines like "Lunch · closes in 1h 10m" or "Dinner starts in 45m".
+public enum HallOpenState: Sendable, Equatable {
+    /// Serving now; `closesAt` is minutes since midnight Pacific.
+    case open(period: String, closesAt: Int)
+    /// Between meals or before opening; `opensAt` is minutes since midnight Pacific.
+    case openingLater(period: String, opensAt: Int)
+    /// All of today's windows have passed.
+    case closedForToday
+    /// No period data available.
+    case unknown
+}
+
+public extension DiningLocation {
+    func openState(nowMinutes: Int) -> HallOpenState {
+        guard !periods.isEmpty else { return .unknown }
+
+        if let current = periods.first(where: { period in
+            guard let start = period.startMinutes, let end = period.endMinutes else { return false }
+            return nowMinutes >= start && nowMinutes < end
+        }), let end = current.endMinutes {
+            return .open(period: current.name, closesAt: end)
+        }
+
+        let upcoming = periods
+            .compactMap { period -> (name: String, start: Int)? in
+                guard let start = period.startMinutes, start > nowMinutes else { return nil }
+                return (period.name, start)
+            }
+            .min { $0.start < $1.start }
+        if let upcoming {
+            return .openingLater(period: upcoming.name, opensAt: upcoming.start)
+        }
+        return .closedForToday
     }
 }
 

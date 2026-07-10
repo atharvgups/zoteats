@@ -59,6 +59,59 @@ struct DiningServiceTests {
     }
 }
 
+@Suite("HallOpenState")
+struct HallOpenStateTests {
+    private func hall(periods: [MealPeriodWindow]) -> DiningLocation {
+        DiningLocation(
+            id: .anteatery, name: "The Anteatery", area: "Mesa Court",
+            openNow: false, todayHours: nil,
+            availablePeriods: periods.map(\.name), periods: periods,
+            hoursApproximate: false
+        )
+    }
+
+    private let day = [
+        MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),   // 7:15–10:30
+        MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),       // 11:00–14:30
+        MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),     // 16:30–20:00
+    ]
+
+    @Test func duringAMealItIsOpenWithClosingTime() {
+        #expect(hall(periods: day).openState(nowMinutes: 700) == .open(period: "Lunch", closesAt: 870))
+    }
+
+    @Test func betweenMealsItReportsTheNextOne() {
+        #expect(hall(periods: day).openState(nowMinutes: 900) == .openingLater(period: "Dinner", opensAt: 990))
+    }
+
+    @Test func beforeFirstMealItReportsBreakfast() {
+        #expect(hall(periods: day).openState(nowMinutes: 300) == .openingLater(period: "Breakfast", opensAt: 435))
+    }
+
+    @Test func afterLastMealItIsClosedForToday() {
+        #expect(hall(periods: day).openState(nowMinutes: 1300) == .closedForToday)
+    }
+
+    @Test func noPeriodsMeansUnknown() {
+        #expect(hall(periods: []).openState(nowMinutes: 700) == .unknown)
+    }
+
+    @Test func countdownFormatting() {
+        #expect(UCITime.countdown(from: 700, to: 745) == "45m")
+        #expect(UCITime.countdown(from: 700, to: 770) == "1h 10m")
+        #expect(UCITime.countdown(from: 700, to: 820) == "2h")
+    }
+
+    @Test func liveLocationsCarryPeriodWindows() async {
+        let service = DiningService(http: FixtureHTTP(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
+        let anteatery = await service.locations().first { $0.id == .anteatery }!
+        #expect(!anteatery.periods.isEmpty)
+        // Some periods (e.g. "All Day") legitimately have no serving window;
+        // the timed ones must carry both bounds.
+        #expect(anteatery.periods.contains { $0.startMinutes != nil && $0.endMinutes != nil })
+    }
+}
+
 @Suite("PacificTime")
 struct PacificTimeTests {
     @Test func parsesAndFormatsMinutes() {

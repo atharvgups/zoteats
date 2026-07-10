@@ -19,7 +19,7 @@ struct DiningView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ScreenHeader(title: "Dining", subtitle: "Live from UCI Dining")
+                    ScreenHeader(title: "Dining", subtitle: Self.greeting())
 
                     hallSelector
                         .padding(.horizontal, 20)
@@ -329,6 +329,16 @@ struct DiningView: View {
         return periods.first
     }
 
+    /// Time-of-day greeting on UCI's clock.
+    static func greeting() -> String {
+        switch UCITime.hour() {
+        case ..<4: "Late night, Anteater"
+        case ..<12: "Good morning, Anteater"
+        case ..<17: "Good afternoon, Anteater"
+        default: "Good evening, Anteater"
+        }
+    }
+
     /// "2026-07-09" -> "Thursday, Jul 9" (falls back to the raw string).
     private func prettyDate(_ isoDay: String) -> String {
         let parser = DateFormatter()
@@ -373,7 +383,16 @@ private struct HallCard: View {
                     .font(ZotFont.caption)
                     .foregroundStyle(isSelected ? .white.opacity(0.75) : Color.secondary)
 
-                if let hours = location?.todayHours {
+                if let statusLine {
+                    Label(statusLine.text, systemImage: statusLine.icon)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(
+                            isSelected ? AnyShapeStyle(.white.opacity(0.9)) : AnyShapeStyle(statusLine.tint)
+                        )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.top, 2)
+                } else if let hours = location?.todayHours {
                     Label(hours, systemImage: "clock")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(isSelected ? .white.opacity(0.85) : Color.secondary)
@@ -397,6 +416,30 @@ private struct HallCard: View {
         .accessibilityLabel("\(hall.displayName), \(hall.area)")
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// Live "when" intelligence: what's serving now and when it ends, or what's next.
+    private var statusLine: (text: String, icon: String, tint: Color)? {
+        guard let location else { return nil }
+        let now = UCITime.nowMinutes()
+        switch location.openState(nowMinutes: now) {
+        case .open(let period, let closesAt):
+            return (
+                "\(period) · closes in \(UCITime.countdown(from: now, to: closesAt))",
+                "clock.badge.checkmark",
+                .openGreen
+            )
+        case .openingLater(let period, let opensAt):
+            return (
+                "\(period) starts in \(UCITime.countdown(from: now, to: opensAt))",
+                "clock.arrow.circlepath",
+                .busyOrange
+            )
+        case .closedForToday:
+            return ("Closed for today", "moon.zzz", .secondary)
+        case .unknown:
+            return nil
+        }
     }
 
     private var background: some ShapeStyle {

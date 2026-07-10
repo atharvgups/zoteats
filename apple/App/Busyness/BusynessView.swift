@@ -54,11 +54,22 @@ struct BusynessView: View {
                 )
                 .zotCard()
             } else {
+                if let pick = Self.quietestPick(facilities) {
+                    QuietestNowCard(facility: pick)
+                }
                 ForEach(groups(from: facilities), id: \.category) { group in
                     BusynessGroupSection(category: group.category, facilities: group.facilities)
                 }
             }
         }
+    }
+
+    /// The emptiest open facility right now — an actionable recommendation,
+    /// not just data. Requires a known percent to qualify.
+    static func quietestPick(_ facilities: [BusynessPoint]) -> BusynessPoint? {
+        facilities
+            .filter { $0.isOpen && $0.percent != nil }
+            .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
     }
 
     /// Groups facilities by category in fixed order, sorting each group
@@ -79,6 +90,58 @@ struct BusynessView: View {
                 }
             return members.isEmpty ? nil : (category, members)
         }
+    }
+}
+
+// MARK: - "Quietest right now" recommendation card
+
+struct QuietestNowCard: View {
+    let facility: BusynessPoint
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.uciGold)
+                .frame(width: 40, height: 40)
+                .background(Color.uciGold.opacity(0.15), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Quietest right now")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+                Text(facility.name)
+                    .font(ZotFont.cardTitle)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            Spacer(minLength: 8)
+
+            if let percent = facility.percent {
+                VStack(spacing: 0) {
+                    Text("\(percent)%")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                    Text("full")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [.uciBlue, .uciBlueDeep], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .shadow(color: Color.uciBlue.opacity(0.3), radius: 12, y: 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "Quietest right now: \(facility.name)\(facility.percent.map { ", \($0) percent full" } ?? "")"
+        )
     }
 }
 

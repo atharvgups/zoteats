@@ -254,6 +254,13 @@ public struct DiningService: Sendable {
                 openNow: openNow,
                 todayHours: todayHours,
                 availablePeriods: periods.map(\.name),
+                periods: periods.map {
+                    MealPeriodWindow(
+                        name: $0.name,
+                        startMinutes: PacificTime.parseMinutes($0.startTime),
+                        endMinutes: PacificTime.parseMinutes($0.endTime)
+                    )
+                },
                 hoursApproximate: false
             )
         } catch {
@@ -264,6 +271,7 @@ public struct DiningService: Sendable {
                 openNow: false,
                 todayHours: nil,
                 availablePeriods: [],
+                periods: [],
                 hoursApproximate: false
             )
         }
