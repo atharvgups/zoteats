@@ -32,23 +32,22 @@ enum AppearanceSetting: String, CaseIterable, Identifiable {
         case .dark: .dark
         }
     }
-}
 
-/// Applies the appearance by setting the hosting window's interface style directly —
-/// deterministic, flips live, and avoids SwiftUI preferredColorScheme re-layout issues.
-private struct AppearanceApplier: UIViewRepresentable {
-    let style: UIUserInterfaceStyle
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.isUserInteractionEnabled = false
-        return view
+    /// The persisted setting.
+    static var saved: AppearanceSetting {
+        AppearanceSetting(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .system
     }
 
-    func updateUIView(_ view: UIView, context: Context) {
-        // The window isn't attached yet during the first update; defer one runloop turn.
-        DispatchQueue.main.async {
-            view.window?.overrideUserInterfaceStyle = style
+    /// Applies this appearance to every window, imperatively via UIKit.
+    /// Deliberately avoids `preferredColorScheme`, which hung the render loop
+    /// (blank UI) on the CI simulator when driven from a root-view @AppStorage.
+    @MainActor
+    func apply() {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows where window.overrideUserInterfaceStyle != interfaceStyle {
+                window.overrideUserInterfaceStyle = interfaceStyle
+            }
         }
     }
 }
@@ -70,18 +69,12 @@ enum AppTab: String, Hashable {
 struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
 
-    // Observed here (not on the App struct) so the theme flips reactively
-    // the moment Settings writes a new appearance value.
-    @AppStorage(AppearanceSetting.storageKey)
-    private var appearanceRaw: String = AppearanceSetting.system.rawValue
-
     var body: some View {
         tabs
-            .background(
-                AppearanceApplier(
-                    style: (AppearanceSetting(rawValue: appearanceRaw) ?? .system).interfaceStyle
-                )
-            )
+            .onAppear {
+                // Restore the persisted appearance once the window hierarchy exists.
+                AppearanceSetting.saved.apply()
+            }
     }
 
     private var tabs: some View {

@@ -47,6 +47,7 @@ struct SettingsView: View {
                         withAnimation(.snappy(duration: 0.25)) {
                             appearanceRaw = option.rawValue
                         }
+                        option.apply()
                         Haptics.selection()
                     }
                 }
