@@ -18,6 +18,19 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     DEVELOPMENT_TEAM: ""
 
+schemes:
+  ZotEats:
+    build:
+      targets:
+        ZotEats: all
+        ZotEatsUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ZotEatsUITests
+
 targets:
   ZotEats:
     type: application
@@ -39,5 +52,20 @@ targets:
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_ALLOWED: "NO"
+
+  ZotEatsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: ZotEats
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats.uitests
+        TEST_TARGET_NAME: ZotEats
+        GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: "NO"

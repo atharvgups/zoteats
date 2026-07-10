@@ -86,16 +86,61 @@ jobs:
           APP_PATH="apple/DerivedData/Build/Products/Debug-iphonesimulator/ZotEats.app"
           xcrun simctl install booted "$APP_PATH"
           mkdir -p screenshots
-          for tab in dining gym busyness; do
-            xcrun simctl launch --terminate-running-process booted \
-              com.atharvgupta.zoteats -initialTab "$tab"
-            # The app fetches live UCI data on launch; give it time to render.
-            sleep 12
-            xcrun simctl io booted screenshot "screenshots/${tab}.png"
+          # Light and dark mode captures of every tab.
+          for mode in light dark; do
+            xcrun simctl ui booted appearance "$mode"
+            for tab in dining gym busyness; do
+              xcrun simctl launch --terminate-running-process booted \
+                com.atharvgupta.zoteats -initialTab "$tab"
+              # The app fetches live UCI data on launch; give it time to render.
+              sleep 12
+              xcrun simctl io booted screenshot "screenshots/${tab}_${mode}.png"
+            done
           done
+          xcrun simctl ui booted appearance light
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+
+      # Screen-record the simulator while the scripted XCUITest demo tour drives the app.
+      - name: Record demo video
+        run: |
+          set -euo pipefail
+          mkdir -p demo
+          xcrun simctl io "$DEVICE" recordVideo --codec h264 --force demo/demo_tour.mov &
+          RECORD_PID=$!
+          sleep 2
+          set +e
+          xcodebuild \
+            -project apple/ZotEats.xcodeproj \
+            -scheme ZotEats \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -derivedDataPath apple/DerivedData \
+            -only-testing:ZotEatsUITests \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+          TEST_STATUS=$?
+          set -e
+          # SIGINT finalizes the recording cleanly.
+          kill -INT "$RECORD_PID"
+          wait "$RECORD_PID" || true
+          # mp4 plays everywhere; runners ship ffmpeg.
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -y -loglevel error -i demo/demo_tour.mov -pix_fmt yuv420p demo/demo_tour.mp4
+            rm demo/demo_tour.mov
+          fi
+          # The tour is defensive, but surface a failed test run in the log without
+          # discarding the video artifact.
+          if [ "$TEST_STATUS" -ne 0 ]; then
+            echo "::warning::Demo tour UI test exited with status $TEST_STATUS (video still captured)"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: app-screenshots
           path: screenshots/
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo/
           if-no-files-found: warn
