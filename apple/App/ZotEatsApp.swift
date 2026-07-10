@@ -63,14 +63,32 @@ struct ZotEatsApp: App {
 }
 
 enum AppTab: String, Hashable {
-    case dining, gym, busyness, settings
+    case dining, gym, busyness
+}
+
+/// Environment action child screens use to open the Settings sheet from their headers.
+private struct OpenSettingsKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var openSettings: (() -> Void)? {
+        get { self[OpenSettingsKey.self] }
+        set { self[OpenSettingsKey.self] = newValue }
+    }
 }
 
 struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
+    // -showSettings lets CI screenshot the Settings sheet directly.
+    @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
 
     var body: some View {
         tabs
+            .environment(\.openSettings) { showSettings = true }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
             .onAppear {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
@@ -90,10 +108,6 @@ struct RootTabView: View {
             BusynessView()
                 .tabItem { Label("Busyness", systemImage: "chart.bar.fill") }
                 .tag(AppTab.busyness)
-
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(AppTab.settings)
         }
     }
 

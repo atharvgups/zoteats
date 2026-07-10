@@ -7,6 +7,7 @@ import ZotEatsKit
 struct DiningView: View {
     @State private var store = DiningStore()
     @State private var prefs = Preferences()
+    @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: DiningLocationID = .anteatery
     @State private var selectedPeriod: String?
@@ -19,7 +20,7 @@ struct DiningView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ScreenHeader(title: "Dining", subtitle: Self.greeting())
+                    ScreenHeader(title: "Dining", subtitle: Self.greeting(), onSettings: openSettings)
 
                     hallSelector
                         .padding(.horizontal, 20)
@@ -363,11 +364,11 @@ private struct HallCard: View {
                 HStack(alignment: .top) {
                     Image(systemName: "fork.knife.circle.fill")
                         .font(.system(size: 22))
-                        .foregroundStyle(isSelected ? Color.uciGold : Color.uciBlue)
+                        .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.6))
                         .symbolEffect(.bounce, value: isSelected)
                     Spacer(minLength: 4)
                     if let location {
-                        StatusPill(isOpen: location.openNow, onAccent: isSelected)
+                        StatusPill(isOpen: location.openNow)
                     }
                 }
 
@@ -375,42 +376,44 @@ private struct HallCard: View {
 
                 Text(hall.displayName)
                     .font(ZotFont.cardTitle)
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
 
                 Text(hall.area)
                     .font(ZotFont.caption)
-                    .foregroundStyle(isSelected ? .white.opacity(0.75) : Color.secondary)
+                    .foregroundStyle(.secondary)
 
                 if let statusLine {
                     Label(statusLine.text, systemImage: statusLine.icon)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(
-                            isSelected ? AnyShapeStyle(.white.opacity(0.9)) : AnyShapeStyle(statusLine.tint)
-                        )
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(statusLine.tint)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .padding(.top, 2)
                 } else if let hours = location?.todayHours {
                     Label(hours, systemImage: "clock")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(isSelected ? .white.opacity(0.85) : Color.secondary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .padding(.top, 2)
                 }
             }
             .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
-            .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(
-                color: isSelected ? Color.uciBlue.opacity(0.3) : .black.opacity(0.06),
-                radius: 12,
-                y: 4
+            .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
+            .background(
+                isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
+                in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
             )
-            .scaleEffect(isSelected ? 1 : 0.97)
+            .overlay(
+                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.uciBlue.opacity(0.45) : Color.cardBorder,
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
+            )
+            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(hall.displayName), \(hall.area)")
@@ -442,18 +445,6 @@ private struct HallCard: View {
         }
     }
 
-    private var background: some ShapeStyle {
-        if isSelected {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [.uciBlue, .uciBlueDeep],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        }
-        return AnyShapeStyle(Color.card)
-    }
 }
 
 // MARK: - Dish row card
@@ -501,7 +492,7 @@ private struct DishRowCard: View {
         .buttonStyle(.plain)
         .zotCard()
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
                 .strokeBorder(Color.uciGold.opacity(isFavorite ? 0.65 : 0), lineWidth: 1.5)
         )
         .accessibilityHint("Shows dish details")
@@ -544,10 +535,10 @@ private struct CalorieBadge: View {
     var body: some View {
         VStack(spacing: -1) {
             Text("\(calories)")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Color.uciBlue)
             Text("cal")
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 9)

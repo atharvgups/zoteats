@@ -165,7 +165,7 @@ private struct StatCard: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(tint)
             Text(value)
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.title3.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(label)
@@ -191,7 +191,7 @@ private struct AllergenChip: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 9, weight: .bold))
             Text(text)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)

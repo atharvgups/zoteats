@@ -6,6 +6,7 @@ import ZotEatsKit
 
 struct BusynessView: View {
     @State private var store = BusynessStore()
+    @Environment(\.openSettings) private var openSettings
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
 
@@ -13,7 +14,7 @@ struct BusynessView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Busyness", subtitle: "Live campus occupancy")
+                    ScreenHeader(title: "Busyness", subtitle: "Live campus occupancy", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
@@ -101,18 +102,19 @@ struct QuietestNowCard: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "sparkles")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.uciGold)
-                .frame(width: 40, height: 40)
-                .background(Color.uciGold.opacity(0.15), in: Circle())
+                .frame(width: 38, height: 38)
+                .background(Color.uciGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Quietest right now")
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.white.opacity(0.75))
+                Text("QUIETEST RIGHT NOW")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
                 Text(facility.name)
                     .font(ZotFont.cardTitle)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -122,22 +124,25 @@ struct QuietestNowCard: View {
             if let percent = facility.percent {
                 VStack(spacing: 0) {
                     Text("\(percent)%")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: 21, weight: .bold))
                         .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.uciBlue)
                     Text("full")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [.uciBlue, .uciBlueDeep], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            Color.uciBlue.opacity(0.06),
+            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
         )
-        .shadow(color: Color.uciBlue.opacity(0.3), radius: 12, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                .strokeBorder(Color.uciBlue.opacity(0.25), lineWidth: 1)
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "Quietest right now: \(facility.name)\(facility.percent.map { ", \($0) percent full" } ?? "")"
@@ -189,12 +194,12 @@ struct BusynessFacilityCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let percent = facility.percent {
                     Text("\(percent)%")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 28, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(facility.level.color)
                 } else {
                     Text("—")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
                 Text(facility.level.label)
@@ -290,7 +295,7 @@ struct BusynessSubLocationRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.screen, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             point.percent.map { "\(point.name), \($0) percent full" }

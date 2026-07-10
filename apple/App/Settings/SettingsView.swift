@@ -6,6 +6,8 @@ struct SettingsView: View {
     @AppStorage(AppearanceSetting.storageKey)
     private var appearanceRaw: String = AppearanceSetting.system.rawValue
 
+    @Environment(\.dismiss) private var dismiss
+
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
     }
@@ -28,7 +30,21 @@ struct SettingsView: View {
             }
             .background(Color.screen)
             .toolbar(.hidden, for: .navigationBar)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(.secondary, .quaternary)
+                }
+                .buttonStyle(.plain)
+                .padding(16)
+                .accessibilityLabel("Close settings")
+            }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Appearance
@@ -169,20 +185,23 @@ private struct AppearanceOption: View {
             VStack(spacing: 7) {
                 Image(systemName: option.icon)
                     .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(isSelected ? .white : Color.uciBlue)
+                    .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary)
                 Text(option.label)
-                    .font(ZotFont.pill)
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                isSelected ? AnyShapeStyle(Color.uciBlue) : AnyShapeStyle(Color.screen),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                isSelected ? Color.uciBlue.opacity(0.1) : Color.primary.opacity(0.03),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(.quaternary, lineWidth: isSelected ? 0 : 1)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.uciBlue.opacity(0.4) : Color.cardBorder,
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
             )
         }
         .buttonStyle(.plain)

@@ -6,12 +6,13 @@ import ZotEatsKit
 
 struct GymView: View {
     @State private var store = GymStore()
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Gym", subtitle: "Anteater Recreation Center")
+                    ScreenHeader(title: "Gym", subtitle: "Anteater Recreation Center", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
@@ -117,12 +118,12 @@ private struct GymLiveOccupancySection: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let percent = point.percent {
                     Text("\(percent)%")
-                        .font(.system(size: 46, weight: .bold, design: .rounded))
+                        .font(.system(size: 46, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(point.level.color)
                 } else {
                     Text("—")
-                        .font(.system(size: 46, weight: .bold, design: .rounded))
+                        .font(.system(size: 46, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
                 Text(point.level.label)

@@ -71,8 +71,10 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1.5)
 
-        // ── Settings: live appearance toggle ──────────────────────────────
-        tapIfPresent(app.tabBars.buttons["Settings"])
+        // ── Settings (top-right gear): live appearance toggle ─────────────
+        tapIfPresent(app.tabBars.buttons["Dining"])
+        pause(2)
+        tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)
         tapIfPresent(app.buttons["Dark appearance"])
         pause(2.5)
@@ -80,9 +82,7 @@ final class DemoTourUITests: XCTestCase {
         pause(2.5)
         tapIfPresent(app.buttons["System appearance"])
         pause(2)
-
-        // ── Back home ─────────────────────────────────────────────────────
-        tapIfPresent(app.tabBars.buttons["Dining"])
+        tapIfPresent(app.buttons["Close settings"])
         pause(2.5)
     }
 

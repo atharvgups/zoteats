@@ -51,10 +51,10 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .padding(.horizontal, 8)
+            .font(.system(size: 11, weight: .medium))
+            .padding(.horizontal, 7)
             .padding(.vertical, 3.5)
-            .background(color.opacity(0.14), in: Capsule())
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .foregroundStyle(color)
     }
 }
@@ -79,15 +79,21 @@ struct PillRow<Item: Hashable>: View {
                         Haptics.selection()
                     } label: {
                         Text(title(item))
-                            .font(ZotFont.pill)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
+                            .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
                             .background(
-                                isSelected ? AnyShapeStyle(Color.uciBlue) : AnyShapeStyle(Color.card),
-                                in: Capsule()
+                                isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                             )
-                            .foregroundStyle(isSelected ? .white : .primary)
-                            .overlay(Capsule().strokeBorder(.quaternary, lineWidth: isSelected ? 0 : 1))
+                            .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(
+                                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                        lineWidth: 1
+                                    )
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -129,7 +135,7 @@ struct SkeletonCard: View {
     @State private var pulse = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
             .fill(.quaternary)
             .frame(height: height)
             .opacity(pulse ? 0.45 : 1)
@@ -173,15 +179,35 @@ struct EmptyStateView: View {
 struct ScreenHeader: View {
     let title: String
     var subtitle: String?
+    /// When set, shows a quiet top-right gear that opens Settings.
+    var onSettings: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(ZotFont.hero())
-            if let subtitle {
-                Text(subtitle)
-                    .font(ZotFont.body)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(ZotFont.hero())
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if let onSettings {
+                Button {
+                    onSettings()
+                    Haptics.selection()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                        .background(Color.card, in: Circle())
+                        .overlay(Circle().strokeBorder(Color.cardBorder, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open settings")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

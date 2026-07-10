@@ -4,6 +4,9 @@ import SwiftUI
 // Inspired by the best campus dining apps (UCLA's Nom, PeterPlate) and
 // modern iOS food apps: rounded type, soft cards, confident color.
 
+// Notion-inspired restraint: plain background, hairline-bordered flat cards,
+// editorial type, color used sparingly as accent — content leads.
+
 extension Color {
     /// UCI primary blue (#0064A4).
     static let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
@@ -12,10 +15,12 @@ extension Color {
     /// Deeper blue for gradients (#004A7C).
     static let uciBlueDeep = Color(red: 0 / 255, green: 74 / 255, blue: 124 / 255)
 
-    /// Adaptive card surface.
+    /// Card surface: same as the page in light (borders differentiate), elevated in dark.
     static let card = Color(uiColor: .secondarySystemGroupedBackground)
-    /// Adaptive grouped screen background.
-    static let screen = Color(uiColor: .systemGroupedBackground)
+    /// Page background: plain, Notion-white (near-black in dark mode).
+    static let screen = Color(uiColor: .systemBackground)
+    /// Hairline card border.
+    static let cardBorder = Color.primary.opacity(0.09)
 
     static let openGreen = Color(red: 52 / 255, green: 178 / 255, blue: 51 / 255)
     static let busyOrange = Color(red: 245 / 255, green: 158 / 255, blue: 11 / 255)
@@ -23,26 +28,32 @@ extension Color {
 }
 
 enum ZotFont {
-    /// Big friendly screen title, e.g. "Dining".
-    static func hero(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .bold, design: .rounded)
+    /// Screen title, e.g. "Dining" — bold but plain, editorial.
+    static func hero(_ size: CGFloat = 30) -> Font {
+        .system(size: size, weight: .bold)
     }
 
-    static let cardTitle = Font.system(.title3, design: .rounded).weight(.semibold)
-    static let sectionTitle = Font.system(.headline, design: .rounded).weight(.semibold)
-    static let body = Font.system(.body, design: .rounded)
-    static let caption = Font.system(.caption, design: .rounded)
-    static let pill = Font.system(.subheadline, design: .rounded).weight(.medium)
+    static let cardTitle = Font.headline.weight(.semibold)
+    static let sectionTitle = Font.subheadline.weight(.semibold)
+    static let body = Font.body
+    static let caption = Font.caption
+    static let pill = Font.footnote.weight(.medium)
 }
 
 // MARK: - Card
+
+let zotCardRadius: CGFloat = 12
 
 struct CardStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(Color.card)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
+            .clipShape(RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                    .strokeBorder(Color.cardBorder, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 }
 

@@ -89,13 +89,18 @@ jobs:
           # Light and dark mode captures of every tab.
           for mode in light dark; do
             xcrun simctl ui booted appearance "$mode"
-            for tab in dining gym busyness settings; do
+            for tab in dining gym busyness; do
               xcrun simctl launch --terminate-running-process booted \
                 com.atharvgupta.zoteats -initialTab "$tab"
               # The app fetches live UCI data on launch; give it time to render.
               sleep 12
               xcrun simctl io booted screenshot "screenshots/${tab}_${mode}.png"
             done
+            # Settings is a sheet (top-right gear); -showSettings presents it at launch.
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showSettings
+            sleep 10
+            xcrun simctl io booted screenshot "screenshots/settings_${mode}.png"
           done
           xcrun simctl ui booted appearance light
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
