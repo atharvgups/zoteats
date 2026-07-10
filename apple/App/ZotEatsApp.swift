@@ -36,16 +36,10 @@ enum AppearanceSetting: String, CaseIterable, Identifiable {
 
 @main
 struct ZotEatsApp: App {
-    @AppStorage(AppearanceSetting.storageKey)
-    private var appearanceRaw: String = AppearanceSetting.system.rawValue
-
     var body: some Scene {
         WindowGroup {
             RootTabView()
                 .tint(.uciBlue)
-                .preferredColorScheme(
-                    (AppearanceSetting(rawValue: appearanceRaw) ?? .system).colorScheme
-                )
         }
     }
 }
@@ -57,7 +51,19 @@ enum AppTab: String, Hashable {
 struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
 
+    // Applied here (not on the App struct) so the theme flips reactively
+    // the moment Settings writes a new appearance value.
+    @AppStorage(AppearanceSetting.storageKey)
+    private var appearanceRaw: String = AppearanceSetting.system.rawValue
+
     var body: some View {
+        tabs
+            .preferredColorScheme(
+                (AppearanceSetting(rawValue: appearanceRaw) ?? .system).colorScheme
+            )
+    }
+
+    private var tabs: some View {
         TabView(selection: $selection) {
             DiningView()
                 .tabItem { Label("Dining", systemImage: "fork.knife") }
