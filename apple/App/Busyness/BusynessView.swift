@@ -14,7 +14,7 @@ struct BusynessView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Crowds", subtitle: "Live campus occupancy", onSettings: openSettings)
+                    ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
@@ -59,8 +59,15 @@ struct BusynessView: View {
                 if let pick = Self.quietestPick(facilities) {
                     QuietestNowCard(facility: pick)
                 }
-                ForEach(groups(from: facilities), id: \.category) { group in
-                    BusynessGroupSection(category: group.category, facilities: group.facilities)
+                let grouped = groups(from: facilities)
+                ForEach(grouped, id: \.category) { group in
+                    // A lone "Library" header under a tab named Study is noise;
+                    // headers earn their place only when multiple categories report.
+                    BusynessGroupSection(
+                        category: group.category,
+                        facilities: group.facilities,
+                        showHeader: grouped.count > 1
+                    )
                 }
             }
         }
@@ -156,14 +163,17 @@ struct QuietestNowCard: View {
 struct BusynessGroupSection: View {
     let category: String
     let facilities: [BusynessPoint]
+    var showHeader = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(category)
-                .font(ZotFont.sectionTitle)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .accessibilityAddTraits(.isHeader)
+            if showHeader {
+                Text(category)
+                    .font(ZotFont.sectionTitle)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .accessibilityAddTraits(.isHeader)
+            }
 
             ForEach(facilities) { facility in
                 BusynessFacilityCard(facility: facility)
@@ -310,7 +320,7 @@ struct BusynessSubLocationRow: View {
 #Preview("Facility cards") {
     ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-            ScreenHeader(title: "Crowds", subtitle: "Live campus occupancy")
+            ScreenHeader(title: "Study", subtitle: "Find a quiet library spot")
             VStack(alignment: .leading, spacing: 16) {
                 BusynessGroupSection(
                     category: "Library",

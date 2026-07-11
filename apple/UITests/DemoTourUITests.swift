@@ -62,8 +62,8 @@ final class DemoTourUITests: XCTestCase {
         app.swipeUp()
         pause(2)
 
-        // ── Crowds ────────────────────────────────────────────────────────
-        tapIfPresent(app.tabBars.buttons["Crowds"])
+        // ── Study ─────────────────────────────────────────────────────────
+        tapIfPresent(app.tabBars.buttons["Study"])
         pause(3.5)
         // Expand the first facility's sub-areas.
         tapFirstMatch(app.buttons, labelPrefixes: ["Show areas inside"])

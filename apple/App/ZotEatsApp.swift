@@ -108,7 +108,7 @@ struct RootTabView: View {
                 .tag(AppTab.gym)
 
             BusynessView()
-                .tabItem { Label("Crowds", systemImage: "chart.bar.fill") }
+                .tabItem { Label("Study", systemImage: "books.vertical.fill") }
                 .tag(AppTab.busyness)
         }
     }

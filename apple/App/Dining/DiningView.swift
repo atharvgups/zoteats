@@ -106,8 +106,6 @@ struct DiningView: View {
             )
             .accessibilityLabel("Dietary filter")
 
-            rushCard
-
             menuContent
         }
     }
@@ -241,39 +239,6 @@ struct DiningView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
-    }
-
-    /// "Today's rush" typical-busyness strip for the selected hall.
-    @ViewBuilder
-    private var rushCard: some View {
-        if let location = selectedLocation, !location.periods.isEmpty {
-            let estimate = TypicalBusyness.dining(periods: location.periods)
-            if estimate.dayCurve.contains(where: { $0 > 0 }) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
-                        Text("Today's rush")
-                            .font(ZotFont.sectionTitle)
-                        TypicalTag()
-                        Spacer()
-                        if let label = TypicalBusyness.nowLabel(forPercent: estimate.percentNow) {
-                            Text(label)
-                                .font(ZotFont.caption.weight(.medium))
-                                .foregroundStyle(estimate.levelNow.color)
-                        }
-                    }
-                    RushStrip(curve: estimate.dayCurve, currentHour: UCITime.nowMinutes() / 60)
-                    if let busiest = estimate.busiestSummary {
-                        Text([busiest, estimate.quietestSummary].compactMap(\.self).joined(separator: " · "))
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .zotCard()
-                .padding(.horizontal, 20)
-            }
-        }
     }
 
     private var loadingPlaceholder: some View {
@@ -419,28 +384,36 @@ private struct HallCard: View {
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
 
-                if let statusLine {
-                    Label(statusLine.text, systemImage: statusLine.icon)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(statusLine.tint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.top, 2)
-                    if let busyLine {
-                        Label(busyLine.text, systemImage: "chart.bar.fill")
+                HStack(alignment: .bottom, spacing: 6) {
+                    if let statusLine {
+                        Label(statusLine.text, systemImage: statusLine.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(statusLine.tint)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                    } else if let hours = location?.todayHours {
+                        Label(hours, systemImage: "clock")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(busyLine.tint)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }
-                } else if let hours = location?.todayHours {
-                    Label(hours, systemImage: "clock")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.top, 2)
+                    Spacer(minLength: 4)
+                    if let occupancy {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("\(occupancy.percent)%")
+                                .font(.system(size: 16, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(occupancy.tint)
+                            Text("typical")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(occupancy.percent) percent full, typical estimate")
+                    }
                 }
+                .padding(.top, 2)
             }
             .padding(14)
             .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
@@ -463,12 +436,12 @@ private struct HallCard: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
-    /// Typical-busyness one-liner, shown only while the hall is serving.
-    private var busyLine: (text: String, tint: Color)? {
+    /// Nom-style typical occupancy percent, shown only while the hall is serving.
+    private var occupancy: (percent: Int, tint: Color)? {
         guard let location, location.openNow, !location.periods.isEmpty else { return nil }
         let estimate = TypicalBusyness.dining(periods: location.periods)
-        guard let label = TypicalBusyness.nowLabel(forPercent: estimate.percentNow) else { return nil }
-        return (label, estimate.levelNow.color)
+        guard estimate.percentNow > 0 else { return nil }
+        return (estimate.percentNow, estimate.levelNow.color)
     }
 
     /// Live "when" intelligence: what's serving now and when it ends, or what's next.
