@@ -60,14 +60,16 @@ final class DemoTourUITests: XCTestCase {
         app.swipeUp()
         pause(1.5)
         // Open Halal Shack (publishes a menu); scroll further if it's below the fold.
-        // Identifier lookup — label predicates time out on this busy screen.
-        let halalShack = app.buttons.matching(identifier: "campus-place-halal-shack").firstMatch
+        // Any-element identifier lookup + coordinate tap: the row is a styled
+        // container, so plain button queries and hittability checks are flaky.
+        let halalShack = app.descendants(matching: .any)
+            .matching(identifier: "campus-place-halal-shack").firstMatch
         if halalShack.waitForExistence(timeout: 3), !halalShack.isHittable {
             app.swipeUp()
             pause(1.5)
         }
-        if halalShack.exists, halalShack.isHittable {
-            halalShack.tap()
+        if halalShack.exists {
+            halalShack.coordinate(withNormalizedOffset: CGPoint(x: 0.5, y: 0.5)).tap()
             pause(3.5)
             tapIfPresent(app.buttons["Vegetarian"])
             pause(2.5)

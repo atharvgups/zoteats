@@ -75,7 +75,6 @@ struct CampusView: View {
                                 selectedPlace = place
                                 Haptics.selection()
                             }
-                            .accessibilityIdentifier("campus-place-\(place.id)")
                         }
                     }
                 }
@@ -128,6 +127,7 @@ private struct CampusPlaceRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("campus-place-\(place.id)")
         .zotCard()
         .accessibilityLabel(
             "\(place.name), \(place.openNow ? "open" : "closed")\(place.todayHours.map { ", today \($0)" } ?? "")"
