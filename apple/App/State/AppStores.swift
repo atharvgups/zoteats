@@ -81,6 +81,42 @@ final class GymStore {
 
 @MainActor
 @Observable
+final class CampusStore {
+    private let service: CampusService
+
+    var places: LoadState<[CampusPlace]> = .idle
+    /// Keyed by place id.
+    private(set) var menus: [String: LoadState<[MenuStation]>] = [:]
+
+    init(service: CampusService = CampusService()) {
+        self.service = service
+    }
+
+    func loadPlaces() async {
+        if places.value == nil { places = .loading }
+        do {
+            places = .loaded(try await service.places())
+        } catch {
+            places = .failed(error.localizedDescription)
+        }
+    }
+
+    func menuState(for placeID: String) -> LoadState<[MenuStation]> {
+        menus[placeID] ?? .idle
+    }
+
+    func loadMenu(for placeID: String) async {
+        if menus[placeID]?.value == nil { menus[placeID] = .loading }
+        do {
+            menus[placeID] = .loaded(try await service.menu(for: placeID))
+        } catch {
+            menus[placeID] = .failed(error.localizedDescription)
+        }
+    }
+}
+
+@MainActor
+@Observable
 final class BusynessStore {
     private let service: BusynessService
 

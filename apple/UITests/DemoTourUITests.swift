@@ -54,6 +54,28 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1.5)
 
+        // ── Campus: retail spots, menu sheet with dietary filter ──────────
+        tapIfPresent(app.tabBars.buttons["Campus"])
+        pause(3.5)
+        // Open a venue that publishes a menu when present, else the first row.
+        let halalShack = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Halal Shack'")
+        ).firstMatch
+        if halalShack.waitForExistence(timeout: 3), halalShack.isHittable {
+            halalShack.tap()
+            pause(3.5)
+            tapIfPresent(app.buttons["Vegetarian"])
+            pause(2.5)
+            tapIfPresent(app.buttons["Vegetarian"])
+            pause(1.5)
+            tapIfPresent(app.buttons["Close"])
+            pause(1.5)
+        }
+        app.swipeUp()
+        pause(1.5)
+        app.swipeDown()
+        pause(1)
+
         // ── Gym: busyness hero, rush chart, expandable hours ──────────────
         tapIfPresent(app.tabBars.buttons["Gym"])
         pause(3.5)

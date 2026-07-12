@@ -63,7 +63,7 @@ struct ZotEatsApp: App {
 }
 
 enum AppTab: String, Hashable {
-    case dining, gym, busyness
+    case dining, campus, gym, busyness
 }
 
 /// Environment action child screens use to open the Settings sheet from their headers.
@@ -102,6 +102,10 @@ struct RootTabView: View {
             DiningView()
                 .tabItem { Label("Eat", systemImage: "fork.knife") }
                 .tag(AppTab.dining)
+
+            CampusView()
+                .tabItem { Label("Campus", systemImage: "cup.and.saucer.fill") }
+                .tag(AppTab.campus)
 
             GymView()
                 .tabItem { Label("Gym", systemImage: "dumbbell.fill") }

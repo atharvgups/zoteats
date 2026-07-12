@@ -23,6 +23,14 @@ public enum HTTPError: Error, LocalizedError {
 /// Abstraction over URLSession so services can be tested with fixture data.
 public protocol HTTPFetching: Sendable {
     func data(from url: URL) async throws -> Data
+    func data(from url: URL, headers: [String: String]) async throws -> Data
+}
+
+public extension HTTPFetching {
+    /// Fixture-friendly default: stubs that only route by URL ignore headers.
+    func data(from url: URL, headers: [String: String]) async throws -> Data {
+        try await data(from: url)
+    }
 }
 
 /// Thin fetch helper with a timeout — port of main/services/http.ts.
@@ -42,12 +50,21 @@ public struct HTTPClient: HTTPFetching {
     }
 
     public func data(from url: URL) async throws -> Data {
+        try await data(from: url, headers: [:])
+    }
+
+    public func data(from url: URL, headers: [String: String]) async throws -> Data {
+        var request = URLRequest(url: url)
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
         let (data, response): (Data, URLResponse)
         do {
             #if canImport(FoundationNetworking)
             // swift-corelibs-foundation on Linux lacks the async URLSession API.
             (data, response) = try await withCheckedThrowingContinuation { continuation in
-                session.dataTask(with: url) { data, response, error in
+                session.dataTask(with: request) { data, response, error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else if let data, let response {
@@ -58,7 +75,7 @@ public struct HTTPClient: HTTPFetching {
                 }.resume()
             }
             #else
-            (data, response) = try await session.data(from: url)
+            (data, response) = try await session.data(for: request)
             #endif
         } catch {
             throw HTTPError.network(underlying: error, url: url)

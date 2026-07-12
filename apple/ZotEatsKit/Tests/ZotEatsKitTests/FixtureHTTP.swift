@@ -19,6 +19,9 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "dishes_batch"
         } else if url.host == "waitz.io" {
             fixture = "waitz"
+        } else if url.host?.contains("elevate-dxp.com") == true {
+            let query = url.query ?? ""
+            fixture = query.contains("getLocationMealPeriodRecipes") ? "campus_menu" : "campus_locations"
         } else {
             throw UnexpectedRequest(url: url)
         }

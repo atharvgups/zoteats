@@ -168,6 +168,26 @@ public struct DiningMenu: Codable, Sendable, Equatable {
     }
 }
 
+/// A campus retail dining spot (Starbucks, Panda Express, Zot N Go, ...).
+public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
+    /// Stable url key from the dining hub, e.g. "starbucks-at-student-center".
+    public let id: String
+    public let name: String
+    /// "Coffee & Cafés" | "Food Courts" | "Markets" | "Restaurants & Pubs".
+    public let category: String
+    public let openNow: Bool
+    /// Human-readable window(s) for today, e.g. "7:30 AM – 4:00 PM", or nil when closed today.
+    public let todayHours: String?
+
+    public init(id: String, name: String, category: String, openNow: Bool, todayHours: String?) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.openNow = openNow
+        self.todayHours = todayHours
+    }
+}
+
 public enum BusynessLevel: String, Codable, Sendable {
     case notBusy = "not-busy"
     case busy

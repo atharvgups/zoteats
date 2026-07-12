@@ -30,4 +30,11 @@ struct LiveAPITests {
         #expect(status.todayHours != nil)
         #expect(status.weekHours.count == 7)
     }
+
+    @Test func campusRetailFromLiveHub() async throws {
+        let places = try await CampusService().places()
+        #expect(places.count >= 10)
+        #expect(places.contains { $0.name.contains("Starbucks") })
+        #expect(!places.contains { $0.id == "the-anteatery" })
+    }
 }

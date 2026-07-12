@@ -89,7 +89,7 @@ jobs:
           # Light and dark mode captures of every tab.
           for mode in light dark; do
             xcrun simctl ui booted appearance "$mode"
-            for tab in dining gym busyness; do
+            for tab in dining campus gym busyness; do
               xcrun simctl launch --terminate-running-process booted \
                 com.atharvgupta.zoteats -initialTab "$tab"
               # The app fetches live UCI data on launch; give it time to render.
