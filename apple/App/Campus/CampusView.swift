@@ -75,6 +75,7 @@ struct CampusView: View {
                                 selectedPlace = place
                                 Haptics.selection()
                             }
+                            .accessibilityIdentifier("campus-place-\(place.id)")
                         }
                     }
                 }

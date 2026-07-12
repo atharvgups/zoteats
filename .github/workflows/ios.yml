@@ -119,7 +119,10 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing
           # Clear the stale instance left over from the screenshot step so the
-          # video opens on a clean launch instead of an old app state.
+          # video opens on a clean launch instead of an old app state. Also drop
+          # the pinned status-bar override: it freezes icon colors, which makes
+          # the status bar look broken when the tour flips dark mode on video.
+          xcrun simctl status_bar booted clear || true
           xcrun simctl terminate booted com.atharvgupta.zoteats 2>/dev/null || true
           sleep 2
           mkdir -p demo

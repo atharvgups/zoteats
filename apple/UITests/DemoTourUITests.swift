@@ -60,9 +60,8 @@ final class DemoTourUITests: XCTestCase {
         app.swipeUp()
         pause(1.5)
         // Open Halal Shack (publishes a menu); scroll further if it's below the fold.
-        let halalShack = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Halal Shack'")
-        ).firstMatch
+        // Identifier lookup — label predicates time out on this busy screen.
+        let halalShack = app.buttons.matching(identifier: "campus-place-halal-shack").firstMatch
         if halalShack.waitForExistence(timeout: 3), !halalShack.isHittable {
             app.swipeUp()
             pause(1.5)
