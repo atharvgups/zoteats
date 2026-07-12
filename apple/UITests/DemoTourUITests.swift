@@ -69,7 +69,7 @@ final class DemoTourUITests: XCTestCase {
             pause(1.5)
         }
         if halalShack.exists {
-            halalShack.coordinate(withNormalizedOffset: CGPoint(x: 0.5, y: 0.5)).tap()
+            halalShack.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             pause(3.5)
             tapIfPresent(app.buttons["Vegetarian"])
             pause(2.5)
