@@ -57,11 +57,17 @@ final class DemoTourUITests: XCTestCase {
         // ── Campus: retail spots, menu sheet with dietary filter ──────────
         tapIfPresent(app.tabBars.buttons["Campus"])
         pause(3.5)
-        // Open a venue that publishes a menu when present, else the first row.
+        app.swipeUp()
+        pause(1.5)
+        // Open Halal Shack (publishes a menu); scroll further if it's below the fold.
         let halalShack = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Halal Shack'")
         ).firstMatch
-        if halalShack.waitForExistence(timeout: 3), halalShack.isHittable {
+        if halalShack.waitForExistence(timeout: 3), !halalShack.isHittable {
+            app.swipeUp()
+            pause(1.5)
+        }
+        if halalShack.exists, halalShack.isHittable {
             halalShack.tap()
             pause(3.5)
             tapIfPresent(app.buttons["Vegetarian"])
@@ -71,8 +77,7 @@ final class DemoTourUITests: XCTestCase {
             tapIfPresent(app.buttons["Close"])
             pause(1.5)
         }
-        app.swipeUp()
-        pause(1.5)
+        app.swipeDown()
         app.swipeDown()
         pause(1)
 
