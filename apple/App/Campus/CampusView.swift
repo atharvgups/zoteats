@@ -34,7 +34,21 @@ struct CampusView: View {
                 CampusMenuSheet(place: place, store: store, prefs: prefs)
             }
         }
-        .task { await store.loadPlaces() }
+        .task {
+            await store.loadPlaces()
+            // CI screenshots the menu sheet deterministically via
+            // `-campusMenu <place-id>` instead of scripted taps.
+            if let id = Self.autoOpenPlaceID,
+               let place = store.places.value?.first(where: { $0.id == id }) {
+                selectedPlace = place
+            }
+        }
+    }
+
+    private static var autoOpenPlaceID: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-campusMenu"), index + 1 < args.count else { return nil }
+        return args[index + 1]
     }
 
     @ViewBuilder

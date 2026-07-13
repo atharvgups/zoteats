@@ -101,6 +101,11 @@ jobs:
               com.atharvgupta.zoteats -initialTab dining -showSettings
             sleep 10
             xcrun simctl io booted screenshot "screenshots/settings_${mode}.png"
+            # Campus menu sheet (Halal Shack publishes a menu), auto-opened via launch arg.
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab campus -campusMenu halal-shack
+            sleep 12
+            xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
           done
           xcrun simctl ui booted appearance light
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"

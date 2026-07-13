@@ -60,11 +60,9 @@ final class DemoTourUITests: XCTestCase {
         app.swipeUp()
         pause(1.5)
         // Open Halal Shack (publishes a menu); scroll further if it's below the fold.
-        // Any-element identifier lookup + coordinate tap: the row is a styled
-        // container, so plain button queries and hittability checks are flaky.
-        let halalShack = app.descendants(matching: .any)
-            .matching(identifier: "campus-place-halal-shack").firstMatch
-        if halalShack.waitForExistence(timeout: 3), !halalShack.isHittable {
+        // Cheap scoped query — whole-tree descendant queries time out on this screen.
+        let halalShack = app.buttons["campus-place-halal-shack"]
+        if halalShack.waitForExistence(timeout: 5), !halalShack.isHittable {
             app.swipeUp()
             pause(1.5)
         }
