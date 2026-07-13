@@ -35,6 +35,9 @@ jobs:
 
   app-build:
     name: App build + screenshots (macOS)
+    # macOS runners bill at 10x — run only on manual dispatch or when a commit
+    # explicitly requests a demo with "[demo]" in its message.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[demo]')
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
