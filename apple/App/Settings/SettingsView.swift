@@ -8,6 +8,10 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    // Easter egg: triple-tap the version row for a proper UCI cheer.
+    @State private var versionTaps = 0
+    @State private var showZot = false
+
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
     }
@@ -41,6 +45,12 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .padding(16)
                 .accessibilityLabel("Close settings")
+            }
+            .overlay {
+                if showZot {
+                    ZotCheer()
+                        .transition(.scale(scale: 0.7).combined(with: .opacity))
+                }
             }
         }
         .presentationDetents([.large])
@@ -98,6 +108,22 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 4)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                versionTaps += 1
+                guard versionTaps >= 3 else { return }
+                versionTaps = 0
+                Haptics.soft()
+                withAnimation(.spring(duration: 0.4)) {
+                    showZot = true
+                }
+                Task {
+                    try? await Task.sleep(for: .seconds(2.2))
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showZot = false
+                    }
+                }
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -170,6 +196,44 @@ struct SettingsView: View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(version) (\(build))"
+    }
+}
+
+// MARK: - Hidden Zot cheer
+
+/// Three ants marching in with the anteater battle cry. Rewards curious tappers.
+private struct ZotCheer: View {
+    @State private var march = false
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                ForEach(0..<3, id: \.self) { index in
+                    Image(systemName: "ant.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color.uciGold)
+                        .offset(y: march ? -6 : 2)
+                        .animation(
+                            .easeInOut(duration: 0.35)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.12),
+                            value: march
+                        )
+                }
+            }
+            Text("Zot! Zot! Zot!")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 20)
+        .background(
+            LinearGradient(colors: [.uciBlue, .uciBlueDeep], startPoint: .top, endPoint: .bottom),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .shadow(color: Color.uciBlue.opacity(0.35), radius: 16, y: 6)
+        .onAppear { march = true }
+        .accessibilityLabel("Zot zot zot!")
     }
 }
 

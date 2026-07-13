@@ -146,9 +146,9 @@ struct DiningView: View {
             if stations.isEmpty {
                 if hasActiveFilter {
                     EmptyStateView(
-                        icon: trimmedQuery.isEmpty ? "line.3.horizontal.decrease.circle" : "magnifyingglass",
+                        icon: "ant",
                         title: "Nothing matches that filter",
-                        message: "Try a different search or clear your dietary filter."
+                        message: "The anteaters got to it first. Try a different search or clear your dietary filter."
                     )
                 } else {
                     EmptyStateView(
@@ -405,12 +405,12 @@ private struct HallCard: View {
                                 .font(.system(size: 16, weight: .bold))
                                 .monospacedDigit()
                                 .foregroundStyle(occupancy.tint)
-                            Text("typical")
+                            Text("occupancy")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(.tertiary)
                         }
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(occupancy.percent) percent full, typical estimate")
+                        .accessibilityLabel("\(occupancy.percent) percent occupancy, typical estimate")
                     }
                 }
                 .padding(.top, 2)

@@ -49,9 +49,9 @@ struct BusynessView: View {
         case .loaded(let facilities):
             if facilities.isEmpty {
                 EmptyStateView(
-                    icon: "moon.zzz",
+                    icon: "ant",
                     title: "All quiet",
-                    message: "No facilities are reporting right now.",
+                    message: "No spots are reporting right now. Even the ants went home.",
                     retry: { Task { await store.load() } }
                 )
                 .zotCard()
