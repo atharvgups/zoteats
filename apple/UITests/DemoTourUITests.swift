@@ -57,6 +57,11 @@ final class DemoTourUITests: XCTestCase {
         // ── Campus: retail spots, menu sheet with dietary filter ──────────
         tapIfPresent(app.tabBars.buttons["Campus"])
         pause(3.5)
+        // Expand and collapse a multi-location brand group (e.g. Starbucks).
+        tapFirstMatch(app.buttons, labelPrefixes: ["Starbucks,", "Zot N Go"])
+        pause(2.5)
+        tapFirstMatch(app.buttons, labelPrefixes: ["Starbucks,", "Zot N Go"])
+        pause(1.5)
         app.swipeUp()
         pause(1.5)
         // Open Halal Shack (publishes a menu); scroll further if it's below the fold.
