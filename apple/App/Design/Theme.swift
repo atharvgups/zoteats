@@ -65,22 +65,38 @@ extension View {
 
 // MARK: - Dietary tag colors
 
+/// Notion-style tag palette: muted, desaturated hues that read calm on both
+/// light and dark surfaces (the chip renders them at low-opacity fill + full text).
 enum TagPalette {
-    /// Diet tags read positive (greens/teals); allergens read cautionary (warm).
+    /// Muted moss green.
+    static let sage = Color(red: 68 / 255, green: 131 / 255, blue: 97 / 255)
+    /// Soft eucalyptus.
+    static let eucalyptus = Color(red: 89 / 255, green: 148 / 255, blue: 132 / 255)
+    /// Dusty slate blue.
+    static let slate = Color(red: 84 / 255, green: 118 / 255, blue: 159 / 255)
+    /// Muted plum.
+    static let plum = Color(red: 132 / 255, green: 104 / 255, blue: 156 / 255)
+    /// Warm sand/ochre.
+    static let ochre = Color(red: 158 / 255, green: 124 / 255, blue: 76 / 255)
+    /// Soft clay brown.
+    static let clay = Color(red: 147 / 255, green: 110 / 255, blue: 90 / 255)
+    /// Dusty terracotta for allergens — cautionary without shouting.
+    static let terracotta = Color(red: 178 / 255, green: 106 / 255, blue: 87 / 255)
+
     static func dietColor(_ tag: String) -> Color {
         switch tag {
-        case "Vegan": .green
-        case "Vegetarian": .mint
-        case "Halal": .teal
-        case "Kosher": .indigo
-        case "Gluten-Free": .cyan
-        case "Organic": .green
-        case "Locally Grown": .brown
+        case "Vegan": sage
+        case "Vegetarian": eucalyptus
+        case "Halal": slate
+        case "Kosher": plum
+        case "Gluten-Free": ochre
+        case "Organic": sage
+        case "Locally Grown": clay
         default: .secondary
         }
     }
 
-    static let allergenColor: Color = .orange
+    static let allergenColor: Color = terracotta
 }
 
 // MARK: - Busyness level presentation

@@ -84,10 +84,17 @@ struct CampusView: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
                             .accessibilityAddTraits(.isHeader)
-                        ForEach(group.places) { place in
-                            CampusPlaceRow(place: place) {
-                                selectedPlace = place
-                                Haptics.selection()
+                        ForEach(group.brands, id: \.brand) { entry in
+                            if entry.places.count == 1 {
+                                CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {
+                                    selectedPlace = entry.places[0]
+                                    Haptics.selection()
+                                }
+                            } else {
+                                CampusBrandGroupRow(brand: entry.brand, places: entry.places) { place in
+                                    selectedPlace = place
+                                    Haptics.selection()
+                                }
                             }
                         }
                     }
@@ -96,17 +103,130 @@ struct CampusView: View {
         }
     }
 
-    /// Category groups in fixed order, open places first within each.
-    private func groups(from places: [CampusPlace]) -> [(category: String, places: [CampusPlace])] {
+    /// Categories in fixed order; within each, multi-location chains collapse
+    /// into one brand entry. Brands with any open location sort first.
+    private func groups(
+        from places: [CampusPlace]
+    ) -> [(category: String, brands: [(brand: String, places: [CampusPlace])])] {
         Self.categoryOrder.compactMap { category in
-            let members = places
-                .filter { $0.category == category }
-                .sorted { lhs, rhs in
-                    if lhs.openNow != rhs.openNow { return lhs.openNow }
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            let members = places.filter { $0.category == category }
+            guard !members.isEmpty else { return nil }
+
+            var order: [String] = []
+            var byBrand: [String: [CampusPlace]] = [:]
+            for place in members {
+                if byBrand[place.brand] == nil { order.append(place.brand) }
+                byBrand[place.brand, default: []].append(place)
+            }
+            let brands = order
+                .map { brand in
+                    (brand: brand, places: byBrand[brand]!.sorted { lhs, rhs in
+                        if lhs.openNow != rhs.openNow { return lhs.openNow }
+                        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                    })
                 }
-            return members.isEmpty ? nil : (category, members)
+                .sorted { lhs, rhs in
+                    let lhsOpen = lhs.places.contains(where: \.openNow)
+                    let rhsOpen = rhs.places.contains(where: \.openNow)
+                    if lhsOpen != rhsOpen { return lhsOpen }
+                    return lhs.brand.localizedCaseInsensitiveCompare(rhs.brand) == .orderedAscending
+                }
+            return (category, brands)
         }
+    }
+}
+
+// MARK: - Expandable multi-location brand row
+
+private struct CampusBrandGroupRow: View {
+    let brand: String
+    let places: [CampusPlace]
+    let onOpen: (CampusPlace) -> Void
+
+    @State private var isExpanded = false
+
+    private var openCount: Int { places.filter(\.openNow).count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.snappy(duration: 0.3)) {
+                    isExpanded.toggle()
+                }
+                Haptics.selection()
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(brand)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text("\(places.count) locations")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    StatusPill(
+                        isOpen: openCount > 0,
+                        openText: openCount == places.count ? "Open" : "\(openCount) open",
+                        closedText: "Closed"
+                    )
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(brand), \(places.count) locations, \(openCount) open")
+            .accessibilityHint(isExpanded ? "Hides locations" : "Shows locations")
+
+            if isExpanded {
+                VStack(spacing: 6) {
+                    ForEach(places) { place in
+                        Button {
+                            onOpen(place)
+                        } label: {
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(place.locationDetail ?? place.name)
+                                        .font(ZotFont.caption.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Text(place.todayHours ?? "Closed today")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 6)
+                                StatusPill(isOpen: place.openNow)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(
+                                Color.primary.opacity(0.04),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            "\(brand) at \(place.locationDetail ?? place.name), \(place.openNow ? "open" : "closed")"
+                        )
+                        .accessibilityHint("Shows details")
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .zotCard()
     }
 }
 
@@ -114,17 +234,23 @@ struct CampusView: View {
 
 private struct CampusPlaceRow: View {
     let place: CampusPlace
+    var showBrandOnly = true
     let onOpen: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(place.name)
-                        .font(ZotFont.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                    HStack(spacing: 6) {
+                        Text(showBrandOnly ? place.brand : place.name)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        if place.hasMenu {
+                            TagChip(text: "Menu", color: .uciBlue)
+                        }
+                    }
                     Text(place.todayHours ?? "Closed today")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
@@ -144,7 +270,7 @@ private struct CampusPlaceRow: View {
         .accessibilityIdentifier("campus-place-\(place.id)")
         .zotCard()
         .accessibilityLabel(
-            "\(place.name), \(place.openNow ? "open" : "closed")\(place.todayHours.map { ", today \($0)" } ?? "")"
+            "\(place.name), \(place.openNow ? "open" : "closed")\(place.todayHours.map { ", today \($0)" } ?? "")\(place.hasMenu ? ", menu available" : "")"
         )
         .accessibilityHint("Shows menu and details")
     }
@@ -286,15 +412,15 @@ private struct CampusMenuItemRow: View {
     let item: MenuItem
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(ZotFont.body.weight(.semibold))
                 if let description = item.description, !description.isEmpty {
                     Text(description)
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
                 if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -325,7 +451,7 @@ private struct CampusMenuItemRow: View {
                 .accessibilityLabel("\(calories) calories")
             }
         }
-        .padding(14)
+        .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }

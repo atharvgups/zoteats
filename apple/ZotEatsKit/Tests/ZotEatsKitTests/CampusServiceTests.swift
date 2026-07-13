@@ -75,4 +75,27 @@ struct CampusServiceTests {
             _ = try await service.places()
         }
     }
+
+    @Test func menuFlagComesFromTheHub() async throws {
+        let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
+        let places = try await service.places()
+        #expect(places.first { $0.id == "halal-shack" }?.hasMenu == true)
+        #expect(places.first { $0.id == "starbucks-at-student-center" }?.hasMenu == false)
+    }
+
+    @Test func brandAndLocationSplitting() {
+        let starbucks = CampusPlace(
+            id: "s", name: "Starbucks @ Student Center", category: "Coffee & Cafés",
+            openNow: true, todayHours: nil
+        )
+        #expect(starbucks.brand == "Starbucks")
+        #expect(starbucks.locationDetail == "Student Center")
+
+        let single = CampusPlace(
+            id: "h", name: "Halal Shack", category: "Food Courts",
+            openNow: true, todayHours: nil
+        )
+        #expect(single.brand == "Halal Shack")
+        #expect(single.locationDetail == nil)
+    }
 }

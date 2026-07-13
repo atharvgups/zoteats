@@ -178,13 +178,37 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     public let openNow: Bool
     /// Human-readable window(s) for today, e.g. "7:30 AM – 4:00 PM", or nil when closed today.
     public let todayHours: String?
+    /// True when the venue publishes a menu on the dining hub.
+    public let hasMenu: Bool
 
-    public init(id: String, name: String, category: String, openNow: Bool, todayHours: String?) {
+    public init(
+        id: String,
+        name: String,
+        category: String,
+        openNow: Bool,
+        todayHours: String?,
+        hasMenu: Bool = false
+    ) {
         self.id = id
         self.name = name
         self.category = category
         self.openNow = openNow
         self.todayHours = todayHours
+        self.hasMenu = hasMenu
+    }
+
+    /// Brand prefix for grouping multi-location chains:
+    /// "Starbucks @ Student Center" -> "Starbucks".
+    public var brand: String {
+        name.components(separatedBy: " @ ").first?.trimmingCharacters(in: .whitespaces) ?? name
+    }
+
+    /// Location suffix: "Starbucks @ Student Center" -> "Student Center"; nil for single-name venues.
+    public var locationDetail: String? {
+        let parts = name.components(separatedBy: " @ ")
+        guard parts.count > 1 else { return nil }
+        let detail = parts.dropFirst().joined(separator: " @ ").trimmingCharacters(in: .whitespaces)
+        return detail.isEmpty ? nil : detail
     }
 }
 

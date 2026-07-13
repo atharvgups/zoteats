@@ -51,6 +51,7 @@ public struct CampusService: Sendable {
 
     private struct CommerceAttrs: Decodable, Sendable {
         let url_key: String?
+        let hasActiveMenus: Bool?
     }
 
     private struct AEMAttrs: Decodable, Sendable {
@@ -157,7 +158,7 @@ public struct CampusService: Sendable {
         return try await cache.remember("campus:places:\(todayISO)", ttl: Self.locationsTTL) {
             let query = """
             query($campusUrlKey:String!){getLocations(campusUrlKey:$campusUrlKey){\
-            commerceAttributes{url_key}aemAttributes{name hoursOfOperation{schedule}}}}
+            commerceAttributes{url_key hasActiveMenus}aemAttributes{name hoursOfOperation{schedule}}}}
             """
             let data = try await graphQL(LocationsData.self, query: query, variables: #"{"campusUrlKey":"campus"}"#)
             return (data.getLocations ?? []).compactMap { raw -> CampusPlace? in
@@ -180,7 +181,8 @@ public struct CampusService: Sendable {
                     name: name,
                     category: Self.categorize(name),
                     openNow: windows.contains { $0.contains(minute: nowMinutes) },
-                    todayHours: Self.format(windows: windows)
+                    todayHours: Self.format(windows: windows),
+                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
