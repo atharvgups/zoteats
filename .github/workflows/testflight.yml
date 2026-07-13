@@ -69,6 +69,18 @@ jobs:
         run: |
           sed -i '' "s/DEVELOPMENT_TEAM: \"\"/DEVELOPMENT_TEAM: \"$APPLE_TEAM_ID\"/" apple/project.yml
           sed -i '' 's/CODE_SIGNING_ALLOWED: "NO"/CODE_SIGNING_ALLOWED: "YES"/' apple/project.yml
+          # Archive with the DISTRIBUTION identity: development profiles require a
+          # registered device ("team has no devices" error on fresh accounts), while
+          # App Store distribution profiles do not.
+          python3 - <<'EOF'
+          from pathlib import Path
+          spec = Path("apple/project.yml")
+          text = spec.read_text().replace(
+              'CODE_SIGN_STYLE: Automatic',
+              'CODE_SIGN_STYLE: Automatic\n        CODE_SIGN_IDENTITY: "Apple Distribution"',
+          )
+          spec.write_text(text)
+          EOF
 
       # The Xcode project is not committed; generate it from the spec.
       - name: Generate Xcode project
