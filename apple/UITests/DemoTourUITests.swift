@@ -64,15 +64,18 @@ final class DemoTourUITests: XCTestCase {
         pause(1.5)
         app.swipeUp()
         pause(1.5)
-        // Open Halal Shack (publishes a menu); scroll further if it's below the fold.
-        // Cheap scoped query — whole-tree descendant queries time out on this screen.
+        // Open Halal Shack (publishes a menu): scroll until the row is actually
+        // hittable — the Food Courts section sits deep in the list.
         let halalShack = app.buttons["campus-place-halal-shack"]
-        if halalShack.waitForExistence(timeout: 5), !halalShack.isHittable {
+        _ = halalShack.waitForExistence(timeout: 5)
+        var scrollAttempts = 0
+        while !halalShack.isHittable, scrollAttempts < 6 {
             app.swipeUp()
-            pause(1.5)
+            pause(1)
+            scrollAttempts += 1
         }
-        if halalShack.exists {
-            halalShack.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        if halalShack.isHittable {
+            halalShack.tap()
             pause(3.5)
             tapIfPresent(app.buttons["Vegetarian"])
             pause(2.5)
