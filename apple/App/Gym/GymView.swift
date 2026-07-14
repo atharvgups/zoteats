@@ -11,22 +11,21 @@ struct GymView: View {
     @State private var store = GymStore()
     @Environment(\.openSettings) private var openSettings
 
+    // No NavigationStack: nothing navigates, and a flat hierarchy lets the
+    // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
-                    content
-                        .padding(.horizontal, 20)
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
+                content
+                    .padding(.horizontal, 20)
             }
-            .background(Color.screen)
-            .refreshable { await store.load() }
-            .toolbar(.hidden, for: .navigationBar)
-            .statusBarBackdrop()
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
+        .background(Color.screen)
+        .refreshable { await store.load() }
+        .statusBarBackdrop()
         .task { await store.load() }
     }
 

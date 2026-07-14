@@ -15,24 +15,23 @@ struct CampusView: View {
 
     private static let categoryOrder = ["Coffee & Cafés", "Food Courts", "Markets", "Restaurants & Pubs"]
 
+    // No NavigationStack: nothing navigates, and a flat hierarchy lets the
+    // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
-                    content
-                        .padding(.horizontal, 20)
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
+                content
+                    .padding(.horizontal, 20)
             }
-            .background(Color.screen)
-            .refreshable { await store.loadPlaces() }
-            .toolbar(.hidden, for: .navigationBar)
-            .statusBarBackdrop()
-            .sheet(item: $selectedPlace) { place in
-                CampusMenuSheet(place: place, store: store, prefs: prefs)
-            }
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+        }
+        .background(Color.screen)
+        .refreshable { await store.loadPlaces() }
+        .statusBarBackdrop()
+        .sheet(item: $selectedPlace) { place in
+            CampusMenuSheet(place: place, store: store, prefs: prefs)
         }
         .task {
             await store.loadPlaces()

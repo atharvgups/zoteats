@@ -10,22 +10,21 @@ struct BusynessView: View {
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
 
+    // No NavigationStack: nothing navigates, and a flat hierarchy lets the
+    // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
-                    content
-                        .padding(.horizontal, 20)
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
+                content
+                    .padding(.horizontal, 20)
             }
-            .background(Color.screen)
-            .refreshable { await store.load() }
-            .toolbar(.hidden, for: .navigationBar)
-            .statusBarBackdrop()
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
+        .background(Color.screen)
+        .refreshable { await store.load() }
+        .statusBarBackdrop()
         .task { await store.load() }
     }
 
