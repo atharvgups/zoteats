@@ -85,6 +85,7 @@ struct RootTabView: View {
 
     var body: some View {
         tabs
+            .liquidGlassTabBar()
             .environment(\.openSettings) { showSettings = true }
             .sheet(isPresented: $showSettings) {
                 SettingsView()

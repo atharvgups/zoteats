@@ -272,8 +272,7 @@ struct ScreenHeader: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 34, height: 34)
-                        .background(Color.card, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.cardBorder, lineWidth: 1))
+                        .glassIconCircle()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open settings")
@@ -281,6 +280,39 @@ struct ScreenHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Liquid Glass adoption (iOS 26+)
+
+// The app builds against the iOS 26 SDK, so standard chrome (tab bar, sheets,
+// pills) renders with Liquid Glass automatically on iOS 26 devices. These
+// helpers adopt the newer behaviors explicitly while degrading cleanly on
+// iOS 17–18.
+
+extension View {
+    /// Liquid Glass tab bar behavior: the bar condenses into a floating glass
+    /// pill while scrolling down and re-expands on scroll up.
+    @ViewBuilder
+    func liquidGlassTabBar() -> some View {
+        if #available(iOS 26.0, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+
+    /// Circular icon-button chrome: interactive Liquid Glass on iOS 26,
+    /// hairline-bordered card circle earlier.
+    @ViewBuilder
+    func glassIconCircle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            self
+                .background(Color.card, in: Circle())
+                .overlay(Circle().strokeBorder(Color.cardBorder, lineWidth: 1))
+        }
     }
 }
 
