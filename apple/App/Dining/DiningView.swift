@@ -364,17 +364,13 @@ private struct HallCard: View {
     var body: some View {
         Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(hall.displayName)
-                        .font(ZotFont.cardTitle)
-                        .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                    Spacer(minLength: 4)
-                    if let location {
-                        StatusPill(isOpen: location.openNow)
-                    }
-                }
+                // No status pill: the countdown line below already reads
+                // open/closed in words and color, and the name needs the width.
+                Text(hall.displayName)
+                    .font(ZotFont.cardTitle)
+                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
 
                 HStack(alignment: .bottom, spacing: 6) {
                     if let statusLine {
@@ -422,7 +418,9 @@ private struct HallCard: View {
             .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(hall.displayName), \(hall.area)")
+        .accessibilityLabel(
+            "\(hall.displayName), \(hall.area), \(location?.openNow == true ? "open" : "closed")"
+        )
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
