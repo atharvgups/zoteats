@@ -225,7 +225,7 @@ struct GymHoursCard: View {
                         .padding(.vertical, 7)
                         .background(
                             isToday ? Color.uciBlue.opacity(0.08) : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                         )
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(

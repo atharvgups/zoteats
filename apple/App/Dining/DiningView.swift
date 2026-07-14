@@ -358,45 +358,37 @@ private struct HallCard: View {
     let isSelected: Bool
     let onSelect: () -> Void
 
+    // Deliberately minimal: name + open state, then one "when" line and the
+    // occupancy number. No icons, no location subtitle — just what decides
+    // "which hall do I go to".
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top) {
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.6))
-                        .symbolEffect(.bounce, value: isSelected)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(hall.displayName)
+                        .font(ZotFont.cardTitle)
+                        .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     Spacer(minLength: 4)
                     if let location {
                         StatusPill(isOpen: location.openNow)
                     }
                 }
 
-                Spacer(minLength: 8)
-
-                Text(hall.displayName)
-                    .font(ZotFont.cardTitle)
-                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-
-                Text(hall.area)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-
                 HStack(alignment: .bottom, spacing: 6) {
                     if let statusLine {
-                        Label(statusLine.text, systemImage: statusLine.icon)
-                            .font(.system(size: 11, weight: .semibold))
+                        Text(statusLine.text)
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(statusLine.tint)
                             .lineLimit(2)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.75)
                     } else if let hours = location?.todayHours {
-                        Label(hours, systemImage: "clock")
+                        Text(hours)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.75)
                     }
                     Spacer(minLength: 4)
                     if let occupancy {
@@ -413,10 +405,9 @@ private struct HallCard: View {
                         .accessibilityLabel("\(occupancy.percent) percent occupancy, typical estimate")
                     }
                 }
-                .padding(.top, 2)
             }
             .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
@@ -566,7 +557,7 @@ private struct CalorieBadge: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityLabel("\(calories) calories")
     }
 }

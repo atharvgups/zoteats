@@ -112,7 +112,7 @@ struct QuietestNowCard: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.uciGold)
                 .frame(width: 38, height: 38)
-                .background(Color.uciGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(Color.uciGold.opacity(0.14), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("QUIETEST RIGHT NOW")
@@ -305,7 +305,7 @@ struct BusynessSubLocationRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             point.percent.map { "\(point.name), \($0) percent full" }

@@ -258,10 +258,10 @@ private struct AppearanceOption: View {
             .padding(.vertical, 14)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.1) : Color.primary.opacity(0.03),
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                     .strokeBorder(
                         isSelected ? Color.uciBlue.opacity(0.4) : Color.cardBorder,
                         lineWidth: isSelected ? 1.5 : 1

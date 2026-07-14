@@ -210,7 +210,7 @@ private struct CampusBrandGroupRow: View {
                             .padding(.vertical, 9)
                             .background(
                                 Color.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                             )
                         }
                         .buttonStyle(.plain)
@@ -446,7 +446,7 @@ private struct CampusMenuItemRow: View {
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
                 .accessibilityLabel("\(calories) calories")
             }
         }

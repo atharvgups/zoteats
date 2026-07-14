@@ -54,7 +54,7 @@ struct TagChip: View {
             .font(.system(size: 11, weight: .medium))
             .padding(.horizontal, 7)
             .padding(.vertical, 3.5)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous))
             .foregroundStyle(color)
     }
 }
@@ -80,19 +80,18 @@ struct PillRow<Item: Hashable>: View {
                     } label: {
                         Text(title(item))
                             .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                            .padding(.horizontal, 12)
+                            .padding(.horizontal, 13)
                             .padding(.vertical, 7)
                             .background(
                                 isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
-                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                in: Capsule()
                             )
                             .foregroundStyle(isSelected ? Color.uciBlue : .primary)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(
-                                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                        lineWidth: 1
-                                    )
+                                Capsule().strokeBorder(
+                                    isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                    lineWidth: 1
+                                )
                             )
                     }
                     .buttonStyle(.plain)
