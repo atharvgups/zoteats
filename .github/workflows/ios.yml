@@ -1,0 +1,175 @@
+# CI for the native iOS app (apple/).
+# - kit-tests: ZotEatsKit unit tests on Linux (fixtures only; live tests need ZOTEATS_LIVE_TESTS=1).
+# - app-build: generates the Xcode project with XcodeGen (no .xcodeproj in git), builds for the
+#   iOS Simulator, and captures per-tab screenshots against live UCI data.
+name: iOS
+
+on:
+  push:
+    branches: ["main", "cursor/**"]
+    paths:
+      - "apple/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+# Newer pushes supersede in-flight runs on the same branch (saves macOS minutes).
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kit-tests:
+    name: ZotEatsKit tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      # Fixtures only — live-API tests are gated behind ZOTEATS_LIVE_TESTS=1 and are
+      # intentionally not run in CI to keep it deterministic.
+      - name: Run package tests
+        run: swift test --package-path apple/ZotEatsKit
+
+  app-build:
+    name: App build + screenshots (macOS)
+    # macOS runners bill at 10x — run only on manual dispatch or when a commit
+    # explicitly requests a demo with "[demo]" in its message.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[demo]')
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The Xcode project is not committed; generate it from the spec.
+      - name: Generate Xcode project
+        run: xcodegen generate --spec apple/project.yml --project apple/
+
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          # Generic destination: no dependency on which simulator devices this runner image ships.
+          build() {
+            xcodebuild \
+              -project apple/ZotEats.xcodeproj \
+              -scheme ZotEats \
+              -destination 'generic/platform=iOS Simulator' \
+              -configuration Debug \
+              -derivedDataPath apple/DerivedData \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          }
+          # Beautify output when xcbeautify is present, but never fail because it isn't.
+          if command -v xcbeautify >/dev/null 2>&1; then
+            build | xcbeautify
+          else
+            build
+          fi
+
+      - name: Capture screenshots
+        run: |
+          set -euo pipefail
+          # Pick whatever iPhone simulator this runner image ships (names vary by Xcode version).
+          DEVICE=$(xcrun simctl list devices available | grep -E "^\s+iPhone" | head -1 | sed -E 's/^ +//; s/ \([-0-9A-F]+\).*$//')
+          echo "Using simulator: $DEVICE"
+          xcrun simctl boot "$DEVICE"
+          # Wait until the simulator has fully booted before interacting with it.
+          xcrun simctl bootstatus "$DEVICE" -b
+          # Clean status bar for App Store-style screenshots.
+          xcrun simctl status_bar booted override \
+            --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4
+          APP_PATH="apple/DerivedData/Build/Products/Debug-iphonesimulator/ZotEats.app"
+          xcrun simctl install booted "$APP_PATH"
+          mkdir -p screenshots
+          # Light and dark mode captures of every tab.
+          for mode in light dark; do
+            xcrun simctl ui booted appearance "$mode"
+            for tab in dining campus gym busyness; do
+              xcrun simctl launch --terminate-running-process booted \
+                com.atharvgupta.zoteats -initialTab "$tab"
+              # The app fetches live UCI data on launch; give it time to render.
+              sleep 12
+              xcrun simctl io booted screenshot "screenshots/${tab}_${mode}.png"
+            done
+            # Settings is a sheet (top-right gear); -showSettings presents it at launch.
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showSettings
+            sleep 10
+            xcrun simctl io booted screenshot "screenshots/settings_${mode}.png"
+            # Campus menu sheet (Halal Shack publishes a menu), auto-opened via launch arg.
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab campus -campusMenu halal-shack
+            sleep 12
+            xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
+          done
+          xcrun simctl ui booted appearance light
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+
+      # Screen-record the simulator while the scripted XCUITest demo tour drives the app.
+      # Compile the test bundle FIRST so the recording contains only the tour itself,
+      # not minutes of idle screen while xcodebuild builds.
+      - name: Record demo video
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project apple/ZotEats.xcodeproj \
+            -scheme ZotEats \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -derivedDataPath apple/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build-for-testing
+          # Clear the stale instance left over from the screenshot step so the
+          # video opens on a clean launch instead of an old app state. Also drop
+          # the pinned status-bar override: it freezes icon colors, which makes
+          # the status bar look broken when the tour flips dark mode on video.
+          xcrun simctl status_bar booted clear || true
+          xcrun simctl terminate booted com.atharvgupta.zoteats 2>/dev/null || true
+          sleep 2
+          mkdir -p demo
+          xcrun simctl io "$DEVICE" recordVideo --codec h264 --force demo/demo_tour.mov &
+          RECORD_PID=$!
+          sleep 2
+          set +e
+          xcodebuild \
+            -project apple/ZotEats.xcodeproj \
+            -scheme ZotEats \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -derivedDataPath apple/DerivedData \
+            -only-testing:ZotEatsUITests \
+            CODE_SIGNING_ALLOWED=NO \
+            test-without-building
+          TEST_STATUS=$?
+          set -e
+          # SIGINT finalizes the recording cleanly.
+          kill -INT "$RECORD_PID"
+          wait "$RECORD_PID" || true
+          # mp4 plays everywhere; runners ship ffmpeg.
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -y -loglevel error -i demo/demo_tour.mov -pix_fmt yuv420p demo/demo_tour.mp4
+            rm demo/demo_tour.mov
+          fi
+          # The tour is defensive, but surface a failed test run in the log without
+          # discarding the video artifact.
+          if [ "$TEST_STATUS" -ne 0 ]; then
+            echo "::warning::Demo tour UI test exited with status $TEST_STATUS (video still captured)"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-screenshots
+          path: screenshots/
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo/
+          if-no-files-found: warn
