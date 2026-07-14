@@ -96,25 +96,24 @@ struct RootTabView: View {
             }
     }
 
-    // Visible labels are Eat / Gym / Crowds; internal AppTab ids and the
-    // -initialTab launch args keep their historical names for CI stability.
+    // Visible labels are Eat / Campus / Gym / Study; internal AppTab ids and
+    // the -initialTab launch args keep their historical names for CI stability.
+    // Modern Tab syntax (iOS 18+) is required for Liquid Glass tab bar
+    // behaviors like minimize-on-scroll.
     private var tabs: some View {
         TabView(selection: $selection) {
-            DiningView()
-                .tabItem { Label("Eat", systemImage: "fork.knife") }
-                .tag(AppTab.dining)
-
-            CampusView()
-                .tabItem { Label("Campus", systemImage: "cup.and.saucer.fill") }
-                .tag(AppTab.campus)
-
-            GymView()
-                .tabItem { Label("Gym", systemImage: "dumbbell.fill") }
-                .tag(AppTab.gym)
-
-            BusynessView()
-                .tabItem { Label("Study", systemImage: "books.vertical.fill") }
-                .tag(AppTab.busyness)
+            Tab("Eat", systemImage: "fork.knife", value: AppTab.dining) {
+                DiningView()
+            }
+            Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
+                CampusView()
+            }
+            Tab("Gym", systemImage: "dumbbell.fill", value: AppTab.gym) {
+                GymView()
+            }
+            Tab("Study", systemImage: "books.vertical.fill", value: AppTab.busyness) {
+                BusynessView()
+            }
         }
     }
 
