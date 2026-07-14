@@ -152,22 +152,27 @@ public struct DiningService: Sendable {
         return data
     }
 
-    private func stationMap() async throws -> [String: String] {
-        try await cache.remember("dining:stations", ttl: Self.stationsTTL) {
-            let restaurants = try await getData([APIRestaurant].self, path: "/restaurants")
-            var map: [String: String] = [:]
-            for restaurant in restaurants {
-                for station in restaurant.stations ?? [] {
-                    map[station.id] = station.name
-                }
-            }
-            return map
+    /// The live commons list — the source of truth for which halls exist,
+    /// so a newly opened hall appears in the app without a code change.
+    private func restaurants() async throws -> [APIRestaurant] {
+        try await cache.remember("dining:restaurants", ttl: Self.stationsTTL) {
+            try await getData([APIRestaurant].self, path: "/restaurants")
         }
     }
 
-    private func today(for hall: DiningLocationID, dateISO: String) async throws -> APIRestaurantToday {
-        try await cache.remember("dining:today:\(hall.rawValue):\(dateISO)", ttl: Self.todayTTL) {
-            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall.rawValue)&date=\(dateISO)")
+    private func stationMap() async throws -> [String: String] {
+        var map: [String: String] = [:]
+        for restaurant in try await restaurants() {
+            for station in restaurant.stations ?? [] {
+                map[station.id] = station.name
+            }
+        }
+        return map
+    }
+
+    private func today(for hall: String, dateISO: String) async throws -> APIRestaurantToday {
+        try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL) {
+            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)")
         }
     }
 
@@ -213,14 +218,18 @@ public struct DiningService: Sendable {
 
     // MARK: - Public API
 
-    /// Both dining commons with today's hours, open state, and served meal periods.
+    /// Every dining commons the live API lists (a new hall shows up here
+    /// automatically) with today's hours, open state, and served meal periods.
     public func locations() async -> [DiningLocation] {
         let dateISO = PacificTime.todayISO(now: now())
         let nowMinutes = PacificTime.nowMinutes(now: now())
 
+        // Live hall list first; the maintained fallback keeps the UI alive offline.
+        let hallIDs = (try? await restaurants().map(\.id)) ?? HallDirectory.fallbackIDs
+
         var results: [DiningLocation] = []
         await withTaskGroup(of: DiningLocation.self) { group in
-            for hall in DiningLocationID.allCases {
+            for hall in hallIDs {
                 group.addTask {
                     await location(for: hall, dateISO: dateISO, nowMinutes: nowMinutes)
                 }
@@ -230,10 +239,10 @@ public struct DiningService: Sendable {
             }
         }
         // TaskGroup completion order is nondeterministic; present halls in a stable order.
-        return DiningLocationID.allCases.compactMap { id in results.first { $0.id == id } }
+        return hallIDs.compactMap { id in results.first { $0.id == id } }
     }
 
-    private func location(for hall: DiningLocationID, dateISO: String, nowMinutes: Int) async -> DiningLocation {
+    private func location(for hall: String, dateISO: String, nowMinutes: Int) async -> DiningLocation {
         do {
             let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
             let starts = periods.compactMap { PacificTime.parseMinutes($0.startTime) }
@@ -249,8 +258,8 @@ public struct DiningService: Sendable {
                 : "\(PacificTime.formatMinutes(starts.min()!)) – \(PacificTime.formatMinutes(ends.max()!))"
             return DiningLocation(
                 id: hall,
-                name: hall.displayName,
-                area: hall.area,
+                name: HallDirectory.displayName(for: hall),
+                area: HallDirectory.area(for: hall),
                 openNow: openNow,
                 todayHours: todayHours,
                 availablePeriods: periods.map(\.name),
@@ -266,8 +275,8 @@ public struct DiningService: Sendable {
         } catch {
             return DiningLocation(
                 id: hall,
-                name: hall.displayName,
-                area: hall.area,
+                name: HallDirectory.displayName(for: hall),
+                area: HallDirectory.area(for: hall),
                 openNow: false,
                 todayHours: nil,
                 availablePeriods: [],
@@ -278,7 +287,7 @@ public struct DiningService: Sendable {
     }
 
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
-    public func menu(for hall: DiningLocationID, period: String, date: String? = nil) async throws -> DiningMenu {
+    public func menu(for hall: String, period: String, date: String? = nil) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
         let today = try await today(for: hall, dateISO: dateISO)
 
