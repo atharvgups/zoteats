@@ -9,7 +9,7 @@ struct DiningView: View {
     @State private var prefs = Preferences()
     @Environment(\.openSettings) private var openSettings
 
-    @State private var selectedHall: DiningLocationID = .anteatery
+    @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
     @State private var selectedPeriod: String?
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
@@ -62,7 +62,7 @@ struct DiningView: View {
 
     /// Drives `.task(id:)` so the menu reloads whenever hall or period changes.
     private var menuTaskID: String {
-        "\(selectedHall.rawValue)|\(selectedPeriod ?? "-")"
+        "\(selectedHall)|\(selectedPeriod ?? "-")"
     }
 
     private var trimmedQuery: String {
@@ -110,21 +110,44 @@ struct DiningView: View {
         }
     }
 
+    /// Hall cards straight from the live API — a third commons appears here
+    /// automatically. Two halls share the width; more become a scrollable row.
+    @ViewBuilder
     private var hallSelector: some View {
-        HStack(spacing: 12) {
-            ForEach(DiningLocationID.allCases) { hall in
-                HallCard(
-                    hall: hall,
-                    location: store.locations.value?.first { $0.id == hall },
-                    isSelected: hall == selectedHall
-                ) {
-                    guard hall != selectedHall else { return }
-                    withAnimation(.snappy(duration: 0.3)) {
-                        selectedHall = hall
+        let locations = store.locations.value
+        if let locations, locations.count > 2 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(locations) { location in
+                        hallCard(for: location)
+                            .frame(width: 172)
                     }
-                    Haptics.selection()
                 }
             }
+        } else {
+            HStack(spacing: 12) {
+                if let locations, !locations.isEmpty {
+                    ForEach(locations) { location in
+                        hallCard(for: location)
+                    }
+                } else {
+                    SkeletonCard(height: 88)
+                    SkeletonCard(height: 88)
+                }
+            }
+        }
+    }
+
+    private func hallCard(for location: DiningLocation) -> some View {
+        HallCard(
+            location: location,
+            isSelected: location.id == selectedHall
+        ) {
+            guard location.id != selectedHall else { return }
+            withAnimation(.snappy(duration: 0.3)) {
+                selectedHall = location.id
+            }
+            Haptics.selection()
         }
     }
 
@@ -154,7 +177,7 @@ struct DiningView: View {
                     EmptyStateView(
                         icon: "moon.zzz",
                         title: "No menu posted",
-                        message: "\(selectedHall.displayName) hasn't published \(menu.period.lowercased()) yet. Check back soon."
+                        message: "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
                     )
                 }
             } else {
@@ -353,50 +376,37 @@ struct DiningView: View {
 // MARK: - Hall hero card
 
 private struct HallCard: View {
-    let hall: DiningLocationID
-    let location: DiningLocation?
+    let location: DiningLocation
     let isSelected: Bool
     let onSelect: () -> Void
 
+    // Deliberately minimal: name + open state, then one "when" line and the
+    // occupancy number. No icons, no location subtitle — just what decides
+    // "which hall do I go to".
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top) {
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.6))
-                        .symbolEffect(.bounce, value: isSelected)
-                    Spacer(minLength: 4)
-                    if let location {
-                        StatusPill(isOpen: location.openNow)
-                    }
-                }
-
-                Spacer(minLength: 8)
-
-                Text(hall.displayName)
+            VStack(alignment: .leading, spacing: 10) {
+                // No status pill: the countdown line below already reads
+                // open/closed in words and color, and the name needs the width.
+                Text(location.name)
                     .font(ZotFont.cardTitle)
                     .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-
-                Text(hall.area)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
 
                 HStack(alignment: .bottom, spacing: 6) {
                     if let statusLine {
-                        Label(statusLine.text, systemImage: statusLine.icon)
-                            .font(.system(size: 11, weight: .semibold))
+                        Text(statusLine.text)
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(statusLine.tint)
                             .lineLimit(2)
-                            .minimumScaleFactor(0.7)
-                    } else if let hours = location?.todayHours {
-                        Label(hours, systemImage: "clock")
+                            .minimumScaleFactor(0.75)
+                    } else if let hours = location.todayHours {
+                        Text(hours)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.75)
                     }
                     Spacer(minLength: 4)
                     if let occupancy {
@@ -413,10 +423,9 @@ private struct HallCard: View {
                         .accessibilityLabel("\(occupancy.percent) percent occupancy, typical estimate")
                     }
                 }
-                .padding(.top, 2)
             }
             .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
@@ -431,14 +440,16 @@ private struct HallCard: View {
             .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(hall.displayName), \(hall.area)")
+        .accessibilityLabel(
+            "\(location.name), \(location.area), \(location.openNow ? "open" : "closed")"
+        )
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     /// Nom-style typical occupancy percent, shown only while the hall is serving.
     private var occupancy: (percent: Int, tint: Color)? {
-        guard let location, location.openNow, !location.periods.isEmpty else { return nil }
+        guard location.openNow, !location.periods.isEmpty else { return nil }
         let estimate = TypicalBusyness.dining(periods: location.periods)
         guard estimate.percentNow > 0 else { return nil }
         return (estimate.percentNow, estimate.levelNow.color)
@@ -446,7 +457,6 @@ private struct HallCard: View {
 
     /// Live "when" intelligence: what's serving now and when it ends, or what's next.
     private var statusLine: (text: String, icon: String, tint: Color)? {
-        guard let location else { return nil }
         let now = UCITime.nowMinutes()
         switch location.openState(nowMinutes: now) {
         case .open(let period, let closesAt):
@@ -566,7 +576,7 @@ private struct CalorieBadge: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityLabel("\(calories) calories")
     }
 }

@@ -55,7 +55,7 @@ final class DemoTourUITests: XCTestCase {
         pause(1.5)
 
         // ── Campus: retail spots, menu sheet with dietary filter ──────────
-        tapIfPresent(app.tabBars.buttons["Campus"])
+        tapTab(app, "Campus")
         pause(3.5)
         // Expand and collapse a multi-location brand group (e.g. Starbucks).
         tapFirstMatch(app.buttons, labelPrefixes: ["Starbucks,", "Zot N Go"])
@@ -89,7 +89,7 @@ final class DemoTourUITests: XCTestCase {
         pause(1)
 
         // ── Gym: busyness hero, rush chart, expandable hours ──────────────
-        tapIfPresent(app.tabBars.buttons["Gym"])
+        tapTab(app, "Gym")
         pause(3.5)
         tapFirstMatch(app.buttons, labelPrefixes: ["Show this week's hours"])
         pause(2.5)
@@ -97,7 +97,7 @@ final class DemoTourUITests: XCTestCase {
         pause(2)
 
         // ── Study ─────────────────────────────────────────────────────────
-        tapIfPresent(app.tabBars.buttons["Study"])
+        tapTab(app, "Study")
         pause(3.5)
         // Expand the first facility's sub-areas.
         tapFirstMatch(app.buttons, labelPrefixes: ["Show areas inside"])
@@ -108,7 +108,7 @@ final class DemoTourUITests: XCTestCase {
         pause(1.5)
 
         // ── Settings (top-right gear): live appearance toggle ─────────────
-        tapIfPresent(app.tabBars.buttons["Eat"])
+        tapTab(app, "Eat")
         pause(2)
         tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)
@@ -131,6 +131,17 @@ final class DemoTourUITests: XCTestCase {
     private func tapIfPresent(_ element: XCUIElement, timeout: TimeInterval = 3) {
         if element.waitForExistence(timeout: timeout), element.isHittable {
             element.tap()
+        }
+    }
+
+    /// Tab buttons moved out of the classic tab-bar hierarchy with the iOS 26
+    /// glass bar + Tab API; fall back to a global button query.
+    private func tapTab(_ app: XCUIApplication, _ name: String) {
+        let tabButton = app.tabBars.buttons[name]
+        if tabButton.waitForExistence(timeout: 2), tabButton.isHittable {
+            tabButton.tap()
+        } else {
+            tapIfPresent(app.buttons[name].firstMatch)
         }
     }
 

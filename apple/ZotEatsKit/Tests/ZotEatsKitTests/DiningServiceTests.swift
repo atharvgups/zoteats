@@ -13,14 +13,14 @@ struct DiningServiceTests {
 
     @Test func locationsIncludeBothHallsInStableOrder() async {
         let locations = await service().locations()
-        #expect(locations.map(\.id) == [.anteatery, .brandywine])
+        #expect(locations.map(\.id) == ["anteatery", "brandywine"])
         #expect(locations[0].name == "The Anteatery")
         #expect(locations[0].area == "Mesa Court")
         #expect(locations[1].name == "Brandywine")
     }
 
     @Test func locationsExposeHoursAndPeriods() async {
-        let anteatery = await service().locations().first { $0.id == .anteatery }!
+        let anteatery = await service().locations().first { $0.id == "anteatery" }!
         #expect(anteatery.todayHours == "7:15 AM – 8:00 PM")
         #expect(!anteatery.availablePeriods.isEmpty)
         // Fixed clock is 12:30 PM Pacific — inside the serving window.
@@ -28,8 +28,8 @@ struct DiningServiceTests {
     }
 
     @Test func menuGroupsDishesByStationWithNutrition() async throws {
-        let menu = try await service().menu(for: .anteatery, period: "Lunch", date: "2026-07-09")
-        #expect(menu.locationId == .anteatery)
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        #expect(menu.locationId == "anteatery")
         #expect(menu.period == "Lunch")
         #expect(!menu.stations.isEmpty)
 
@@ -42,12 +42,12 @@ struct DiningServiceTests {
     }
 
     @Test func menuPeriodMatchIsCaseInsensitive() async throws {
-        let menu = try await service().menu(for: .anteatery, period: "lUnCh", date: "2026-07-09")
+        let menu = try await service().menu(for: "anteatery", period: "lUnCh", date: "2026-07-09")
         #expect(!menu.stations.isEmpty)
     }
 
     @Test func unknownPeriodReturnsEmptyMenuNotError() async throws {
-        let menu = try await service().menu(for: .anteatery, period: "Midnight Snack", date: "2026-07-09")
+        let menu = try await service().menu(for: "anteatery", period: "Midnight Snack", date: "2026-07-09")
         #expect(menu.stations.isEmpty)
     }
 
@@ -63,7 +63,7 @@ struct DiningServiceTests {
 struct HallOpenStateTests {
     private func hall(periods: [MealPeriodWindow]) -> DiningLocation {
         DiningLocation(
-            id: .anteatery, name: "The Anteatery", area: "Mesa Court",
+            id: "anteatery", name: "The Anteatery", area: "Mesa Court",
             openNow: false, todayHours: nil,
             availablePeriods: periods.map(\.name), periods: periods,
             hoursApproximate: false
@@ -104,11 +104,26 @@ struct HallOpenStateTests {
 
     @Test func liveLocationsCarryPeriodWindows() async {
         let service = DiningService(http: FixtureHTTP(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
-        let anteatery = await service.locations().first { $0.id == .anteatery }!
+        let anteatery = await service.locations().first { $0.id == "anteatery" }!
         #expect(!anteatery.periods.isEmpty)
         // Some periods (e.g. "All Day") legitimately have no serving window;
         // the timed ones must carry both bounds.
         #expect(anteatery.periods.contains { $0.startMinutes != nil && $0.endMinutes != nil })
+    }
+}
+
+@Suite("HallDirectory")
+struct HallDirectoryTests {
+    @Test func knownHallsKeepCuratedNames() {
+        #expect(HallDirectory.displayName(for: "anteatery") == "The Anteatery")
+        #expect(HallDirectory.area(for: "brandywine") == "Middle Earth")
+    }
+
+    @Test func unknownFutureHallsGetReadableNames() {
+        // When UCI opens the third commons, its API id renders sensibly with no code change.
+        #expect(HallDirectory.displayName(for: "middle-earth-towers") == "Middle Earth Towers")
+        #expect(HallDirectory.displayName(for: "el_mercado") == "El Mercado")
+        #expect(HallDirectory.area(for: "middle-earth-towers") == "UCI Campus")
     }
 }
 

@@ -3,24 +3,31 @@ import Foundation
 // Domain models for ZotEats — a direct port of the IPC contract in
 // renderer/shared/types.ts, shared by all app targets (iOS, macOS).
 
-public enum DiningLocationID: String, Codable, Sendable, CaseIterable, Identifiable {
-    case anteatery
-    case brandywine
+/// Metadata for dining commons. Hall ids come from the live API, so a new
+/// commons appears in the app automatically; this directory only beautifies
+/// the names/areas we know, with a sensible fallback for future halls.
+public enum HallDirectory {
+    static let known: [String: (name: String, area: String)] = [
+        "anteatery": ("The Anteatery", "Mesa Court"),
+        "brandywine": ("Brandywine", "Middle Earth"),
+    ]
 
-    public var id: String { rawValue }
+    /// Fallback ordering when the live list is unavailable.
+    public static let fallbackIDs = ["anteatery", "brandywine"]
 
-    public var displayName: String {
-        switch self {
-        case .anteatery: "The Anteatery"
-        case .brandywine: "Brandywine"
-        }
+    public static func displayName(for id: String) -> String {
+        known[id]?.name ?? prettify(id)
     }
 
-    public var area: String {
-        switch self {
-        case .anteatery: "Mesa Court"
-        case .brandywine: "Middle Earth"
-        }
+    public static func area(for id: String) -> String {
+        known[id]?.area ?? "UCI Campus"
+    }
+
+    /// "middle-earth-commons" -> "Middle Earth Commons".
+    static func prettify(_ id: String) -> String {
+        id.split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 }
 
@@ -39,7 +46,7 @@ public struct MealPeriodWindow: Codable, Sendable, Equatable {
 
 /// A UCI dining commons with today's hours and which meal periods it serves.
 public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
-    public let id: DiningLocationID
+    public let id: String
     public let name: String
     public let area: String
     public let openNow: Bool
@@ -53,7 +60,7 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let hoursApproximate: Bool
 
     public init(
-        id: DiningLocationID,
+        id: String,
         name: String,
         area: String,
         openNow: Bool,
@@ -153,14 +160,14 @@ public struct MenuStation: Codable, Sendable, Identifiable, Equatable {
 }
 
 public struct DiningMenu: Codable, Sendable, Equatable {
-    public let locationId: DiningLocationID
+    public let locationId: String
     /// YYYY-MM-DD (UCI/Pacific).
     public let date: String
     /// Meal-period name, e.g. "Lunch".
     public let period: String
     public let stations: [MenuStation]
 
-    public init(locationId: DiningLocationID, date: String, period: String, stations: [MenuStation]) {
+    public init(locationId: String, date: String, period: String, stations: [MenuStation]) {
         self.locationId = locationId
         self.date = date
         self.period = period

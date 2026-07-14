@@ -40,9 +40,14 @@ enum ZotFont {
     static let pill = Font.footnote.weight(.medium)
 }
 
-// MARK: - Card
+// MARK: - Radius tokens (one language of rounding everywhere)
 
-let zotCardRadius: CGFloat = 12
+/// Cards and sheets.
+let zotCardRadius: CGFloat = 16
+/// Rows and tiles nested inside cards.
+let zotInnerRadius: CGFloat = 10
+/// Small chips and badges.
+let zotChipRadius: CGFloat = 7
 
 struct CardStyle: ViewModifier {
     func body(content: Content) -> some View {

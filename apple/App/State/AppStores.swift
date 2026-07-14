@@ -47,12 +47,12 @@ final class DiningStore {
         }
     }
 
-    func menuState(hall: DiningLocationID, period: String) -> LoadState<DiningMenu> {
-        menus["\(hall.rawValue)|\(period)"] ?? .idle
+    func menuState(hall: String, period: String) -> LoadState<DiningMenu> {
+        menus["\(hall)|\(period)"] ?? .idle
     }
 
-    func loadMenu(hall: DiningLocationID, period: String) async {
-        let key = "\(hall.rawValue)|\(period)"
+    func loadMenu(hall: String, period: String) async {
+        let key = "\(hall)|\(period)"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
             menus[key] = .loaded(try await service.menu(for: hall, period: period))

@@ -54,7 +54,7 @@ struct TagChip: View {
             .font(.system(size: 11, weight: .medium))
             .padding(.horizontal, 7)
             .padding(.vertical, 3.5)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous))
             .foregroundStyle(color)
     }
 }
@@ -80,19 +80,18 @@ struct PillRow<Item: Hashable>: View {
                     } label: {
                         Text(title(item))
                             .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                            .padding(.horizontal, 12)
+                            .padding(.horizontal, 13)
                             .padding(.vertical, 7)
                             .background(
                                 isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
-                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                in: Capsule()
                             )
                             .foregroundStyle(isSelected ? Color.uciBlue : .primary)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(
-                                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                        lineWidth: 1
-                                    )
+                                Capsule().strokeBorder(
+                                    isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                    lineWidth: 1
+                                )
                             )
                     }
                     .buttonStyle(.plain)
@@ -272,8 +271,7 @@ struct ScreenHeader: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 34, height: 34)
-                        .background(Color.card, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.cardBorder, lineWidth: 1))
+                        .glassIconCircle()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open settings")
@@ -281,6 +279,39 @@ struct ScreenHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Liquid Glass adoption (iOS 26+)
+
+// The app builds against the iOS 26 SDK, so standard chrome (tab bar, sheets,
+// pills) renders with Liquid Glass automatically on iOS 26 devices. These
+// helpers adopt the newer behaviors explicitly while degrading cleanly on
+// iOS 17–18.
+
+extension View {
+    /// Liquid Glass tab bar behavior: the bar condenses into a floating glass
+    /// pill while scrolling down and re-expands on scroll up.
+    @ViewBuilder
+    func liquidGlassTabBar() -> some View {
+        if #available(iOS 26.0, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+
+    /// Circular icon-button chrome: interactive Liquid Glass on iOS 26,
+    /// hairline-bordered card circle earlier.
+    @ViewBuilder
+    func glassIconCircle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            self
+                .background(Color.card, in: Circle())
+                .overlay(Circle().strokeBorder(Color.cardBorder, lineWidth: 1))
+        }
     }
 }
 
