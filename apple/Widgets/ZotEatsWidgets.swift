@@ -45,13 +45,17 @@ struct DiningStatusProvider: TimelineProvider {
             completion(placeholder(in: context))
             return
         }
-        Task { completion(await fetchEntry()) }
+        // WidgetKit's completion closures aren't Sendable; box them to cross
+        // into the async task under Swift 6 strict concurrency.
+        let deliver = UncheckedSendableBox(completion)
+        Task { deliver.value(await fetchEntry()) }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<DiningStatusEntry>) -> Void) {
+        let deliver = UncheckedSendableBox(completion)
         Task {
             let entry = await fetchEntry()
-            completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(20 * 60))))
+            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(20 * 60))))
         }
     }
 
@@ -87,6 +91,13 @@ struct DiningStatusProvider: TimelineProvider {
 
         return DiningStatusEntry(date: .now, halls: halls, quietest: quietest)
     }
+}
+
+/// Carries a non-Sendable value across a concurrency boundary we know is safe
+/// (WidgetKit invokes its completions in a thread-safe manner).
+private struct UncheckedSendableBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
 }
 
 // MARK: - Widget
