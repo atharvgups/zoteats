@@ -47,15 +47,15 @@ final class DiningStore {
         }
     }
 
-    func menuState(hall: String, period: String) -> LoadState<DiningMenu> {
-        menus["\(hall)|\(period)"] ?? .idle
+    func menuState(hall: String, period: String, date: String? = nil) -> LoadState<DiningMenu> {
+        menus["\(hall)|\(period)|\(date ?? "today")"] ?? .idle
     }
 
-    func loadMenu(hall: String, period: String) async {
-        let key = "\(hall)|\(period)"
+    func loadMenu(hall: String, period: String, date: String? = nil) async {
+        let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
-            menus[key] = .loaded(try await service.menu(for: hall, period: period))
+            menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date))
         } catch {
             menus[key] = .failed(error.localizedDescription)
         }
