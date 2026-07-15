@@ -19,16 +19,25 @@
 
 ## What it does
 
-| Eat | Campus | Gym | Study |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/eat_light.png" width="180" /> | <img src="docs/screenshots/campus.png" width="180" /> | <img src="docs/screenshots/gym.png" width="180" /> | <img src="docs/screenshots/study.png" width="180" /> |
-| Live menus for The Anteatery & Brandywine with calories, allergens, and Vegan / Vegetarian / Halal / Kosher / Gluten-Free filters. Countdowns like "Dinner starts in 10m" and typical occupancy on every hall card. | Every campus food spot — Starbucks, Panda Express, Subway, Zot N Go, the food courts — with real hours, open/closed, and menus where venues publish them. Multi-location chains group into one expandable row. | Busyness-first ARC view: how packed it is now, today's rush curve, and when it's usually quietest. Hours tucked away where they belong. | Live library occupancy from UCI's Occuspace sensors, floor by floor, with a "quietest right now" pick. |
+<p align="center">
+  <img src="docs/screenshots/eat_light.png" width="24%" alt="Eat tab" />
+  <img src="docs/screenshots/campus.png" width="24%" alt="Campus tab" />
+  <img src="docs/screenshots/gym.png" width="24%" alt="Gym tab" />
+  <img src="docs/screenshots/study.png" width="24%" alt="Study tab" />
+</p>
 
-**Plus:** full dark mode (follow the system or force it), favorites that surface when your dish is being served, dish detail sheets with nutrition, and a few hidden Zots for the curious. 🐜🐜🐜
+- **Eat** — live menus for The Anteatery & Brandywine with calories, allergens, and Vegan / Vegetarian / Halal / Kosher / Gluten-Free filtering. Countdowns like "Dinner starts in 16m", browse tomorrow's menu, and the app opens on whichever meal is happening right now.
+- **Campus** — every campus food spot (Starbucks, Panda Express, Subway, Zot N Go, the food courts) with real hours and open/closed. Filter by category or "open now"; chains collapse into one expandable row; menus where venues publish them.
+- **Gym** — busyness-first ARC view: how packed it is now, today's rush curve, and when it's usually quietest. Hours tucked away where they belong.
+- **Study** — live library occupancy from UCI's Occuspace sensors, floor by floor, with a "quietest right now" pick.
 
-| Menu sheets | Dark mode | Settings |
-|:---:|:---:|:---:|
-| <img src="docs/screenshots/campus_menu.png" width="180" /> | <img src="docs/screenshots/eat_dark.png" width="180" /> | <img src="docs/screenshots/settings.png" width="180" /> |
+**Plus:** full dark mode (follow the system or force it), a home-screen widget, favorites that surface when your dish is being served, dish detail sheets with nutrition, and a few hidden Zots for the curious. 🐜🐜🐜
+
+<p align="center">
+  <img src="docs/screenshots/campus_menu.png" width="24%" alt="Menu sheet" />
+  <img src="docs/screenshots/eat_dark.png" width="24%" alt="Dark mode" />
+  <img src="docs/screenshots/settings.png" width="24%" alt="Settings" />
+</p>
 
 ## Data sources
 
