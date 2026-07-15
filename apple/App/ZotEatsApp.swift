@@ -83,6 +83,15 @@ struct RootTabView: View {
     // -showSettings lets CI screenshot the Settings sheet directly.
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
 
+    // App-lifetime stores: the iOS 26 tab system unloads off-screen tabs, so
+    // per-view stores were recreated (and refetched everything) on every tab
+    // switch. Owning them here makes switching instant after the first load.
+    @State private var diningStore = DiningStore()
+    @State private var campusStore = CampusStore()
+    @State private var gymStore = GymStore()
+    @State private var busynessStore = BusynessStore()
+    @State private var preferences = Preferences()
+
     var body: some View {
         tabs
             .liquidGlassTabBar()
@@ -103,16 +112,16 @@ struct RootTabView: View {
     private var tabs: some View {
         TabView(selection: $selection) {
             Tab("Eat", systemImage: "fork.knife", value: AppTab.dining) {
-                DiningView()
+                DiningView(store: diningStore, prefs: preferences)
             }
             Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
-                CampusView()
+                CampusView(store: campusStore, prefs: preferences)
             }
             Tab("Gym", systemImage: "dumbbell.fill", value: AppTab.gym) {
-                GymView()
+                GymView(store: gymStore)
             }
             Tab("Study", systemImage: "books.vertical.fill", value: AppTab.busyness) {
-                BusynessView()
+                BusynessView(store: busynessStore)
             }
         }
     }

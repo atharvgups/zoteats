@@ -5,8 +5,8 @@ import ZotEatsKit
 // Hall hero cards -> meal period pills -> dietary filters -> live menu by station.
 
 struct DiningView: View {
-    @State private var store = DiningStore()
-    @State private var prefs = Preferences()
+    let store: DiningStore
+    let prefs: Preferences
     @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
@@ -77,6 +77,8 @@ struct DiningView: View {
 
     @ViewBuilder
     private var content: some View {
+        // Environment @Observable objects need @Bindable for $ bindings.
+        @Bindable var prefs = prefs
         switch store.locations {
         case .idle, .loading:
             loadingPlaceholder
@@ -582,5 +584,5 @@ private struct CalorieBadge: View {
 }
 
 #Preview {
-    DiningView()
+    DiningView(store: DiningStore(), prefs: Preferences())
 }

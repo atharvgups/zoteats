@@ -5,7 +5,7 @@ import ZotEatsKit
 // expandable sub-location breakdowns for facilities that report zones.
 
 struct BusynessView: View {
-    @State private var store = BusynessStore()
+    let store: BusynessStore
     @Environment(\.openSettings) private var openSettings
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
