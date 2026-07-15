@@ -40,15 +40,19 @@ final class DemoTourUITests: XCTestCase {
         }
 
         // Browse tomorrow's menu, then come back to today.
-        tapIfPresent(app.buttons["Tomorrow"])
+        tapIfPresent(app.buttons["Menu for Tomorrow"])
         pause(3)
-        tapIfPresent(app.buttons["Today"])
+        tapIfPresent(app.buttons["Menu for Today"])
         pause(2)
 
-        // Apply and clear the Vegan filter.
-        tapIfPresent(app.buttons["Vegan"])
+        // Apply the Vegan filter via the filter sheet, then clear it.
+        tapIfPresent(app.buttons["diet-filter-chip"])
+        pause(2)
+        tapFirstMatch(app.buttons, labelPrefixes: ["Vegan filter"])
         pause(3)
-        tapIfPresent(app.buttons["Vegan"])
+        tapIfPresent(app.buttons["diet-filter-chip"])
+        pause(1.5)
+        tapIfPresent(app.buttons["Clear filter"])
         pause(1.5)
 
         // Scroll through the menu.
@@ -68,9 +72,11 @@ final class DemoTourUITests: XCTestCase {
         pause(2.5)
         tapIfPresent(app.buttons["Coffee"])
         pause(1.5)
-        // Show closed spots too (ensures Halal Shack is in the list below).
+        // Toggle the open-now filter on, then back off (everything shows by default).
+        tapFirstMatch(app.buttons, labelPrefixes: ["Showing all spots"])
+        pause(2.5)
         tapFirstMatch(app.buttons, labelPrefixes: ["Showing open spots"])
-        pause(2)
+        pause(1.5)
         // Expand and collapse a multi-location brand group (e.g. Starbucks).
         tapFirstMatch(app.buttons, labelPrefixes: ["Starbucks,", "Zot N Go"])
         pause(2.5)
