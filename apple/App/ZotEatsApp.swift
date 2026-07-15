@@ -95,11 +95,6 @@ struct RootTabView: View {
     var body: some View {
         tabs
             .liquidGlassTabBar()
-            .environment(diningStore)
-            .environment(campusStore)
-            .environment(gymStore)
-            .environment(busynessStore)
-            .environment(preferences)
             .environment(\.openSettings) { showSettings = true }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
@@ -117,16 +112,16 @@ struct RootTabView: View {
     private var tabs: some View {
         TabView(selection: $selection) {
             Tab("Eat", systemImage: "fork.knife", value: AppTab.dining) {
-                DiningView()
+                DiningView(store: diningStore, prefs: preferences)
             }
             Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
-                CampusView()
+                CampusView(store: campusStore, prefs: preferences)
             }
             Tab("Gym", systemImage: "dumbbell.fill", value: AppTab.gym) {
-                GymView()
+                GymView(store: gymStore)
             }
             Tab("Study", systemImage: "books.vertical.fill", value: AppTab.busyness) {
-                BusynessView()
+                BusynessView(store: busynessStore)
             }
         }
     }

@@ -8,7 +8,7 @@ import ZotEatsKit
 // expandable week schedule.
 
 struct GymView: View {
-    @Environment(GymStore.self) private var store
+    let store: GymStore
     @Environment(\.openSettings) private var openSettings
 
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the

@@ -8,8 +8,8 @@ import ZotEatsKit
 // plus a note, since they don't publish menus anywhere public.
 
 struct CampusView: View {
-    @Environment(CampusStore.self) private var store
-    @Environment(Preferences.self) private var prefs
+    let store: CampusStore
+    let prefs: Preferences
     @State private var selectedPlace: CampusPlace?
     @Environment(\.openSettings) private var openSettings
 
@@ -457,7 +457,5 @@ private struct CampusMenuItemRow: View {
 }
 
 #Preview {
-    CampusView()
-        .environment(CampusStore())
-        .environment(Preferences())
+    CampusView(store: CampusStore(), prefs: Preferences())
 }

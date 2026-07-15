@@ -5,8 +5,8 @@ import ZotEatsKit
 // Hall hero cards -> meal period pills -> dietary filters -> live menu by station.
 
 struct DiningView: View {
-    @Environment(DiningStore.self) private var store
-    @Environment(Preferences.self) private var prefs
+    let store: DiningStore
+    let prefs: Preferences
     @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
@@ -584,7 +584,5 @@ private struct CalorieBadge: View {
 }
 
 #Preview {
-    DiningView()
-        .environment(DiningStore())
-        .environment(Preferences())
+    DiningView(store: DiningStore(), prefs: Preferences())
 }
