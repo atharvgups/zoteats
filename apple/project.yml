@@ -39,6 +39,7 @@ targets:
       - path: App
     dependencies:
       - package: ZotEatsKit
+      - target: ZotEatsWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats
@@ -54,6 +55,26 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: "NO"
+
+  ZotEatsWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+    dependencies:
+      - package: ZotEatsKit
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: ZotEats
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats.widgets
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_ALLOWED: "NO"
+        SKIP_INSTALL: YES
 
   ZotEatsUITests:
     type: bundle.ui-testing
