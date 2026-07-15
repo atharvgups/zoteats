@@ -39,6 +39,12 @@ final class DemoTourUITests: XCTestCase {
             pause(1.5)
         }
 
+        // Browse tomorrow's menu, then come back to today.
+        tapIfPresent(app.buttons["Tomorrow"])
+        pause(3)
+        tapIfPresent(app.buttons["Today"])
+        pause(2)
+
         // Apply and clear the Vegan filter.
         tapIfPresent(app.buttons["Vegan"])
         pause(3)

@@ -11,8 +11,13 @@ struct DiningView: View {
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
     @State private var selectedPeriod: String?
+    /// Nil means today; otherwise a future ISO date being browsed.
+    @State private var selectedDate: String?
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
+
+    /// Today + the next few days (menus are usually published a few days out).
+    private let upcomingDays = UCITime.upcomingDays(count: 5)
 
     private static let dietFilters = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
 
@@ -57,12 +62,12 @@ struct DiningView: View {
 
     private var currentMenuState: LoadState<DiningMenu> {
         guard let selectedPeriod else { return .idle }
-        return store.menuState(hall: selectedHall, period: selectedPeriod)
+        return store.menuState(hall: selectedHall, period: selectedPeriod, date: selectedDate)
     }
 
-    /// Drives `.task(id:)` so the menu reloads whenever hall or period changes.
+    /// Drives `.task(id:)` so the menu reloads whenever hall, period, or day changes.
     private var menuTaskID: String {
-        "\(selectedHall)|\(selectedPeriod ?? "-")"
+        "\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")"
     }
 
     private var trimmedQuery: String {
@@ -91,6 +96,20 @@ struct DiningView: View {
                 Task { await refresh() }
             }
         case .loaded:
+            // Day selector: browse the next few days' menus.
+            PillRow(
+                items: upcomingDays.map(\.isoDate),
+                title: { iso in upcomingDays.first { $0.isoDate == iso }?.label ?? iso },
+                selection: Binding(
+                    get: { selectedDate ?? upcomingDays.first?.isoDate },
+                    set: { newValue in
+                        let today = upcomingDays.first?.isoDate
+                        selectedDate = (newValue == today) ? nil : newValue
+                    }
+                )
+            )
+            .accessibilityLabel("Menu day")
+
             if let location = selectedLocation, !location.availablePeriods.isEmpty {
                 PillRow(
                     items: location.availablePeriods,
@@ -179,7 +198,9 @@ struct DiningView: View {
                     EmptyStateView(
                         icon: "moon.zzz",
                         title: "No menu posted",
-                        message: "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
+                        message: selectedDate == nil
+                            ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
+                            : "\(selectedLocation?.name ?? "This hall") hasn't posted that day's \(menu.period.lowercased()) yet — menus usually appear a few days ahead."
                     )
                 }
             } else {
@@ -311,7 +332,7 @@ struct DiningView: View {
 
     private func loadCurrentMenu() async {
         guard let selectedPeriod else { return }
-        await store.loadMenu(hall: selectedHall, period: selectedPeriod)
+        await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
     }
 
     private func refresh() async {

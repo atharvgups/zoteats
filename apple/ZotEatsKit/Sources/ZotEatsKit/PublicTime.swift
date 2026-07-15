@@ -27,4 +27,21 @@ public enum UCITime {
     public static func hour(now: Date = Date()) -> Int {
         PacificTime.nowMinutes(now: now) / 60
     }
+
+    /// The next `count` days starting today (Irvine calendar), as
+    /// (isoDate: "2026-07-15", label: "Today" / "Thu 16" / ...).
+    public static func upcomingDays(count: Int, now: Date = Date()) -> [(isoDate: String, label: String)] {
+        let calendar = PacificTime.calendar
+        let labelFormatter = DateFormatter()
+        labelFormatter.timeZone = PacificTime.timeZone
+        labelFormatter.locale = Locale(identifier: "en_US_POSIX")
+        labelFormatter.dateFormat = "EEE d"
+
+        return (0..<count).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
+            let iso = PacificTime.todayISO(now: day)
+            let label = offset == 0 ? "Today" : (offset == 1 ? "Tomorrow" : labelFormatter.string(from: day))
+            return (iso, label)
+        }
+    }
 }

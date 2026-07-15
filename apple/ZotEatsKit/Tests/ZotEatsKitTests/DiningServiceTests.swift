@@ -112,6 +112,22 @@ struct HallOpenStateTests {
     }
 }
 
+@Suite("UpcomingDays")
+struct UpcomingDaysTests {
+    @Test func labelsAndDatesRollForwardInIrvineTime() {
+        // Thursday 2026-07-09, 8 PM Pacific.
+        let now = ISO8601DateFormatter().date(from: "2026-07-10T03:00:00Z")!
+        let days = UCITime.upcomingDays(count: 4, now: now)
+        #expect(days.count == 4)
+        #expect(days[0].isoDate == "2026-07-09")
+        #expect(days[0].label == "Today")
+        #expect(days[1].isoDate == "2026-07-10")
+        #expect(days[1].label == "Tomorrow")
+        #expect(days[2].label == "Sat 11")
+        #expect(days[3].isoDate == "2026-07-12")
+    }
+}
+
 @Suite("HallDirectory")
 struct HallDirectoryTests {
     @Test func knownHallsKeepCuratedNames() {
