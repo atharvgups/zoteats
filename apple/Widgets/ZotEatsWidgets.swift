@@ -80,7 +80,8 @@ struct DiningStatusProvider: TimelineProvider {
                 name: location.name,
                 statusText: status,
                 isOpen: location.openNow,
-                occupancy: location.openNow && estimate.percentNow > 0 ? estimate.percentNow : nil
+                occupancy: FeatureFlags.diningHallOccupancy && location.openNow && estimate.percentNow > 0
+                    ? estimate.percentNow : nil
             )
         }
 

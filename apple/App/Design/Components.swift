@@ -216,6 +216,7 @@ struct EmptyStateView: View {
     let icon: String
     let title: String
     let message: String
+    var actionTitle = "Try Again"
     var retry: (() -> Void)?
 
     var body: some View {
@@ -230,7 +231,7 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             if let retry {
-                Button("Try Again", action: retry)
+                Button(actionTitle, action: retry)
                     .buttonStyle(.bordered)
                     .tint(.uciBlue)
                     .padding(.top, 4)

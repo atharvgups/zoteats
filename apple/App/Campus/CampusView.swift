@@ -11,16 +11,29 @@ struct CampusView: View {
     let store: CampusStore
     let prefs: Preferences
     @State private var selectedPlace: CampusPlace?
+    /// Nil = all categories.
+    @State private var categoryFilter: String?
+    /// Default to what's actually useful: places you can walk to right now.
+    @State private var openOnly = true
     @Environment(\.openSettings) private var openSettings
 
     private static let categoryOrder = ["Coffee & Cafés", "Food Courts", "Markets", "Restaurants & Pubs"]
+    private static let categoryShortNames = [
+        "Coffee & Cafés": "Coffee",
+        "Food Courts": "Food Courts",
+        "Markets": "Markets",
+        "Restaurants & Pubs": "Pubs",
+    ]
 
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the
     // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
+
+                filterBar
+
                 content
                     .padding(.horizontal, 20)
             }
@@ -42,6 +55,80 @@ struct CampusView: View {
                 selectedPlace = place
             }
         }
+    }
+
+    /// One row of controls replaces the old endless stacked sections:
+    /// category pills narrow the list, "Open now" hides what you can't use.
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                openNowChip
+                Divider()
+                    .frame(height: 22)
+                ForEach(Self.categoryOrder, id: \.self) { category in
+                    let isSelected = categoryFilter == category
+                    Button {
+                        withAnimation(.snappy(duration: 0.25)) {
+                            categoryFilter = isSelected ? nil : category
+                        }
+                        Haptics.selection()
+                    } label: {
+                        Text(Self.categoryShortNames[category] ?? category)
+                            .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 7)
+                            .background(
+                                isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                    lineWidth: 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 2)
+        }
+        .accessibilityLabel("Filter campus spots")
+    }
+
+    private var openNowChip: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) {
+                openOnly.toggle()
+            }
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(openOnly ? Color.openGreen : Color.secondary.opacity(0.4))
+                    .frame(width: 7, height: 7)
+                Text("Open now")
+                    .font(ZotFont.pill.weight(openOnly ? .semibold : .medium))
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 7)
+            .background(
+                openOnly ? Color.openGreen.opacity(0.12) : Color.card,
+                in: Capsule()
+            )
+            .foregroundStyle(openOnly ? Color.openGreen : .primary)
+            .overlay(
+                Capsule().strokeBorder(
+                    openOnly ? Color.openGreen.opacity(0.35) : Color.cardBorder,
+                    lineWidth: 1
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(openOnly ? "Showing open spots only" : "Showing all spots")
+        .accessibilityHint("Toggles closed spots")
     }
 
     private static var autoOpenPlaceID: String? {
@@ -68,33 +155,38 @@ struct CampusView: View {
             )
             .zotCard()
         case .loaded(let places):
-            if places.isEmpty {
-                EmptyStateView(
-                    icon: "cup.and.saucer",
-                    title: "Nothing to show",
-                    message: "No campus dining locations are listed right now."
-                )
-                .zotCard()
+            let brands = filteredBrands(from: places)
+            if brands.isEmpty {
+                if openOnly {
+                    EmptyStateView(
+                        icon: "moon.zzz",
+                        title: "Nothing's open right now",
+                        message: categoryFilter == nil
+                            ? "Every campus spot is closed at the moment."
+                            : "Nothing in this category is open at the moment.",
+                        actionTitle: "Show closed spots",
+                        retry: { withAnimation(.snappy(duration: 0.25)) { openOnly = false } }
+                    )
+                    .zotCard()
+                } else {
+                    EmptyStateView(
+                        icon: "cup.and.saucer",
+                        title: "Nothing to show",
+                        message: "No campus dining locations are listed right now."
+                    )
+                    .zotCard()
+                }
             } else {
-                ForEach(groups(from: places), id: \.category) { group in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(group.category)
-                            .font(ZotFont.sectionTitle)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
-                            .accessibilityAddTraits(.isHeader)
-                        ForEach(group.brands, id: \.brand) { entry in
-                            if entry.places.count == 1 {
-                                CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {
-                                    selectedPlace = entry.places[0]
-                                    Haptics.selection()
-                                }
-                            } else {
-                                CampusBrandGroupRow(brand: entry.brand, places: entry.places) { place in
-                                    selectedPlace = place
-                                    Haptics.selection()
-                                }
-                            }
+                ForEach(brands, id: \.brand) { entry in
+                    if entry.places.count == 1 {
+                        CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {
+                            selectedPlace = entry.places[0]
+                            Haptics.selection()
+                        }
+                    } else {
+                        CampusBrandGroupRow(brand: entry.brand, places: entry.places) { place in
+                            selectedPlace = place
+                            Haptics.selection()
                         }
                     }
                 }
@@ -102,36 +194,39 @@ struct CampusView: View {
         }
     }
 
-    /// Categories in fixed order; within each, multi-location chains collapse
-    /// into one brand entry. Brands with any open location sort first.
-    private func groups(
+    /// One flat brand-grouped list driven by the filter bar: category pills
+    /// replace section headers, open places sort first, chains stay collapsed
+    /// into expandable brand rows.
+    private func filteredBrands(
         from places: [CampusPlace]
-    ) -> [(category: String, brands: [(brand: String, places: [CampusPlace])])] {
-        Self.categoryOrder.compactMap { category in
-            let members = places.filter { $0.category == category }
-            guard !members.isEmpty else { return nil }
-
-            var order: [String] = []
-            var byBrand: [String: [CampusPlace]] = [:]
-            for place in members {
-                if byBrand[place.brand] == nil { order.append(place.brand) }
-                byBrand[place.brand, default: []].append(place)
-            }
-            let brands = order
-                .map { brand in
-                    (brand: brand, places: byBrand[brand]!.sorted { lhs, rhs in
-                        if lhs.openNow != rhs.openNow { return lhs.openNow }
-                        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                    })
-                }
-                .sorted { lhs, rhs in
-                    let lhsOpen = lhs.places.contains(where: \.openNow)
-                    let rhsOpen = rhs.places.contains(where: \.openNow)
-                    if lhsOpen != rhsOpen { return lhsOpen }
-                    return lhs.brand.localizedCaseInsensitiveCompare(rhs.brand) == .orderedAscending
-                }
-            return (category, brands)
+    ) -> [(brand: String, places: [CampusPlace])] {
+        var filtered = places
+        if let categoryFilter {
+            filtered = filtered.filter { $0.category == categoryFilter }
         }
+        if openOnly {
+            filtered = filtered.filter(\.openNow)
+        }
+
+        var order: [String] = []
+        var byBrand: [String: [CampusPlace]] = [:]
+        for place in filtered {
+            if byBrand[place.brand] == nil { order.append(place.brand) }
+            byBrand[place.brand, default: []].append(place)
+        }
+        return order
+            .map { brand in
+                (brand: brand, places: byBrand[brand]!.sorted { lhs, rhs in
+                    if lhs.openNow != rhs.openNow { return lhs.openNow }
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                })
+            }
+            .sorted { lhs, rhs in
+                let lhsOpen = lhs.places.contains(where: \.openNow)
+                let rhsOpen = rhs.places.contains(where: \.openNow)
+                if lhsOpen != rhsOpen { return lhsOpen }
+                return lhs.brand.localizedCaseInsensitiveCompare(rhs.brand) == .orderedAscending
+            }
     }
 }
 

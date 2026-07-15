@@ -3,6 +3,15 @@ import Foundation
 // Domain models for ZotEats — a direct port of the IPC contract in
 // renderer/shared/types.ts, shared by all app targets (iOS, macOS).
 
+/// Feature switches shared by the app and its widget.
+public enum FeatureFlags {
+    /// Typical-occupancy percentages on dining hall cards and the widget.
+    /// Hidden until Occuspace installs sensors in the dining halls and we can
+    /// show real measurements via their public API — the estimation engine and
+    /// its tests stay in place so flipping this back on restores the UI.
+    public static let diningHallOccupancy = false
+}
+
 /// Metadata for dining commons. Hall ids come from the live API, so a new
 /// commons appears in the app automatically; this directory only beautifies
 /// the names/areas we know, with a sensible fallback for future halls.
