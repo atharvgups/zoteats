@@ -158,10 +158,18 @@ struct SettingsView: View {
                 url: "https://www.campusrec.uci.edu/arc/hours.html"
             )
 
-            Text("All data comes from public, community sources and may change without notice.")
-                .font(ZotFont.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    TypicalTag()
+                    Text("Dining hall and ARC busyness are typical-pattern estimates based on meal times and usual gym rushes — not live measurements — and may not match actual crowds. Library busyness is live sensor data.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text("All data comes from public, community sources and may change without notice.")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.top, 4)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
