@@ -27,6 +27,12 @@ struct DiningServiceTests {
         #expect(anteatery.openNow)
     }
 
+    @Test func periodsFollowTheDaysNaturalOrder() async {
+        // Fixture serves Lunch, Dinner, Breakfast, Brunch (untimed), All Day (untimed).
+        let anteatery = await service().locations().first { $0.id == "anteatery" }!
+        #expect(anteatery.availablePeriods == ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"])
+    }
+
     @Test func menuGroupsDishesByStationWithNutrition() async throws {
         let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
         #expect(menu.locationId == "anteatery")

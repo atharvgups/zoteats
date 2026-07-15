@@ -187,13 +187,28 @@ public struct DiningService: Sendable {
         }
     }
 
-    /// Served periods in chronological order (the API returns an unordered dictionary).
+    /// Meal-period presentation order: the day's natural sequence, with
+    /// untimed catch-alls ("All Day") at the end. Unknown names slot by
+    /// serving time between the known ones.
+    static func periodRank(_ name: String, startMinutes: Int?) -> (Int, Int) {
+        let known: [String: Int] = [
+            "breakfast": 0, "brunch": 1, "lunch": 2, "lite lunch": 3,
+            "afternoon snack": 4, "dinner": 5, "limited dinner": 5,
+            "evening snack": 6, "late night": 7, "overnight": 8,
+        ]
+        if let rank = known[name.lowercased()] { return (rank * 100, startMinutes ?? 0) }
+        if name.lowercased().contains("all day") { return (10_000, 0) }
+        // Unknown timed periods sort by their start; unknown untimed go late.
+        return (startMinutes.map { $0 / 60 * 100 + 50 } ?? 9_000, startMinutes ?? 0)
+    }
+
+    /// Served periods in the day's natural order (the API returns an unordered dictionary).
     private static func servedPeriods(_ today: APIRestaurantToday) -> [APIPeriod] {
         (today.periods ?? [:]).values
             .filter { !($0.stationToDishes ?? [:]).isEmpty }
             .sorted { lhs, rhs in
-                let l = PacificTime.parseMinutes(lhs.startTime) ?? Int.max
-                let r = PacificTime.parseMinutes(rhs.startTime) ?? Int.max
+                let l = periodRank(lhs.name, startMinutes: PacificTime.parseMinutes(lhs.startTime))
+                let r = periodRank(rhs.name, startMinutes: PacificTime.parseMinutes(rhs.startTime))
                 if l != r { return l < r }
                 return lhs.name < rhs.name
             }

@@ -13,8 +13,8 @@ struct CampusView: View {
     @State private var selectedPlace: CampusPlace?
     /// Nil = all categories.
     @State private var categoryFilter: String?
-    /// Default to what's actually useful: places you can walk to right now.
-    @State private var openOnly = true
+    /// Everything shows by default; the chip narrows to open places on demand.
+    @State private var openOnly = false
     @Environment(\.openSettings) private var openSettings
 
     private static let categoryOrder = ["Coffee & Cafés", "Food Courts", "Markets", "Restaurants & Pubs"]

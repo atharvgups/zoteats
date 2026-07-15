@@ -80,8 +80,8 @@ struct PillRow<Item: Hashable>: View {
                     } label: {
                         Text(title(item))
                             .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
                             .background(
                                 isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
                                 in: Capsule()

@@ -37,7 +37,9 @@ enum ZotFont {
     static let sectionTitle = Font.subheadline.weight(.semibold)
     static let body = Font.body
     static let caption = Font.caption
-    static let pill = Font.footnote.weight(.medium)
+    /// One notch larger than footnote: pills are primary controls, and the
+    /// extra size improves tap targets.
+    static let pill = Font.subheadline.weight(.medium)
 }
 
 // MARK: - Radius tokens (one language of rounding everywhere)

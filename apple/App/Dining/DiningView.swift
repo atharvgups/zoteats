@@ -15,6 +15,7 @@ struct DiningView: View {
     @State private var selectedDate: String?
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
+    @State private var showDietFilters = false
 
     /// Today + the next few days (menus are usually published a few days out).
     private let upcomingDays = UCITime.upcomingDays(count: 5)
@@ -50,6 +51,9 @@ struct DiningView: View {
             .onChange(of: selectedHall) { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
+            }
+            .sheet(isPresented: $showDietFilters) {
+                DietFilterSheet(prefs: prefs)
             }
         }
     }
@@ -96,20 +100,9 @@ struct DiningView: View {
                 Task { await refresh() }
             }
         case .loaded:
-            // Day selector: browse the next few days' menus.
-            PillRow(
-                items: upcomingDays.map(\.isoDate),
-                title: { iso in upcomingDays.first { $0.isoDate == iso }?.label ?? iso },
-                selection: Binding(
-                    get: { selectedDate ?? upcomingDays.first?.isoDate },
-                    set: { newValue in
-                        let today = upcomingDays.first?.isoDate
-                        selectedDate = (newValue == today) ? nil : newValue
-                    }
-                )
-            )
-            .accessibilityLabel("Menu day")
-
+            // One primary control row (meal periods), then a single quiet row
+            // combining the day strip and a filter chip — down from three
+            // stacked pill rows.
             if let location = selectedLocation, !location.availablePeriods.isEmpty {
                 PillRow(
                     items: location.availablePeriods,
@@ -119,16 +112,57 @@ struct DiningView: View {
                 .accessibilityLabel("Meal period")
             }
 
-            PillRow(
-                items: Self.dietFilters,
-                title: { $0 },
-                selection: $prefs.dietFilter,
-                allowsDeselect: true
-            )
-            .accessibilityLabel("Dietary filter")
+            HStack(spacing: 10) {
+                DayStrip(
+                    days: upcomingDays,
+                    selection: Binding(
+                        get: { selectedDate ?? upcomingDays.first?.isoDate },
+                        set: { newValue in
+                            let today = upcomingDays.first?.isoDate
+                            selectedDate = (newValue == today) ? nil : newValue
+                        }
+                    )
+                )
+                Spacer(minLength: 8)
+                filterChip
+            }
+            .padding(.horizontal, 20)
 
             menuContent
         }
+    }
+
+    /// Compact chip summarizing the dietary filter; opens the picker sheet.
+    private var filterChip: some View {
+        let active = prefs.dietFilter
+        return Button {
+            showDietFilters = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "line.3.horizontal.decrease.circle\(active != nil ? ".fill" : "")")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(active ?? "Filters")
+                    .font(ZotFont.pill.weight(active != nil ? .semibold : .medium))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                active != nil ? Color.uciBlue.opacity(0.12) : Color.card,
+                in: Capsule()
+            )
+            .foregroundStyle(active != nil ? Color.uciBlue : .primary)
+            .overlay(
+                Capsule().strokeBorder(
+                    active != nil ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    lineWidth: 1
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("diet-filter-chip")
+        .accessibilityLabel(active.map { "Dietary filter: \($0)" } ?? "Dietary filters")
     }
 
     /// Hall cards straight from the live API — a third commons appears here
@@ -210,7 +244,9 @@ struct DiningView: View {
     }
 
     private func menuList(menu: DiningMenu, stations: [MenuStation]) -> some View {
-        LazyVStack(alignment: .leading, spacing: 22) {
+        // Generous spacing between stations welds each header to its own
+        // section instead of floating between two.
+        LazyVStack(alignment: .leading, spacing: 30) {
             Text("\(menu.period) • \(prettyDate(menu.date))")
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
@@ -262,18 +298,19 @@ struct DiningView: View {
         icon: String? = nil,
         tint: Color = .uciGold
     ) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(tint)
             } else {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                     .fill(tint)
-                    .frame(width: 4, height: 16)
+                    .frame(width: 5, height: 21)
             }
+            // A full step above dish names so station boundaries scan clearly.
             Text(title)
-                .font(ZotFont.sectionTitle)
+                .font(.system(size: 20, weight: .bold))
             Spacer()
             Text("\(count)")
                 .font(ZotFont.caption.weight(.semibold))
@@ -349,31 +386,26 @@ struct DiningView: View {
         selectedPeriod = defaultPeriod(for: location)
     }
 
+    /// The meal that matters right now: the one being served, else the next
+    /// one starting today, else the day's last meal (evenings after close),
+    /// else whatever's first.
     private func defaultPeriod(for location: DiningLocation) -> String? {
-        let periods = location.availablePeriods
-        guard !periods.isEmpty else { return nil }
+        guard !location.availablePeriods.isEmpty else { return nil }
+        let now = UCITime.nowMinutes()
+        let timed = location.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
 
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .current
-        let hour = calendar.component(.hour, from: .now)
-
-        let preferred: String
-        switch hour {
-        case ..<10: preferred = "Breakfast"
-        case ..<15: preferred = "Lunch"
-        case ..<21: preferred = "Dinner"
-        default: preferred = "Late Night"
+        if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
+            return current.name
         }
-
-        if let match = periods.first(where: { $0.caseInsensitiveCompare(preferred) == .orderedSame }) {
-            return match
+        if let upcoming = timed
+            .filter({ $0.startMinutes! > now })
+            .min(by: { $0.startMinutes! < $1.startMinutes! }) {
+            return upcoming.name
         }
-        // Weekends often serve Brunch in the Lunch window.
-        if preferred == "Lunch",
-           let brunch = periods.first(where: { $0.localizedCaseInsensitiveContains("brunch") }) {
-            return brunch
+        if let last = timed.max(by: { $0.endMinutes! < $1.endMinutes! }) {
+            return last.name
         }
-        return periods.first
+        return location.availablePeriods.first
     }
 
     /// Time-of-day greeting on UCI's clock.
@@ -393,6 +425,123 @@ struct DiningView: View {
         parser.timeZone = TimeZone(identifier: "America/Los_Angeles")
         guard let date = parser.date(from: isoDay) else { return isoDay }
         return date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    }
+}
+
+// MARK: - Compact day strip
+
+/// Quiet text-button day selector — visually lighter than a pill row so the
+/// meal periods stay the primary control.
+private struct DayStrip: View {
+    let days: [(isoDate: String, label: String)]
+    @Binding var selection: String?
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(days, id: \.isoDate) { day in
+                    let isSelected = selection == day.isoDate
+                    Button {
+                        withAnimation(.snappy(duration: 0.25)) {
+                            selection = day.isoDate
+                        }
+                        Haptics.selection()
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text(day.label)
+                                .font(.system(size: 14, weight: isSelected ? .bold : .medium))
+                                .foregroundStyle(isSelected ? Color.uciBlue : .secondary)
+                            Capsule()
+                                .fill(isSelected ? Color.uciBlue : .clear)
+                                .frame(height: 3)
+                        }
+                        .fixedSize()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Menu for \(day.label)")
+                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .accessibilityLabel("Menu day")
+    }
+}
+
+// MARK: - Dietary filter sheet
+
+/// One tidy sheet instead of a permanent pill row on the main screen.
+struct DietFilterSheet: View {
+    let prefs: Preferences
+    @Environment(\.dismiss) private var dismiss
+
+    private static let options = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Dietary filter")
+                .font(ZotFont.hero(24))
+                .padding(.bottom, 10)
+
+            ForEach(Self.options, id: \.self) { option in
+                let isSelected = prefs.dietFilter == option
+                Button {
+                    prefs.dietFilter = isSelected ? nil : option
+                    Haptics.selection()
+                    dismiss()
+                } label: {
+                    HStack {
+                        TagChip(text: option, color: TagPalette.dietColor(option))
+                        Text("Only show \(option.lowercased()) dishes")
+                            .font(ZotFont.body)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.uciBlue)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 14)
+                    .background(
+                        isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
+            }
+
+            if prefs.dietFilter != nil {
+                Button {
+                    prefs.dietFilter = nil
+                    Haptics.selection()
+                    dismiss()
+                } label: {
+                    Text("Clear filter")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Color.primary.opacity(0.05), in: Capsule())
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 8)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .background(Color.screen)
     }
 }
 
