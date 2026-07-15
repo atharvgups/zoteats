@@ -161,7 +161,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     TypicalTag()
-                    Text("Dining hall and ARC busyness are typical-pattern estimates based on meal times and usual gym rushes — not live measurements — and may not match actual crowds. Library busyness is live sensor data.")
+                    Text("ARC busyness is a typical-pattern estimate based on usual gym rushes — not a live measurement — and may not match actual crowds. Library busyness is live sensor data.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }

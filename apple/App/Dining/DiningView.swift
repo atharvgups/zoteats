@@ -432,7 +432,7 @@ private struct HallCard: View {
                             .minimumScaleFactor(0.75)
                     }
                     Spacer(minLength: 4)
-                    if let occupancy {
+                    if FeatureFlags.diningHallOccupancy, let occupancy {
                         VStack(alignment: .trailing, spacing: 0) {
                             Text("\(occupancy.percent)%")
                                 .font(.system(size: 16, weight: .bold))
@@ -448,7 +448,10 @@ private struct HallCard: View {
                 }
             }
             .padding(14)
+            // Fixed height keeps the two hall cards identical regardless of
+            // how long each status line runs.
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 82, alignment: .top)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
@@ -478,22 +481,21 @@ private struct HallCard: View {
         return (estimate.percentNow, estimate.levelNow.color)
     }
 
-    /// Live "when" intelligence: what's serving now and when it ends, or what's next.
+    /// Live "when" intelligence. Countdowns read best when the moment is close;
+    /// beyond 90 minutes a clock time ("until 2:00 PM") is clearer than math.
     private var statusLine: (text: String, icon: String, tint: Color)? {
         let now = UCITime.nowMinutes()
         switch location.openState(nowMinutes: now) {
         case .open(let period, let closesAt):
-            return (
-                "\(period) · closes in \(UCITime.countdown(from: now, to: closesAt))",
-                "clock.badge.checkmark",
-                .openGreen
-            )
+            let text = closesAt - now <= 90
+                ? "\(period) · closes in \(UCITime.countdown(from: now, to: closesAt))"
+                : "\(period) · until \(UCITime.format(minutes: closesAt % (24 * 60)))"
+            return (text, "clock.badge.checkmark", .openGreen)
         case .openingLater(let period, let opensAt):
-            return (
-                "\(period) starts in \(UCITime.countdown(from: now, to: opensAt))",
-                "clock.arrow.circlepath",
-                .busyOrange
-            )
+            let text = opensAt - now <= 90
+                ? "\(period) starts in \(UCITime.countdown(from: now, to: opensAt))"
+                : "\(period) at \(UCITime.format(minutes: opensAt))"
+            return (text, "clock.arrow.circlepath", .busyOrange)
         case .closedForToday:
             return ("Closed for today", "moon.zzz", .secondary)
         case .unknown:

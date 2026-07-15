@@ -60,9 +60,17 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1.5)
 
-        // ── Campus: retail spots, menu sheet with dietary filter ──────────
+        // ── Campus: filters, brand groups, menu sheet ─────────────────────
         tapTab(app, "Campus")
         pause(3.5)
+        // Filter by category, then clear it.
+        tapIfPresent(app.buttons["Coffee"])
+        pause(2.5)
+        tapIfPresent(app.buttons["Coffee"])
+        pause(1.5)
+        // Show closed spots too (ensures Halal Shack is in the list below).
+        tapFirstMatch(app.buttons, labelPrefixes: ["Showing open spots"])
+        pause(2)
         // Expand and collapse a multi-location brand group (e.g. Starbucks).
         tapFirstMatch(app.buttons, labelPrefixes: ["Starbucks,", "Zot N Go"])
         pause(2.5)
