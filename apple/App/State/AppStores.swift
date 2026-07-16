@@ -84,16 +84,34 @@ final class DiningStore {
     }
 
     /// Warm every period of a hall (service TTL cache dedupes network work),
-    /// so switching meal periods is instant.
+    /// so switching meal periods is instant. Network fan-out happens off-actor;
+    /// results apply back on the main actor.
     func prefetchMenus(hall: String, periods: [String]) async {
-        await withTaskGroup(of: Void.self) { group in
-            for period in periods.prefix(6) {
-                let key = "\(hall)|\(period)|today"
-                guard menus[key]?.value == nil else { continue }
-                group.addTask { @MainActor in
-                    await self.loadMenu(hall: hall, period: period)
+        let service = self.service
+        let targets = periods.prefix(6).filter { menus["\(hall)|\($0)|today"]?.value == nil }
+        guard !targets.isEmpty else { return }
+
+        let fetched = await withTaskGroup(of: (String, DiningMenu?).self) { group in
+            for period in targets {
+                group.addTask {
+                    (period, try? await service.menu(for: hall, period: period))
                 }
             }
+            var collected: [(String, DiningMenu)] = []
+            for await (period, menu) in group {
+                if let menu { collected.append((period, menu)) }
+            }
+            return collected
+        }
+
+        for (period, menu) in fetched {
+            let key = "\(hall)|\(period)|today"
+            if menus[key]?.value == nil {
+                menus[key] = .loaded(menu)
+            }
+        }
+        if !fetched.isEmpty {
+            persistTodayMenus()
         }
     }
 
