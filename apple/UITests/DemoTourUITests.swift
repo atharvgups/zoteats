@@ -138,6 +138,29 @@ final class DemoTourUITests: XCTestCase {
         pause(2.5)
         tapIfPresent(app.buttons["System appearance"])
         pause(2)
+
+        // ── Opening alerts: watch a dining hall + a campus spot ────────────
+        tapIfPresent(app.buttons["openingAlertsRow"].firstMatch)
+        pause(3)
+        // Toggle the first two spots on (dining hall, then scroll for a café).
+        let firstToggle = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'openAlert-'")
+        ).firstMatch
+        if firstToggle.waitForExistence(timeout: 5) {
+            firstToggle.tap()
+            pause(2)
+        }
+        app.swipeUp()
+        pause(1.5)
+        let visibleToggles = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'openAlert-campus'")
+        )
+        if visibleToggles.firstMatch.exists, visibleToggles.firstMatch.isHittable {
+            visibleToggles.firstMatch.tap()
+            pause(2)
+        }
+        tapIfPresent(app.buttons["Close opening alerts"])
+        pause(2)
         tapIfPresent(app.buttons["Close settings"])
         pause(2.5)
     }
