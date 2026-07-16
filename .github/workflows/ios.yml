@@ -59,13 +59,15 @@ jobs:
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
+          # Release build: screenshots come from it AND the launch-perf numbers
+          # scraped later must reflect what users actually get, not -Onone Debug.
           # Generic destination: no dependency on which simulator devices this runner image ships.
           build() {
             xcodebuild \
               -project apple/ZotEats.xcodeproj \
               -scheme ZotEats \
               -destination 'generic/platform=iOS Simulator' \
-              -configuration Debug \
+              -configuration Release \
               -derivedDataPath apple/DerivedData \
               CODE_SIGNING_ALLOWED=NO \
               build
@@ -89,7 +91,7 @@ jobs:
           # Clean status bar for App Store-style screenshots.
           xcrun simctl status_bar booted override \
             --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4
-          APP_PATH="apple/DerivedData/Build/Products/Debug-iphonesimulator/ZotEats.app"
+          APP_PATH="apple/DerivedData/Build/Products/Release-iphonesimulator/ZotEats.app"
           xcrun simctl install booted "$APP_PATH"
           mkdir -p screenshots
           # Light and dark mode captures of every tab.
