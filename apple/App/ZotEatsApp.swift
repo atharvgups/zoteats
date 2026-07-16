@@ -54,10 +54,26 @@ enum AppearanceSetting: String, CaseIterable, Identifiable {
 
 @main
 struct ZotEatsApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             RootTabView()
                 .tint(.uciBlue)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                Task { await FavoriteAlerts.runCheck() }
+            case .background:
+                FavoriteAlerts.scheduleNextRefresh()
+            default:
+                break
+            }
+        }
+        .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
+            await FavoriteAlerts.runCheck()
+            await FavoriteAlerts.scheduleNextRefresh()
         }
     }
 }

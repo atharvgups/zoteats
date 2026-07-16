@@ -12,6 +12,9 @@ struct SettingsView: View {
     @State private var versionTaps = 0
     @State private var showZot = false
 
+    @State private var alertsEnabled = FavoriteAlerts.isEnabled
+    @State private var alertsDenied = false
+
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
     }
@@ -24,6 +27,7 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
+                        alertsCard
                         aboutCard
                         dataSourcesCard
                     }
@@ -82,6 +86,51 @@ struct SettingsView: View {
             Text("System follows your iPhone — light by day, dark at night.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+    }
+
+    // MARK: - Favorite alerts
+
+    private var alertsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Notifications")
+                .font(ZotFont.sectionTitle)
+
+            Toggle(isOn: $alertsEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Favorite dish alerts")
+                        .font(ZotFont.body)
+                    Text("Get a heads-up when a dish you've hearted is on today's menu.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .tint(.uciBlue)
+            .onChange(of: alertsEnabled) { _, enabled in
+                guard enabled else {
+                    FavoriteAlerts.isEnabled = false
+                    return
+                }
+                Task {
+                    let granted = await FavoriteAlerts.requestPermission()
+                    FavoriteAlerts.isEnabled = granted
+                    if granted {
+                        await FavoriteAlerts.runCheck()
+                    } else {
+                        alertsEnabled = false
+                        alertsDenied = true
+                    }
+                }
+            }
+
+            if alertsDenied {
+                Text("Notifications are turned off for ZotEats in iOS Settings — enable them there first.")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(TagPalette.terracotta)
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)

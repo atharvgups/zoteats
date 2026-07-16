@@ -16,6 +16,7 @@ struct DiningView: View {
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
     @State private var showDietFilters = false
+    @State private var mealActivity = MealActivityManager()
 
     /// Today + the next few days (menus are usually published a few days out).
     private let upcomingDays = UCITime.upcomingDays(count: 5)
@@ -247,10 +248,14 @@ struct DiningView: View {
         // Generous spacing between stations welds each header to its own
         // section instead of floating between two.
         LazyVStack(alignment: .leading, spacing: 30) {
-            Text("\(menu.period) • \(prettyDate(menu.date))")
-                .font(ZotFont.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 20)
+            HStack(spacing: 8) {
+                Text("\(menu.period) • \(prettyDate(menu.date))")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                trackMealButton(menu: menu)
+            }
+            .padding(.horizontal, 20)
 
             let favorites = favoriteItems(in: stations)
             if !favorites.isEmpty {
@@ -290,6 +295,63 @@ struct DiningView: View {
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
+    }
+
+    /// Live Activity control: only for today's currently-serving meal.
+    @ViewBuilder
+    private func trackMealButton(menu: DiningMenu) -> some View {
+        if selectedDate == nil,
+           let location = selectedLocation,
+           mealActivity.isAvailable,
+           let window = location.periods.first(where: {
+               $0.name.caseInsensitiveCompare(menu.period) == .orderedSame
+           }),
+           let end = window.endMinutes,
+           let start = window.startMinutes {
+            let now = UCITime.nowMinutes()
+            if now >= start && now < end {
+                let tracking = mealActivity.isTracking(hall: location.id, period: menu.period)
+                Button {
+                    if tracking {
+                        mealActivity.endAll()
+                    } else {
+                        let secondsLeft = TimeInterval((end - now) * 60)
+                        mealActivity.track(
+                            hallName: location.name,
+                            hallID: location.id,
+                            period: menu.period,
+                            endsAt: Date(timeIntervalSinceNow: secondsLeft)
+                        )
+                    }
+                    Haptics.selection()
+                } label: {
+                    Label(
+                        tracking ? "Tracking" : "Track meal",
+                        systemImage: tracking ? "timer.circle.fill" : "timer"
+                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        tracking ? Color.uciBlue.opacity(0.12) : Color.card,
+                        in: Capsule()
+                    )
+                    .foregroundStyle(tracking ? Color.uciBlue : .secondary)
+                    .overlay(
+                        Capsule().strokeBorder(
+                            tracking ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                            lineWidth: 1
+                        )
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    tracking
+                        ? "Stop tracking \(menu.period)"
+                        : "Track \(menu.period) — live countdown on your lock screen"
+                )
+            }
+        }
     }
 
     private func sectionHeader(
