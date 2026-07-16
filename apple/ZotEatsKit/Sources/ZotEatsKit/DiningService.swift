@@ -12,6 +12,7 @@ public struct DiningService: Sendable {
     private let base = "https://anteaterapi.com/v2/rest/dining"
     private let http: any HTTPFetching
     private let cache: TTLCache
+    private let dayCache: DayCache
     private let now: @Sendable () -> Date
 
     private static let stationsTTL: TimeInterval = 24 * 60 * 60
@@ -21,10 +22,12 @@ public struct DiningService: Sendable {
     public init(
         http: any HTTPFetching = HTTPClient(),
         cache: TTLCache = TTLCache(),
+        dayCache: DayCache = .shared,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.http = http
         self.cache = cache
+        self.dayCache = dayCache
         self.now = now
     }
 
@@ -138,25 +141,49 @@ public struct DiningService: Sendable {
 
     // MARK: - Fetch helpers
 
-    private func getData<T: Decodable & Sendable>(_ type: T.Type, path: String) async throws -> T {
+    /// Every dining payload is stable for the day (menus, dish details, hours),
+    /// so responses go through the day cache: pull once, reuse until midnight —
+    /// across launches. `fresh` (explicit user refresh) forces the network.
+    private func getData<T: Decodable & Sendable>(_ type: T.Type, path: String, fresh: Bool = false) async throws -> T {
         guard let url = URL(string: base + path) else {
             throw URLError(.badURL)
         }
-        let envelope = try await http.json(Envelope<T>.self, from: url)
+        let day = PacificTime.todayISO(now: now())
+
+        if !fresh,
+           let cached = await dayCache.data(for: "dining:\(path)", day: day),
+           let decoded = try? Self.decodeEnvelope(type, from: cached, url: url) {
+            return decoded
+        }
+
+        let raw = try await http.data(from: url)
+        let decoded = try Self.decodeEnvelope(type, from: raw, url: url)
+        // Persist only responses that decoded cleanly.
+        await dayCache.store(raw, key: "dining:\(path)", day: day)
+        return decoded
+    }
+
+    private static func decodeEnvelope<T: Decodable & Sendable>(_ type: T.Type, from data: Data, url: URL) throws -> T {
+        let envelope: Envelope<T>
+        do {
+            envelope = try JSONDecoder().decode(Envelope<T>.self, from: data)
+        } catch {
+            throw HTTPError.decoding(underlying: error, url: url)
+        }
         if envelope.ok == false {
             throw HTTPError.badStatus(code: 502, url: url)
         }
-        guard let data = envelope.data else {
+        guard let payload = envelope.data else {
             throw HTTPError.decoding(underlying: URLError(.cannotParseResponse), url: url)
         }
-        return data
+        return payload
     }
 
     /// The live commons list — the source of truth for which halls exist,
     /// so a newly opened hall appears in the app without a code change.
-    private func restaurants() async throws -> [APIRestaurant] {
-        try await cache.remember("dining:restaurants", ttl: Self.stationsTTL) {
-            try await getData([APIRestaurant].self, path: "/restaurants")
+    private func restaurants(fresh: Bool = false) async throws -> [APIRestaurant] {
+        try await cache.remember("dining:restaurants", ttl: Self.stationsTTL, fresh: fresh) {
+            try await getData([APIRestaurant].self, path: "/restaurants", fresh: fresh)
         }
     }
 
@@ -170,19 +197,19 @@ public struct DiningService: Sendable {
         return map
     }
 
-    private func today(for hall: String, dateISO: String) async throws -> APIRestaurantToday {
-        try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL) {
-            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)")
+    private func today(for hall: String, dateISO: String, fresh: Bool = false) async throws -> APIRestaurantToday {
+        try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL, fresh: fresh) {
+            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)", fresh: fresh)
         }
     }
 
-    private func dishes(ids: [String]) async throws -> [String: APIDish] {
+    private func dishes(ids: [String], fresh: Bool = false) async throws -> [String: APIDish] {
         let unique = Array(Set(ids)).sorted()
         guard !unique.isEmpty else { return [:] }
         let joined = unique.joined(separator: ",")
         let encoded = joined.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? joined
-        return try await cache.remember("dining:dishes:\(joined)", ttl: Self.dishesTTL) {
-            let dishes = try await getData([APIDish].self, path: "/dishes/batch?ids=\(encoded)")
+        return try await cache.remember("dining:dishes:\(joined)", ttl: Self.dishesTTL, fresh: fresh) {
+            let dishes = try await getData([APIDish].self, path: "/dishes/batch?ids=\(encoded)", fresh: fresh)
             return Dictionary(dishes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         }
     }
@@ -235,18 +262,19 @@ public struct DiningService: Sendable {
 
     /// Every dining commons the live API lists (a new hall shows up here
     /// automatically) with today's hours, open state, and served meal periods.
-    public func locations() async -> [DiningLocation] {
+    /// `fresh` (pull-to-refresh) bypasses both cache layers.
+    public func locations(fresh: Bool = false) async -> [DiningLocation] {
         let dateISO = PacificTime.todayISO(now: now())
         let nowMinutes = PacificTime.nowMinutes(now: now())
 
         // Live hall list first; the maintained fallback keeps the UI alive offline.
-        let hallIDs = (try? await restaurants().map(\.id)) ?? HallDirectory.fallbackIDs
+        let hallIDs = (try? await restaurants(fresh: fresh).map(\.id)) ?? HallDirectory.fallbackIDs
 
         var results: [DiningLocation] = []
         await withTaskGroup(of: DiningLocation.self) { group in
             for hall in hallIDs {
                 group.addTask {
-                    await location(for: hall, dateISO: dateISO, nowMinutes: nowMinutes)
+                    await location(for: hall, dateISO: dateISO, nowMinutes: nowMinutes, fresh: fresh)
                 }
             }
             for await location in group {
@@ -257,9 +285,9 @@ public struct DiningService: Sendable {
         return hallIDs.compactMap { id in results.first { $0.id == id } }
     }
 
-    private func location(for hall: String, dateISO: String, nowMinutes: Int) async -> DiningLocation {
+    private func location(for hall: String, dateISO: String, nowMinutes: Int, fresh: Bool = false) async -> DiningLocation {
         do {
-            let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
+            let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO, fresh: fresh))
             let starts = periods.compactMap { PacificTime.parseMinutes($0.startTime) }
             let ends = periods.compactMap { PacificTime.parseMinutes($0.endTime) }
             let openNow = periods.contains { period in
@@ -302,9 +330,17 @@ public struct DiningService: Sendable {
     }
 
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
-    public func menu(for hall: String, period: String, date: String? = nil) async throws -> DiningMenu {
+    /// `fresh` (pull-to-refresh) bypasses both cache layers.
+    public func menu(for hall: String, period: String, date: String? = nil, fresh: Bool = false) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        let today = try await today(for: hall, dateISO: dateISO)
+        let today: APIRestaurantToday
+        do {
+            today = try await self.today(for: hall, dateISO: dateISO, fresh: fresh)
+        } catch HTTPError.badStatus(404, _) {
+            // The API 404s for days whose menu isn't published yet (common when
+            // browsing ahead to a weekend). That's "not posted", not an error.
+            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+        }
 
         guard let match = (today.periods ?? [:]).values
             .first(where: { $0.name.lowercased() == period.lowercased() })
@@ -314,7 +350,7 @@ public struct DiningService: Sendable {
 
         let stationToDishes = match.stationToDishes ?? [:]
         let allIDs = stationToDishes.values.flatMap(\.self)
-        async let dishMapTask = dishes(ids: allIDs)
+        async let dishMapTask = dishes(ids: allIDs, fresh: fresh)
         async let stationMapTask = stationMap()
         let (dishMap, stationNames) = try await (dishMapTask, stationMapTask)
 

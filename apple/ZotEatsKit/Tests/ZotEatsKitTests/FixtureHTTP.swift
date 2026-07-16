@@ -44,3 +44,30 @@ struct FailingHTTP: HTTPFetching {
         throw HTTPError.network(underlying: URLError(.notConnectedToInternet), url: url)
     }
 }
+
+/// Wraps another stub and counts requests, to prove caching skips the network.
+final class CountingHTTP: HTTPFetching, @unchecked Sendable {
+    private let wrapped: any HTTPFetching
+    private let lock = NSLock()
+    private var _requests = 0
+
+    init(wrapping: any HTTPFetching = FixtureHTTP()) {
+        self.wrapped = wrapping
+    }
+
+    var requests: Int {
+        lock.withLock { _requests }
+    }
+
+    func data(from url: URL) async throws -> Data {
+        lock.withLock { _requests += 1 }
+        return try await wrapped.data(from: url)
+    }
+}
+
+/// Fresh on-disk day cache in a unique temp directory, so tests never share
+/// state with each other or the real app cache.
+func tempDayCache() -> DayCache {
+    DayCache(directory: FileManager.default.temporaryDirectory
+        .appendingPathComponent("day-cache-tests-\(UUID().uuidString)"))
+}
