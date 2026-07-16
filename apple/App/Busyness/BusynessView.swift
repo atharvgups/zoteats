@@ -57,6 +57,7 @@ struct BusynessView: View {
             } else {
                 if let pick = Self.quietestPick(facilities) {
                     QuietestNowCard(facility: pick)
+                        .onAppear { PerfMetrics.markFirstContent("study", cached: true) }
                 }
                 let grouped = groups(from: facilities)
                 ForEach(grouped, id: \.category) { group in

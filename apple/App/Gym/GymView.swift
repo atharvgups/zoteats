@@ -47,6 +47,7 @@ struct GymView: View {
             .zotCard()
         case .loaded(let status):
             GymBusynessHero(status: status)
+                .onAppear { PerfMetrics.markFirstContent("gym", cached: true) }
             if let curve = status.typicalCurve, curve.contains(where: { $0 > 0 }) {
                 GymRushCard(curve: curve, status: status)
             }

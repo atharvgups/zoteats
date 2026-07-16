@@ -113,6 +113,16 @@ jobs:
             sleep 12
             xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
           done
+
+      # Launch-to-content timings from the unified log. Every launch after the
+      # first has warm disk snapshots, so these numbers ARE the warm-launch metric.
+      - name: Collect perf metrics
+        run: |
+          xcrun simctl spawn booted log show --last 15m \
+            --predicate 'eventMessage CONTAINS "ZOTEATS_PERF"' \
+            --style compact > screenshots/perf_log.txt || true
+          echo "== Launch-to-first-content timings =="
+          grep -o "first-content [0-9]*ms source=[a-z]* cached=[a-z]*" screenshots/perf_log.txt || echo "no perf lines captured"
           xcrun simctl ui booted appearance light
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
 

@@ -27,23 +27,41 @@ enum LoadState<Value> {
 @Observable
 final class DiningStore {
     private let service: DiningService
+    private let snapshots: SnapshotCache
 
     var locations: LoadState<[DiningLocation]> = .idle
-    /// Keyed by "\(hallID)|\(period)".
+    /// Keyed by "\(hallID)|\(period)|\(date-or-today)".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
 
-    init(service: DiningService = DiningService()) {
+    init(service: DiningService = DiningService(), snapshots: SnapshotCache = .shared) {
         self.service = service
+        self.snapshots = snapshots
+
+        // Stale-while-revalidate: render the last-known data instantly on
+        // launch; the .task refresh replaces it silently.
+        if let saved = snapshots.load([DiningLocation].self, key: "dining.locations"), !saved.isEmpty {
+            locations = .loaded(saved)
+        }
+        let today = UCITime.upcomingDays(count: 1).first?.isoDate ?? ""
+        if let saved = snapshots.load(MenusSnapshot.self, key: "dining.menus"), saved.dateISO == today {
+            for (key, menu) in saved.menus {
+                menus[key] = .loaded(menu)
+            }
+        }
     }
 
     func loadLocations() async {
         if locations.value == nil { locations = .loading }
         let result = await service.locations()
-        // The service degrades per-hall; treat "no data at all" as an error state.
+        // The service degrades per-hall; treat "no data at all" as an error state
+        // — but never clobber a good snapshot with an outage.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
-            locations = .failed("UCI Dining isn't reachable right now.")
+            if locations.value == nil {
+                locations = .failed("UCI Dining isn't reachable right now.")
+            }
         } else {
             locations = .loaded(result)
+            snapshots.save(result, key: "dining.locations")
         }
     }
 
@@ -56,9 +74,38 @@ final class DiningStore {
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
             menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date))
+            persistTodayMenus()
         } catch {
-            menus[key] = .failed(error.localizedDescription)
+            // Keep stale menu visible through a refresh failure.
+            if menus[key]?.value == nil {
+                menus[key] = .failed(error.localizedDescription)
+            }
         }
+    }
+
+    /// Warm every period of a hall (service TTL cache dedupes network work),
+    /// so switching meal periods is instant.
+    func prefetchMenus(hall: String, periods: [String]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for period in periods.prefix(6) {
+                let key = "\(hall)|\(period)|today"
+                guard menus[key]?.value == nil else { continue }
+                group.addTask { @MainActor in
+                    await self.loadMenu(hall: hall, period: period)
+                }
+            }
+        }
+    }
+
+    private func persistTodayMenus() {
+        let today = UCITime.upcomingDays(count: 1).first?.isoDate ?? ""
+        var payload: [String: DiningMenu] = [:]
+        for (key, state) in menus where key.hasSuffix("|today") {
+            if let menu = state.value {
+                payload[key] = menu
+            }
+        }
+        snapshots.save(MenusSnapshot(dateISO: today, menus: payload), key: "dining.menus")
     }
 }
 
@@ -66,16 +113,23 @@ final class DiningStore {
 @Observable
 final class GymStore {
     private let service: GymService
+    private let snapshots: SnapshotCache
 
     var status: LoadState<GymStatus> = .idle
 
-    init(service: GymService = GymService()) {
+    init(service: GymService = GymService(), snapshots: SnapshotCache = .shared) {
         self.service = service
+        self.snapshots = snapshots
+        if let saved = snapshots.load(GymStatus.self, key: "gym.status") {
+            status = .loaded(saved)
+        }
     }
 
     func load() async {
         if status.value == nil { status = .loading }
-        status = .loaded(await service.status())
+        let result = await service.status()
+        status = .loaded(result)
+        snapshots.save(result, key: "gym.status")
     }
 }
 
@@ -83,21 +137,31 @@ final class GymStore {
 @Observable
 final class CampusStore {
     private let service: CampusService
+    private let snapshots: SnapshotCache
 
     var places: LoadState<[CampusPlace]> = .idle
     /// Keyed by place id.
     private(set) var menus: [String: LoadState<[MenuStation]>] = [:]
 
-    init(service: CampusService = CampusService()) {
+    init(service: CampusService = CampusService(), snapshots: SnapshotCache = .shared) {
         self.service = service
+        self.snapshots = snapshots
+        if let saved = snapshots.load([CampusPlace].self, key: "campus.places"), !saved.isEmpty {
+            places = .loaded(saved)
+        }
     }
 
     func loadPlaces() async {
         if places.value == nil { places = .loading }
         do {
-            places = .loaded(try await service.places())
+            let result = try await service.places()
+            places = .loaded(result)
+            snapshots.save(result, key: "campus.places")
         } catch {
-            places = .failed(error.localizedDescription)
+            // Keep the stale list through a refresh failure.
+            if places.value == nil {
+                places = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -119,19 +183,30 @@ final class CampusStore {
 @Observable
 final class BusynessStore {
     private let service: BusynessService
+    private let snapshots: SnapshotCache
 
     var facilities: LoadState<[BusynessPoint]> = .idle
 
-    init(service: BusynessService = BusynessService()) {
+    init(service: BusynessService = BusynessService(), snapshots: SnapshotCache = .shared) {
         self.service = service
+        self.snapshots = snapshots
+        // Stale occupancy still renders honestly: UpdatedAgoText shows its true age.
+        if let saved = snapshots.load([BusynessPoint].self, key: "busyness.facilities"), !saved.isEmpty {
+            facilities = .loaded(saved)
+        }
     }
 
     func load() async {
         if facilities.value == nil { facilities = .loading }
         do {
-            facilities = .loaded(try await service.all())
+            let result = try await service.all()
+            facilities = .loaded(result)
+            snapshots.save(result, key: "busyness.facilities")
         } catch {
-            facilities = .failed(error.localizedDescription)
+            // Keep the stale list through a refresh failure.
+            if facilities.value == nil {
+                facilities = .failed(error.localizedDescription)
+            }
         }
     }
 }

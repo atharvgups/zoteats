@@ -48,6 +48,12 @@ struct DiningView: View {
             .refreshable { await refresh() }
             .task { await store.loadLocations() }
             .task(id: menuTaskID) { await loadCurrentMenu() }
+            // Warm the selected hall's other periods so switching is instant.
+            .task(id: "prefetch|\(selectedHall)|\(store.locations.value != nil)") {
+                if let location = selectedLocation {
+                    await store.prefetchMenus(hall: location.id, periods: location.availablePeriods)
+                }
+            }
             .onChange(of: store.locations.value) { syncPeriodSelection() }
             .onChange(of: selectedHall) { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
@@ -240,6 +246,9 @@ struct DiningView: View {
                 }
             } else {
                 menuList(menu: menu, stations: stations)
+                    .onAppear {
+                        PerfMetrics.markFirstContent("eat", cached: true)
+                    }
             }
         }
     }

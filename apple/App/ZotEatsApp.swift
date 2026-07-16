@@ -56,6 +56,10 @@ enum AppearanceSetting: String, CaseIterable, Identifiable {
 struct ZotEatsApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        PerfMetrics.markLaunch()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootTabView()
