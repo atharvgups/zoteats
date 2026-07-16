@@ -156,6 +156,7 @@ final class DemoTourUITests: XCTestCase {
         ).firstMatch
         if firstToggle.waitForExistence(timeout: 5) {
             firstToggle.tap()
+            allowNotificationsIfAsked()
             pause(2)
         }
         app.swipeUp()
@@ -165,8 +166,12 @@ final class DemoTourUITests: XCTestCase {
         )
         if visibleToggles.firstMatch.exists, visibleToggles.firstMatch.isHittable {
             visibleToggles.firstMatch.tap()
+            allowNotificationsIfAsked()
             pause(2)
         }
+        // Show the flipped toggle at the top of the watchlist before closing.
+        app.swipeDown()
+        pause(2)
         tapIfPresent(app.buttons["Close opening alerts"])
         pause(2)
         tapIfPresent(app.buttons["Close settings"])
@@ -182,6 +187,16 @@ final class DemoTourUITests: XCTestCase {
     private func tapIfPresent(_ element: XCUIElement, timeout: TimeInterval = 3) {
         if element.waitForExistence(timeout: timeout), element.isHittable {
             element.tap()
+        }
+    }
+
+    /// First toggle-on triggers the iOS notification-permission alert, which
+    /// lives in Springboard (not the app) and blocks the tour until answered.
+    private func allowNotificationsIfAsked() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 4) {
+            allow.tap()
         }
     }
 
