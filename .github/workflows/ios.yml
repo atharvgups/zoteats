@@ -116,6 +116,16 @@ jobs:
             xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
           done
           xcrun simctl ui booted appearance light
+          # Record one warm relaunch: disk snapshots are hot by now, so this
+          # clip is the proof that launch shows content instantly, not skeletons.
+          xcrun simctl terminate booted com.atharvgupta.zoteats 2>/dev/null || true
+          sleep 2
+          xcrun simctl io booted recordVideo --codec h264 --force screenshots/warm_launch.mov &
+          WARM_PID=$!
+          sleep 2
+          xcrun simctl launch booted com.atharvgupta.zoteats
+          sleep 6
+          kill -INT "$WARM_PID"; wait "$WARM_PID" || true
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
 
       # Launch-to-content timings from the unified log. Every launch after the
@@ -127,6 +137,18 @@ jobs:
             --style compact > screenshots/perf_log.txt || true
           echo "== Launch-to-first-content timings =="
           grep -o "first-content [0-9]*ms source=[a-z]* cached=[a-z]*" screenshots/perf_log.txt || echo "no perf lines captured"
+          # Reliability gate: warm launches (cached=true) must show content
+          # fast. CI simulators are slow and shared, so the bar here is 2s;
+          # on-device this corresponds to well under a second.
+          WARM=$(grep -o "first-content [0-9]*ms source=[a-z]* cached=true" screenshots/perf_log.txt | grep -o "[0-9]*ms" | tr -d 'ms' || true)
+          if [ -n "$WARM" ]; then
+            MAX=$(echo "$WARM" | sort -n | tail -1)
+            echo "Warm-launch max: ${MAX}ms (gate: 2000ms)"
+            if [ "$MAX" -gt 2000 ]; then
+              echo "::error::Warm launch exceeded the 2s CI gate (${MAX}ms)"
+              exit 1
+            fi
+          fi
 
       # Screen-record the simulator while the scripted XCUITest demo tour drives the app.
       # Compile the test bundle FIRST so the recording contains only the tour itself,
