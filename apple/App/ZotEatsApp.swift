@@ -68,7 +68,10 @@ struct ZotEatsApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                Task { await FavoriteAlerts.runCheck() }
+                Task {
+                    await FavoriteAlerts.runCheck()
+                    await OpeningAlerts.refreshSchedules()
+                }
             case .background:
                 FavoriteAlerts.scheduleNextRefresh()
             default:
@@ -77,6 +80,7 @@ struct ZotEatsApp: App {
         }
         .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
             await FavoriteAlerts.runCheck()
+            await OpeningAlerts.refreshSchedules()
             await FavoriteAlerts.scheduleNextRefresh()
         }
     }

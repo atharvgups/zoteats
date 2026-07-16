@@ -176,13 +176,15 @@ public struct CampusService: Sendable {
                     weekday: PacificTime.weekdayName(now: currentDate)
                 )
                 let nowMinutes = PacificTime.nowMinutes(now: currentDate)
+                let openNow = windows.contains { $0.contains(minute: nowMinutes) }
                 return CampusPlace(
                     id: key,
                     name: name,
                     category: Self.categorize(name),
-                    openNow: windows.contains { $0.contains(minute: nowMinutes) },
+                    openNow: openNow,
                     todayHours: Self.format(windows: windows),
-                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false
+                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
+                    opensAtMinutes: openNow ? nil : windows.map(\.start).filter { $0 > nowMinutes }.min()
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
