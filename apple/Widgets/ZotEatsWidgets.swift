@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import ActivityKit
 import ZotEatsKit
 
 // ZotEats home-screen widget: dining hall status at a glance — open state with
@@ -10,6 +11,79 @@ import ZotEatsKit
 struct ZotEatsWidgetBundle: WidgetBundle {
     var body: some Widget {
         DiningStatusWidget()
+        MealCountdownActivity()
+    }
+}
+
+// MARK: - "Meal ends soon" Live Activity
+
+private let activityBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
+private let activityGold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
+
+struct MealCountdownActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: MealActivityAttributes.self) { context in
+            // Lock screen banner.
+            HStack(spacing: 12) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(activityGold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(context.attributes.hallName)
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("\(context.attributes.period) ends in")
+                        .font(.system(size: 12))
+                        .opacity(0.8)
+                }
+                Spacer()
+                Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                    .font(.system(size: 28, weight: .bold))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 100)
+                    .foregroundStyle(activityGold)
+            }
+            .padding(16)
+            .activityBackgroundTint(activityBlue)
+            .activitySystemActionForegroundColor(.white)
+            .foregroundStyle(.white)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "fork.knife.circle.fill")
+                            .foregroundStyle(activityGold)
+                        Text(context.attributes.hallName)
+                            .font(.system(size: 14, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                        .font(.system(size: 22, weight: .bold))
+                        .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 84)
+                        .foregroundStyle(activityGold)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    Text("\(context.attributes.period) is wrapping up — zot while you can")
+                        .font(.system(size: 12))
+                        .opacity(0.8)
+                }
+            } compactLeading: {
+                Image(systemName: "fork.knife")
+                    .foregroundStyle(activityGold)
+            } compactTrailing: {
+                Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                    .monospacedDigit()
+                    .frame(maxWidth: 52)
+                    .foregroundStyle(activityGold)
+            } minimal: {
+                Image(systemName: "fork.knife")
+                    .foregroundStyle(activityGold)
+            }
+        }
     }
 }
 
