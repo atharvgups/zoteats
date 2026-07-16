@@ -333,7 +333,14 @@ public struct DiningService: Sendable {
     /// `fresh` (pull-to-refresh) bypasses both cache layers.
     public func menu(for hall: String, period: String, date: String? = nil, fresh: Bool = false) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        let today = try await today(for: hall, dateISO: dateISO, fresh: fresh)
+        let today: APIRestaurantToday
+        do {
+            today = try await self.today(for: hall, dateISO: dateISO, fresh: fresh)
+        } catch HTTPError.badStatus(404, _) {
+            // The API 404s for days whose menu isn't published yet (common when
+            // browsing ahead to a weekend). That's "not posted", not an error.
+            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+        }
 
         guard let match = (today.periods ?? [:]).values
             .first(where: { $0.name.lowercased() == period.lowercased() })

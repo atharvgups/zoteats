@@ -244,21 +244,31 @@ final class BusynessStore {
 @Observable
 final class Preferences {
     private static let favoritesKey = "zoteats.favoriteDishNames"
-    private static let dietFilterKey = "zoteats.dietFilter"
+    private static let legacyDietFilterKey = "zoteats.dietFilter"
+    private static let dietFiltersKey = "zoteats.dietFilters"
 
     /// Favorite dishes by name (dish IDs rotate daily; names are stable).
     var favoriteDishNames: Set<String> {
         didSet { UserDefaults.standard.set(Array(favoriteDishNames), forKey: Self.favoritesKey) }
     }
 
-    /// Active dietary filter tag (e.g. "Vegan"), or nil for everything.
-    var dietFilter: String? {
-        didSet { UserDefaults.standard.set(dietFilter, forKey: Self.dietFilterKey) }
+    /// Active dietary filter tags (e.g. Vegan + Gluten-Free). A dish must
+    /// carry every selected tag to pass. Empty means everything.
+    var dietFilters: Set<String> {
+        didSet { UserDefaults.standard.set(Array(dietFilters).sorted(), forKey: Self.dietFiltersKey) }
     }
 
     init() {
         favoriteDishNames = Set(UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? [])
-        dietFilter = UserDefaults.standard.string(forKey: Self.dietFilterKey)
+        if let saved = UserDefaults.standard.stringArray(forKey: Self.dietFiltersKey) {
+            dietFilters = Set(saved)
+        } else if let legacy = UserDefaults.standard.string(forKey: Self.legacyDietFilterKey) {
+            // One-time migration from the old single-filter setting.
+            dietFilters = [legacy]
+            UserDefaults.standard.removeObject(forKey: Self.legacyDietFilterKey)
+        } else {
+            dietFilters = []
+        }
     }
 
     func toggleFavorite(_ dishName: String) {

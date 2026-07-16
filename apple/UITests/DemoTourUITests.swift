@@ -45,14 +45,20 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["Menu for Today"])
         pause(2)
 
-        // Apply the Vegan filter via the filter sheet, then clear it.
+        // Stack two dietary filters (multi-select), see the result, then clear.
         tapIfPresent(app.buttons["diet-filter-chip"])
         pause(2)
         tapFirstMatch(app.buttons, labelPrefixes: ["Vegan filter"])
+        pause(1.5)
+        tapFirstMatch(app.buttons, labelPrefixes: ["Gluten-Free filter"])
+        pause(1.5)
+        tapIfPresent(app.buttons["diet-filter-done"])
         pause(3)
         tapIfPresent(app.buttons["diet-filter-chip"])
         pause(1.5)
-        tapIfPresent(app.buttons["Clear filter"])
+        tapIfPresent(app.buttons["diet-filter-clear"])
+        pause(1)
+        tapIfPresent(app.buttons["diet-filter-done"])
         pause(1.5)
 
         // Scroll through the menu.

@@ -83,6 +83,22 @@ struct CampusServiceTests {
         #expect(places.first { $0.id == "starbucks-at-student-center" }?.hasMenu == false)
     }
 
+    @Test func midnightToMidnightMeansOpenAllDay() {
+        // The feed encodes 24/7 spots as 00:00-00:00 — always open, and the
+        // hours line says so instead of the buggy-looking "12:00 AM – 12:00 AM".
+        let window = CampusService.TimeWindow(start: 0, end: 0)
+        #expect(window.isAllDay)
+        #expect(window.contains(minute: 0))
+        #expect(window.contains(minute: 12 * 60))
+        #expect(window.contains(minute: 23 * 60 + 59))
+        #expect(CampusService.format(windows: [window]) == "Open 24 hours")
+
+        // Normal windows are untouched.
+        let lunch = CampusService.TimeWindow(start: 660, end: 900)
+        #expect(!lunch.isAllDay)
+        #expect(CampusService.format(windows: [lunch]) == "11:00 AM – 3:00 PM")
+    }
+
     @Test func brandAndLocationSplitting() {
         let starbucks = CampusPlace(
             id: "s", name: "Starbucks @ Student Center", category: "Coffee & Cafés",

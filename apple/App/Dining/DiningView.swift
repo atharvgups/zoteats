@@ -89,7 +89,7 @@ struct DiningView: View {
     }
 
     private var hasActiveFilter: Bool {
-        prefs.dietFilter != nil || !trimmedQuery.isEmpty
+        !prefs.dietFilters.isEmpty || !trimmedQuery.isEmpty
     }
 
     // MARK: - Sections
@@ -142,37 +142,46 @@ struct DiningView: View {
         }
     }
 
-    /// Compact chip summarizing the dietary filter; opens the picker sheet.
+    /// Compact chip summarizing the dietary filters; opens the picker sheet.
     private var filterChip: some View {
-        let active = prefs.dietFilter
+        let active = prefs.dietFilters
+        let label = switch active.count {
+        case 0: "Filters"
+        case 1: active.first!
+        default: "\(active.count) filters"
+        }
         return Button {
             showDietFilters = true
             Haptics.selection()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease.circle\(active != nil ? ".fill" : "")")
+                Image(systemName: "line.3.horizontal.decrease.circle\(active.isEmpty ? "" : ".fill")")
                     .font(.system(size: 14, weight: .semibold))
-                Text(active ?? "Filters")
-                    .font(ZotFont.pill.weight(active != nil ? .semibold : .medium))
+                Text(label)
+                    .font(ZotFont.pill.weight(active.isEmpty ? .medium : .semibold))
                     .lineLimit(1)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
-                active != nil ? Color.uciBlue.opacity(0.12) : Color.card,
+                active.isEmpty ? Color.card : Color.uciBlue.opacity(0.12),
                 in: Capsule()
             )
-            .foregroundStyle(active != nil ? Color.uciBlue : .primary)
+            .foregroundStyle(active.isEmpty ? Color.primary : Color.uciBlue)
             .overlay(
                 Capsule().strokeBorder(
-                    active != nil ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    active.isEmpty ? Color.cardBorder : Color.uciBlue.opacity(0.35),
                     lineWidth: 1
                 )
             )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("diet-filter-chip")
-        .accessibilityLabel(active.map { "Dietary filter: \($0)" } ?? "Dietary filters")
+        .accessibilityLabel(
+            active.isEmpty
+                ? "Dietary filters"
+                : "Dietary filters: \(active.sorted().joined(separator: ", "))"
+        )
     }
 
     /// Hall cards straight from the live API — a third commons appears here
@@ -269,26 +278,18 @@ struct DiningView: View {
             }
             .padding(.horizontal, 20)
 
-            let favorites = favoriteItems(in: stations)
-            if !favorites.isEmpty {
+            // No duplicate "Favorites" section: stations serving a favorited
+            // dish bubble to the top (hearted header), and within them the
+            // favorites lead — each dish appears exactly once.
+            ForEach(hoistedStations(stations)) { station in
+                let hasFavorite = station.items.contains { prefs.isFavorite($0.name) }
                 VStack(alignment: .leading, spacing: 10) {
                     sectionHeader(
-                        title: "Favorites today",
-                        count: favorites.count,
-                        icon: "heart.fill",
-                        tint: .pink
+                        title: station.name,
+                        count: station.items.count,
+                        icon: hasFavorite ? "heart.fill" : nil,
+                        tint: hasFavorite ? .pink : .uciGold
                     )
-                    ForEach(favorites) { item in
-                        dishRow(item)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .transition(.opacity)
-            }
-
-            ForEach(stations) { station in
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionHeader(title: station.name, count: station.items.count)
                     ForEach(station.items) { item in
                         dishRow(item)
                     }
@@ -297,6 +298,22 @@ struct DiningView: View {
             }
         }
         .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
+    }
+
+    /// Stations with favorites first (original order otherwise), favorited
+    /// dishes leading inside their station.
+    private func hoistedStations(_ stations: [MenuStation]) -> [MenuStation] {
+        let reordered = stations.map { station in
+            let favorites = station.items.filter { prefs.isFavorite($0.name) }
+            guard !favorites.isEmpty else { return station }
+            return MenuStation(
+                name: station.name,
+                items: favorites + station.items.filter { !prefs.isFavorite($0.name) }
+            )
+        }
+        let withFavorites = reordered.filter { $0.items.contains { prefs.isFavorite($0.name) } }
+        let rest = reordered.filter { !$0.items.contains { prefs.isFavorite($0.name) } }
+        return withFavorites + rest
     }
 
     private func dishRow(_ item: MenuItem) -> some View {
@@ -411,7 +428,8 @@ struct DiningView: View {
     // MARK: - Filtering
 
     private func matches(_ item: MenuItem) -> Bool {
-        if let filter = prefs.dietFilter, !item.dietaryTags.contains(filter) {
+        // Multiple filters combine as AND — Vegan + Gluten-Free means both.
+        guard prefs.dietFilters.allSatisfy({ item.dietaryTags.contains($0) }) else {
             return false
         }
         let query = trimmedQuery
@@ -547,6 +565,8 @@ private struct DayStrip: View {
 // MARK: - Dietary filter sheet
 
 /// One tidy sheet instead of a permanent pill row on the main screen.
+/// Filters stack (multi-select) and combine as AND: Vegan + Gluten-Free
+/// shows only dishes that are both.
 struct DietFilterSheet: View {
     let prefs: Preferences
     @Environment(\.dismiss) private var dismiss
@@ -555,27 +575,48 @@ struct DietFilterSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Dietary filter")
-                .font(ZotFont.hero(24))
+            HStack(alignment: .firstTextBaseline) {
+                Text("Dietary filters")
+                    .font(ZotFont.hero(24))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(Color.uciBlue, in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("diet-filter-done")
+            }
+            .padding(.bottom, 2)
+
+            Text("Pick as many as you need — dishes must match all of them.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
 
             ForEach(Self.options, id: \.self) { option in
-                let isSelected = prefs.dietFilter == option
+                let isSelected = prefs.dietFilters.contains(option)
                 Button {
-                    prefs.dietFilter = isSelected ? nil : option
+                    if isSelected {
+                        prefs.dietFilters.remove(option)
+                    } else {
+                        prefs.dietFilters.insert(option)
+                    }
                     Haptics.selection()
-                    dismiss()
                 } label: {
                     HStack {
                         TagChip(text: option, color: TagPalette.dietColor(option))
-                        Text("Only show \(option.lowercased()) dishes")
+                        Text("Only \(option.lowercased()) dishes")
                             .font(ZotFont.body)
                             .foregroundStyle(.primary)
                         Spacer()
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.uciBlue)
-                        }
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 14)
@@ -595,13 +636,12 @@ struct DietFilterSheet: View {
                 .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
             }
 
-            if prefs.dietFilter != nil {
+            if !prefs.dietFilters.isEmpty {
                 Button {
-                    prefs.dietFilter = nil
+                    prefs.dietFilters = []
                     Haptics.selection()
-                    dismiss()
                 } label: {
-                    Text("Clear filter")
+                    Text("Clear all")
                         .font(ZotFont.pill.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
@@ -610,6 +650,7 @@ struct DietFilterSheet: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 8)
+                .accessibilityIdentifier("diet-filter-clear")
             }
 
             Spacer(minLength: 0)
@@ -618,6 +659,7 @@ struct DietFilterSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .background(Color.screen)
+        .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
     }
 }
 

@@ -63,6 +63,29 @@ struct DiningServiceTests {
         #expect(locations.count == 2)
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
     }
+
+    @Test func unpublishedFutureDayIs404AndReadsAsNotPostedYet() async throws {
+        // Browsing ahead to a day whose menu isn't published: the API 404s.
+        // That must surface as an empty "not posted yet" menu, not an error.
+        let service = DiningService(http: NotFoundHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
+        let menu = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
+        #expect(menu.stations.isEmpty)
+        #expect(menu.date == "2026-07-19")
+    }
+
+    @Test func otherHTTPFailuresStillThrow() async {
+        let service = DiningService(http: FailingHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
+        await #expect(throws: (any Error).self) {
+            _ = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
+        }
+    }
+}
+
+/// Stub that answers every request with HTTP 404.
+private struct NotFoundHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        throw HTTPError.badStatus(code: 404, url: url)
+    }
 }
 
 @Suite("HallOpenState")
