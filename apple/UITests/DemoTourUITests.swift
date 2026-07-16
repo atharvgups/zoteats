@@ -130,6 +130,14 @@ final class DemoTourUITests: XCTestCase {
         // ── Settings (top-right gear): live appearance toggle ─────────────
         tapTab(app, "Eat")
         pause(2)
+        // The Eat tab is still scrolled from earlier; the gear lives in the
+        // scrolling header, so return to the top or every tap below no-ops.
+        var scrollsBack = 0
+        while !app.buttons["Open settings"].firstMatch.isHittable && scrollsBack < 6 {
+            app.swipeDown()
+            scrollsBack += 1
+            pause(1)
+        }
         tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)
         tapIfPresent(app.buttons["Dark appearance"])
