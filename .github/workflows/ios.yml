@@ -113,6 +113,8 @@ jobs:
             sleep 12
             xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
           done
+          xcrun simctl ui booted appearance light
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
 
       # Launch-to-content timings from the unified log. Every launch after the
       # first has warm disk snapshots, so these numbers ARE the warm-launch metric.
@@ -123,8 +125,6 @@ jobs:
             --style compact > screenshots/perf_log.txt || true
           echo "== Launch-to-first-content timings =="
           grep -o "first-content [0-9]*ms source=[a-z]* cached=[a-z]*" screenshots/perf_log.txt || echo "no perf lines captured"
-          xcrun simctl ui booted appearance light
-          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
 
       # Screen-record the simulator while the scripted XCUITest demo tour drives the app.
       # Compile the test bundle FIRST so the recording contains only the tour itself,
