@@ -53,9 +53,9 @@ final class DiningStore {
         }
     }
 
-    func loadLocations() async {
+    func loadLocations(fresh: Bool = false) async {
         if locations.value == nil { locations = .loading }
-        let result = await service.locations()
+        let result = await service.locations(fresh: fresh)
         // The service degrades per-hall; treat "no data at all" as an error state
         // — but never clobber a good snapshot with an outage.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
@@ -72,11 +72,11 @@ final class DiningStore {
         menus["\(hall)|\(period)|\(date ?? "today")"] ?? .idle
     }
 
-    func loadMenu(hall: String, period: String, date: String? = nil) async {
+    func loadMenu(hall: String, period: String, date: String? = nil, fresh: Bool = false) async {
         let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
-            menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date))
+            menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date, fresh: fresh))
             persistTodayMenus()
         } catch {
             // Keep stale menu visible through a refresh failure.
@@ -176,10 +176,10 @@ final class CampusStore {
         }
     }
 
-    func loadPlaces() async {
+    func loadPlaces(fresh: Bool = false) async {
         if places.value == nil { places = .loading }
         do {
-            let result = try await service.places()
+            let result = try await service.places(fresh: fresh)
             places = .loaded(result)
             snapshots.save(result, key: "campus.places")
         } catch {

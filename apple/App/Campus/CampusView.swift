@@ -41,7 +41,7 @@ struct CampusView: View {
             .padding(.bottom, 24)
         }
         .background(Color.screen)
-        .refreshable { await store.loadPlaces() }
+        .refreshable { await store.loadPlaces(fresh: true) }
         .statusBarBackdrop()
         .sheet(item: $selectedPlace) { place in
             CampusMenuSheet(place: place, store: store, prefs: prefs)

@@ -447,9 +447,11 @@ struct DiningView: View {
     }
 
     private func refresh() async {
-        await store.loadLocations()
+        await store.loadLocations(fresh: true)
         syncPeriodSelection()
-        await loadCurrentMenu()
+        if let selectedPeriod {
+            await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate, fresh: true)
+        }
     }
 
     /// Keeps the period selection valid for the current hall,
