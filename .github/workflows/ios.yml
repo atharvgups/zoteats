@@ -59,13 +59,15 @@ jobs:
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
+          # Release build: screenshots come from it AND the launch-perf numbers
+          # scraped later must reflect what users actually get, not -Onone Debug.
           # Generic destination: no dependency on which simulator devices this runner image ships.
           build() {
             xcodebuild \
               -project apple/ZotEats.xcodeproj \
               -scheme ZotEats \
               -destination 'generic/platform=iOS Simulator' \
-              -configuration Debug \
+              -configuration Release \
               -derivedDataPath apple/DerivedData \
               CODE_SIGNING_ALLOWED=NO \
               build
@@ -89,7 +91,7 @@ jobs:
           # Clean status bar for App Store-style screenshots.
           xcrun simctl status_bar booted override \
             --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4
-          APP_PATH="apple/DerivedData/Build/Products/Debug-iphonesimulator/ZotEats.app"
+          APP_PATH="apple/DerivedData/Build/Products/Release-iphonesimulator/ZotEats.app"
           xcrun simctl install booted "$APP_PATH"
           mkdir -p screenshots
           # Light and dark mode captures of every tab.
@@ -107,6 +109,11 @@ jobs:
               com.atharvgupta.zoteats -initialTab dining -showSettings
             sleep 10
             xcrun simctl io booted screenshot "screenshots/settings_${mode}.png"
+            # Opening-alerts watchlist picker (Settings -> Notifications).
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showSettings -showOpenAlerts
+            sleep 12
+            xcrun simctl io booted screenshot "screenshots/open_alerts_${mode}.png"
             # Campus menu sheet (Halal Shack publishes a menu), auto-opened via launch arg.
             xcrun simctl launch --terminate-running-process booted \
               com.atharvgupta.zoteats -initialTab campus -campusMenu halal-shack
@@ -114,7 +121,39 @@ jobs:
             xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
           done
           xcrun simctl ui booted appearance light
+          # Record one warm relaunch: disk snapshots are hot by now, so this
+          # clip is the proof that launch shows content instantly, not skeletons.
+          xcrun simctl terminate booted com.atharvgupta.zoteats 2>/dev/null || true
+          sleep 2
+          xcrun simctl io booted recordVideo --codec h264 --force screenshots/warm_launch.mov &
+          WARM_PID=$!
+          sleep 2
+          xcrun simctl launch booted com.atharvgupta.zoteats
+          sleep 6
+          kill -INT "$WARM_PID"; wait "$WARM_PID" || true
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+
+      # Launch-to-content timings from the unified log. Every launch after the
+      # first has warm disk snapshots, so these numbers ARE the warm-launch metric.
+      - name: Collect perf metrics
+        run: |
+          xcrun simctl spawn booted log show --last 15m \
+            --predicate 'eventMessage CONTAINS "ZOTEATS_PERF"' \
+            --style compact > screenshots/perf_log.txt || true
+          echo "== Launch-to-first-content timings =="
+          grep -o "first-content [0-9]*ms source=[a-z]* cached=[a-z]*" screenshots/perf_log.txt || echo "no perf lines captured"
+          # Reliability gate: warm launches (cached=true) must show content
+          # fast. CI simulators are slow and shared, so the bar here is 2s;
+          # on-device this corresponds to well under a second.
+          WARM=$(grep -o "first-content [0-9]*ms source=[a-z]* cached=true" screenshots/perf_log.txt | grep -o "[0-9]*ms" | tr -d 'ms' || true)
+          if [ -n "$WARM" ]; then
+            MAX=$(echo "$WARM" | sort -n | tail -1)
+            echo "Warm-launch max: ${MAX}ms (gate: 2000ms)"
+            if [ "$MAX" -gt 2000 ]; then
+              echo "::error::Warm launch exceeded the 2s CI gate (${MAX}ms)"
+              exit 1
+            fi
+          fi
 
       # Screen-record the simulator while the scripted XCUITest demo tour drives the app.
       # Compile the test bundle FIRST so the recording contains only the tour itself,

@@ -14,23 +14,29 @@ import Foundation
 
 public struct CampusService: Sendable {
     private static let meshURL = "https://api.elevate-dxp.com/api/mesh/c087f756-cc72-4649-a36f-3a41b700c519/graphql"
-    private static let locationsTTL: TimeInterval = 60 * 60
-    private static let menuTTL: TimeInterval = 30 * 60
+    // Open/closed state is computed inside the places() cache entry, so its
+    // in-memory TTL stays short — recomputes hit the on-disk day cache, not
+    // the network. Menus are day-stable.
+    private static let locationsTTL: TimeInterval = 10 * 60
+    private static let menuTTL: TimeInterval = 24 * 60 * 60
 
     /// Residential commons already covered by the Eat tab.
     private static let excludedKeys: Set<String> = ["the-anteatery", "brandywine"]
 
     private let http: any HTTPFetching
     private let cache: TTLCache
+    private let dayCache: DayCache
     private let now: @Sendable () -> Date
 
     public init(
         http: any HTTPFetching = HTTPClient(),
         cache: TTLCache = TTLCache(),
+        dayCache: DayCache = .shared,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.http = http
         self.cache = cache
+        self.dayCache = dayCache
         self.now = now
     }
 
@@ -124,13 +130,25 @@ public struct CampusService: Sendable {
 
     // MARK: - Fetch
 
-    private func graphQL<T: Decodable & Sendable>(_ type: T.Type, query: String, variables: String) async throws -> T {
+    /// Hours schedules and menus are stable for the day, so raw GraphQL bytes
+    /// go through the day cache: pull once, reuse until midnight — across
+    /// launches. `fresh` (explicit user refresh) forces the network.
+    private func graphQL<T: Decodable & Sendable>(_ type: T.Type, query: String, variables: String, fresh: Bool = false) async throws -> T {
         var components = URLComponents(string: Self.meshURL)!
         components.queryItems = [
             URLQueryItem(name: "query", value: query),
             URLQueryItem(name: "variables", value: variables),
         ]
         guard let url = components.url else { throw URLError(.badURL) }
+
+        let day = PacificTime.todayISO(now: now())
+        let cacheKey = "campus:\(query)|\(variables)"
+        if !fresh,
+           let cached = await dayCache.data(for: cacheKey, day: day),
+           let decoded = try? Self.decodeEnvelope(type, from: cached, url: url) {
+            return decoded
+        }
+
         // Static, public header values from the site's own JS bundle (see header comment).
         let headers = [
             "Referer": "https://uci.mydininghub.com/",
@@ -142,7 +160,19 @@ public struct CampusService: Sendable {
             "magento-store-view-code": "ch_uci_en",
         ]
         let data = try await http.data(from: url, headers: headers)
-        let envelope = try JSONDecoder().decode(Envelope<T>.self, from: data)
+        let decoded = try Self.decodeEnvelope(type, from: data, url: url)
+        // Persist only responses that decoded cleanly.
+        await dayCache.store(data, key: cacheKey, day: day)
+        return decoded
+    }
+
+    private static func decodeEnvelope<T: Decodable & Sendable>(_ type: T.Type, from data: Data, url: URL) throws -> T {
+        let envelope: Envelope<T>
+        do {
+            envelope = try JSONDecoder().decode(Envelope<T>.self, from: data)
+        } catch {
+            throw HTTPError.decoding(underlying: error, url: url)
+        }
         guard let payload = envelope.data else {
             throw HTTPError.decoding(underlying: URLError(.cannotParseResponse), url: url)
         }
@@ -152,15 +182,16 @@ public struct CampusService: Sendable {
     // MARK: - Public API
 
     /// All campus retail spots with today's hours and open state, commons excluded.
-    public func places() async throws -> [CampusPlace] {
+    /// `fresh` (pull-to-refresh) bypasses both cache layers.
+    public func places(fresh: Bool = false) async throws -> [CampusPlace] {
         let currentDate = now()
         let todayISO = PacificTime.todayISO(now: currentDate)
-        return try await cache.remember("campus:places:\(todayISO)", ttl: Self.locationsTTL) {
+        return try await cache.remember("campus:places:\(todayISO)", ttl: Self.locationsTTL, fresh: fresh) {
             let query = """
             query($campusUrlKey:String!){getLocations(campusUrlKey:$campusUrlKey){\
             commerceAttributes{url_key hasActiveMenus}aemAttributes{name hoursOfOperation{schedule}}}}
             """
-            let data = try await graphQL(LocationsData.self, query: query, variables: #"{"campusUrlKey":"campus"}"#)
+            let data = try await graphQL(LocationsData.self, query: query, variables: #"{"campusUrlKey":"campus"}"#, fresh: fresh)
             return (data.getLocations ?? []).compactMap { raw -> CampusPlace? in
                 guard let key = raw.commerceAttributes?.url_key,
                       !Self.excludedKeys.contains(key),
@@ -176,13 +207,15 @@ public struct CampusService: Sendable {
                     weekday: PacificTime.weekdayName(now: currentDate)
                 )
                 let nowMinutes = PacificTime.nowMinutes(now: currentDate)
+                let openNow = windows.contains { $0.contains(minute: nowMinutes) }
                 return CampusPlace(
                     id: key,
                     name: name,
                     category: Self.categorize(name),
-                    openNow: windows.contains { $0.contains(minute: nowMinutes) },
+                    openNow: openNow,
                     todayHours: Self.format(windows: windows),
-                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false
+                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
+                    opensAtMinutes: openNow ? nil : windows.map(\.start).filter { $0 > nowMinutes }.min()
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -191,9 +224,10 @@ public struct CampusService: Sendable {
 
     /// Published menu for a retail spot, grouped by meal period.
     /// Empty when the venue doesn't publish menus (brand-app-only places).
-    public func menu(for placeID: String, date: String? = nil) async throws -> [MenuStation] {
+    /// `fresh` (pull-to-refresh) bypasses both cache layers.
+    public func menu(for placeID: String, date: String? = nil, fresh: Bool = false) async throws -> [MenuStation] {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        return try await cache.remember("campus:menu:\(placeID):\(dateISO)", ttl: Self.menuTTL) {
+        return try await cache.remember("campus:menu:\(placeID):\(dateISO)", ttl: Self.menuTTL, fresh: fresh) {
             let query = """
             query($campusUrlKey:String!,$locationUrlKey:String!,$date:String!){\
             getLocationMealPeriodRecipes(campusUrlKey:$campusUrlKey,locationUrlKey:$locationUrlKey,date:$date){\
@@ -201,7 +235,7 @@ public struct CampusService: Sendable {
             products{name sku attributes{name value}}}}
             """
             let variables = #"{"campusUrlKey":"campus","locationUrlKey":"\#(placeID)","date":"\#(dateISO)"}"#
-            let data = try await graphQL(MenuData.self, query: query, variables: variables)
+            let data = try await graphQL(MenuData.self, query: query, variables: variables, fresh: fresh)
             guard let menu = data.getLocationMealPeriodRecipes else { return [] }
 
             var products: [String: MenuItem] = [:]

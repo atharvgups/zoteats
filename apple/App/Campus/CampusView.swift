@@ -41,7 +41,7 @@ struct CampusView: View {
             .padding(.bottom, 24)
         }
         .background(Color.screen)
-        .refreshable { await store.loadPlaces() }
+        .refreshable { await store.loadPlaces(fresh: true) }
         .statusBarBackdrop()
         .sheet(item: $selectedPlace) { place in
             CampusMenuSheet(place: place, store: store, prefs: prefs)
@@ -177,6 +177,8 @@ struct CampusView: View {
                     .zotCard()
                 }
             } else {
+                Color.clear.frame(height: 0)
+                    .onAppear { PerfMetrics.markFirstContent("campus", cached: store.hydratedFromDisk) }
                 ForEach(brands, id: \.brand) { entry in
                     if entry.places.count == 1 {
                         CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {

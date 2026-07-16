@@ -8,7 +8,7 @@ private let fixtureNoon = ISO8601DateFormatter().date(from: "2026-07-09T19:30:00
 @Suite("DiningService (fixtures)")
 struct DiningServiceTests {
     private func service() -> DiningService {
-        DiningService(http: FixtureHTTP(), now: { fixtureNoon })
+        DiningService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
     }
 
     @Test func locationsIncludeBothHallsInStableOrder() async {
@@ -58,7 +58,7 @@ struct DiningServiceTests {
     }
 
     @Test func networkFailureDegradesToClosedLocations() async {
-        let service = DiningService(http: FailingHTTP(), now: { fixtureNoon })
+        let service = DiningService(http: FailingHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
         let locations = await service.locations()
         #expect(locations.count == 2)
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
@@ -109,7 +109,7 @@ struct HallOpenStateTests {
     }
 
     @Test func liveLocationsCarryPeriodWindows() async {
-        let service = DiningService(http: FixtureHTTP(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
+        let service = DiningService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
         let anteatery = await service.locations().first { $0.id == "anteatery" }!
         #expect(!anteatery.periods.isEmpty)
         // Some periods (e.g. "All Day") legitimately have no serving window;
