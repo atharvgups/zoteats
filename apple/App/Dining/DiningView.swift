@@ -56,6 +56,9 @@ struct DiningView: View {
             }
             .onChange(of: store.locations.value) { syncPeriodSelection() }
             .onChange(of: selectedHall) { syncPeriodSelection() }
+            // Snapshot-hydrated launches already have locations at init, so
+            // onChange never fires; sync eagerly or the menu never loads.
+            .onAppear { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
             }
@@ -247,7 +250,7 @@ struct DiningView: View {
             } else {
                 menuList(menu: menu, stations: stations)
                     .onAppear {
-                        PerfMetrics.markFirstContent("eat", cached: true)
+                        PerfMetrics.markFirstContent("eat", cached: store.hydratedFromDisk)
                     }
             }
         }

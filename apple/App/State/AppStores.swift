@@ -32,6 +32,8 @@ final class DiningStore {
     var locations: LoadState<[DiningLocation]> = .idle
     /// Keyed by "\(hallID)|\(period)|\(date-or-today)".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
+    /// True when this launch rendered from a disk snapshot (perf telemetry).
+    private(set) var hydratedFromDisk = false
 
     init(service: DiningService = DiningService(), snapshots: SnapshotCache = .shared) {
         self.service = service
@@ -41,6 +43,7 @@ final class DiningStore {
         // launch; the .task refresh replaces it silently.
         if let saved = snapshots.load([DiningLocation].self, key: "dining.locations"), !saved.isEmpty {
             locations = .loaded(saved)
+            hydratedFromDisk = true
         }
         let today = UCITime.upcomingDays(count: 1).first?.isoDate ?? ""
         if let saved = snapshots.load(MenusSnapshot.self, key: "dining.menus"), saved.dateISO == today {
@@ -134,12 +137,14 @@ final class GymStore {
     private let snapshots: SnapshotCache
 
     var status: LoadState<GymStatus> = .idle
+    private(set) var hydratedFromDisk = false
 
     init(service: GymService = GymService(), snapshots: SnapshotCache = .shared) {
         self.service = service
         self.snapshots = snapshots
         if let saved = snapshots.load(GymStatus.self, key: "gym.status") {
             status = .loaded(saved)
+            hydratedFromDisk = true
         }
     }
 
@@ -160,12 +165,14 @@ final class CampusStore {
     var places: LoadState<[CampusPlace]> = .idle
     /// Keyed by place id.
     private(set) var menus: [String: LoadState<[MenuStation]>] = [:]
+    private(set) var hydratedFromDisk = false
 
     init(service: CampusService = CampusService(), snapshots: SnapshotCache = .shared) {
         self.service = service
         self.snapshots = snapshots
         if let saved = snapshots.load([CampusPlace].self, key: "campus.places"), !saved.isEmpty {
             places = .loaded(saved)
+            hydratedFromDisk = true
         }
     }
 
@@ -204,6 +211,7 @@ final class BusynessStore {
     private let snapshots: SnapshotCache
 
     var facilities: LoadState<[BusynessPoint]> = .idle
+    private(set) var hydratedFromDisk = false
 
     init(service: BusynessService = BusynessService(), snapshots: SnapshotCache = .shared) {
         self.service = service
@@ -211,6 +219,7 @@ final class BusynessStore {
         // Stale occupancy still renders honestly: UpdatedAgoText shows its true age.
         if let saved = snapshots.load([BusynessPoint].self, key: "busyness.facilities"), !saved.isEmpty {
             facilities = .loaded(saved)
+            hydratedFromDisk = true
         }
     }
 

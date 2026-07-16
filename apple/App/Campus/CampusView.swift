@@ -178,7 +178,7 @@ struct CampusView: View {
                 }
             } else {
                 Color.clear.frame(height: 0)
-                    .onAppear { PerfMetrics.markFirstContent("campus", cached: true) }
+                    .onAppear { PerfMetrics.markFirstContent("campus", cached: store.hydratedFromDisk) }
                 ForEach(brands, id: \.brand) { entry in
                     if entry.places.count == 1 {
                         CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {
