@@ -945,5 +945,5 @@ private struct CalorieBadge: View {
 }
 
 #Preview {
-    DiningView(store: DiningStore(), prefs: Preferences())
+    DiningView(store: DiningStore(), prefs: Preferences(), plate: PlateStore())
 }
