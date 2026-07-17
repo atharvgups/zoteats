@@ -114,6 +114,11 @@ jobs:
               com.atharvgupta.zoteats -initialTab dining -showSettings -showOpenAlerts
             sleep 12
             xcrun simctl io booted screenshot "screenshots/open_alerts_${mode}.png"
+            # First-launch welcome tour.
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showWelcome
+            sleep 8
+            xcrun simctl io booted screenshot "screenshots/welcome_${mode}.png"
             # Campus menu sheet (Halal Shack publishes a menu), auto-opened via launch arg.
             xcrun simctl launch --terminate-running-process booted \
               com.atharvgupta.zoteats -initialTab campus -campusMenu halal-shack

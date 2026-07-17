@@ -7,6 +7,7 @@ import ZotEatsKit
 struct DiningView: View {
     let store: DiningStore
     let prefs: Preferences
+    let plate: PlateStore
     @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
@@ -16,6 +17,7 @@ struct DiningView: View {
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
     @State private var showDietFilters = false
+    @State private var showPlate = false
     @State private var mealActivity = MealActivityManager()
 
     /// Today + the next few days (menus are usually published a few days out).
@@ -60,12 +62,53 @@ struct DiningView: View {
             // onChange never fires; sync eagerly or the menu never loads.
             .onAppear { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
-                DishDetailSheet(dish: dish, prefs: prefs)
+                DishDetailSheet(dish: dish, prefs: prefs, plate: plate)
             }
             .sheet(isPresented: $showDietFilters) {
                 DietFilterSheet(prefs: prefs)
             }
+            .sheet(isPresented: $showPlate) {
+                PlateSheet(plate: plate)
+            }
+            // Floating plate tally, only while today's plate has something on it.
+            .safeAreaInset(edge: .bottom) {
+                if !plate.isEmpty && selectedDate == nil {
+                    plateTallyBar
+                }
+            }
         }
+    }
+
+    /// Compact running total pinned above the tab bar; taps open the plate.
+    private var plateTallyBar: some View {
+        Button {
+            showPlate = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("\(plate.entries.count) on your plate")
+                    .font(ZotFont.pill.weight(.semibold))
+                Spacer()
+                Text("\(plate.totalCalories) cal · \(plate.totalProteinG)g protein")
+                    .font(ZotFont.pill.weight(.medium))
+                    .opacity(0.9)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(Color.uciBlue, in: Capsule())
+            .foregroundStyle(.white)
+            .shadow(color: Color.uciBlue.opacity(0.3), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityLabel(
+            "My plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein"
+        )
+        .accessibilityIdentifier("plate-tally-bar")
     }
 
     // MARK: - Derived state
@@ -320,7 +363,12 @@ struct DiningView: View {
         DishRowCard(
             item: item,
             isFavorite: prefs.isFavorite(item.name),
+            isOnPlate: plate.isOnPlate(item.name),
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
+            // Plate building only makes sense for food being served today.
+            onTogglePlate: selectedDate == nil
+                ? { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } }
+                : nil,
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
@@ -777,7 +825,9 @@ private struct HallCard: View {
 private struct DishRowCard: View {
     let item: MenuItem
     let isFavorite: Bool
+    var isOnPlate: Bool = false
     let onToggleFavorite: () -> Void
+    var onTogglePlate: (() -> Void)?
     let onOpen: () -> Void
 
     var body: some View {
@@ -805,7 +855,12 @@ private struct DishRowCard: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 10) {
-                    favoriteButton
+                    HStack(spacing: 8) {
+                        if let onTogglePlate {
+                            plateButton(onTogglePlate)
+                        }
+                        favoriteButton
+                    }
                     if let calories = item.calories {
                         CalorieBadge(calories: calories)
                     }
@@ -849,6 +904,22 @@ private struct DishRowCard: View {
         .accessibilityLabel(
             isFavorite ? "Remove \(item.name) from favorites" : "Add \(item.name) to favorites"
         )
+    }
+
+    private func plateButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isOnPlate ? Color.uciBlue : Color.secondary)
+                .symbolEffect(.bounce, value: isOnPlate)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            isOnPlate ? "Remove \(item.name) from my plate" : "Add \(item.name) to my plate"
+        )
+        .accessibilityIdentifier("plate-toggle")
     }
 }
 

@@ -71,6 +71,7 @@ struct ZotEatsApp: App {
                 Task {
                     await FavoriteAlerts.runCheck()
                     await OpeningAlerts.refreshSchedules()
+                    await MenuDropAlerts.runCheck()
                 }
             case .background:
                 FavoriteAlerts.scheduleNextRefresh()
@@ -81,6 +82,7 @@ struct ZotEatsApp: App {
         .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
             await FavoriteAlerts.runCheck()
             await OpeningAlerts.refreshSchedules()
+            await MenuDropAlerts.runCheck()
             await FavoriteAlerts.scheduleNextRefresh()
         }
     }
@@ -106,6 +108,7 @@ struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
     // -showSettings lets CI screenshot the Settings sheet directly.
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
+    @State private var showWelcome = RootTabView.shouldShowWelcome()
 
     // App-lifetime stores: the iOS 26 tab system unloads off-screen tabs, so
     // per-view stores were recreated (and refetched everything) on every tab
@@ -115,6 +118,7 @@ struct RootTabView: View {
     @State private var gymStore = GymStore()
     @State private var busynessStore = BusynessStore()
     @State private var preferences = Preferences()
+    @State private var plate = PlateStore()
 
     var body: some View {
         tabs
@@ -123,10 +127,27 @@ struct RootTabView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .sheet(isPresented: $showWelcome) {
+                WelcomeTour {
+                    UserDefaults.standard.set(true, forKey: WelcomeTour.shownKey)
+                    showWelcome = false
+                    Haptics.soft()
+                }
+            }
             .onAppear {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
             }
+    }
+
+    /// Warm welcome on the very first launch. CI screenshot launches pass
+    /// -initialTab/-showSettings and must not be blocked by the sheet;
+    /// -showWelcome forces it for the CI capture.
+    private static func shouldShowWelcome() -> Bool {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-showWelcome") { return true }
+        if args.contains("-initialTab") || args.contains("-showSettings") { return false }
+        return !UserDefaults.standard.bool(forKey: WelcomeTour.shownKey)
     }
 
     // Visible labels are Eat / Campus / Gym / Study; internal AppTab ids and
@@ -136,7 +157,7 @@ struct RootTabView: View {
     private var tabs: some View {
         TabView(selection: $selection) {
             Tab("Eat", systemImage: "fork.knife", value: AppTab.dining) {
-                DiningView(store: diningStore, prefs: preferences)
+                DiningView(store: diningStore, prefs: preferences, plate: plate)
             }
             Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
                 CampusView(store: campusStore, prefs: preferences)

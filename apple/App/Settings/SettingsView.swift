@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var showZot = false
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
+    @State private var menuDropEnabled = MenuDropAlerts.isEnabled
     @State private var alertsDenied = false
     @State private var watchedPlaces = OpeningAlerts.watchedIDs
     // -showOpenAlerts lets CI screenshot the picker directly.
@@ -124,6 +125,35 @@ struct SettingsView: View {
                         await FavoriteAlerts.runCheck()
                     } else {
                         alertsEnabled = false
+                        alertsDenied = true
+                    }
+                }
+            }
+
+            Divider()
+
+            Toggle(isOn: $menuDropEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Menu drops")
+                        .font(ZotFont.body)
+                    Text("Know when UCI posts a new day's menu.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .tint(.uciBlue)
+            .onChange(of: menuDropEnabled) { _, enabled in
+                guard enabled else {
+                    MenuDropAlerts.isEnabled = false
+                    return
+                }
+                Task {
+                    let granted = await FavoriteAlerts.requestPermission()
+                    MenuDropAlerts.isEnabled = granted
+                    if granted {
+                        await MenuDropAlerts.runCheck()
+                    } else {
+                        menuDropEnabled = false
                         alertsDenied = true
                     }
                 }

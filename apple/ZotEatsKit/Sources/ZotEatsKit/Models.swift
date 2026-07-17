@@ -126,6 +126,47 @@ public extension DiningLocation {
     }
 }
 
+/// Full nutrition label for a dish, straight from UCI's published data.
+/// Everything optional — the feed omits fields for plenty of dishes.
+public struct NutritionFacts: Codable, Sendable, Equatable, Hashable {
+    public let proteinG: Double?
+    public let totalCarbsG: Double?
+    public let totalFatG: Double?
+    public let saturatedFatG: Double?
+    public let transFatG: Double?
+    public let sodiumMg: Double?
+    public let sugarsG: Double?
+    public let dietaryFiberG: Double?
+    public let ingredients: String?
+
+    public init(
+        proteinG: Double? = nil,
+        totalCarbsG: Double? = nil,
+        totalFatG: Double? = nil,
+        saturatedFatG: Double? = nil,
+        transFatG: Double? = nil,
+        sodiumMg: Double? = nil,
+        sugarsG: Double? = nil,
+        dietaryFiberG: Double? = nil,
+        ingredients: String? = nil
+    ) {
+        self.proteinG = proteinG
+        self.totalCarbsG = totalCarbsG
+        self.totalFatG = totalFatG
+        self.saturatedFatG = saturatedFatG
+        self.transFatG = transFatG
+        self.sodiumMg = sodiumMg
+        self.sugarsG = sugarsG
+        self.dietaryFiberG = dietaryFiberG
+        self.ingredients = ingredients
+    }
+
+    /// True when there's at least one number worth showing.
+    public var hasMacros: Bool {
+        proteinG != nil || totalCarbsG != nil || totalFatG != nil
+    }
+}
+
 /// A single dish on a dining hall menu.
 public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: String
@@ -135,6 +176,8 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let servingSize: String?
     public let allergens: [String]
     public let dietaryTags: [String]
+    /// Full label when the feed provides it; nil keeps old snapshots decodable.
+    public let nutrition: NutritionFacts?
 
     public init(
         id: String,
@@ -143,7 +186,8 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         calories: Int?,
         servingSize: String?,
         allergens: [String],
-        dietaryTags: [String]
+        dietaryTags: [String],
+        nutrition: NutritionFacts? = nil
     ) {
         self.id = id
         self.name = name
@@ -152,6 +196,7 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         self.servingSize = servingSize
         self.allergens = allergens
         self.dietaryTags = dietaryTags
+        self.nutrition = nutrition
     }
 }
 

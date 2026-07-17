@@ -110,23 +110,47 @@ public struct DiningService: Sendable {
         let servingSize: String?
         let servingUnit: String?
         let calories: Double?
+        let proteinG: Double?
+        let totalCarbsG: Double?
+        let totalFatG: Double?
+        let saturatedFatG: Double?
+        let transFatG: Double?
+        let sodiumMg: Double?
+        let sugarsG: Double?
+        let dietaryFiberG: Double?
 
-        // The API sometimes returns calories as a string; accept both.
+        // The API sometimes returns numbers as strings; accept both.
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             servingSize = try container.decodeIfPresent(String.self, forKey: .servingSize)
             servingUnit = try container.decodeIfPresent(String.self, forKey: .servingUnit)
-            if let number = try? container.decodeIfPresent(Double.self, forKey: .calories) {
-                calories = number
-            } else if let text = try? container.decodeIfPresent(String.self, forKey: .calories) {
-                calories = Double(text)
-            } else {
-                calories = nil
+            calories = Self.flexibleDouble(container, .calories)
+            proteinG = Self.flexibleDouble(container, .proteinG)
+            totalCarbsG = Self.flexibleDouble(container, .totalCarbsG)
+            totalFatG = Self.flexibleDouble(container, .totalFatG)
+            saturatedFatG = Self.flexibleDouble(container, .saturatedFatG)
+            transFatG = Self.flexibleDouble(container, .transFatG)
+            sodiumMg = Self.flexibleDouble(container, .sodiumMg)
+            sugarsG = Self.flexibleDouble(container, .sugarsG)
+            dietaryFiberG = Self.flexibleDouble(container, .dietaryFiberG)
+        }
+
+        private static func flexibleDouble(
+            _ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys
+        ) -> Double? {
+            if let number = try? container.decodeIfPresent(Double.self, forKey: key) {
+                return number
             }
+            if let text = try? container.decodeIfPresent(String.self, forKey: key) {
+                return Double(text)
+            }
+            return nil
         }
 
         private enum CodingKeys: String, CodingKey {
             case servingSize, servingUnit, calories
+            case proteinG, totalCarbsG, totalFatG, saturatedFatG, transFatG
+            case sodiumMg, sugarsG, dietaryFiberG
         }
     }
 
@@ -135,6 +159,7 @@ public struct DiningService: Sendable {
         let stationId: String
         let name: String
         let description: String?
+        let ingredients: String?
         let dietRestriction: APIDietRestriction?
         let nutritionInfo: APINutrition?
     }
@@ -247,6 +272,20 @@ public struct DiningService: Sendable {
             return size
         }
         let description = dish.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ingredients = dish.ingredients?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let facts = dish.nutritionInfo.map { info in
+            NutritionFacts(
+                proteinG: info.proteinG,
+                totalCarbsG: info.totalCarbsG,
+                totalFatG: info.totalFatG,
+                saturatedFatG: info.saturatedFatG,
+                transFatG: info.transFatG,
+                sodiumMg: info.sodiumMg,
+                sugarsG: info.sugarsG,
+                dietaryFiberG: info.dietaryFiberG,
+                ingredients: (ingredients?.isEmpty ?? true) ? nil : ingredients
+            )
+        }
         return MenuItem(
             id: dish.id,
             name: dish.name,
@@ -254,7 +293,8 @@ public struct DiningService: Sendable {
             calories: dish.nutritionInfo?.calories.map { Int($0.rounded()) },
             servingSize: serving,
             allergens: dish.dietRestriction?.allergens ?? [],
-            dietaryTags: dish.dietRestriction?.dietaryTags ?? []
+            dietaryTags: dish.dietRestriction?.dietaryTags ?? [],
+            nutrition: facts
         )
     }
 
