@@ -272,7 +272,17 @@ struct DiningView: View {
     private var menuContent: some View {
         switch currentMenuState {
         case .idle, .loading:
-            loadingPlaceholder
+            // A hall with no posted periods can never leave .idle (there's no
+            // period to load) — show an honest empty state, not skeletons.
+            if store.locations.value != nil, selectedLocation?.availablePeriods.isEmpty ?? false {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "No menu yet",
+                    message: "\(selectedLocation?.name ?? "This hall") hasn't posted today's menu. It usually appears by early morning."
+                )
+            } else {
+                loadingPlaceholder
+            }
         case .failed(let message):
             EmptyStateView(
                 icon: "fork.knife.circle",
