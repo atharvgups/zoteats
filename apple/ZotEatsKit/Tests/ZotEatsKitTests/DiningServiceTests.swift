@@ -71,6 +71,35 @@ struct DiningServiceTests {
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
     }
 
+    @Test func twistedRootDishesAreAlwaysVegan() async throws {
+        // UCI's dedicated plant-based station: the station wins over missing
+        // per-dish flags, so the Vegan filter can never hide it.
+        let untagged = MenuItem(
+            id: "x", name: "Mystery Tofu", description: nil, calories: 200,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegetarian"]
+        )
+        let tagged = MenuItem(
+            id: "y", name: "Elbow Macaroni", description: nil, calories: 103,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan", "Vegetarian"]
+        )
+
+        let fixed = DiningService.applyStationTags([untagged, tagged], station: "The Twisted Root")
+        #expect(fixed.allSatisfy { $0.dietaryTags.contains("Vegan") })
+        #expect(fixed[0].dietaryTags.first == "Vegan")
+        // Already-tagged dishes are untouched (no duplicate tag).
+        #expect(fixed[1].dietaryTags.filter { $0 == "Vegan" }.count == 1)
+
+        // Other stations pass through untouched.
+        let other = DiningService.applyStationTags([untagged], station: "Sizzle Grill")
+        #expect(!other[0].dietaryTags.contains("Vegan"))
+
+        // And the live menu path applies it end to end.
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        if let twistedRoot = menu.stations.first(where: { $0.name.contains("Twisted Root") }) {
+            #expect(twistedRoot.items.allSatisfy { $0.dietaryTags.contains("Vegan") })
+        }
+    }
+
     @Test func unpublishedFutureDayIs404AndReadsAsNotPostedYet() async throws {
         // Browsing ahead to a day whose menu isn't published: the API 404s.
         // That must surface as an empty "not posted yet" menu, not an error.

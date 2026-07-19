@@ -266,6 +266,26 @@ public struct DiningService: Sendable {
             }
     }
 
+    /// The Twisted Root is UCI's dedicated plant-based station: everything it
+    /// serves is vegan, but the feed doesn't always tag dishes that way. Trust
+    /// the station over the per-dish flags so the Vegan filter never hides it.
+    static func applyStationTags(_ items: [MenuItem], station: String) -> [MenuItem] {
+        guard station.localizedCaseInsensitiveContains("twisted root") else { return items }
+        return items.map { item in
+            guard !item.dietaryTags.contains("Vegan") else { return item }
+            return MenuItem(
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                calories: item.calories,
+                servingSize: item.servingSize,
+                allergens: item.allergens,
+                dietaryTags: ["Vegan"] + item.dietaryTags,
+                nutrition: item.nutrition
+            )
+        }
+    }
+
     private static func menuItem(from dish: APIDish) -> MenuItem {
         let serving: String? = dish.nutritionInfo?.servingSize.map { size in
             if let unit = dish.nutritionInfo?.servingUnit { return "\(size) \(unit)" }
@@ -399,12 +419,16 @@ public struct DiningService: Sendable {
             // The API occasionally lists multiple dish ids that resolve to the same
             // dish name within one station; keep the first of each.
             var seenNames = Set<String>()
+            let stationName = stationNames[stationID] ?? "Menu"
             let items = dishIDs
                 .compactMap { dishMap[$0] }
                 .map(Self.menuItem(from:))
                 .filter { seenNames.insert($0.name.lowercased()).inserted }
             if !items.isEmpty {
-                stations.append(MenuStation(name: stationNames[stationID] ?? "Menu", items: items))
+                stations.append(MenuStation(
+                    name: stationName,
+                    items: Self.applyStationTags(items, station: stationName)
+                ))
             }
         }
 
