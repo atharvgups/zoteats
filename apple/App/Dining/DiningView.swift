@@ -7,6 +7,7 @@ import ZotEatsKit
 struct DiningView: View {
     let store: DiningStore
     let prefs: Preferences
+    let plate: PlateStore
     @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
@@ -16,6 +17,7 @@ struct DiningView: View {
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
     @State private var showDietFilters = false
+    @State private var showPlate = false
     @State private var mealActivity = MealActivityManager()
 
     /// Today + the next few days (menus are usually published a few days out).
@@ -48,15 +50,65 @@ struct DiningView: View {
             .refreshable { await refresh() }
             .task { await store.loadLocations() }
             .task(id: menuTaskID) { await loadCurrentMenu() }
+            // Warm the selected hall's other periods so switching is instant.
+            .task(id: "prefetch|\(selectedHall)|\(store.locations.value != nil)") {
+                if let location = selectedLocation {
+                    await store.prefetchMenus(hall: location.id, periods: location.availablePeriods)
+                }
+            }
             .onChange(of: store.locations.value) { syncPeriodSelection() }
             .onChange(of: selectedHall) { syncPeriodSelection() }
+            // Snapshot-hydrated launches already have locations at init, so
+            // onChange never fires; sync eagerly or the menu never loads.
+            .onAppear { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
-                DishDetailSheet(dish: dish, prefs: prefs)
+                DishDetailSheet(dish: dish, prefs: prefs, plate: plate)
             }
             .sheet(isPresented: $showDietFilters) {
                 DietFilterSheet(prefs: prefs)
             }
+            .sheet(isPresented: $showPlate) {
+                PlateSheet(plate: plate)
+            }
+            // Floating plate tally, only while today's plate has something on it.
+            .safeAreaInset(edge: .bottom) {
+                if !plate.isEmpty && selectedDate == nil {
+                    plateTallyBar
+                }
+            }
         }
+    }
+
+    /// Compact running total pinned above the tab bar; taps open the plate.
+    private var plateTallyBar: some View {
+        Button {
+            showPlate = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("\(plate.entries.count) on your plate")
+                    .font(ZotFont.pill.weight(.semibold))
+                Spacer()
+                Text("\(plate.totalCalories) cal · \(plate.totalProteinG)g protein")
+                    .font(ZotFont.pill.weight(.medium))
+                    .opacity(0.9)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(Color.uciBlue, in: Capsule())
+            .foregroundStyle(.white)
+            .shadow(color: Color.uciBlue.opacity(0.3), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityLabel(
+            "My plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein"
+        )
+        .accessibilityIdentifier("plate-tally-bar")
     }
 
     // MARK: - Derived state
@@ -80,7 +132,7 @@ struct DiningView: View {
     }
 
     private var hasActiveFilter: Bool {
-        prefs.dietFilter != nil || !trimmedQuery.isEmpty
+        !prefs.dietFilters.isEmpty || !trimmedQuery.isEmpty
     }
 
     // MARK: - Sections
@@ -133,37 +185,46 @@ struct DiningView: View {
         }
     }
 
-    /// Compact chip summarizing the dietary filter; opens the picker sheet.
+    /// Compact chip summarizing the dietary filters; opens the picker sheet.
     private var filterChip: some View {
-        let active = prefs.dietFilter
+        let active = prefs.dietFilters
+        let label = switch active.count {
+        case 0: "Filters"
+        case 1: active.first!
+        default: "\(active.count) filters"
+        }
         return Button {
             showDietFilters = true
             Haptics.selection()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease.circle\(active != nil ? ".fill" : "")")
+                Image(systemName: "line.3.horizontal.decrease.circle\(active.isEmpty ? "" : ".fill")")
                     .font(.system(size: 14, weight: .semibold))
-                Text(active ?? "Filters")
-                    .font(ZotFont.pill.weight(active != nil ? .semibold : .medium))
+                Text(label)
+                    .font(ZotFont.pill.weight(active.isEmpty ? .medium : .semibold))
                     .lineLimit(1)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
-                active != nil ? Color.uciBlue.opacity(0.12) : Color.card,
+                active.isEmpty ? Color.card : Color.uciBlue.opacity(0.12),
                 in: Capsule()
             )
-            .foregroundStyle(active != nil ? Color.uciBlue : .primary)
+            .foregroundStyle(active.isEmpty ? Color.primary : Color.uciBlue)
             .overlay(
                 Capsule().strokeBorder(
-                    active != nil ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    active.isEmpty ? Color.cardBorder : Color.uciBlue.opacity(0.35),
                     lineWidth: 1
                 )
             )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("diet-filter-chip")
-        .accessibilityLabel(active.map { "Dietary filter: \($0)" } ?? "Dietary filters")
+        .accessibilityLabel(
+            active.isEmpty
+                ? "Dietary filters"
+                : "Dietary filters: \(active.sorted().joined(separator: ", "))"
+        )
     }
 
     /// Hall cards straight from the live API — a third commons appears here
@@ -211,7 +272,17 @@ struct DiningView: View {
     private var menuContent: some View {
         switch currentMenuState {
         case .idle, .loading:
-            loadingPlaceholder
+            // A hall with no posted periods can never leave .idle (there's no
+            // period to load) — show an honest empty state, not skeletons.
+            if store.locations.value != nil, selectedLocation?.availablePeriods.isEmpty ?? false {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "No menu yet",
+                    message: "\(selectedLocation?.name ?? "This hall") hasn't posted today's menu. It usually appears by early morning."
+                )
+            } else {
+                loadingPlaceholder
+            }
         case .failed(let message):
             EmptyStateView(
                 icon: "fork.knife.circle",
@@ -240,6 +311,9 @@ struct DiningView: View {
                 }
             } else {
                 menuList(menu: menu, stations: stations)
+                    .onAppear {
+                        PerfMetrics.markFirstContent("eat", cached: store.hydratedFromDisk)
+                    }
             }
         }
     }
@@ -257,26 +331,18 @@ struct DiningView: View {
             }
             .padding(.horizontal, 20)
 
-            let favorites = favoriteItems(in: stations)
-            if !favorites.isEmpty {
+            // No duplicate "Favorites" section: stations serving a favorited
+            // dish bubble to the top (hearted header), and within them the
+            // favorites lead — each dish appears exactly once.
+            ForEach(hoistedStations(stations)) { station in
+                let hasFavorite = station.items.contains { prefs.isFavorite($0.name) }
                 VStack(alignment: .leading, spacing: 10) {
                     sectionHeader(
-                        title: "Favorites today",
-                        count: favorites.count,
-                        icon: "heart.fill",
-                        tint: .pink
+                        title: station.name,
+                        count: station.items.count,
+                        icon: hasFavorite ? "heart.fill" : nil,
+                        tint: hasFavorite ? .pink : .uciGold
                     )
-                    ForEach(favorites) { item in
-                        dishRow(item)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .transition(.opacity)
-            }
-
-            ForEach(stations) { station in
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionHeader(title: station.name, count: station.items.count)
                     ForEach(station.items) { item in
                         dishRow(item)
                     }
@@ -287,11 +353,32 @@ struct DiningView: View {
         .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
     }
 
+    /// Stations with favorites first (original order otherwise), favorited
+    /// dishes leading inside their station.
+    private func hoistedStations(_ stations: [MenuStation]) -> [MenuStation] {
+        let reordered = stations.map { station in
+            let favorites = station.items.filter { prefs.isFavorite($0.name) }
+            guard !favorites.isEmpty else { return station }
+            return MenuStation(
+                name: station.name,
+                items: favorites + station.items.filter { !prefs.isFavorite($0.name) }
+            )
+        }
+        let withFavorites = reordered.filter { $0.items.contains { prefs.isFavorite($0.name) } }
+        let rest = reordered.filter { !$0.items.contains { prefs.isFavorite($0.name) } }
+        return withFavorites + rest
+    }
+
     private func dishRow(_ item: MenuItem) -> some View {
         DishRowCard(
             item: item,
             isFavorite: prefs.isFavorite(item.name),
+            isOnPlate: plate.isOnPlate(item.name),
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
+            // Plate building only makes sense for food being served today.
+            onTogglePlate: selectedDate == nil
+                ? { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } }
+                : nil,
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
@@ -399,7 +486,8 @@ struct DiningView: View {
     // MARK: - Filtering
 
     private func matches(_ item: MenuItem) -> Bool {
-        if let filter = prefs.dietFilter, !item.dietaryTags.contains(filter) {
+        // Multiple filters combine as AND — Vegan + Gluten-Free means both.
+        guard prefs.dietFilters.allSatisfy({ item.dietaryTags.contains($0) }) else {
             return false
         }
         let query = trimmedQuery
@@ -435,9 +523,11 @@ struct DiningView: View {
     }
 
     private func refresh() async {
-        await store.loadLocations()
+        await store.loadLocations(fresh: true)
         syncPeriodSelection()
-        await loadCurrentMenu()
+        if let selectedPeriod {
+            await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate, fresh: true)
+        }
     }
 
     /// Keeps the period selection valid for the current hall,
@@ -533,6 +623,8 @@ private struct DayStrip: View {
 // MARK: - Dietary filter sheet
 
 /// One tidy sheet instead of a permanent pill row on the main screen.
+/// Filters stack (multi-select) and combine as AND: Vegan + Gluten-Free
+/// shows only dishes that are both.
 struct DietFilterSheet: View {
     let prefs: Preferences
     @Environment(\.dismiss) private var dismiss
@@ -541,27 +633,48 @@ struct DietFilterSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Dietary filter")
-                .font(ZotFont.hero(24))
+            HStack(alignment: .firstTextBaseline) {
+                Text("Dietary filters")
+                    .font(ZotFont.hero(24))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(Color.uciBlue, in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("diet-filter-done")
+            }
+            .padding(.bottom, 2)
+
+            Text("Pick as many as you need — dishes must match all of them.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
 
             ForEach(Self.options, id: \.self) { option in
-                let isSelected = prefs.dietFilter == option
+                let isSelected = prefs.dietFilters.contains(option)
                 Button {
-                    prefs.dietFilter = isSelected ? nil : option
+                    if isSelected {
+                        prefs.dietFilters.remove(option)
+                    } else {
+                        prefs.dietFilters.insert(option)
+                    }
                     Haptics.selection()
-                    dismiss()
                 } label: {
                     HStack {
                         TagChip(text: option, color: TagPalette.dietColor(option))
-                        Text("Only show \(option.lowercased()) dishes")
+                        Text("Only \(option.lowercased()) dishes")
                             .font(ZotFont.body)
                             .foregroundStyle(.primary)
                         Spacer()
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.uciBlue)
-                        }
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 14)
@@ -581,13 +694,12 @@ struct DietFilterSheet: View {
                 .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
             }
 
-            if prefs.dietFilter != nil {
+            if !prefs.dietFilters.isEmpty {
                 Button {
-                    prefs.dietFilter = nil
+                    prefs.dietFilters = []
                     Haptics.selection()
-                    dismiss()
                 } label: {
-                    Text("Clear filter")
+                    Text("Clear all")
                         .font(ZotFont.pill.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
@@ -596,6 +708,7 @@ struct DietFilterSheet: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 8)
+                .accessibilityIdentifier("diet-filter-clear")
             }
 
             Spacer(minLength: 0)
@@ -604,6 +717,7 @@ struct DietFilterSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .background(Color.screen)
+        .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
     }
 }
 
@@ -721,7 +835,9 @@ private struct HallCard: View {
 private struct DishRowCard: View {
     let item: MenuItem
     let isFavorite: Bool
+    var isOnPlate: Bool = false
     let onToggleFavorite: () -> Void
+    var onTogglePlate: (() -> Void)?
     let onOpen: () -> Void
 
     var body: some View {
@@ -749,7 +865,12 @@ private struct DishRowCard: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 10) {
-                    favoriteButton
+                    HStack(spacing: 8) {
+                        if let onTogglePlate {
+                            plateButton(onTogglePlate)
+                        }
+                        favoriteButton
+                    }
                     if let calories = item.calories {
                         CalorieBadge(calories: calories)
                     }
@@ -794,6 +915,22 @@ private struct DishRowCard: View {
             isFavorite ? "Remove \(item.name) from favorites" : "Add \(item.name) to favorites"
         )
     }
+
+    private func plateButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isOnPlate ? Color.uciBlue : Color.secondary)
+                .symbolEffect(.bounce, value: isOnPlate)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            isOnPlate ? "Remove \(item.name) from my plate" : "Add \(item.name) to my plate"
+        )
+        .accessibilityIdentifier("plate-toggle")
+    }
 }
 
 // MARK: - Calories badge
@@ -818,5 +955,5 @@ private struct CalorieBadge: View {
 }
 
 #Preview {
-    DiningView(store: DiningStore(), prefs: Preferences())
+    DiningView(store: DiningStore(), prefs: Preferences(), plate: PlateStore())
 }
