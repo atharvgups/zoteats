@@ -11,6 +11,8 @@
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&logoColor=white)
 ![Status](https://img.shields.io/badge/status-beta-blue)
 
+**[Try it on TestFlight →](https://testflight.apple.com/join/pr1XtuTx)**
+
 <img src="docs/screenshots/demo.gif" alt="ZotEats demo" width="300" />
 
 </div>
