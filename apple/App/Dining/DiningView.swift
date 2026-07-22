@@ -42,6 +42,8 @@ struct DiningView: View {
             .background(Color.screen.ignoresSafeArea())
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.bar, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -156,13 +158,16 @@ struct DiningView: View {
             // One primary control row (meal periods), then a single quiet row
             // combining the day strip and a filter chip — down from three
             // stacked pill rows.
-            if let location = selectedLocation, !location.availablePeriods.isEmpty {
-                PillRow(
-                    items: location.availablePeriods,
-                    title: { $0 },
-                    selection: $selectedPeriod
-                )
-                .accessibilityLabel("Meal period")
+            if let location = selectedLocation {
+                let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+                if !pills.isEmpty {
+                    PillRow(
+                        items: pills,
+                        title: { $0 },
+                        selection: $selectedPeriod
+                    )
+                    .accessibilityLabel("Meal period")
+                }
             }
 
             HStack(spacing: 10) {
@@ -276,18 +281,18 @@ struct DiningView: View {
             // period to load) — show an honest empty state, not skeletons.
             if store.locations.value != nil, selectedLocation?.availablePeriods.isEmpty ?? false {
                 EmptyStateView(
-                    icon: "moon.zzz",
-                    title: "No menu yet",
-                    message: "\(selectedLocation?.name ?? "This hall") hasn't posted today's menu. It usually appears by early morning."
+                    icon: "ant",
+                    title: "The ants beat us to it",
+                    message: "Zot! \(selectedLocation?.name ?? "This hall") hasn't posted today's menu yet — usually drops by early morning."
                 )
             } else {
                 loadingPlaceholder
             }
-        case .failed(let message):
+        case .failed:
             EmptyStateView(
-                icon: "fork.knife.circle",
-                title: "Menu unavailable",
-                message: message
+                icon: "ant",
+                title: "The ants beat us to it",
+                message: "Zot! Couldn't reach UCI Dining just now. Pull to refresh — or blame the anteaters."
             ) {
                 Task { await loadCurrentMenu() }
             }
@@ -302,11 +307,11 @@ struct DiningView: View {
                     )
                 } else {
                     EmptyStateView(
-                        icon: "moon.zzz",
-                        title: "No menu posted",
+                        icon: "ant",
+                        title: "Menu not posted yet",
                         message: selectedDate == nil
-                            ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
-                            : "\(selectedLocation?.name ?? "This hall") hasn't posted that day's \(menu.period.lowercased()) yet — menus usually appear a few days ahead."
+                            ? "Zot! \(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) — check back soon."
+                            : "Zot! That day's \(menu.period.lowercased()) isn't up yet. Menus usually appear a few days ahead."
                     )
                 }
             } else {
@@ -518,46 +523,57 @@ struct DiningView: View {
     // MARK: - Loading
 
     private func loadCurrentMenu() async {
-        guard let selectedPeriod else { return }
-        await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
+        guard let selectedPeriod, let location = selectedLocation else { return }
+        let resolved = DiningService.resolvePeriod(selectedPeriod, available: location.availablePeriods)
+        await store.loadMenu(hall: selectedHall, period: resolved, date: selectedDate)
     }
 
     private func refresh() async {
         await store.loadLocations(fresh: true)
         syncPeriodSelection()
-        if let selectedPeriod {
-            await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate, fresh: true)
+        if let selectedPeriod, let location = selectedLocation {
+            let resolved = DiningService.resolvePeriod(selectedPeriod, available: location.availablePeriods)
+            await store.loadMenu(hall: selectedHall, period: resolved, date: selectedDate, fresh: true)
         }
     }
 
-    /// Keeps the period selection valid for the current hall,
+    /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
     /// preferring the meal most likely happening now.
     private func syncPeriodSelection() {
         guard let location = selectedLocation else { return }
-        if let selectedPeriod, location.availablePeriods.contains(selectedPeriod) { return }
+        let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+        if let selectedPeriod, pills.contains(selectedPeriod) { return }
         selectedPeriod = defaultPeriod(for: location)
     }
 
-    /// The meal that matters right now: the one being served, else the next
-    /// one starting today, else the day's last meal (evenings after close),
-    /// else whatever's first.
+    /// Map the live/upcoming meal onto a primary pill.
     private func defaultPeriod(for location: DiningLocation) -> String? {
-        guard !location.availablePeriods.isEmpty else { return nil }
+        let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+        guard !pills.isEmpty else { return nil }
         let now = UCITime.nowMinutes()
         let timed = location.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
 
-        if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
-            return current.name
+        let liveName: String? = {
+            if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
+                return current.name
+            }
+            if let upcoming = timed
+                .filter({ $0.startMinutes! > now })
+                .min(by: { $0.startMinutes! < $1.startMinutes! }) {
+                return upcoming.name
+            }
+            return timed.max(by: { $0.endMinutes! < $1.endMinutes! })?.name
+        }()
+
+        if let liveName {
+            let lower = liveName.lowercased()
+            if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
+                return "Breakfast"
+            }
+            if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
+            if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
         }
-        if let upcoming = timed
-            .filter({ $0.startMinutes! > now })
-            .min(by: { $0.startMinutes! < $1.startMinutes! }) {
-            return upcoming.name
-        }
-        if let last = timed.max(by: { $0.endMinutes! < $1.endMinutes! }) {
-            return last.name
-        }
-        return location.availablePeriods.first
+        return pills.first
     }
 
     /// Time-of-day greeting on UCI's clock.
@@ -872,7 +888,7 @@ private struct DishRowCard: View {
                         favoriteButton
                     }
                     if let calories = item.calories {
-                        CalorieBadge(calories: calories)
+                        CalorieBadge(calories: calories, servingSize: item.servingSize)
                     }
                 }
             }
@@ -930,27 +946,6 @@ private struct DishRowCard: View {
             isOnPlate ? "Remove \(item.name) from my plate" : "Add \(item.name) to my plate"
         )
         .accessibilityIdentifier("plate-toggle")
-    }
-}
-
-// MARK: - Calories badge
-
-private struct CalorieBadge: View {
-    let calories: Int
-
-    var body: some View {
-        VStack(spacing: -1) {
-            Text("\(calories)")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.uciBlue)
-            Text("cal")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
-        .accessibilityLabel("\(calories) calories")
     }
 }
 

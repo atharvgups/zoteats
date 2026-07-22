@@ -10,6 +10,7 @@ import ZotEatsKit
 struct CampusView: View {
     let store: CampusStore
     let prefs: Preferences
+    let plate: PlateStore
     @State private var selectedPlace: CampusPlace?
     /// Nil = all categories.
     @State private var categoryFilter: String?
@@ -25,34 +26,38 @@ struct CampusView: View {
         "Restaurants & Pubs": "Pubs",
     ]
 
-    // No NavigationStack: nothing navigates, and a flat hierarchy lets the
-    // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
+    // NavigationStack + empty bar matches Eat's top chrome across tabs.
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
 
-                filterBar
+                    filterBar
 
-                content
-                    .padding(.horizontal, 20)
+                    content
+                        .padding(.horizontal, 20)
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 24)
-        }
-        .background(Color.screen)
-        .refreshable { await store.loadPlaces(fresh: true) }
-        .statusBarBackdrop()
-        .sheet(item: $selectedPlace) { place in
-            CampusMenuSheet(place: place, store: store, prefs: prefs)
-        }
-        .task {
-            await store.loadPlaces()
-            // CI screenshots the menu sheet deterministically via
-            // `-campusMenu <place-id>` instead of scripted taps.
-            if let id = Self.autoOpenPlaceID,
-               let place = store.places.value?.first(where: { $0.id == id }) {
-                selectedPlace = place
+            .background(Color.screen.ignoresSafeArea())
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.bar, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .refreshable { await store.loadPlaces(fresh: true) }
+            .sheet(item: $selectedPlace) { place in
+                CampusMenuSheet(place: place, store: store, prefs: prefs, plate: plate)
+            }
+            .task {
+                await store.loadPlaces()
+                // CI screenshots the menu sheet deterministically via
+                // `-campusMenu <place-id>` instead of scripted taps.
+                if let id = Self.autoOpenPlaceID,
+                   let place = store.places.value?.first(where: { $0.id == id }) {
+                    selectedPlace = place
+                }
             }
         }
     }
@@ -182,11 +187,13 @@ struct CampusView: View {
                 ForEach(brands, id: \.brand) { entry in
                     if entry.places.count == 1 {
                         CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {
+                            guard entry.places[0].hasMenu else { return }
                             selectedPlace = entry.places[0]
                             Haptics.selection()
                         }
                     } else {
                         CampusBrandGroupRow(brand: entry.brand, places: entry.places) { place in
+                            guard place.hasMenu else { return }
                             selectedPlace = place
                             Haptics.selection()
                         }
@@ -266,10 +273,10 @@ private struct CampusBrandGroupRow: View {
                         openText: openCount == places.count ? "Open" : "\(openCount) open",
                         closedText: "Closed"
                     )
-                    Image(systemName: "chevron.down")
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
@@ -299,9 +306,12 @@ private struct CampusBrandGroupRow: View {
                                 }
                                 Spacer(minLength: 6)
                                 StatusPill(isOpen: place.openNow)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
+                                // Chevron only when there's a menu to open.
+                                if place.hasMenu {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 9)
@@ -311,10 +321,11 @@ private struct CampusBrandGroupRow: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .disabled(!place.hasMenu)
                         .accessibilityLabel(
                             "\(brand) at \(place.locationDetail ?? place.name), \(place.openNow ? "open" : "closed")"
                         )
-                        .accessibilityHint("Shows details")
+                        .accessibilityHint(place.hasMenu ? "Shows menu" : "Hours only — no published menu")
                     }
                 }
                 .padding(.horizontal, 10)
@@ -334,41 +345,50 @@ private struct CampusPlaceRow: View {
     let onOpen: () -> Void
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(showBrandOnly ? place.brand : place.name)
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        if place.hasMenu {
-                            TagChip(text: "Menu", color: .uciBlue)
-                        }
-                    }
-                    Text(place.todayHours ?? "Closed today")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
+        let row = HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(showBrandOnly ? place.brand : place.name)
+                        .font(ZotFont.body.weight(.semibold))
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    if place.hasMenu {
+                        TagChip(text: "Menu", color: .uciBlue)
+                    }
                 }
-                Spacer(minLength: 8)
-                StatusPill(isOpen: place.openNow)
+                Text(place.todayHours ?? "Closed today")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            StatusPill(isOpen: place.openNow)
+            // No chevron for hours-only spots — they aren't destinations.
+            if place.hasMenu {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        Group {
+            if place.hasMenu {
+                Button(action: onOpen) { row }
+                    .buttonStyle(.plain)
+            } else {
+                row
+            }
+        }
         .accessibilityIdentifier("campus-place-\(place.id)")
         .zotCard()
         .accessibilityLabel(
             "\(place.name), \(place.openNow ? "open" : "closed")\(place.todayHours.map { ", today \($0)" } ?? "")\(place.hasMenu ? ", menu available" : "")"
         )
-        .accessibilityHint("Shows menu and details")
+        .accessibilityHint(place.hasMenu ? "Shows menu" : "Hours only — no published menu")
     }
 }
 
@@ -378,11 +398,13 @@ struct CampusMenuSheet: View {
     let place: CampusPlace
     let store: CampusStore
     let prefs: Preferences
+    let plate: PlateStore
 
     @Environment(\.dismiss) private var dismiss
 
     private static let dietFilters = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
     @State private var activeFilters: Set<String> = []
+    @State private var selectedDish: MenuItem?
 
     var body: some View {
         NavigationStack {
@@ -418,6 +440,9 @@ struct CampusMenuSheet: View {
                 .buttonStyle(.plain)
                 .padding(16)
                 .accessibilityLabel("Close")
+            }
+            .sheet(item: $selectedDish) { dish in
+                DishDetailSheet(dish: dish, prefs: prefs, plate: plate)
             }
         }
         .presentationDetents([.medium, .large])
@@ -484,18 +509,21 @@ struct CampusMenuSheet: View {
                 let filtered = filteredStations(stations)
                 if filtered.isEmpty {
                     EmptyStateView(
-                        icon: "line.3.horizontal.decrease.circle",
+                        icon: "ant",
                         title: "Nothing matches those filters",
-                        message: "Try removing a dietary filter."
+                        message: "The anteaters got to it first. Try clearing a dietary filter."
                     )
                 } else {
                     ForEach(filtered) { station in
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text(station.name)
                                 .font(ZotFont.sectionTitle)
                                 .accessibilityAddTraits(.isHeader)
                             ForEach(station.items) { item in
-                                CampusMenuItemRow(item: item)
+                                CampusMenuItemRow(item: item, plate: plate) {
+                                    selectedDish = item
+                                    Haptics.selection()
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -507,12 +535,12 @@ struct CampusMenuSheet: View {
 
     private var noMenuNote: some View {
         VStack(spacing: 8) {
-            Image(systemName: "menucard")
+            Image(systemName: "ant")
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("No published menu")
+            Text("The ants beat us to it")
                 .font(ZotFont.sectionTitle)
-            Text("\(place.name) doesn't post its menu here — check the brand's own app for ordering.")
+            Text("Zot! \(place.name) doesn't post a menu here — check the brand's own app for ordering.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -537,53 +565,72 @@ struct CampusMenuSheet: View {
 
 private struct CampusMenuItemRow: View {
     let item: MenuItem
+    let plate: PlateStore
+    let onOpen: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.name)
-                    .font(ZotFont.body.weight(.semibold))
-                if let description = item.description, !description.isEmpty {
-                    Text(description)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 5) {
-                            ForEach(item.dietaryTags, id: \.self) { tag in
-                                TagChip(text: tag, color: TagPalette.dietColor(tag))
-                            }
-                            ForEach(item.allergens, id: \.self) { allergen in
-                                TagChip(text: allergen, color: TagPalette.allergenColor)
+        Button(action: onOpen) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.name)
+                        .font(ZotFont.body.weight(.semibold))
+                        .multilineTextAlignment(.leading)
+
+                    if let description = item.description, !description.isEmpty {
+                        Text(description)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 5) {
+                                ForEach(item.dietaryTags, id: \.self) { tag in
+                                    TagChip(text: tag, color: TagPalette.dietColor(tag))
+                                }
+                                ForEach(item.allergens, id: \.self) { allergen in
+                                    TagChip(text: allergen, color: TagPalette.allergenColor)
+                                }
                             }
                         }
+                        .padding(.top, 2)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 10) {
+                    Button {
+                        plate.toggle(item)
+                    } label: {
+                        Image(systemName: plate.isOnPlate(item.name) ? "checkmark.circle.fill" : "plus.circle")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(plate.isOnPlate(item.name) ? Color.uciBlue : Color.secondary)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        plate.isOnPlate(item.name)
+                            ? "Remove \(item.name) from my plate"
+                            : "Add \(item.name) to my plate"
+                    )
+
+                    if let calories = item.calories {
+                        CalorieBadge(calories: calories, servingSize: item.servingSize)
                     }
                 }
             }
-            Spacer(minLength: 8)
-            if let calories = item.calories {
-                VStack(spacing: -1) {
-                    Text("\(calories)")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color.uciBlue)
-                    Text("cal")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
-                .accessibilityLabel("\(calories) calories")
-            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
         .zotCard()
+        .accessibilityHint("Shows dish details")
     }
 }
 
 #Preview {
-    CampusView(store: CampusStore(), prefs: Preferences())
+    CampusView(store: CampusStore(), prefs: Preferences(), plate: PlateStore())
 }

@@ -1,32 +1,35 @@
 import SwiftUI
 import ZotEatsKit
 
-// Gym screen, busyness-first: everyone already knows the ARC's hours — what
-// they want is "how packed is it right now / when should I go". The gauge is
-// live when the Waitz feed tracks the ARC, otherwise the typical-pattern
-// estimate (clearly tagged). Hours are demoted to a compact line + an
-// expandable week schedule.
+// Gym screen: live Waitz occupancy when available, plus hours. Typical /
+// estimated busyness is intentionally hidden — without live sensors it's
+// guesswork. Hours stay as the reliable scaffolding.
 
 struct GymView: View {
     let store: GymStore
     @Environment(\.openSettings) private var openSettings
 
-    // No NavigationStack: nothing navigates, and a flat hierarchy lets the
-    // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
+    // NavigationStack + empty bar matches Eat's top chrome so all four tabs
+    // share the same status-bar edge on iOS 26.
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
-                content
-                    .padding(.horizontal, 20)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
+                    content
+                        .padding(.horizontal, 20)
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .background(Color.screen.ignoresSafeArea())
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.bar, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .refreshable { await store.load() }
+            .task { await store.load() }
         }
-        .background(Color.screen)
-        .refreshable { await store.load() }
-        .statusBarBackdrop()
-        .task { await store.load() }
     }
 
     @ViewBuilder
@@ -48,7 +51,10 @@ struct GymView: View {
         case .loaded(let status):
             GymBusynessHero(status: status)
                 .onAppear { PerfMetrics.markFirstContent("gym", cached: store.hydratedFromDisk) }
-            if let curve = status.typicalCurve, curve.contains(where: { $0 > 0 }) {
+            // Rush curve is typical-pattern data — hide it unless we also have
+            // a live reading (the curve then contextualizes the live %).
+            if status.busyness?.source == .live,
+               let curve = status.typicalCurve, curve.contains(where: { $0 > 0 }) {
                 GymRushCard(curve: curve, status: status)
             }
             GymHoursCard(status: status)
@@ -78,7 +84,8 @@ struct GymBusynessHero: View {
                 StatusPill(isOpen: status.openNow)
             }
 
-            if let point = status.busyness, let percent = point.percent {
+            // Only show live Waitz occupancy — typical % is hidden as guesswork.
+            if let point = status.busyness, point.source == .live, let percent = point.percent {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text("\(percent)%")
@@ -89,14 +96,9 @@ struct GymBusynessHero: View {
                             .font(ZotFont.sectionTitle)
                             .foregroundStyle(point.level.color)
                         Spacer()
-                        if point.source == .typical {
-                            TypicalTag()
-                        }
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        "\(percent) percent full, \(point.level.label)\(point.source == .typical ? ", typical estimate" : "")"
-                    )
+                    .accessibilityLabel("\(percent) percent full, \(point.level.label)")
 
                     OccupancyBar(percent: percent, level: point.level)
 
@@ -112,16 +114,14 @@ struct GymBusynessHero: View {
                             }
                         }
                         Spacer()
-                        if point.source == .live {
-                            UpdatedAgoText(date: point.updatedAt)
-                        }
+                        UpdatedAgoText(date: point.updatedAt)
                     }
                 }
             } else {
                 HStack(spacing: 8) {
                     Image(systemName: "moon.zzz")
                         .foregroundStyle(.secondary)
-                    Text(status.openNow ? "No busyness estimate right now" : "Closed — see you tomorrow")
+                    Text(status.openNow ? "Live busyness unavailable right now" : "Closed — see you tomorrow")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }

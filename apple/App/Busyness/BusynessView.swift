@@ -10,22 +10,26 @@ struct BusynessView: View {
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
 
-    // No NavigationStack: nothing navigates, and a flat hierarchy lets the
-    // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
+    // NavigationStack + empty bar matches Eat's top chrome across tabs.
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
-                content
-                    .padding(.horizontal, 20)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
+                    content
+                        .padding(.horizontal, 20)
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .background(Color.screen.ignoresSafeArea())
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.bar, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .refreshable { await store.load() }
+            .task { await store.load() }
         }
-        .background(Color.screen)
-        .refreshable { await store.load() }
-        .statusBarBackdrop()
-        .task { await store.load() }
     }
 
     @ViewBuilder
@@ -56,7 +60,7 @@ struct BusynessView: View {
                 .zotCard()
             } else {
                 if let pick = Self.quietestPick(facilities) {
-                    QuietestNowCard(facility: pick)
+                    QuietestNowCard(pick: pick)
                         .onAppear { PerfMetrics.markFirstContent("study", cached: store.hydratedFromDisk) }
                 }
                 let grouped = groups(from: facilities)
@@ -73,12 +77,30 @@ struct BusynessView: View {
         }
     }
 
-    /// The emptiest open facility right now — an actionable recommendation,
-    /// not just data. Requires a known percent to qualify.
-    static func quietestPick(_ facilities: [BusynessPoint]) -> BusynessPoint? {
-        facilities
+    /// Quietest open floor (or facility if floors aren't reported). With only
+    /// two libraries, "which building" alone is a weak tip — the floor is the
+    /// useful answer.
+    static func quietestPick(_ facilities: [BusynessPoint]) -> QuietestPick? {
+        // Study tip prefers libraries; fall back to any open facility.
+        let libraries = facilities.filter { $0.category == "Library" }
+        let pool = libraries.isEmpty ? facilities : libraries
+
+        var floorCandidates: [QuietestPick] = []
+        for facility in pool where facility.isOpen {
+            for floor in facility.subLocations ?? [] {
+                guard floor.isOpen, floor.percent != nil else { continue }
+                floorCandidates.append(QuietestPick(facility: facility, floor: floor))
+            }
+        }
+        if let bestFloor = floorCandidates.min(by: {
+            ($0.floor?.percent ?? 101) < ($1.floor?.percent ?? 101)
+        }) {
+            return bestFloor
+        }
+        return pool
             .filter { $0.isOpen && $0.percent != nil }
             .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
+            .map { QuietestPick(facility: $0, floor: nil) }
     }
 
     /// Groups facilities by category in fixed order, sorting each group
@@ -102,10 +124,25 @@ struct BusynessView: View {
     }
 }
 
+/// Recommendation: a library (or other facility) plus its quietest floor.
+struct QuietestPick: Equatable {
+    let facility: BusynessPoint
+    let floor: BusynessPoint?
+
+    var title: String {
+        if let floor {
+            return "\(facility.name) · \(floor.name)"
+        }
+        return facility.name
+    }
+
+    var percent: Int? { floor?.percent ?? facility.percent }
+}
+
 // MARK: - "Quietest right now" recommendation card
 
 struct QuietestNowCard: View {
-    let facility: BusynessPoint
+    let pick: QuietestPick
 
     var body: some View {
         HStack(spacing: 14) {
@@ -120,16 +157,16 @@ struct QuietestNowCard: View {
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(0.6)
                     .foregroundStyle(.secondary)
-                Text(facility.name)
+                Text(pick.title)
                     .font(ZotFont.cardTitle)
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.8)
             }
 
             Spacer(minLength: 8)
 
-            if let percent = facility.percent {
+            if let percent = pick.percent {
                 VStack(spacing: 0) {
                     Text("\(percent)%")
                         .font(.system(size: 21, weight: .bold))
@@ -153,7 +190,7 @@ struct QuietestNowCard: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Quietest right now: \(facility.name)\(facility.percent.map { ", \($0) percent full" } ?? "")"
+            "Quietest right now: \(pick.title)\(pick.percent.map { ", \($0) percent full" } ?? "")"
         )
     }
 }

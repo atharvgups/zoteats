@@ -115,6 +115,46 @@ struct DiningServiceTests {
             _ = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
         }
     }
+
+    @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
+        let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
+        #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
+        // Weekend brunch-only halls still get a Breakfast pill.
+        #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
+        #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
+    }
+
+    @Test func resolvePeriodMapsBreakfastToBrunchAndDinnerFallback() {
+        let weekend = ["Brunch", "Dinner", "All Day"]
+        #expect(DiningService.resolvePeriod("Breakfast", available: weekend) == "Brunch")
+        #expect(DiningService.resolvePeriod("Dinner", available: ["Limited Dinner"]) == "Limited Dinner")
+        #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
+    }
+
+    @Test func collapseWhitespaceTrimsOddFeedSpacing() {
+        #expect(DiningService.collapseWhitespace("Black  Bean   Burger") == "Black Bean Burger")
+        #expect(DiningService.collapseWhitespace("  ") == nil)
+        #expect(DiningService.collapseWhitespace(nil) == nil)
+    }
+
+    @Test func inferDietaryTagsFromIngredientsWhenAPIOmitsFlags() {
+        #expect(
+            DiningService.inferDietaryTags(ingredients: "Black beans, rice, salt, oil")
+                == ["Vegan", "Vegetarian"]
+        )
+        #expect(
+            DiningService.inferDietaryTags(ingredients: "Pasta, cheese, cream, salt")
+                == ["Vegetarian"]
+        )
+        #expect(DiningService.inferDietaryTags(ingredients: "Beef, salt, pepper").isEmpty)
+        #expect(DiningService.inferDietaryTags(ingredients: nil).isEmpty)
+    }
+
+    @Test func lunchMenuFoldsAllDayIntoAvailableAllDayStation() async throws {
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        // All Day is not a pill — its dishes land under a trailing section.
+        #expect(menu.stations.contains { $0.name == "Available all day" })
+    }
 }
 
 /// Stub that answers every request with HTTP 404.
