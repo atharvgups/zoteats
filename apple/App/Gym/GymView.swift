@@ -51,12 +51,8 @@ struct GymView: View {
         case .loaded(let status):
             GymBusynessHero(status: status)
                 .onAppear { PerfMetrics.markFirstContent("gym", cached: store.hydratedFromDisk) }
-            // Rush curve is typical-pattern data — hide it unless we also have
-            // a live reading (the curve then contextualizes the live %).
-            if status.busyness?.source == .live,
-               let curve = status.typicalCurve, curve.contains(where: { $0 > 0 }) {
-                GymRushCard(curve: curve, status: status)
-            }
+            // "Today at the ARC" rush curve is typical-pattern guesswork — keep
+            // the type around for a future live source, but don't show it.
             GymHoursCard(status: status)
             if status.hoursApproximate {
                 GymApproximateHoursFootnote()
