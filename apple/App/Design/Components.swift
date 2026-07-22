@@ -344,6 +344,36 @@ extension View {
     }
 }
 
+// MARK: - Calories badge
+
+/// Shared Eat / Campus calorie chip — shows serving size when the feed has one.
+struct CalorieBadge: View {
+    let calories: Int
+    var servingSize: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("\(calories) cal")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.uciBlue)
+            if let servingSize, !servingSize.isEmpty {
+                Text("per \(servingSize)")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(minWidth: 56)
+        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+        .accessibilityLabel(
+            servingSize.map { "\(calories) calories per \($0)" } ?? "\(calories) calories"
+        )
+    }
+}
+
 // MARK: - Haptics
 
 @MainActor

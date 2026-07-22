@@ -160,7 +160,7 @@ struct RootTabView: View {
                 DiningView(store: diningStore, prefs: preferences, plate: plate)
             }
             Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
-                CampusView(store: campusStore, prefs: preferences)
+                CampusView(store: campusStore, prefs: preferences, plate: plate)
             }
             Tab("Gym", systemImage: "dumbbell.fill", value: AppTab.gym) {
                 GymView(store: gymStore)
