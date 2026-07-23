@@ -84,13 +84,19 @@ xcodegen generate --spec apple/project.yml --project apple/
 open apple/ZotEats.xcodeproj
 ```
 
-## Roadmap
+## Status
 
-- Home-screen widget (what's open + quietest spot at a glance)
+**Beta** — build from source (commands above) or watch for TestFlight tags (`testflight-x.y.z`). Unofficial student project; not affiliated with UC Irvine.
+
+### Shipped
+
+Home-screen widget · favorites when your dish is served · browse tomorrow's menus · dark mode · dietary filters
+
+### Next
+
 - Favorite-dish notifications ("chicken tikka is at Brandywine today")
-- Browse future days' menus
-- Real dining-hall and ARC busyness, the moment sensors exist for them
+- Real dining-hall and ARC busyness the moment campus sensors exist
 
 ## Disclaimer
 
-ZotEats is an unofficial student project and is not affiliated with UC Irvine. Data comes from public endpoints that may change without notice. Zot responsibly.
+Data comes from public endpoints that may change without notice. Zot responsibly.
