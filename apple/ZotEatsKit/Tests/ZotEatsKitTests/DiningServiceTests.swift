@@ -8,7 +8,7 @@ private let fixtureNoon = ISO8601DateFormatter().date(from: "2026-07-09T19:30:00
 @Suite("DiningService (fixtures)")
 struct DiningServiceTests {
     private func service() -> DiningService {
-        DiningService(http: FixtureHTTP(), now: { fixtureNoon })
+        DiningService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
     }
 
     @Test func locationsIncludeBothHallsInStableOrder() async {
@@ -58,10 +58,33 @@ struct DiningServiceTests {
     }
 
     @Test func networkFailureDegradesToClosedLocations() async {
-        let service = DiningService(http: FailingHTTP(), now: { fixtureNoon })
+        let service = DiningService(http: FailingHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
         let locations = await service.locations()
         #expect(locations.count == 2)
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
+    }
+
+    @Test func unpublishedFutureDayIs404AndReadsAsNotPostedYet() async throws {
+        // Browsing ahead to a day whose menu isn't published: the API 404s.
+        // That must surface as an empty "not posted yet" menu, not an error.
+        let service = DiningService(http: NotFoundHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
+        let menu = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
+        #expect(menu.stations.isEmpty)
+        #expect(menu.date == "2026-07-19")
+    }
+
+    @Test func otherHTTPFailuresStillThrow() async {
+        let service = DiningService(http: FailingHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
+        await #expect(throws: (any Error).self) {
+            _ = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
+        }
+    }
+}
+
+/// Stub that answers every request with HTTP 404.
+private struct NotFoundHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        throw HTTPError.badStatus(code: 404, url: url)
     }
 }
 
@@ -109,7 +132,7 @@ struct HallOpenStateTests {
     }
 
     @Test func liveLocationsCarryPeriodWindows() async {
-        let service = DiningService(http: FixtureHTTP(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
+        let service = DiningService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
         let anteatery = await service.locations().first { $0.id == "anteatery" }!
         #expect(!anteatery.periods.isEmpty)
         // Some periods (e.g. "All Day") legitimately have no serving window;

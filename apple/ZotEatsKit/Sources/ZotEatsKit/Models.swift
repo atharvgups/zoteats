@@ -196,6 +196,9 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     public let todayHours: String?
     /// True when the venue publishes a menu on the dining hub.
     public let hasMenu: Bool
+    /// Minutes-since-midnight of today's next opening, when currently closed
+    /// but opening later today. Nil while open or done for the day.
+    public let opensAtMinutes: Int?
 
     public init(
         id: String,
@@ -203,7 +206,8 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         category: String,
         openNow: Bool,
         todayHours: String?,
-        hasMenu: Bool = false
+        hasMenu: Bool = false,
+        opensAtMinutes: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -211,6 +215,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.openNow = openNow
         self.todayHours = todayHours
         self.hasMenu = hasMenu
+        self.opensAtMinutes = opensAtMinutes
     }
 
     /// Brand prefix for grouping multi-location chains:
