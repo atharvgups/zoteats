@@ -232,8 +232,10 @@ struct DiningView: View {
         )
     }
 
-    /// Hall cards straight from the live API — a third commons appears here
-    /// automatically. Two halls share the width; more become a scrollable row.
+    /// Hall cards straight from the live API — a third commons (expected
+    /// around September / Fall; Mesa Court Community Center is under
+    /// construction) appears here automatically once Anteater API lists it.
+    /// Two halls share the width; more become a scrollable row.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
@@ -502,7 +504,9 @@ struct DiningView: View {
     }
 
     private func filteredStations(_ menu: DiningMenu) -> [MenuStation] {
-        menu.stations.compactMap { station in
+        // Belt-and-suspenders: Twisted Root must stay visible under vegan filters
+        // even if a stale snapshot skipped the kit-side hardcode.
+        DiningService.withStationDietOverrides(menu).stations.compactMap { station in
             let items = station.items.filter(matches)
             return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
         }

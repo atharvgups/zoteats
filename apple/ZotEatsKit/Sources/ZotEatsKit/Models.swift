@@ -19,10 +19,29 @@ public enum HallDirectory {
     static let known: [String: (name: String, area: String)] = [
         "anteatery": ("The Anteatery", "Mesa Court"),
         "brandywine": ("Brandywine", "Middle Earth"),
+        // Third residential dining commons — expected around September / Fall.
+        // UCI currently runs two (Anteatery @ Mesa Court, Brandywine @ Middle Earth).
+        // Mesa Court's Community Center is listed under construction on housing.uci.edu;
+        // when Anteater API publishes the real id, curated aliases below still apply
+        // if they match. Unknown ids still render via `prettify`.
+        "mesa-commons": ("Mesa Commons", "Mesa Court"),
+        "mesa-court-commons": ("Mesa Court Commons", "Mesa Court"),
+        "mesa-court-dining": ("Mesa Court Dining", "Mesa Court"),
+        "middle-earth-towers": ("Middle Earth Towers Dining", "Middle Earth"),
+        "middle-earth-commons": ("Middle Earth Commons", "Middle Earth"),
     ]
 
-    /// Fallback ordering when the live list is unavailable.
+    /// Fallback ordering when the live list is unavailable (live halls only —
+    /// don't invent an unopened third commons offline).
     public static let fallbackIDs = ["anteatery", "brandywine"]
+
+    /// Dining-hub `url_key`s that belong on Eat, not Campus retail.
+    /// Expand when the third commons appears on mydininghub.
+    public static let campusHubExcludedKeys: Set<String> = [
+        "the-anteatery", "brandywine",
+        "mesa-commons", "mesa-court-commons", "mesa-court-dining",
+        "middle-earth-towers", "middle-earth-commons",
+    ]
 
     public static func displayName(for id: String) -> String {
         known[id]?.name ?? prettify(id)

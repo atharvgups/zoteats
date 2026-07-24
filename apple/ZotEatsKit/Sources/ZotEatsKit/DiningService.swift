@@ -266,13 +266,39 @@ public struct DiningService: Sendable {
             }
     }
 
-    /// The Twisted Root is UCI's dedicated plant-based station: everything it
-    /// serves is vegan, but the feed doesn't always tag dishes that way. Trust
-    /// the station over the per-dish flags so the Vegan filter never hides it.
-    static func applyStationTags(_ items: [MenuItem], station: String) -> [MenuItem] {
-        guard station.localizedCaseInsensitiveContains("twisted root") else { return items }
+    /// The Twisted Root is UCI's dedicated plant-based station at **both**
+    /// The Anteatery and Brandywine. The feed often ships `isVegan`/`isVegetarian`
+    /// as false even for clearly plant-based dishes — trust the station (by name
+    /// or known station id) so Vegan / Vegetarian filters never hide it.
+    static let twistedRootStationIDs: Set<String> = [
+        "1929", // The Anteatery — The Twisted Root
+        "1893", // Brandywine — The Twisted Root
+    ]
+
+    static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
+        let lowered = stationName.lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return lowered.contains("twisted root") || lowered.contains("twistedroot")
+    }
+
+    static func applyStationTags(
+        _ items: [MenuItem],
+        station: String,
+        stationID: String? = nil
+    ) -> [MenuItem] {
+        guard isTwistedRoot(stationName: station, stationID: stationID) else { return items }
         return items.map { item in
-            guard !item.dietaryTags.contains("Vegan") else { return item }
+            var tags = item.dietaryTags
+            // Vegan first (chip order), then Vegetarian so both filters match.
+            if !tags.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }) {
+                tags.insert("Vegan", at: 0)
+            }
+            if !tags.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+                tags.append("Vegetarian")
+            }
+            guard tags != item.dietaryTags else { return item }
             return MenuItem(
                 id: item.id,
                 name: item.name,
@@ -280,10 +306,26 @@ public struct DiningService: Sendable {
                 calories: item.calories,
                 servingSize: item.servingSize,
                 allergens: item.allergens,
-                dietaryTags: ["Vegan"] + item.dietaryTags,
+                dietaryTags: tags,
                 nutrition: item.nutrition
             )
         }
+    }
+
+    /// Re-apply Twisted Root vegan overrides on an already-built menu (e.g. a
+    /// disk snapshot from before the station hardcode, or a cache hit).
+    public static func withStationDietOverrides(_ menu: DiningMenu) -> DiningMenu {
+        DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: menu.stations.map { station in
+                MenuStation(
+                    name: station.name,
+                    items: applyStationTags(station.items, station: station.name)
+                )
+            }
+        )
     }
 
     private static func menuItem(from dish: APIDish) -> MenuItem {
@@ -535,7 +577,7 @@ public struct DiningService: Sendable {
             if !items.isEmpty {
                 stations.append(MenuStation(
                     name: stationName,
-                    items: Self.applyStationTags(items, station: stationName)
+                    items: Self.applyStationTags(items, station: stationName, stationID: stationID)
                 ))
             }
         }
