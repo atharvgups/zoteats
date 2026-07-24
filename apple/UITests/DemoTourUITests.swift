@@ -130,6 +130,14 @@ final class DemoTourUITests: XCTestCase {
         // ── Settings (top-right gear): live appearance toggle ─────────────
         tapTab(app, "Eat")
         pause(2)
+        // The Eat tab is still scrolled from earlier; the gear lives in the
+        // scrolling header, so return to the top or every tap below no-ops.
+        var scrollsBack = 0
+        while !app.buttons["Open settings"].firstMatch.isHittable && scrollsBack < 6 {
+            app.swipeDown()
+            scrollsBack += 1
+            pause(1)
+        }
         tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)
         tapIfPresent(app.buttons["Dark appearance"])
@@ -137,6 +145,34 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["Light appearance"])
         pause(2.5)
         tapIfPresent(app.buttons["System appearance"])
+        pause(2)
+
+        // ── Opening alerts: watch a dining hall + a campus spot ────────────
+        tapIfPresent(app.buttons["openingAlertsRow"].firstMatch)
+        pause(3)
+        // Toggle the first two spots on (dining hall, then scroll for a café).
+        let firstToggle = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'openAlert-'")
+        ).firstMatch
+        if firstToggle.waitForExistence(timeout: 5) {
+            firstToggle.tap()
+            allowNotificationsIfAsked()
+            pause(2)
+        }
+        app.swipeUp()
+        pause(1.5)
+        let visibleToggles = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'openAlert-campus'")
+        )
+        if visibleToggles.firstMatch.exists, visibleToggles.firstMatch.isHittable {
+            visibleToggles.firstMatch.tap()
+            allowNotificationsIfAsked()
+            pause(2)
+        }
+        // Show the flipped toggle at the top of the watchlist before closing.
+        app.swipeDown()
+        pause(2)
+        tapIfPresent(app.buttons["Close opening alerts"])
         pause(2)
         tapIfPresent(app.buttons["Close settings"])
         pause(2.5)
@@ -151,6 +187,16 @@ final class DemoTourUITests: XCTestCase {
     private func tapIfPresent(_ element: XCUIElement, timeout: TimeInterval = 3) {
         if element.waitForExistence(timeout: timeout), element.isHittable {
             element.tap()
+        }
+    }
+
+    /// First toggle-on triggers the iOS notification-permission alert, which
+    /// lives in Springboard (not the app) and blocks the tour until answered.
+    private func allowNotificationsIfAsked() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 4) {
+            allow.tap()
         }
     }
 
