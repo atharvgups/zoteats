@@ -318,20 +318,22 @@ extension View {
 
 // MARK: - Status bar backdrop
 
-/// Blurs content that scrolls under the status bar / Dynamic Island on screens
+/// Covers content that scrolls under the status bar / Dynamic Island on screens
 /// with hidden navigation bars. The zero-height rectangle expands upward into
-/// the ignored top safe area only, so layout is unaffected.
+/// the ignored top safe area only, so layout is unaffected. Uses `.bar` — the
+/// same system chrome the Eat tab's navigation bar shows — so all four tabs
+/// share an identical top edge (near-black in dark mode).
 struct StatusBarBackdrop: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(alignment: .top) {
             // A zero-height view pinned to the top safe-area boundary: ShapeStyle
             // backgrounds extend into adjacent safe areas by default
-            // (ignoresSafeAreaEdges: .all), so the material fills exactly the
+            // (ignoresSafeAreaEdges: .all), so the backdrop fills exactly the
             // status bar / Dynamic Island region without affecting layout.
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: 0)
-                .background(.regularMaterial)
+                .background(.bar)
         }
     }
 }

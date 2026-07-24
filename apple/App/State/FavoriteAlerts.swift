@@ -43,13 +43,19 @@ enum FavoriteAlerts {
         let locations = await service.locations()
         let hallNames = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0.name) })
 
-        var menus: [DiningMenu] = []
-        for location in locations {
-            for period in location.availablePeriods {
-                if let menu = try? await service.menu(for: location.id, period: period) {
-                    menus.append(menu)
+        let menus: [DiningMenu] = await withTaskGroup(of: DiningMenu?.self) { group in
+            for location in locations {
+                for period in location.availablePeriods {
+                    group.addTask {
+                        try? await service.menu(for: location.id, period: period)
+                    }
                 }
             }
+            var collected: [DiningMenu] = []
+            for await menu in group {
+                if let menu { collected.append(menu) }
+            }
+            return collected
         }
 
         let dateISO = UCITime.upcomingDays(count: 1).first?.isoDate ?? ""

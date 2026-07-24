@@ -11,7 +11,7 @@ private let sundayMorning = ISO8601DateFormatter().date(from: "2026-07-12T17:00:
 @Suite("CampusService (fixtures)")
 struct CampusServiceTests {
     @Test func listsRetailPlacesExcludingCommons() async throws {
-        let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
+        let service = CampusService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { mondayMorning })
         let places = try await service.places()
         #expect(!places.isEmpty)
         #expect(!places.contains { $0.id == "the-anteatery" || $0.id == "brandywine" })
@@ -29,7 +29,7 @@ struct CampusServiceTests {
 
     @Test func weekdayHoursResolveFromActiveSchedule() async throws {
         // The July special schedule has Starbucks open Mo-Fr 07:30-16:00, weekends off.
-        let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
+        let service = CampusService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { mondayMorning })
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
         #expect(starbucks != nil)
         #expect(starbucks?.openNow == true) // Monday 10 AM within 07:30-16:00
@@ -37,7 +37,7 @@ struct CampusServiceTests {
     }
 
     @Test func weekendOffMeansClosedWithNoHours() async throws {
-        let service = CampusService(http: FixtureHTTP(), now: { sundayMorning })
+        let service = CampusService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { sundayMorning })
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
         #expect(starbucks?.openNow == false)
         #expect(starbucks?.todayHours == nil)
@@ -55,7 +55,7 @@ struct CampusServiceTests {
     }
 
     @Test func publishedMenuMapsDietaryTagsAndAllergens() async throws {
-        let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
+        let service = CampusService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { mondayMorning })
         let stations = try await service.menu(for: "halal-shack", date: "2026-07-13")
         #expect(!stations.isEmpty)
         let items = stations.flatMap(\.items)
@@ -70,17 +70,33 @@ struct CampusServiceTests {
     }
 
     @Test func networkFailurePropagates() async {
-        let service = CampusService(http: FailingHTTP(), now: { mondayMorning })
+        let service = CampusService(http: FailingHTTP(), dayCache: tempDayCache(), now: { mondayMorning })
         await #expect(throws: (any Error).self) {
             _ = try await service.places()
         }
     }
 
     @Test func menuFlagComesFromTheHub() async throws {
-        let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
+        let service = CampusService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { mondayMorning })
         let places = try await service.places()
         #expect(places.first { $0.id == "halal-shack" }?.hasMenu == true)
         #expect(places.first { $0.id == "starbucks-at-student-center" }?.hasMenu == false)
+    }
+
+    @Test func midnightToMidnightMeansOpenAllDay() {
+        // The feed encodes 24/7 spots as 00:00-00:00 — always open, and the
+        // hours line says so instead of the buggy-looking "12:00 AM – 12:00 AM".
+        let window = CampusService.TimeWindow(start: 0, end: 0)
+        #expect(window.isAllDay)
+        #expect(window.contains(minute: 0))
+        #expect(window.contains(minute: 12 * 60))
+        #expect(window.contains(minute: 23 * 60 + 59))
+        #expect(CampusService.format(windows: [window]) == "Open 24 hours")
+
+        // Normal windows are untouched.
+        let lunch = CampusService.TimeWindow(start: 660, end: 900)
+        #expect(!lunch.isAllDay)
+        #expect(CampusService.format(windows: [lunch]) == "11:00 AM – 3:00 PM")
     }
 
     @Test func brandAndLocationSplitting() {

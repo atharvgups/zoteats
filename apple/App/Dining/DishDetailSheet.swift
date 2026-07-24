@@ -7,11 +7,16 @@ import ZotEatsKit
 struct DishDetailSheet: View {
     let dish: MenuItem
     let prefs: Preferences
+    var plate: PlateStore?
 
     @Environment(\.dismiss) private var dismiss
 
     private var isFavorite: Bool {
         prefs.isFavorite(dish.name)
+    }
+
+    private var isOnPlate: Bool {
+        plate?.isOnPlate(dish.name) ?? false
     }
 
     var body: some View {
@@ -20,6 +25,10 @@ struct DishDetailSheet: View {
                 header
 
                 statsRow
+
+                if let facts = dish.nutrition, facts.hasMacros {
+                    macroRow(facts)
+                }
 
                 if !dish.dietaryTags.isEmpty {
                     tagSection(
@@ -45,7 +54,15 @@ struct DishDetailSheet: View {
                     }
                 }
 
+                if let facts = dish.nutrition {
+                    NutritionDetailsCard(facts: facts)
+                }
+
                 favoriteToggle
+
+                if let plate {
+                    plateToggle(plate)
+                }
             }
             .padding(20)
             .padding(.top, 8)
@@ -88,6 +105,15 @@ struct DishDetailSheet: View {
                 value: dish.servingSize ?? "—",
                 label: "Serving"
             )
+        }
+    }
+
+    /// Protein / carbs / fat at a glance — the numbers people actually check.
+    private func macroRow(_ facts: NutritionFacts) -> some View {
+        HStack(spacing: 12) {
+            MacroCard(value: facts.proteinG, label: "Protein", tint: TagPalette.sage)
+            MacroCard(value: facts.totalCarbsG, label: "Carbs", tint: .uciBlue)
+            MacroCard(value: facts.totalFatG, label: "Fat", tint: TagPalette.terracotta)
         }
     }
 
@@ -137,6 +163,32 @@ struct DishDetailSheet: View {
         )
     }
 
+    private func plateToggle(_ plate: PlateStore) -> some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) {
+                plate.toggle(dish)
+            }
+        } label: {
+            Label(
+                isOnPlate ? "On your plate" : "Add to My Plate",
+                systemImage: isOnPlate ? "checkmark.circle.fill" : "plus.circle"
+            )
+            .font(ZotFont.pill.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(
+                isOnPlate ? Color.uciBlue.opacity(0.12) : Color.primary.opacity(0.05),
+                in: Capsule()
+            )
+            .foregroundStyle(isOnPlate ? Color.uciBlue : .primary)
+            .symbolEffect(.bounce, value: isOnPlate)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            isOnPlate ? "Remove \(dish.name) from my plate" : "Add \(dish.name) to my plate"
+        )
+    }
+
     private var closeButton: some View {
         Button {
             dismiss()
@@ -178,6 +230,111 @@ private struct StatCard: View {
         .zotCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label): \(value)")
+    }
+}
+
+// MARK: - Macro card
+
+private struct MacroCard: View {
+    let value: Double?
+    let label: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(value.map { "\(Int($0.rounded()))g" } ?? "—")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(tint)
+            Text(label)
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .zotCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value.map { "\(Int($0.rounded())) grams" } ?? "unknown")")
+    }
+}
+
+// MARK: - Full nutrition label + ingredients (collapsed by default)
+
+private struct NutritionDetailsCard: View {
+    let facts: NutritionFacts
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.snappy(duration: 0.25)) { expanded.toggle() }
+            } label: {
+                HStack {
+                    Label("Full nutrition", systemImage: "list.clipboard")
+                        .font(ZotFont.sectionTitle)
+                        .foregroundStyle(Color.uciBlue)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Full nutrition, \(expanded ? "collapse" : "expand")")
+
+            if expanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    factRow("Total fat", facts.totalFatG, unit: "g")
+                    factRow("Saturated fat", facts.saturatedFatG, unit: "g", indent: true)
+                    factRow("Trans fat", facts.transFatG, unit: "g", indent: true)
+                    factRow("Sodium", facts.sodiumMg, unit: "mg")
+                    factRow("Total carbs", facts.totalCarbsG, unit: "g")
+                    factRow("Dietary fiber", facts.dietaryFiberG, unit: "g", indent: true)
+                    factRow("Sugars", facts.sugarsG, unit: "g", indent: true)
+                    factRow("Protein", facts.proteinG, unit: "g")
+
+                    if let ingredients = facts.ingredients {
+                        Text("Ingredients")
+                            .font(ZotFont.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 12)
+                        Text(ingredients)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 3)
+                    }
+
+                    Text("Per serving, from UCI Dining's published data.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 12)
+                }
+                .padding(.top, 10)
+                .transition(.opacity)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+    }
+
+    @ViewBuilder
+    private func factRow(_ name: String, _ value: Double?, unit: String, indent: Bool = false) -> some View {
+        if let value {
+            HStack {
+                Text(name)
+                    .font(indent ? ZotFont.caption : ZotFont.body)
+                    .foregroundStyle(indent ? .secondary : .primary)
+                    .padding(.leading, indent ? 14 : 0)
+                Spacer()
+                Text(unit == "mg" ? "\(Int(value.rounded()))mg" : String(format: "%.1fg", value))
+                    .font(indent ? ZotFont.caption : ZotFont.body.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 5)
+            .overlay(alignment: .bottom) { Divider() }
+        }
     }
 }
 

@@ -11,6 +11,8 @@ import ZotEatsKit
 struct ZotEatsWidgetBundle: WidgetBundle {
     var body: some Widget {
         DiningStatusWidget()
+        TodaysMenuWidget()
+        QuietestLibraryWidget()
         MealCountdownActivity()
     }
 }
@@ -285,4 +287,256 @@ struct DiningStatusView: View {
         ],
         quietest: (name: "Science Library", percent: 12)
     )
+}
+
+// MARK: - Today's Menu widget (medium)
+
+struct TodaysMenuEntry: TimelineEntry {
+    let date: Date
+    let hallName: String
+    let period: String
+    let dishes: [String]
+}
+
+struct TodaysMenuProvider: TimelineProvider {
+    func placeholder(in context: Context) -> TodaysMenuEntry {
+        TodaysMenuEntry(
+            date: .now,
+            hallName: "The Anteatery",
+            period: "Lunch",
+            dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"]
+        )
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (TodaysMenuEntry) -> Void) {
+        if context.isPreview {
+            completion(placeholder(in: context))
+            return
+        }
+        let deliver = UncheckedSendableBox(completion)
+        Task { deliver.value(await fetchEntry()) }
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<TodaysMenuEntry>) -> Void) {
+        let deliver = UncheckedSendableBox(completion)
+        Task {
+            let entry = await fetchEntry()
+            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(30 * 60))))
+        }
+    }
+
+    private func fetchEntry() async -> TodaysMenuEntry {
+        let service = DiningService()
+        let locations = await service.locations()
+        let nowMinutes = UCITime.nowMinutes()
+
+        // Prefer an open hall; otherwise show the first one.
+        guard let hall = locations.first(where: \.openNow) ?? locations.first else {
+            return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [])
+        }
+
+        // The meal being served now, else the next one today, else the last.
+        let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+        let period = timed.first { nowMinutes >= $0.startMinutes! && nowMinutes < $0.endMinutes! }?.name
+            ?? timed.first { $0.startMinutes! > nowMinutes }?.name
+            ?? hall.availablePeriods.last
+            ?? ""
+
+        var dishes: [String] = []
+        if !period.isEmpty, let menu = try? await service.menu(for: hall.id, period: period) {
+            var seen = Set<String>()
+            dishes = menu.stations
+                .flatMap(\.items)
+                .map(\.name)
+                .filter { seen.insert($0.lowercased()).inserted }
+        }
+        return TodaysMenuEntry(
+            date: .now,
+            hallName: hall.name,
+            period: period,
+            dishes: Array(dishes.prefix(4))
+        )
+    }
+}
+
+struct TodaysMenuWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "ZotEatsTodaysMenu", provider: TodaysMenuProvider()) { entry in
+            TodaysMenuView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
+                }
+        }
+        .configurationDisplayName("Today's Menu")
+        .description("What's being served right now at the dining hall.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+struct TodaysMenuView: View {
+    let entry: TodaysMenuEntry
+
+    private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 10, weight: .bold))
+                Text(entry.hallName.uppercased())
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(0.8)
+                    .lineLimit(1)
+                Spacer()
+                if !entry.period.isEmpty {
+                    Text(entry.period)
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.16), in: Capsule())
+                        .foregroundStyle(.white)
+                }
+            }
+            .foregroundStyle(gold)
+
+            if entry.dishes.isEmpty {
+                Spacer()
+                Text("No menu posted right now — check back at the next meal.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.8))
+                Spacer()
+            } else {
+                ForEach(entry.dishes, id: \.self) { dish in
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(gold)
+                            .frame(width: 3.5, height: 3.5)
+                        Text(dish)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(entry.hallName) \(entry.period): \(entry.dishes.joined(separator: ", "))"
+        )
+    }
+}
+
+#Preview(as: .systemMedium) {
+    TodaysMenuWidget()
+} timeline: {
+    TodaysMenuEntry(
+        date: .now,
+        hallName: "The Anteatery",
+        period: "Lunch",
+        dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"]
+    )
+}
+
+// MARK: - Quietest library (lock screen / StandBy)
+
+struct QuietestLibraryEntry: TimelineEntry {
+    let date: Date
+    let name: String
+    let percent: Int?
+}
+
+struct QuietestLibraryProvider: TimelineProvider {
+    func placeholder(in context: Context) -> QuietestLibraryEntry {
+        QuietestLibraryEntry(date: .now, name: "Science Library", percent: 12)
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (QuietestLibraryEntry) -> Void) {
+        if context.isPreview {
+            completion(placeholder(in: context))
+            return
+        }
+        let deliver = UncheckedSendableBox(completion)
+        Task { deliver.value(await fetchEntry()) }
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<QuietestLibraryEntry>) -> Void) {
+        let deliver = UncheckedSendableBox(completion)
+        Task {
+            let entry = await fetchEntry()
+            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(15 * 60))))
+        }
+    }
+
+    private func fetchEntry() async -> QuietestLibraryEntry {
+        let quietest = (try? await BusynessService().all())?
+            .filter { $0.isOpen && $0.percent != nil }
+            .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
+        guard let quietest else {
+            return QuietestLibraryEntry(date: .now, name: "Libraries closed", percent: nil)
+        }
+        return QuietestLibraryEntry(date: .now, name: quietest.name, percent: quietest.percent)
+    }
+}
+
+struct QuietestLibraryWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "ZotEatsQuietestLibrary", provider: QuietestLibraryProvider()) { entry in
+            QuietestLibraryView(entry: entry)
+                .containerBackground(for: .widget) { Color.clear }
+        }
+        .configurationDisplayName("Quietest Library")
+        .description("The least busy library right now, on your lock screen.")
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular])
+    }
+}
+
+struct QuietestLibraryView: View {
+    let entry: QuietestLibraryEntry
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            if let percent = entry.percent {
+                Gauge(value: Double(percent), in: 0...100) {
+                    Image(systemName: "books.vertical.fill")
+                } currentValueLabel: {
+                    Text("\(percent)%")
+                        .font(.system(size: 14, weight: .bold))
+                        .monospacedDigit()
+                }
+                .gaugeStyle(.accessoryCircular)
+                .accessibilityLabel("\(entry.name), \(percent) percent full")
+            } else {
+                Image(systemName: "books.vertical.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .accessibilityLabel(entry.name)
+            }
+        default:
+            HStack(spacing: 8) {
+                Image(systemName: "books.vertical.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Text(entry.percent.map { "\($0)% full · quietest now" } ?? "No live data")
+                        .font(.system(size: 11))
+                        .opacity(0.8)
+                }
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "\(entry.name)\(entry.percent.map { ", \($0) percent full, quietest library right now" } ?? "")"
+            )
+        }
+    }
+}
+
+#Preview(as: .accessoryCircular) {
+    QuietestLibraryWidget()
+} timeline: {
+    QuietestLibraryEntry(date: .now, name: "Science Library", percent: 12)
 }

@@ -8,7 +8,7 @@ private let fixtureNoon = ISO8601DateFormatter().date(from: "2026-07-09T19:30:00
 @Suite("DiningService (fixtures)")
 struct DiningServiceTests {
     private func service() -> DiningService {
-        DiningService(http: FixtureHTTP(), now: { fixtureNoon })
+        DiningService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
     }
 
     @Test func locationsIncludeBothHallsInStableOrder() async {
@@ -45,6 +45,13 @@ struct DiningServiceTests {
         #expect(items.contains { !$0.dietaryTags.isEmpty })
         // Station IDs resolve to real names, not the fallback.
         #expect(menu.stations.contains { $0.name != "Menu" })
+
+        // Full nutrition label rides along: macros, sodium, and ingredients.
+        let labeled = items.compactMap(\.nutrition)
+        #expect(labeled.contains { $0.hasMacros })
+        #expect(labeled.contains { $0.proteinG != nil && $0.totalCarbsG != nil && $0.totalFatG != nil })
+        #expect(labeled.contains { $0.sodiumMg != nil && $0.sugarsG != nil && $0.dietaryFiberG != nil })
+        #expect(labeled.contains { $0.ingredients?.isEmpty == false })
     }
 
     @Test func menuPeriodMatchIsCaseInsensitive() async throws {
@@ -58,10 +65,62 @@ struct DiningServiceTests {
     }
 
     @Test func networkFailureDegradesToClosedLocations() async {
-        let service = DiningService(http: FailingHTTP(), now: { fixtureNoon })
+        let service = DiningService(http: FailingHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
         let locations = await service.locations()
         #expect(locations.count == 2)
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
+    }
+
+    @Test func twistedRootDishesAreAlwaysVegan() async throws {
+        // UCI's dedicated plant-based station: the station wins over missing
+        // per-dish flags, so the Vegan filter can never hide it.
+        let untagged = MenuItem(
+            id: "x", name: "Mystery Tofu", description: nil, calories: 200,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegetarian"]
+        )
+        let tagged = MenuItem(
+            id: "y", name: "Elbow Macaroni", description: nil, calories: 103,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan", "Vegetarian"]
+        )
+
+        let fixed = DiningService.applyStationTags([untagged, tagged], station: "The Twisted Root")
+        #expect(fixed.allSatisfy { $0.dietaryTags.contains("Vegan") })
+        #expect(fixed[0].dietaryTags.first == "Vegan")
+        // Already-tagged dishes are untouched (no duplicate tag).
+        #expect(fixed[1].dietaryTags.filter { $0 == "Vegan" }.count == 1)
+
+        // Other stations pass through untouched.
+        let other = DiningService.applyStationTags([untagged], station: "Sizzle Grill")
+        #expect(!other[0].dietaryTags.contains("Vegan"))
+
+        // And the live menu path applies it end to end.
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        if let twistedRoot = menu.stations.first(where: { $0.name.contains("Twisted Root") }) {
+            #expect(twistedRoot.items.allSatisfy { $0.dietaryTags.contains("Vegan") })
+        }
+    }
+
+    @Test func unpublishedFutureDayIs404AndReadsAsNotPostedYet() async throws {
+        // Browsing ahead to a day whose menu isn't published: the API 404s.
+        // That must surface as an empty "not posted yet" menu, not an error.
+        let service = DiningService(http: NotFoundHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
+        let menu = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
+        #expect(menu.stations.isEmpty)
+        #expect(menu.date == "2026-07-19")
+    }
+
+    @Test func otherHTTPFailuresStillThrow() async {
+        let service = DiningService(http: FailingHTTP(), dayCache: tempDayCache(), now: { fixtureNoon })
+        await #expect(throws: (any Error).self) {
+            _ = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-07-19")
+        }
+    }
+}
+
+/// Stub that answers every request with HTTP 404.
+private struct NotFoundHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        throw HTTPError.badStatus(code: 404, url: url)
     }
 }
 
@@ -109,7 +168,7 @@ struct HallOpenStateTests {
     }
 
     @Test func liveLocationsCarryPeriodWindows() async {
-        let service = DiningService(http: FixtureHTTP(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
+        let service = DiningService(http: FixtureHTTP(), dayCache: tempDayCache(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
         let anteatery = await service.locations().first { $0.id == "anteatery" }!
         #expect(!anteatery.periods.isEmpty)
         // Some periods (e.g. "All Day") legitimately have no serving window;
