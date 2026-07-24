@@ -14,6 +14,9 @@ struct SettingsView: View {
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
     @State private var alertsDenied = false
+    @State private var watchedPlaces = OpeningAlerts.watchedIDs
+    // -showOpenAlerts lets CI screenshot the picker directly.
+    @State private var showOpenAlerts = ProcessInfo.processInfo.arguments.contains("-showOpenAlerts")
 
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
@@ -92,7 +95,7 @@ struct SettingsView: View {
         .zotCard()
     }
 
-    // MARK: - Favorite alerts
+    // MARK: - Notifications
 
     private var alertsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -126,6 +129,38 @@ struct SettingsView: View {
                 }
             }
 
+            Divider()
+
+            Button {
+                showOpenAlerts = true
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Opening alerts")
+                            .font(ZotFont.body)
+                            .foregroundStyle(.primary)
+                        Text("Get pinged the moment a hall or campus spot opens.")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if !watchedPlaces.isEmpty {
+                        Text("\(watchedPlaces.count)")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .foregroundStyle(Color.uciBlue)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                            .background(Color.uciBlue.opacity(0.12), in: Capsule())
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("openingAlertsRow")
+
             if alertsDenied {
                 Text("Notifications are turned off for ZotEats in iOS Settings — enable them there first.")
                     .font(ZotFont.caption)
@@ -135,6 +170,9 @@ struct SettingsView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .sheet(isPresented: $showOpenAlerts) {
+            OpeningAlertsPicker(watched: $watchedPlaces)
+        }
     }
 
     // MARK: - About
