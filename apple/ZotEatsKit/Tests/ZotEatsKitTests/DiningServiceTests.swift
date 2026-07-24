@@ -72,31 +72,44 @@ struct DiningServiceTests {
     }
 
     @Test func twistedRootDishesAreAlwaysVegan() async throws {
-        // UCI's dedicated plant-based station: the station wins over missing
-        // per-dish flags, so the Vegan filter can never hide it.
+        // UCI's dedicated plant-based station at BOTH commons: the station
+        // wins over missing/false per-dish flags, so Vegan + Vegetarian
+        // filters can never hide it.
         let untagged = MenuItem(
             id: "x", name: "Mystery Tofu", description: nil, calories: 200,
-            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegetarian"]
+            servingSize: nil, allergens: ["Soy"], dietaryTags: []
         )
-        let tagged = MenuItem(
+        let vegOnly = MenuItem(
             id: "y", name: "Elbow Macaroni", description: nil, calories: 103,
-            servingSize: nil, allergens: [], dietaryTags: ["Vegan", "Vegetarian"]
+            servingSize: nil, allergens: [], dietaryTags: ["Vegetarian"]
         )
 
-        let fixed = DiningService.applyStationTags([untagged, tagged], station: "The Twisted Root")
-        #expect(fixed.allSatisfy { $0.dietaryTags.contains("Vegan") })
-        #expect(fixed[0].dietaryTags.first == "Vegan")
-        // Already-tagged dishes are untouched (no duplicate tag).
-        #expect(fixed[1].dietaryTags.filter { $0 == "Vegan" }.count == 1)
+        for station in ["The Twisted Root", "Twisted Root", "the twisted root "] {
+            let fixed = DiningService.applyStationTags([untagged, vegOnly], station: station)
+            #expect(fixed.allSatisfy { $0.dietaryTags.contains("Vegan") })
+            #expect(fixed.allSatisfy { $0.dietaryTags.contains("Vegetarian") })
+        }
+
+        // Known Anteatery + Brandywine station ids, even if the name map fails.
+        let byAnteateryID = DiningService.applyStationTags(
+            [untagged], station: "Menu", stationID: "1929"
+        )
+        let byBrandywineID = DiningService.applyStationTags(
+            [untagged], station: "Menu", stationID: "1893"
+        )
+        #expect(byAnteateryID[0].dietaryTags.contains("Vegan"))
+        #expect(byBrandywineID[0].dietaryTags.contains("Vegan"))
+        #expect(byBrandywineID[0].dietaryTags.contains("Vegetarian"))
 
         // Other stations pass through untouched.
         let other = DiningService.applyStationTags([untagged], station: "Sizzle Grill")
         #expect(!other[0].dietaryTags.contains("Vegan"))
 
-        // And the live menu path applies it end to end.
+        // Live fixture path (Anteatery Lunch includes Twisted Root).
         let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
         if let twistedRoot = menu.stations.first(where: { $0.name.contains("Twisted Root") }) {
             #expect(twistedRoot.items.allSatisfy { $0.dietaryTags.contains("Vegan") })
+            #expect(twistedRoot.items.allSatisfy { $0.dietaryTags.contains("Vegetarian") })
         }
     }
 
@@ -240,11 +253,20 @@ struct HallDirectoryTests {
         #expect(HallDirectory.area(for: "brandywine") == "Middle Earth")
     }
 
+    @Test func thirdCommonsAliasesAreCuratedForSeptemberScaffolding() {
+        // Anticipated third residential dining commons (~September / Fall).
+        #expect(HallDirectory.displayName(for: "mesa-commons") == "Mesa Commons")
+        #expect(HallDirectory.area(for: "mesa-commons") == "Mesa Court")
+        #expect(HallDirectory.displayName(for: "middle-earth-towers") == "Middle Earth Towers Dining")
+        #expect(HallDirectory.campusHubExcludedKeys.contains("mesa-commons"))
+        // Offline fallback stays at the two live halls until the API lists a third.
+        #expect(HallDirectory.fallbackIDs == ["anteatery", "brandywine"])
+    }
+
     @Test func unknownFutureHallsGetReadableNames() {
-        // When UCI opens the third commons, its API id renders sensibly with no code change.
-        #expect(HallDirectory.displayName(for: "middle-earth-towers") == "Middle Earth Towers")
+        // When UCI opens another commons under a novel id, it still renders.
         #expect(HallDirectory.displayName(for: "el_mercado") == "El Mercado")
-        #expect(HallDirectory.area(for: "middle-earth-towers") == "UCI Campus")
+        #expect(HallDirectory.area(for: "pippin-dining") == "UCI Campus")
     }
 }
 

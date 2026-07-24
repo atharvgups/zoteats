@@ -48,7 +48,8 @@ final class DiningStore {
         let today = UCITime.upcomingDays(count: 1).first?.isoDate ?? ""
         if let saved = snapshots.load(MenusSnapshot.self, key: "dining.menus"), saved.dateISO == today {
             for (key, menu) in saved.menus {
-                menus[key] = .loaded(menu)
+                // Snapshots may predate Twisted Root vegan hardcoding — fix on load.
+                menus[key] = .loaded(DiningService.withStationDietOverrides(menu))
             }
         }
     }
@@ -76,7 +77,11 @@ final class DiningStore {
         let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
-            menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date, fresh: fresh))
+            menus[key] = .loaded(
+                DiningService.withStationDietOverrides(
+                    try await service.menu(for: hall, period: period, date: date, fresh: fresh)
+                )
+            )
             persistTodayMenus()
         } catch {
             // Keep stale menu visible through a refresh failure.
@@ -110,7 +115,7 @@ final class DiningStore {
         for (period, menu) in fetched {
             let key = "\(hall)|\(period)|today"
             if menus[key]?.value == nil {
-                menus[key] = .loaded(menu)
+                menus[key] = .loaded(DiningService.withStationDietOverrides(menu))
             }
         }
         if !fetched.isEmpty {

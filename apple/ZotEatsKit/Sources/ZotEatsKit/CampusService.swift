@@ -21,7 +21,7 @@ public struct CampusService: Sendable {
     private static let menuTTL: TimeInterval = 24 * 60 * 60
 
     /// Residential commons already covered by the Eat tab.
-    private static let excludedKeys: Set<String> = ["the-anteatery", "brandywine"]
+    private static let excludedKeys: Set<String> = HallDirectory.campusHubExcludedKeys
 
     private let http: any HTTPFetching
     private let cache: TTLCache
