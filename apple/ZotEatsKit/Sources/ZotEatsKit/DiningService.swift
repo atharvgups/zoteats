@@ -231,6 +231,64 @@ public struct DiningService: Sendable {
         )
     }
 
+    /// The Twisted Root is UCI's dedicated plant-based station at **both**
+    /// The Anteatery and Brandywine. The feed often ships every diet flag as
+    /// false — trust the station so Vegan / Vegetarian filters never hide it.
+    public static let twistedRootStationIDs: Set<String> = [
+        "1929", // The Anteatery
+        "1893", // Brandywine
+    ]
+
+    public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
+        let lowered = stationName.lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return lowered.contains("twisted root") || lowered.contains("twistedroot")
+    }
+
+    public static func applyStationTags(
+        _ items: [MenuItem],
+        station: String,
+        stationID: String? = nil
+    ) -> [MenuItem] {
+        guard isTwistedRoot(stationName: station, stationID: stationID) else { return items }
+        return items.map { item in
+            var tags = item.dietaryTags
+            if !tags.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }) {
+                tags.insert("Vegan", at: 0)
+            }
+            if !tags.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+                tags.append("Vegetarian")
+            }
+            guard tags != item.dietaryTags else { return item }
+            return MenuItem(
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                calories: item.calories,
+                servingSize: item.servingSize,
+                allergens: item.allergens,
+                dietaryTags: tags
+            )
+        }
+    }
+
+    /// Re-apply Twisted Root overrides on an already-built menu (UI filter path).
+    public static func withStationDietOverrides(_ menu: DiningMenu) -> DiningMenu {
+        DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: menu.stations.map { station in
+                MenuStation(
+                    name: station.name,
+                    items: applyStationTags(station.items, station: station.name)
+                )
+            }
+        )
+    }
+
     // MARK: - Public API
 
     /// Every dining commons the live API lists (a new hall shows up here
@@ -323,12 +381,16 @@ public struct DiningService: Sendable {
             // The API occasionally lists multiple dish ids that resolve to the same
             // dish name within one station; keep the first of each.
             var seenNames = Set<String>()
+            let stationName = stationNames[stationID] ?? "Menu"
             let items = dishIDs
                 .compactMap { dishMap[$0] }
                 .map(Self.menuItem(from:))
                 .filter { seenNames.insert($0.name.lowercased()).inserted }
             if !items.isEmpty {
-                stations.append(MenuStation(name: stationNames[stationID] ?? "Menu", items: items))
+                stations.append(MenuStation(
+                    name: stationName,
+                    items: Self.applyStationTags(items, station: stationName, stationID: stationID)
+                ))
             }
         }
 
