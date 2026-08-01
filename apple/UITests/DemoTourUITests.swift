@@ -116,7 +116,7 @@ final class DemoTourUITests: XCTestCase {
         tapTab(app, "Study")
         pause(3.5)
         // Expand the first facility's sub-areas.
-        tapFirstMatch(app.buttons, labelPrefixes: ["Show areas inside"])
+        tapFirstMatch(app.buttons, labelPrefixes: ["Show floors inside", "Show areas inside"])
         pause(2.5)
         app.swipeUp()
         pause(2)
