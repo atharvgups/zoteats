@@ -23,7 +23,7 @@ struct GymView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(Color.screen)
+        .background(Color.screen.ignoresSafeArea())
         .refreshable { await store.load() }
         .statusBarBackdrop()
         .task { await store.load() }

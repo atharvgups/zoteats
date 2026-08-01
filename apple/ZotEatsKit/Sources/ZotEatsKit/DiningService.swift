@@ -91,7 +91,7 @@ public struct DiningService: Sendable {
         }
 
         var dietaryTags: [String] {
-            [
+            var tags = [
                 (isVegan, "Vegan"),
                 (isVegetarian, "Vegetarian"),
                 (isHalal, "Halal"),
@@ -100,6 +100,13 @@ public struct DiningService: Sendable {
                 (isOrganic, "Organic"),
                 (isLocallyGrown, "Locally Grown"),
             ].filter { $0.0 == true }.map(\.1)
+            // Vegan is a subset of vegetarian — surface both so the Vegetarian
+            // filter doesn't hide explicitly vegan dishes when the API only
+            // sets isVegan.
+            if tags.contains("Vegan"), !tags.contains("Vegetarian") {
+                tags.append("Vegetarian")
+            }
+            return tags
         }
     }
 

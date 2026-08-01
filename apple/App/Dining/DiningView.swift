@@ -15,12 +15,11 @@ struct DiningView: View {
     @State private var selectedDate: String?
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
+    @State private var showDietFilters = false
     @State private var mealActivity = MealActivityManager()
 
     /// Today + the next few days (menus are usually published a few days out).
     private let upcomingDays = UCITime.upcomingDays(count: 5)
-
-    private static let dietFilterOptions = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
 
     var body: some View {
         NavigationStack {
@@ -52,6 +51,9 @@ struct DiningView: View {
             .onAppear { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
+            }
+            .sheet(isPresented: $showDietFilters) {
+                DietFilterSheet(prefs: prefs)
             }
         }
     }
@@ -111,84 +113,66 @@ struct DiningView: View {
                 }
             }
 
-            DayStrip(
-                days: upcomingDays,
-                selection: Binding(
-                    get: { selectedDate ?? upcomingDays.first?.isoDate },
-                    set: { newValue in
-                        let today = upcomingDays.first?.isoDate
-                        selectedDate = (newValue == today) ? nil : newValue
-                    }
+            HStack(spacing: 10) {
+                DayStrip(
+                    days: upcomingDays,
+                    selection: Binding(
+                        get: { selectedDate ?? upcomingDays.first?.isoDate },
+                        set: { newValue in
+                            let today = upcomingDays.first?.isoDate
+                            selectedDate = (newValue == today) ? nil : newValue
+                        }
+                    )
                 )
-            )
+                Spacer(minLength: 8)
+                filterChip
+            }
             .padding(.horizontal, 20)
-
-            // Always-visible dietary filters — a buried chip was too easy to miss.
-            dietFilterRow
 
             menuContent
         }
     }
 
-    /// Horizontal diet pills on the Eat tab so filters are always obvious.
-    private var dietFilterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Self.dietFilterOptions, id: \.self) { option in
-                    let isOn = prefs.dietFilters.contains(option)
-                    Button {
-                        if isOn {
-                            prefs.dietFilters.remove(option)
-                        } else {
-                            prefs.dietFilters.insert(option)
-                        }
-                        Haptics.selection()
-                    } label: {
-                        Text(option)
-                            .font(ZotFont.pill.weight(isOn ? .semibold : .medium))
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 7)
-                            .background(
-                                isOn ? Color.uciBlue.opacity(0.12) : Color.card,
-                                in: Capsule()
-                            )
-                            .foregroundStyle(isOn ? Color.uciBlue : .primary)
-                            .overlay(
-                                Capsule().strokeBorder(
-                                    isOn ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                    lineWidth: 1
-                                )
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(option) filter\(isOn ? ", active" : "")")
-                    .accessibilityIdentifier(
-                        "diet-filter-\(option.lowercased().replacingOccurrences(of: " ", with: "-"))"
-                    )
-                    .accessibilityAddTraits(isOn ? [.isSelected] : [])
-                }
-
-                if !prefs.dietFilters.isEmpty {
-                    Button {
-                        prefs.dietFilters = []
-                        Haptics.selection()
-                    } label: {
-                        Text("Clear")
-                            .font(ZotFont.pill.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Clear dietary filters")
-                    .accessibilityIdentifier("diet-filter-clear")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 2)
+    /// Compact chip summarizing dietary filters; opens the picker sheet.
+    private var filterChip: some View {
+        let active = prefs.dietFilters
+        let label = switch active.count {
+        case 0: "Filters"
+        case 1: active.first!
+        default: "\(active.count) filters"
         }
-        .accessibilityLabel("Dietary filters")
-        .accessibilityIdentifier("diet-filter-row")
+        return Button {
+            showDietFilters = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "line.3.horizontal.decrease.circle\(active.isEmpty ? "" : ".fill")")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(label)
+                    .font(ZotFont.pill.weight(active.isEmpty ? .medium : .semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                active.isEmpty ? Color.card : Color.uciBlue.opacity(0.12),
+                in: Capsule()
+            )
+            .foregroundStyle(active.isEmpty ? Color.primary : Color.uciBlue)
+            .overlay(
+                Capsule().strokeBorder(
+                    active.isEmpty ? Color.cardBorder : Color.uciBlue.opacity(0.35),
+                    lineWidth: 1
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("diet-filter-chip")
+        .accessibilityLabel(
+            active.isEmpty
+                ? "Dietary filters"
+                : "Dietary filters: \(active.sorted().joined(separator: ", "))"
+        )
     }
 
     /// Hall cards straight from the live API — a third commons appears here
@@ -425,7 +409,9 @@ struct DiningView: View {
 
     private func matches(_ item: MenuItem) -> Bool {
         // Multiple filters combine as AND — Vegan + Gluten-Free means both.
-        guard prefs.dietFilters.allSatisfy({ item.dietaryTags.contains($0) }) else {
+        guard prefs.dietFilters.allSatisfy({ filter in
+            item.dietaryTags.contains { $0.caseInsensitiveCompare(filter) == .orderedSame }
+        }) else {
             return false
         }
         let query = trimmedQuery
@@ -458,9 +444,10 @@ struct DiningView: View {
     // MARK: - Loading
 
     private func loadCurrentMenu() async {
-        guard let selectedPeriod, let location = selectedLocation else { return }
-        let resolved = DiningService.resolvePeriod(selectedPeriod, available: location.availablePeriods)
-        await store.loadMenu(hall: selectedHall, period: resolved, date: selectedDate)
+        // Cache under the primary pill name (Breakfast/Lunch/Dinner). The
+        // service resolves Brunch / Limited Dinner internally.
+        guard let selectedPeriod else { return }
+        await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
     }
 
     private func refresh() async {
@@ -564,6 +551,106 @@ private struct DayStrip: View {
             .padding(.vertical, 2)
         }
         .accessibilityLabel("Menu day")
+    }
+}
+
+// MARK: - Dietary filter sheet
+
+/// Compact multi-select sheet — keeps Eat uncluttered vs a permanent pill row.
+/// Filters combine as AND: Vegan + Gluten-Free shows only dishes that are both.
+struct DietFilterSheet: View {
+    let prefs: Preferences
+    @Environment(\.dismiss) private var dismiss
+
+    private static let options = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Dietary filters")
+                    .font(ZotFont.hero(24))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(Color.uciBlue, in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("diet-filter-done")
+            }
+            .padding(.bottom, 2)
+
+            Text("Pick as many as you need — dishes must match all of them.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 10)
+
+            ForEach(Self.options, id: \.self) { option in
+                let isSelected = prefs.dietFilters.contains(option)
+                Button {
+                    if isSelected {
+                        prefs.dietFilters.remove(option)
+                    } else {
+                        prefs.dietFilters.insert(option)
+                    }
+                    Haptics.selection()
+                } label: {
+                    HStack {
+                        TagChip(text: option, color: TagPalette.dietColor(option))
+                        Text("Only \(option.lowercased()) dishes")
+                            .font(ZotFont.body)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 14)
+                    .background(
+                        isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
+            }
+
+            if !prefs.dietFilters.isEmpty {
+                Button {
+                    prefs.dietFilters = []
+                    Haptics.selection()
+                } label: {
+                    Text("Clear all")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Color.primary.opacity(0.05), in: Capsule())
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 8)
+                .accessibilityIdentifier("diet-filter-clear")
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .background(Color.screen)
+        .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
     }
 }
 

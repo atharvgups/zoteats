@@ -45,10 +45,18 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["Menu for Today"])
         pause(2)
 
-        // Apply the Vegan filter from the always-visible pills, then clear it.
-        tapIfPresent(app.buttons["diet-filter-vegan"])
-        pause(3)
+        // Apply the Vegan filter via the compact Filters chip, then clear it.
+        tapIfPresent(app.buttons["diet-filter-chip"])
+        pause(2)
+        tapFirstMatch(app.buttons, labelPrefixes: ["Vegan filter"])
+        pause(1.5)
+        tapIfPresent(app.buttons["diet-filter-done"])
+        pause(2.5)
+        tapIfPresent(app.buttons["diet-filter-chip"])
+        pause(1.5)
         tapIfPresent(app.buttons["diet-filter-clear"])
+        pause(1)
+        tapIfPresent(app.buttons["diet-filter-done"])
         pause(1.5)
 
         // Scroll through the menu.

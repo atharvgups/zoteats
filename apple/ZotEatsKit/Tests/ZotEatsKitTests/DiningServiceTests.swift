@@ -81,6 +81,16 @@ struct DiningServiceTests {
         #expect(menu.stations.contains { $0.name == "Available all day" })
     }
 
+    @Test func veganFlagAlsoSurfacesVegetarianTag() async throws {
+        // Live API sometimes sets only isVegan; Vegetarian filter must still match.
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        let veganItems = DiningService.withStationDietOverrides(menu).stations
+            .flatMap(\.items)
+            .filter { $0.dietaryTags.contains("Vegan") }
+        #expect(!veganItems.isEmpty)
+        #expect(veganItems.allSatisfy { $0.dietaryTags.contains("Vegetarian") })
+    }
+
     @Test func twistedRootDishesAreAlwaysVeganAtBothHalls() async throws {
         let untagged = MenuItem(
             id: "x", name: "Mystery Tofu", description: nil, calories: 200,
