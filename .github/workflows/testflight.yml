@@ -16,7 +16,7 @@
 #
 # Optional repository variable / secret:
 #   TESTFLIGHT_EXTERNAL_GROUP_NAME - External Testing group name in App Store Connect
-#                                    (default: "External Testers")
+#                                    (default: "Zot Eats Testers!")
 #
 # App Store Connect setup (one-time):
 #   1. TestFlight → External Testing → create a group (default name above).
@@ -63,7 +63,7 @@ jobs:
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      TESTFLIGHT_EXTERNAL_GROUP_NAME: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP_NAME || 'External Testers' }}
+      TESTFLIGHT_EXTERNAL_GROUP_NAME: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP_NAME || 'Zot Eats Testers!' }}
       PROMOTE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_only }}
     steps:
       # Fail fast with an explicit list of missing secrets instead of a cryptic

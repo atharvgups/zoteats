@@ -18,7 +18,7 @@ Optional env:
   BUNDLE_ID                      — default com.atharvgupta.zoteats
   BUILD_NUMBER                   — CFBundleVersion just uploaded (required to
                                    identify "current"; skips promote if unset)
-  TESTFLIGHT_EXTERNAL_GROUP_NAME — default "External Testers"
+  TESTFLIGHT_EXTERNAL_GROUP_NAME — default "Zot Eats Testers!"
   PROMOTE_WAIT_SECONDS           — max wait for processing (default 2400)
 """
 
@@ -43,7 +43,7 @@ except ImportError:
 
 API = "https://api.appstoreconnect.apple.com"
 BUNDLE_ID = os.environ.get("BUNDLE_ID", "com.atharvgupta.zoteats")
-GROUP_NAME = os.environ.get("TESTFLIGHT_EXTERNAL_GROUP_NAME", "External Testers")
+GROUP_NAME = os.environ.get("TESTFLIGHT_EXTERNAL_GROUP_NAME", "Zot Eats Testers!")
 BUILD_NUMBER = os.environ.get("BUILD_NUMBER", "").strip()
 MAX_WAIT = int(os.environ.get("PROMOTE_WAIT_SECONDS", "2400"))
 
