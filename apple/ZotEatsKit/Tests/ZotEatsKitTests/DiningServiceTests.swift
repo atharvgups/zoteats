@@ -64,6 +64,23 @@ struct DiningServiceTests {
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
     }
 
+    @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
+        let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
+        #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
+        #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
+        #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
+    }
+
+    @Test func resolvePeriodMapsBreakfastToBrunch() {
+        #expect(DiningService.resolvePeriod("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
+        #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
+    }
+
+    @Test func lunchMenuFoldsAllDayIntoAvailableAllDayStation() async throws {
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        #expect(menu.stations.contains { $0.name == "Available all day" })
+    }
+
     @Test func twistedRootDishesAreAlwaysVeganAtBothHalls() async throws {
         let untagged = MenuItem(
             id: "x", name: "Mystery Tofu", description: nil, calories: 200,

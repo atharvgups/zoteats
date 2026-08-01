@@ -359,27 +359,92 @@ public struct DiningService: Sendable {
         }
     }
 
+    /// Primary meal pills students actually use. Brunch maps into Breakfast;
+    /// All Day is folded into each meal as "Available all day" (no own pill).
+    public static func primaryPeriods(from available: [String]) -> [String] {
+        var result: [String] = []
+        if available.contains(where: { $0.caseInsensitiveCompare("Breakfast") == .orderedSame })
+            || available.contains(where: { $0.caseInsensitiveCompare("Brunch") == .orderedSame }) {
+            result.append("Breakfast")
+        }
+        if available.contains(where: { $0.caseInsensitiveCompare("Lunch") == .orderedSame }) {
+            result.append("Lunch")
+        }
+        if available.contains(where: {
+            $0.caseInsensitiveCompare("Dinner") == .orderedSame
+                || $0.caseInsensitiveCompare("Limited Dinner") == .orderedSame
+        }) {
+            result.append("Dinner")
+        }
+        return result
+    }
+
+    /// Resolve a primary pill to the real API period name for a hall.
+    public static func resolvePeriod(_ primary: String, available: [String]) -> String {
+        let match: (String) -> String? = { name in
+            available.first { $0.caseInsensitiveCompare(name) == .orderedSame }
+        }
+        switch primary.lowercased() {
+        case "breakfast":
+            return match("Breakfast") ?? match("Brunch") ?? primary
+        case "dinner":
+            return match("Dinner") ?? match("Limited Dinner") ?? primary
+        default:
+            return match(primary) ?? primary
+        }
+    }
+
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
+    /// All Day stations fold into the bottom as "Available all day".
     public func menu(for hall: String, period: String, date: String? = nil) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
         let today = try await today(for: hall, dateISO: dateISO)
+        let available = (today.periods ?? [:]).values.map(\.name)
+        let resolved = Self.resolvePeriod(period, available: available)
+        let stationNames = try await stationMap()
 
+        var mealStations = try await stations(
+            for: resolved, in: today, stationNames: stationNames
+        )
+
+        let periodMatched = available.contains {
+            $0.caseInsensitiveCompare(resolved) == .orderedSame
+        }
+        if periodMatched,
+           !resolved.localizedCaseInsensitiveContains("all day"),
+           available.contains(where: { $0.localizedCaseInsensitiveContains("all day") }) {
+            let allDayName = available.first { $0.localizedCaseInsensitiveContains("all day") }!
+            let allDayStations = try await stations(
+                for: allDayName, in: today, stationNames: stationNames
+            )
+            if !allDayStations.isEmpty {
+                let items = allDayStations.flatMap(\.items)
+                var seen = Set<String>()
+                let unique = items.filter { seen.insert($0.name.lowercased()).inserted }
+                if !unique.isEmpty {
+                    mealStations.append(MenuStation(name: "Available all day", items: unique))
+                }
+            }
+        }
+
+        return DiningMenu(locationId: hall, date: dateISO, period: resolved, stations: mealStations)
+    }
+
+    private func stations(
+        for period: String,
+        in today: APIRestaurantToday,
+        stationNames: [String: String]
+    ) async throws -> [MenuStation] {
         guard let match = (today.periods ?? [:]).values
             .first(where: { $0.name.lowercased() == period.lowercased() })
-        else {
-            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
-        }
+        else { return [] }
 
         let stationToDishes = match.stationToDishes ?? [:]
         let allIDs = stationToDishes.values.flatMap(\.self)
-        async let dishMapTask = dishes(ids: allIDs)
-        async let stationMapTask = stationMap()
-        let (dishMap, stationNames) = try await (dishMapTask, stationMapTask)
+        let dishMap = try await dishes(ids: allIDs)
 
         var stations: [MenuStation] = []
         for (stationID, dishIDs) in stationToDishes.sorted(by: { $0.key < $1.key }) {
-            // The API occasionally lists multiple dish ids that resolve to the same
-            // dish name within one station; keep the first of each.
             var seenNames = Set<String>()
             let stationName = stationNames[stationID] ?? "Menu"
             let items = dishIDs
@@ -393,7 +458,6 @@ public struct DiningService: Sendable {
                 ))
             }
         }
-
-        return DiningMenu(locationId: hall, date: dateISO, period: period, stations: stations)
+        return stations
     }
 }
