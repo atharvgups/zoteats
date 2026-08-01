@@ -21,10 +21,10 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["The Anteatery, Mesa Court"])
         pause(2)
 
-        // Browse meal periods.
-        tapFirstMatch(app.buttons, labels: ["Lunch", "Brunch", "Breakfast"])
+        // Browse meal periods (Breakfast / Lunch / Dinner only).
+        tapFirstMatch(app.buttons, labels: ["Lunch", "Breakfast"])
         pause(2.5)
-        tapFirstMatch(app.buttons, labels: ["Dinner", "All Day"])
+        tapFirstMatch(app.buttons, labels: ["Dinner"])
         pause(2.5)
 
         // Open the first dish's detail sheet.
@@ -45,14 +45,10 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["Menu for Today"])
         pause(2)
 
-        // Apply the Vegan filter via the filter sheet, then clear it.
-        tapIfPresent(app.buttons["diet-filter-chip"])
-        pause(2)
-        tapFirstMatch(app.buttons, labelPrefixes: ["Vegan filter"])
+        // Apply the Vegan filter from the always-visible pills, then clear it.
+        tapIfPresent(app.buttons["diet-filter-vegan"])
         pause(3)
-        tapIfPresent(app.buttons["diet-filter-chip"])
-        pause(1.5)
-        tapIfPresent(app.buttons["Clear filter"])
+        tapIfPresent(app.buttons["diet-filter-clear"])
         pause(1.5)
 
         // Scroll through the menu.

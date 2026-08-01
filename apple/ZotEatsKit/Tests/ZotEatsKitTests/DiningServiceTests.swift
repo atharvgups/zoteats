@@ -63,6 +63,56 @@ struct DiningServiceTests {
         #expect(locations.count == 2)
         #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
     }
+
+    @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
+        let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
+        #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
+        #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
+        #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
+    }
+
+    @Test func resolvePeriodMapsBreakfastToBrunch() {
+        #expect(DiningService.resolvePeriod("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
+        #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
+    }
+
+    @Test func lunchMenuFoldsAllDayIntoAvailableAllDayStation() async throws {
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        #expect(menu.stations.contains { $0.name == "Available all day" })
+    }
+
+    @Test func twistedRootDishesAreAlwaysVeganAtBothHalls() async throws {
+        let untagged = MenuItem(
+            id: "x", name: "Mystery Tofu", description: nil, calories: 200,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: []
+        )
+
+        for station in ["The Twisted Root", "Twisted Root", " the twisted root "] {
+            let fixed = DiningService.applyStationTags([untagged], station: station)
+            #expect(fixed[0].dietaryTags.contains("Vegan"))
+            #expect(fixed[0].dietaryTags.contains("Vegetarian"))
+        }
+
+        // Known Anteatery + Brandywine station ids even if the name map fails.
+        #expect(
+            DiningService.applyStationTags([untagged], station: "Menu", stationID: "1929")[0]
+                .dietaryTags.contains("Vegan")
+        )
+        #expect(
+            DiningService.applyStationTags([untagged], station: "Menu", stationID: "1893")[0]
+                .dietaryTags.contains("Vegetarian")
+        )
+        #expect(
+            !DiningService.applyStationTags([untagged], station: "Sizzle Grill")[0]
+                .dietaryTags.contains("Vegan")
+        )
+
+        let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        let twisted = menu.stations.first(where: { $0.name.contains("Twisted Root") })
+        #expect(twisted != nil)
+        #expect(twisted!.items.allSatisfy { $0.dietaryTags.contains("Vegan") })
+        #expect(twisted!.items.allSatisfy { $0.dietaryTags.contains("Vegetarian") })
+    }
 }
 
 @Suite("HallOpenState")
