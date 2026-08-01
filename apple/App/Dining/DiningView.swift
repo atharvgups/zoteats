@@ -15,13 +15,12 @@ struct DiningView: View {
     @State private var selectedDate: String?
     @State private var searchText = ""
     @State private var selectedDish: MenuItem?
-    @State private var showDietFilters = false
     @State private var mealActivity = MealActivityManager()
 
     /// Today + the next few days (menus are usually published a few days out).
     private let upcomingDays = UCITime.upcomingDays(count: 5)
 
-    private static let dietFilters = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+    private static let dietFilterOptions = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
 
     var body: some View {
         NavigationStack {
@@ -50,11 +49,9 @@ struct DiningView: View {
             .task(id: menuTaskID) { await loadCurrentMenu() }
             .onChange(of: store.locations.value) { syncPeriodSelection() }
             .onChange(of: selectedHall) { syncPeriodSelection() }
+            .onAppear { syncPeriodSelection() }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
-            }
-            .sheet(isPresented: $showDietFilters) {
-                DietFilterSheet(prefs: prefs)
             }
         }
     }
@@ -80,7 +77,7 @@ struct DiningView: View {
     }
 
     private var hasActiveFilter: Bool {
-        prefs.dietFilter != nil || !trimmedQuery.isEmpty
+        !prefs.dietFilters.isEmpty || !trimmedQuery.isEmpty
     }
 
     // MARK: - Sections
@@ -101,69 +98,97 @@ struct DiningView: View {
                 Task { await refresh() }
             }
         case .loaded:
-            // One primary control row (meal periods), then a single quiet row
-            // combining the day strip and a filter chip — down from three
-            // stacked pill rows.
-            if let location = selectedLocation, !location.availablePeriods.isEmpty {
-                PillRow(
-                    items: location.availablePeriods,
-                    title: { $0 },
-                    selection: $selectedPeriod
-                )
-                .accessibilityLabel("Meal period")
+            // Breakfast / Lunch / Dinner only — Brunch and All Day aren't useful pills.
+            if let location = selectedLocation {
+                let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+                if !pills.isEmpty {
+                    PillRow(
+                        items: pills,
+                        title: { $0 },
+                        selection: $selectedPeriod
+                    )
+                    .accessibilityLabel("Meal period")
+                }
             }
 
-            HStack(spacing: 10) {
-                DayStrip(
-                    days: upcomingDays,
-                    selection: Binding(
-                        get: { selectedDate ?? upcomingDays.first?.isoDate },
-                        set: { newValue in
-                            let today = upcomingDays.first?.isoDate
-                            selectedDate = (newValue == today) ? nil : newValue
-                        }
-                    )
+            DayStrip(
+                days: upcomingDays,
+                selection: Binding(
+                    get: { selectedDate ?? upcomingDays.first?.isoDate },
+                    set: { newValue in
+                        let today = upcomingDays.first?.isoDate
+                        selectedDate = (newValue == today) ? nil : newValue
+                    }
                 )
-                Spacer(minLength: 8)
-                filterChip
-            }
+            )
             .padding(.horizontal, 20)
+
+            // Always-visible dietary filters — a buried chip was too easy to miss.
+            dietFilterRow
 
             menuContent
         }
     }
 
-    /// Compact chip summarizing the dietary filter; opens the picker sheet.
-    private var filterChip: some View {
-        let active = prefs.dietFilter
-        return Button {
-            showDietFilters = true
-            Haptics.selection()
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease.circle\(active != nil ? ".fill" : "")")
-                    .font(.system(size: 14, weight: .semibold))
-                Text(active ?? "Filters")
-                    .font(ZotFont.pill.weight(active != nil ? .semibold : .medium))
-                    .lineLimit(1)
+    /// Horizontal diet pills on the Eat tab so filters are always obvious.
+    private var dietFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Self.dietFilterOptions, id: \.self) { option in
+                    let isOn = prefs.dietFilters.contains(option)
+                    Button {
+                        if isOn {
+                            prefs.dietFilters.remove(option)
+                        } else {
+                            prefs.dietFilters.insert(option)
+                        }
+                        Haptics.selection()
+                    } label: {
+                        Text(option)
+                            .font(ZotFont.pill.weight(isOn ? .semibold : .medium))
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 7)
+                            .background(
+                                isOn ? Color.uciBlue.opacity(0.12) : Color.card,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(isOn ? Color.uciBlue : .primary)
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    isOn ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                    lineWidth: 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(option) filter\(isOn ? ", active" : "")")
+                    .accessibilityIdentifier(
+                        "diet-filter-\(option.lowercased().replacingOccurrences(of: " ", with: "-"))"
+                    )
+                    .accessibilityAddTraits(isOn ? [.isSelected] : [])
+                }
+
+                if !prefs.dietFilters.isEmpty {
+                    Button {
+                        prefs.dietFilters = []
+                        Haptics.selection()
+                    } label: {
+                        Text("Clear")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear dietary filters")
+                    .accessibilityIdentifier("diet-filter-clear")
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                active != nil ? Color.uciBlue.opacity(0.12) : Color.card,
-                in: Capsule()
-            )
-            .foregroundStyle(active != nil ? Color.uciBlue : .primary)
-            .overlay(
-                Capsule().strokeBorder(
-                    active != nil ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                    lineWidth: 1
-                )
-            )
+            .padding(.horizontal, 20)
+            .padding(.vertical, 2)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("diet-filter-chip")
-        .accessibilityLabel(active.map { "Dietary filter: \($0)" } ?? "Dietary filters")
+        .accessibilityLabel("Dietary filters")
+        .accessibilityIdentifier("diet-filter-row")
     }
 
     /// Hall cards straight from the live API — a third commons appears here
@@ -399,7 +424,8 @@ struct DiningView: View {
     // MARK: - Filtering
 
     private func matches(_ item: MenuItem) -> Bool {
-        if let filter = prefs.dietFilter, !item.dietaryTags.contains(filter) {
+        // Multiple filters combine as AND — Vegan + Gluten-Free means both.
+        guard prefs.dietFilters.allSatisfy({ item.dietaryTags.contains($0) }) else {
             return false
         }
         let query = trimmedQuery
@@ -409,7 +435,9 @@ struct DiningView: View {
     }
 
     private func filteredStations(_ menu: DiningMenu) -> [MenuStation] {
-        menu.stations.compactMap { station in
+        // Twisted Root must stay visible under Vegan/Vegetarian even when the
+        // Anteater API leaves every diet flag false (common).
+        DiningService.withStationDietOverrides(menu).stations.compactMap { station in
             let items = station.items.filter(matches)
             return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
         }
@@ -430,8 +458,9 @@ struct DiningView: View {
     // MARK: - Loading
 
     private func loadCurrentMenu() async {
-        guard let selectedPeriod else { return }
-        await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
+        guard let selectedPeriod, let location = selectedLocation else { return }
+        let resolved = DiningService.resolvePeriod(selectedPeriod, available: location.availablePeriods)
+        await store.loadMenu(hall: selectedHall, period: resolved, date: selectedDate)
     }
 
     private func refresh() async {
@@ -440,34 +469,42 @@ struct DiningView: View {
         await loadCurrentMenu()
     }
 
-    /// Keeps the period selection valid for the current hall,
-    /// preferring the meal most likely happening now.
+    /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner).
     private func syncPeriodSelection() {
         guard let location = selectedLocation else { return }
-        if let selectedPeriod, location.availablePeriods.contains(selectedPeriod) { return }
+        let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+        if let selectedPeriod, pills.contains(selectedPeriod) { return }
         selectedPeriod = defaultPeriod(for: location)
     }
 
-    /// The meal that matters right now: the one being served, else the next
-    /// one starting today, else the day's last meal (evenings after close),
-    /// else whatever's first.
+    /// Map the live/upcoming meal onto a primary pill.
     private func defaultPeriod(for location: DiningLocation) -> String? {
-        guard !location.availablePeriods.isEmpty else { return nil }
+        let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+        guard !pills.isEmpty else { return nil }
         let now = UCITime.nowMinutes()
         let timed = location.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
 
-        if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
-            return current.name
+        let liveName: String? = {
+            if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
+                return current.name
+            }
+            if let upcoming = timed
+                .filter({ $0.startMinutes! > now })
+                .min(by: { $0.startMinutes! < $1.startMinutes! }) {
+                return upcoming.name
+            }
+            return timed.max(by: { $0.endMinutes! < $1.endMinutes! })?.name
+        }()
+
+        if let liveName {
+            let lower = liveName.lowercased()
+            if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
+                return "Breakfast"
+            }
+            if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
+            if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
         }
-        if let upcoming = timed
-            .filter({ $0.startMinutes! > now })
-            .min(by: { $0.startMinutes! < $1.startMinutes! }) {
-            return upcoming.name
-        }
-        if let last = timed.max(by: { $0.endMinutes! < $1.endMinutes! }) {
-            return last.name
-        }
-        return location.availablePeriods.first
+        return pills.first
     }
 
     /// Time-of-day greeting on UCI's clock.
@@ -527,83 +564,6 @@ private struct DayStrip: View {
             .padding(.vertical, 2)
         }
         .accessibilityLabel("Menu day")
-    }
-}
-
-// MARK: - Dietary filter sheet
-
-/// One tidy sheet instead of a permanent pill row on the main screen.
-struct DietFilterSheet: View {
-    let prefs: Preferences
-    @Environment(\.dismiss) private var dismiss
-
-    private static let options = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Dietary filter")
-                .font(ZotFont.hero(24))
-                .padding(.bottom, 10)
-
-            ForEach(Self.options, id: \.self) { option in
-                let isSelected = prefs.dietFilter == option
-                Button {
-                    prefs.dietFilter = isSelected ? nil : option
-                    Haptics.selection()
-                    dismiss()
-                } label: {
-                    HStack {
-                        TagChip(text: option, color: TagPalette.dietColor(option))
-                        Text("Only show \(option.lowercased()) dishes")
-                            .font(ZotFont.body)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.uciBlue)
-                        }
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 14)
-                    .background(
-                        isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
-                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                lineWidth: 1
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
-            }
-
-            if prefs.dietFilter != nil {
-                Button {
-                    prefs.dietFilter = nil
-                    Haptics.selection()
-                    dismiss()
-                } label: {
-                    Text("Clear filter")
-                        .font(ZotFont.pill.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(Color.primary.opacity(0.05), in: Capsule())
-                        .foregroundStyle(.primary)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-        .background(Color.screen)
     }
 }
 
