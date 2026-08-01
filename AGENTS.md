@@ -47,3 +47,9 @@ renderer (`renderer/`). See `README.md` and `project-plans/` for the design and 
   `ZOTEATS_LIVE_TESTS=1` to also hit the live APIs).
 - Swift is installed via swiftly and is not on `PATH` by default — activate with
   `. ~/.swiftly/env.sh` before running `swift`.
+
+### TestFlight dogfood vs public beta (always ship)
+- **You (Internal Testing) stay on the newest upload. Public/external testers stay one build behind (N−1).** After each successful `testflight-*` upload, CI promotes the previous VALID build to the External Testing group (see `apple/README.md` and `apple/scripts/promote_previous_external.py`).
+- Whenever user-facing iOS work is ready to dogfood: push the branch, land it on `main` (or a ship merge the user approved), then **push the next tag** `testflight-x.y.z` (bump past the latest `git tag -l 'testflight-*'`). Do not leave testable UI fixes sitting only in an untagged PR.
+- Tag naming: `testflight-1.0.10` → marketing version `1.0.10`. Watch the **TestFlight** Actions workflow; Internal appears after ASC processing.
+- One-time ASC requirement: External Testing group named `External Testers` (or repo var `TESTFLIGHT_EXTERNAL_GROUP_NAME`).
