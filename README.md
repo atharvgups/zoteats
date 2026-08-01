@@ -66,7 +66,7 @@ apple/
 
 - **Swift 6** with strict concurrency, `@Observable` stores, no external dependencies.
 - **CI** builds the app on macOS runners, captures light + dark screenshots of every screen, and records a full demo video on `[demo]` commits. Package tests run on every push.
-- **TestFlight** releases ship by pushing a `testflight-x.y.z` tag.
+- **TestFlight** releases ship by pushing a `testflight-x.y.z` tag (or workflow dispatch). External testers automatically get the previous build when the next one uploads — see `apple/README.md`.
 - The repo root also contains the original [Glaze](https://glazeapp.com) desktop prototype this project grew out of.
 
 ## Development

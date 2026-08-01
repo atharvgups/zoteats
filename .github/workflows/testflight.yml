@@ -1,4 +1,11 @@
-# Manual TestFlight release: archive the app and upload it to App Store Connect.
+# TestFlight release: archive, upload to App Store Connect, then auto-promote
+# the *previous* build to External Testing.
+#
+# Flow you asked for:
+#   - You dogfood the newest upload (e.g. 1.0.9 right now) via Internal Testing.
+#   - When the next upload lands (e.g. 1.0.10), CI attaches the prior VALID build
+#     (1.0.9) to the External Testing group and submits/notifies — so externals
+#     stay one behind what you're actively testing, but keep getting updates.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   APP_STORE_CONNECT_API_KEY_P8  - base64-encoded contents of the App Store Connect API .p8 key
@@ -6,6 +13,16 @@
 #   APP_STORE_CONNECT_KEY_ID      - the API key's Key ID (e.g. XXXXXXXXXX)
 #   APP_STORE_CONNECT_ISSUER_ID   - the API key's Issuer ID (UUID from App Store Connect)
 #   APPLE_TEAM_ID                 - Apple Developer Team ID (e.g. ABCDE12345)
+#
+# Optional repository variable / secret:
+#   TESTFLIGHT_EXTERNAL_GROUP_NAME - External Testing group name in App Store Connect
+#                                    (default: "External Testers")
+#
+# App Store Connect setup (one-time):
+#   1. TestFlight → External Testing → create a group (default name above).
+#   2. Add your external testers to that group.
+#   3. First external build of each marketing version still needs Apple's Beta
+#      App Review; later builds of the same version usually distribute faster.
 #
 # No manual certificate/profile import is needed: signing uses Xcode cloud signing
 # (-allowProvisioningUpdates + the App Store Connect API key), which creates and
@@ -23,6 +40,11 @@ on:
         description: "CURRENT_PROJECT_VERSION (defaults to the workflow run number)"
         required: false
         default: ""
+      promote_previous_external:
+        description: "After upload, promote the previous build to External Testing"
+        required: false
+        type: boolean
+        default: true
   # Git-native trigger: pushing a tag like "testflight-1.0.0" uploads that version.
   push:
     tags: ["testflight-*"]
@@ -36,6 +58,7 @@ jobs:
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      TESTFLIGHT_EXTERNAL_GROUP_NAME: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP_NAME || 'External Testers' }}
     steps:
       # Fail fast with an explicit list of missing secrets instead of a cryptic
       # xcodebuild signing error 20 minutes in.
@@ -99,6 +122,8 @@ jobs:
             MARKETING_VERSION="1.0.0"
           fi
           echo "Uploading version $MARKETING_VERSION ($BUILD_NUMBER)"
+          echo "MARKETING_VERSION=$MARKETING_VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           # Unsigned archive; all signing happens at export (see comment above).
           xcodebuild \
             -project apple/ZotEats.xcodeproj \
@@ -140,3 +165,15 @@ jobs:
             -authenticationKeyPath "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      # After this upload (what you dogfood), promote the previous VALID build to
+      # External Testing — e.g. you just shipped 1.0.10, externals get 1.0.9.
+      # Tag pushes always promote; workflow_dispatch can opt out.
+      - name: Promote previous build to External Testing
+        if: ${{ github.event_name == 'push' || inputs.promote_previous_external != false }}
+        run: |
+          python3 -m pip install --quiet 'PyJWT[crypto]'
+          export APP_STORE_CONNECT_API_KEY_PATH="$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          export BUILD_NUMBER
+          export TESTFLIGHT_EXTERNAL_GROUP_NAME
+          python3 apple/scripts/promote_previous_external.py
