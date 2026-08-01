@@ -18,8 +18,15 @@ struct DiningView: View {
     @State private var showDietFilters = false
     @State private var mealActivity = MealActivityManager()
 
-    /// Today + the next few days (menus are usually published a few days out).
-    private let upcomingDays = UCITime.upcomingDays(count: 5)
+    /// Candidate days; clamped to the feed's published date range when known.
+    private var upcomingDays: [(isoDate: String, label: String)] {
+        let candidates = UCITime.upcomingDays(count: 14)
+        guard let latest = store.publishedDateRange?.latest else {
+            return Array(candidates.prefix(5))
+        }
+        let visible = candidates.filter { $0.isoDate <= latest }
+        return visible.isEmpty ? Array(candidates.prefix(1)) : visible
+    }
 
     var body: some View {
         NavigationStack {
@@ -47,8 +54,12 @@ struct DiningView: View {
             .task { await store.loadLocations() }
             .task(id: menuTaskID) { await loadCurrentMenu() }
             .onChange(of: store.locations.value) { syncPeriodSelection() }
+            .onChange(of: store.publishedDateRange) { syncDateSelection() }
             .onChange(of: selectedHall) { syncPeriodSelection() }
-            .onAppear { syncPeriodSelection() }
+            .onAppear {
+                syncPeriodSelection()
+                syncDateSelection()
+            }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
             }
@@ -241,10 +252,10 @@ struct DiningView: View {
                 } else {
                     EmptyStateView(
                         icon: "moon.zzz",
-                        title: "No menu posted",
+                        title: "No menu posted yet",
                         message: selectedDate == nil
                             ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
-                            : "\(selectedLocation?.name ?? "This hall") hasn't posted that day's \(menu.period.lowercased()) yet — menus usually appear a few days ahead."
+                            : "UCI hasn't released this day's menu in the dining feed yet. Posted days stay in the date strip — check back as they go live."
                     )
                 }
             } else {
@@ -462,6 +473,14 @@ struct DiningView: View {
         let pills = DiningService.primaryPeriods(from: location.availablePeriods)
         if let selectedPeriod, pills.contains(selectedPeriod) { return }
         selectedPeriod = defaultPeriod(for: location)
+    }
+
+    /// Snap off days the feed hasn't published yet (never leave the user on a 404 day).
+    private func syncDateSelection() {
+        let days = upcomingDays
+        guard let selectedDate else { return }
+        if days.contains(where: { $0.isoDate == selectedDate }) { return }
+        self.selectedDate = nil
     }
 
     /// Map the live/upcoming meal onto a primary pill.

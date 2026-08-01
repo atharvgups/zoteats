@@ -29,6 +29,8 @@ final class DiningStore {
     private let service: DiningService
 
     var locations: LoadState<[DiningLocation]> = .idle
+    /// Inclusive ISO window the feed currently publishes — clamps the day strip.
+    private(set) var publishedDateRange: DiningService.PublishedDateRange?
     /// Keyed by "\(hallID)|\(period)".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
 
@@ -38,7 +40,9 @@ final class DiningStore {
 
     func loadLocations() async {
         if locations.value == nil { locations = .loading }
+        async let range = service.publishedDateRange()
         let result = await service.locations()
+        publishedDateRange = await range
         // The service degrades per-hall; treat "no data at all" as an error state.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")

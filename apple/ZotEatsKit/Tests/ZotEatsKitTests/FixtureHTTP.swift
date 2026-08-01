@@ -17,6 +17,8 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "restaurant_today"
         } else if path.hasSuffix("/dishes/batch") {
             fixture = "dishes_batch"
+        } else if path.hasSuffix("/dateRange") {
+            fixture = "date_range"
         } else if url.host == "waitz.io" {
             fixture = "waitz"
         } else if url.host?.contains("elevate-dxp.com") == true {
@@ -42,5 +44,12 @@ struct FixtureHTTP: HTTPFetching {
 struct FailingHTTP: HTTPFetching {
     func data(from url: URL) async throws -> Data {
         throw HTTPError.network(underlying: URLError(.notConnectedToInternet), url: url)
+    }
+}
+
+/// Stub that answers every request with HTTP 404 (unpublished menu day).
+struct NotFoundHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        throw HTTPError.badStatus(code: 404, url: url)
     }
 }

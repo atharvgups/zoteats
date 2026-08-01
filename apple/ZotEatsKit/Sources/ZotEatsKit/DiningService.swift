@@ -6,7 +6,11 @@ import Foundation
 //   GET /restaurants                 -> restaurants with their stations (id + name)
 //   GET /restaurantToday?id=&date=   -> periods -> stationToDishes (station id -> dish ids)
 //   GET /dishes/batch?ids=a,b,c      -> full dish objects (nutrition + diet/allergen flags)
+//   GET /dateRange                   -> { earliest, latest } ISO dates with menu data
 // Responses use the standard { ok, data } envelope. No API key required (rate-limited).
+//
+// Important: restaurantToday returns HTTP 404 + "No data for this day" when a menu
+// isn't published yet. That is "not posted", never a user-facing failure.
 
 public struct DiningService: Sendable {
     private let base = "https://anteaterapi.com/v2/rest/dining"
@@ -17,6 +21,7 @@ public struct DiningService: Sendable {
     private static let stationsTTL: TimeInterval = 24 * 60 * 60
     private static let todayTTL: TimeInterval = 20 * 60
     private static let dishesTTL: TimeInterval = 30 * 60
+    private static let dateRangeTTL: TimeInterval = 60 * 60
 
     public init(
         http: any HTTPFetching = HTTPClient(),
@@ -56,6 +61,26 @@ public struct DiningService: Sendable {
     private struct APIRestaurantToday: Decodable, Sendable {
         let id: String
         let periods: [String: APIPeriod]?
+    }
+
+    private struct APIDateRange: Decodable, Sendable {
+        let earliest: String
+        let latest: String
+    }
+
+    /// Inclusive ISO-date window the dining feed currently publishes.
+    public struct PublishedDateRange: Sendable, Equatable {
+        public let earliest: String
+        public let latest: String
+
+        public init(earliest: String, latest: String) {
+            self.earliest = earliest
+            self.latest = latest
+        }
+
+        public func contains(_ isoDate: String) -> Bool {
+            isoDate >= earliest && isoDate <= latest
+        }
     }
 
     private struct APIDietRestriction: Decodable, Sendable {
@@ -179,7 +204,27 @@ public struct DiningService: Sendable {
 
     private func today(for hall: String, dateISO: String) async throws -> APIRestaurantToday {
         try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL) {
-            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)")
+            do {
+                return try await getData(
+                    APIRestaurantToday.self,
+                    path: "/restaurantToday?id=\(hall)&date=\(dateISO)"
+                )
+            } catch HTTPError.badStatus(let code, _) where code == 404 {
+                // Unpublished day — empty periods, not a transport failure.
+                return APIRestaurantToday(id: hall, periods: [:])
+            }
+        }
+    }
+
+    /// Days the Anteater dining feed currently has menus for (clamps the day strip).
+    public func publishedDateRange() async -> PublishedDateRange? {
+        do {
+            return try await cache.remember("dining:dateRange", ttl: Self.dateRangeTTL) {
+                let raw = try await getData(APIDateRange.self, path: "/dateRange")
+                return PublishedDateRange(earliest: raw.earliest, latest: raw.latest)
+            }
+        } catch {
+            return nil
         }
     }
 
@@ -403,10 +448,17 @@ public struct DiningService: Sendable {
 
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
     /// All Day stations fold into the bottom as "Available all day".
+    /// Unpublished days (API 404) return an empty menu — never throw.
     public func menu(for hall: String, period: String, date: String? = nil) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
         let today = try await today(for: hall, dateISO: dateISO)
         let available = (today.periods ?? [:]).values.map(\.name)
+
+        // No periods published for this day yet (404 mapped to empty, or blank payload).
+        guard !available.isEmpty else {
+            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+        }
+
         let resolved = Self.resolvePeriod(period, available: available)
         let stationNames = try await stationMap()
 

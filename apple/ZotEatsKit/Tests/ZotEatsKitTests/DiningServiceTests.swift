@@ -81,6 +81,29 @@ struct DiningServiceTests {
         #expect(menu.stations.contains { $0.name == "Available all day" })
     }
 
+    @Test func unpublishedFutureDayReadsAsNotPostedNotError() async throws {
+        // Browsing ahead when the feed 404s must never surface "HTTP 404".
+        let service = DiningService(http: NotFoundHTTP(), now: { fixtureNoon })
+        let menu = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-08-03")
+        #expect(menu.stations.isEmpty)
+        #expect(menu.date == "2026-08-03")
+    }
+
+    @Test func otherHTTPFailuresStillThrow() async {
+        let service = DiningService(http: FailingHTTP(), now: { fixtureNoon })
+        await #expect(throws: (any Error).self) {
+            _ = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-08-03")
+        }
+    }
+
+    @Test func publishedDateRangeComesFromFeed() async {
+        let range = await service().publishedDateRange()
+        #expect(range?.earliest == "2026-02-22")
+        #expect(range?.latest == "2026-07-12")
+        #expect(range?.contains("2026-07-10") == true)
+        #expect(range?.contains("2026-07-13") == false)
+    }
+
     @Test func veganFlagAlsoSurfacesVegetarianTag() async throws {
         // Live API sometimes sets only isVegan; Vegetarian filter must still match.
         let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
