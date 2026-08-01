@@ -187,9 +187,12 @@ struct BusynessFacilityCard: View {
     let facility: BusynessPoint
     @State private var isExpanded = false
 
-    private var hasSubLocations: Bool {
-        !(facility.subLocations ?? []).isEmpty
+    /// Floors/zones after Lobby filtering + floor grouping.
+    private var floors: [BusynessFloorGroup] {
+        BusynessFloorGrouping.floors(from: facility.subLocations)
     }
+
+    private var hasFloors: Bool { !floors.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -232,12 +235,12 @@ struct BusynessFacilityCard: View {
                 UpdatedAgoText(date: facility.updatedAt)
             }
 
-            if hasSubLocations {
+            if hasFloors {
                 expandToggle
-                if isExpanded, let subLocations = facility.subLocations {
-                    VStack(spacing: 8) {
-                        ForEach(subLocations) { sub in
-                            BusynessSubLocationRow(point: sub)
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(floors) { floor in
+                            BusynessFloorBlock(floor: floor)
                         }
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -257,7 +260,7 @@ struct BusynessFacilityCard: View {
             Haptics.selection()
         } label: {
             HStack(spacing: 5) {
-                Text(isExpanded ? "Hide areas" : "\(facility.subLocations?.count ?? 0) areas")
+                Text(isExpanded ? "Hide floors" : "\(floors.count) floors")
                     .font(ZotFont.pill)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))
@@ -268,8 +271,8 @@ struct BusynessFacilityCard: View {
         .buttonStyle(.plain)
         .accessibilityLabel(
             isExpanded
-                ? "Hide areas inside \(facility.name)"
-                : "Show areas inside \(facility.name)"
+                ? "Hide floors inside \(facility.name)"
+                : "Show floors inside \(facility.name)"
         )
     }
 
@@ -281,26 +284,58 @@ struct BusynessFacilityCard: View {
     }
 }
 
-// MARK: - Compact sub-location row
+// MARK: - Floor group + zone rows
 
-struct BusynessSubLocationRow: View {
-    let point: BusynessPoint
+/// One floor in the expand list. Multi-zone floors get a header + short
+/// zone names; a lone "1st Floor" / "Basement" stays a single row.
+private struct BusynessFloorBlock: View {
+    let floor: BusynessFloorGroup
+
+    private var isFlatFloor: Bool {
+        floor.zones.count == 1 && floor.zones[0].displayName == floor.floorLabel
+    }
+
+    var body: some View {
+        if isFlatFloor, let zone = floor.zones.first {
+            BusynessZoneRowView(zone: zone)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(floor.floorLabel)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.3)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 4)
+                    .accessibilityAddTraits(.isHeader)
+
+                VStack(spacing: 6) {
+                    ForEach(floor.zones) { zone in
+                        BusynessZoneRowView(zone: zone)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct BusynessZoneRowView: View {
+    let zone: BusynessZoneRow
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(point.name)
+            Text(zone.displayName)
                 .font(ZotFont.caption)
                 .foregroundStyle(.primary)
-                .lineLimit(1)
+                .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            OccupancyBar(percent: point.percent, level: point.level, height: 6)
+            OccupancyBar(percent: zone.percent, level: zone.level, height: 6)
                 .frame(width: 72)
 
-            Text(point.percent.map { "\($0)%" } ?? "—")
+            Text(zone.percent.map { "\($0)%" } ?? "—")
                 .font(ZotFont.caption.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(point.level.color)
+                .foregroundStyle(zone.level.color)
                 .frame(width: 40, alignment: .trailing)
         }
         .padding(.horizontal, 12)
@@ -308,8 +343,8 @@ struct BusynessSubLocationRow: View {
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            point.percent.map { "\(point.name), \($0) percent full" }
-                ?? "\(point.name), no occupancy data"
+            zone.percent.map { "\(zone.fullName), \($0) percent full" }
+                ?? "\(zone.fullName), no occupancy data"
         )
     }
 }
@@ -337,29 +372,33 @@ struct BusynessSubLocationRow: View {
                             updatedAt: Date().addingTimeInterval(-120),
                             subLocations: [
                                 BusynessPoint(
-                                    id: 11,
-                                    name: "1st Floor",
-                                    category: "Library",
-                                    count: nil,
-                                    capacity: nil,
-                                    percent: 92,
-                                    level: .veryBusy,
-                                    isOpen: true,
-                                    hoursSummary: nil,
-                                    updatedAt: Date(),
+                                    id: 11, name: "1st Floor", category: "Library",
+                                    count: nil, capacity: nil, percent: 12, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
                                     subLocations: nil
                                 ),
                                 BusynessPoint(
-                                    id: 12,
-                                    name: "2nd Floor",
-                                    category: "Library",
-                                    count: nil,
-                                    capacity: nil,
-                                    percent: 61,
-                                    level: .busy,
-                                    isOpen: true,
-                                    hoursSummary: nil,
-                                    updatedAt: Date(),
+                                    id: 12, name: "2nd Floor - Holden Room", category: "Library",
+                                    count: nil, capacity: nil, percent: 15, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
+                                    subLocations: nil
+                                ),
+                                BusynessPoint(
+                                    id: 13, name: "2nd Floor - Open Seating", category: "Library",
+                                    count: nil, capacity: nil, percent: 26, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
+                                    subLocations: nil
+                                ),
+                                BusynessPoint(
+                                    id: 14, name: "3rd Floor - Collaboration Zone", category: "Library",
+                                    count: nil, capacity: nil, percent: 17, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
+                                    subLocations: nil
+                                ),
+                                BusynessPoint(
+                                    id: 15, name: "3rd Floor - Open Seating", category: "Library",
+                                    count: nil, capacity: nil, percent: 12, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
                                     subLocations: nil
                                 ),
                             ]
@@ -375,7 +414,26 @@ struct BusynessSubLocationRow: View {
                             isOpen: true,
                             hoursSummary: nil,
                             updatedAt: Date().addingTimeInterval(-300),
-                            subLocations: nil
+                            subLocations: [
+                                BusynessPoint(
+                                    id: 21, name: "2nd Floor - Grand Reading Room", category: "Library",
+                                    count: nil, capacity: nil, percent: 9, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
+                                    subLocations: nil
+                                ),
+                                BusynessPoint(
+                                    id: 22, name: "2nd Floor - Active Study Zone", category: "Library",
+                                    count: nil, capacity: nil, percent: 9, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
+                                    subLocations: nil
+                                ),
+                                BusynessPoint(
+                                    id: 23, name: "Lobby", category: "Library",
+                                    count: nil, capacity: nil, percent: 15, level: .notBusy,
+                                    isOpen: true, hoursSummary: nil, updatedAt: Date(),
+                                    subLocations: nil
+                                ),
+                            ]
                         ),
                     ]
                 )
