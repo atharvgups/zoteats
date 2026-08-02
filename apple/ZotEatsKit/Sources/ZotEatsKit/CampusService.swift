@@ -337,6 +337,31 @@ public struct CampusService: Sendable {
         "102": "Locally Grown",
     ]
 
+    /// Parse hub `allergen_statement`. Real lists look like `Contains: Eggs, Milk`.
+    /// Boilerplate "not available" copy is ignored so UI stays blank.
+    static func allergens(fromStatement statement: String?) -> [String] {
+        guard let statement else { return [] }
+        let trimmed = statement.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let lowered = trimmed.lowercased()
+        if lowered.contains("not available")
+            || lowered.contains("not provided")
+            || lowered.contains("contact the on-site") {
+            return []
+        }
+        guard lowered.hasPrefix("contains") else { return [] }
+        guard let colon = trimmed.firstIndex(of: ":") else { return [] }
+        let list = trimmed[trimmed.index(after: colon)...]
+        return list.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { allergen in
+                !allergen.isEmpty
+                    && allergen.count <= 32
+                    && !allergen.lowercased().contains("available")
+                    && !allergen.lowercased().contains("contact")
+            }
+    }
+
     private static func menuItem(from raw: RawProduct) -> MenuItem? {
         guard let sku = raw.sku else { return nil }
         var name = raw.name ?? ""
@@ -360,13 +385,10 @@ public struct CampusService: Sendable {
             case "serving_combined":
                 if let value = attribute.values.first, !value.isEmpty, value != "N/A" { serving = value }
             case "allergen_statement":
-                // "Contains: Eggs, Milk" -> ["Eggs", "Milk"]
-                if let value = attribute.values.first,
-                   let list = value.components(separatedBy: ":").last {
-                    allergens = list.components(separatedBy: ",")
-                        .map { $0.trimmingCharacters(in: .whitespaces) }
-                        .filter { !$0.isEmpty }
-                }
+                // "Contains: Eggs, Milk" -> ["Eggs", "Milk"].
+                // Hub often ships "Complete allergen information is not available…"
+                // — treat that as unknown (blank), never a chip.
+                allergens = Self.allergens(fromStatement: attribute.values.first)
             case "recipe_attributes":
                 dietaryTags = attribute.values.flatMap { $0.components(separatedBy: ",") }
                     .compactMap { dietaryTagIDs[$0.trimmingCharacters(in: .whitespaces)] }

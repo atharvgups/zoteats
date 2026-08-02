@@ -63,6 +63,17 @@ struct CampusServiceTests {
         #expect(CampusService.format(windows: [allDay]) == "Open 24 hours")
     }
 
+    @Test func allergenStatementIgnoresUnavailableBoilerplate() {
+        #expect(
+            CampusService.allergens(
+                fromStatement: "Complete allergen information is not available. Please contact the on-site manager for assistance."
+            ).isEmpty
+        )
+        #expect(CampusService.allergens(fromStatement: "Contains:") == [])
+        #expect(CampusService.allergens(fromStatement: "Contains: Eggs, Milk") == ["Eggs", "Milk"])
+        #expect(CampusService.allergens(fromStatement: nil).isEmpty)
+    }
+
     @Test func publishedMenuMapsDietaryTagsAndAllergens() async throws {
         let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
         let stations = try await service.menu(for: "halal-shack", date: "2026-07-13")
