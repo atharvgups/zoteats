@@ -159,14 +159,31 @@ final class DemoTourUITests: XCTestCase {
     }
 
     /// Tab buttons moved out of the classic tab-bar hierarchy with the iOS 26
-    /// glass bar + Tab API; fall back to a global button query.
+    /// glass bar + Tab API; try several queries, then a bottom-edge coordinate tap.
     private func tapTab(_ app: XCUIApplication, _ name: String) {
-        let tabButton = app.tabBars.buttons[name]
-        if tabButton.waitForExistence(timeout: 2), tabButton.isHittable {
-            tabButton.tap()
-        } else {
-            tapIfPresent(app.buttons[name].firstMatch)
+        let candidates: [XCUIElement] = [
+            app.tabBars.buttons[name],
+            app.buttons[name],
+            app.descendants(matching: .any)[name].firstMatch,
+        ]
+        for candidate in candidates {
+            if candidate.waitForExistence(timeout: 2), candidate.isHittable {
+                candidate.tap()
+                return
+            }
         }
+        // Last resort: Liquid Glass sometimes reports tabs as non-hittable.
+        let index: CGFloat
+        switch name {
+        case "Eat": index = 0
+        case "Campus": index = 1
+        case "Gym": index = 2
+        case "Study": index = 3
+        default: return
+        }
+        let x = (index + 0.5) / 4.0
+        let coord = app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.96))
+        coord.tap()
     }
 
     private func tapFirstMatch(_ query: XCUIElementQuery, labels: [String]) {
