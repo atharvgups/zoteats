@@ -43,9 +43,11 @@ struct DiningView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 40)
             }
-            .background(Color.screen.ignoresSafeArea())
+            .statusBarBackdrop()
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.screen, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
