@@ -486,7 +486,102 @@ public struct DiningService: Sendable {
             }
         }
 
-        return DiningMenu(locationId: hall, date: dateISO, period: resolved, stations: mealStations)
+        let built = DiningMenu(
+            locationId: hall, date: dateISO, period: resolved, stations: mealStations
+        )
+        // Anteater API often leaves every is* flag false; the dining hub carries
+        // much richer recipe_attributes. Merge by dish name (soft-fail).
+        return await enrichDietTags(built)
+    }
+
+    /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.
+    private func enrichDietTags(_ menu: DiningMenu) async -> DiningMenu {
+        guard let hubKey = HallDirectory.campusHubKey(for: menu.locationId) else { return menu }
+        let hubStations: [MenuStation]
+        do {
+            hubStations = try await CampusService(http: http, cache: cache, now: now)
+                .menu(for: hubKey, date: menu.date)
+        } catch {
+            return menu
+        }
+        guard !hubStations.isEmpty else { return menu }
+
+        var tagsByKey: [String: [String]] = [:]
+        var allergensByKey: [String: [String]] = [:]
+        for item in hubStations.flatMap(\.items) {
+            for key in Self.dietLookupKeys(for: item.name) {
+                if !item.dietaryTags.isEmpty {
+                    tagsByKey[key] = Self.mergeUnique(tagsByKey[key] ?? [], item.dietaryTags)
+                }
+                if !item.allergens.isEmpty {
+                    allergensByKey[key] = Self.mergeUnique(allergensByKey[key] ?? [], item.allergens)
+                }
+            }
+        }
+        guard !tagsByKey.isEmpty || !allergensByKey.isEmpty else { return menu }
+
+        let stations = menu.stations.map { station in
+            MenuStation(
+                name: station.name,
+                items: station.items.map { item in
+                    let hubTags = Self.dietLookupKeys(for: item.name)
+                        .compactMap { tagsByKey[$0] }.first ?? []
+                    let hubAllergens = Self.dietLookupKeys(for: item.name)
+                        .compactMap { allergensByKey[$0] }.first ?? []
+                    let tags = Self.mergeUnique(item.dietaryTags, hubTags)
+                    let allergens = Self.mergeUnique(item.allergens, hubAllergens)
+                    guard tags != item.dietaryTags || allergens != item.allergens else { return item }
+                    return MenuItem(
+                        id: item.id,
+                        name: item.name,
+                        description: item.description,
+                        calories: item.calories,
+                        servingSize: item.servingSize,
+                        allergens: allergens,
+                        dietaryTags: tags
+                    )
+                }
+            )
+        }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: stations
+        )
+    }
+
+    /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
+    static func dietLookupKeys(for name: String) -> [String] {
+        let lower = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        var keys = [lower]
+        let withoutUCI = lower.replacingOccurrences(
+            of: #"\s+uci$"#, with: "", options: .regularExpression
+        )
+        if withoutUCI != lower { keys.append(withoutUCI) }
+        let normalized = lower.replacingOccurrences(
+            of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
+        )
+        if !normalized.isEmpty { keys.append(normalized) }
+        let normalizedNoUCI = withoutUCI.replacingOccurrences(
+            of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
+        )
+        if !normalizedNoUCI.isEmpty { keys.append(normalizedNoUCI) }
+        return keys
+    }
+
+    private static func mergeUnique(_ base: [String], _ extra: [String]) -> [String] {
+        var seen = Set(base.map { $0.lowercased() })
+        var result = base
+        for tag in extra where seen.insert(tag.lowercased()).inserted {
+            result.append(tag)
+        }
+        // Vegan ⇒ Vegetarian for filter matching.
+        if result.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }),
+           !result.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+            result.append("Vegetarian")
+        }
+        return result
     }
 
     private func stations(

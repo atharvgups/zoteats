@@ -318,20 +318,13 @@ extension View {
 
 // MARK: - Status bar backdrop
 
-/// Fills the status bar / Dynamic Island region on screens without a
-/// NavigationStack so it matches Eat’s solid `Color.screen` (not a gray
-/// material that reads as a different shade).
+/// Ensures the status bar / Dynamic Island region matches the page background
+/// on tabs that skip NavigationStack (Campus / Gym / Study).
 struct StatusBarBackdrop: ViewModifier {
     func body(content: Content) -> some View {
-        content.overlay(alignment: .top) {
-            // A zero-height view pinned to the top safe-area boundary: ShapeStyle
-            // backgrounds extend into adjacent safe areas by default
-            // (ignoresSafeAreaEdges: .all), so the fill covers exactly the
-            // status bar / Dynamic Island region without affecting layout.
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 0)
-                .background(Color.screen)
+        ZStack {
+            Color.screen.ignoresSafeArea()
+            content
         }
     }
 }

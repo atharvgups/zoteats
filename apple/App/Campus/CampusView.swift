@@ -40,7 +40,6 @@ struct CampusView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(Color.screen.ignoresSafeArea())
         .refreshable { await store.loadPlaces() }
         .statusBarBackdrop()
         .sheet(item: $selectedPlace) { place in

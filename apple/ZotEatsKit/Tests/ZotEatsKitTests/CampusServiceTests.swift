@@ -54,6 +54,15 @@ struct CampusServiceTests {
         #expect(CampusService.window(from: "Mo,We,Fr 09:00-14:00", weekday: "Tuesday") == nil)
     }
 
+    @Test func midnightToMidnightMeansOpenAllDay() {
+        let allDay = CampusService.TimeWindow(start: 0, end: 0)
+        #expect(allDay.isAllDay)
+        #expect(allDay.contains(minute: 0))
+        #expect(allDay.contains(minute: 12 * 60))
+        #expect(allDay.contains(minute: 23 * 60 + 59))
+        #expect(CampusService.format(windows: [allDay]) == "Open 24 hours")
+    }
+
     @Test func publishedMenuMapsDietaryTagsAndAllergens() async throws {
         let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
         let stations = try await service.menu(for: "halal-shack", date: "2026-07-13")

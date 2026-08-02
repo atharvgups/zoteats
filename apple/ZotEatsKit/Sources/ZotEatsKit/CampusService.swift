@@ -18,7 +18,7 @@ public struct CampusService: Sendable {
     private static let menuTTL: TimeInterval = 30 * 60
 
     /// Residential commons already covered by the Eat tab.
-    private static let excludedKeys: Set<String> = ["the-anteatery", "brandywine"]
+    private static var excludedKeys: Set<String> { HallDirectory.campusHubExcludedKeys }
 
     private let http: any HTTPFetching
     private let cache: TTLCache
@@ -227,7 +227,13 @@ public struct CampusService: Sendable {
         let start: Int
         let end: Int
 
+        /// 00:00–00:00 (or a full 24h span) means round-the-clock.
+        var isAllDay: Bool {
+            start == end || end - start >= 24 * 60
+        }
+
         func contains(minute: Int) -> Bool {
+            if isAllDay { return true }
             if end > start { return minute >= start && minute < end }
             // Window crossing midnight, e.g. 21:00–02:00.
             return minute >= start || minute < (end % (24 * 60))
@@ -297,6 +303,11 @@ public struct CampusService: Sendable {
 
     static func format(windows: [TimeWindow]) -> String? {
         guard !windows.isEmpty else { return nil }
+        // The feed encodes round-the-clock spots as 00:00-00:00; showing
+        // "12:00 AM – 12:00 AM" is nonsense — say what students need.
+        if windows.contains(where: \.isAllDay) {
+            return "Open 24 hours"
+        }
         return windows
             .map { "\(PacificTime.formatMinutes($0.start)) – \(PacificTime.formatMinutes($0.end % (24 * 60)))" }
             .joined(separator: ", ")

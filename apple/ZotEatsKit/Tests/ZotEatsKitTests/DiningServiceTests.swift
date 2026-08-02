@@ -81,6 +81,12 @@ struct DiningServiceTests {
         #expect(menu.stations.contains { $0.name == "Available all day" })
     }
 
+    @Test func dietLookupKeysMatchHubNamingVariants() {
+        let keys = DiningService.dietLookupKeys(for: "Vegan Mac & Cheese UCI")
+        #expect(keys.contains("vegan mac & cheese"))
+        #expect(keys.contains("veganmaccheese"))
+    }
+
     @Test func unpublishedFutureDayReadsAsNotPostedNotError() async throws {
         // Browsing ahead when the feed 404s must never surface "HTTP 404".
         let service = DiningService(http: NotFoundHTTP(), now: { fixtureNoon })
@@ -224,11 +230,18 @@ struct HallDirectoryTests {
         #expect(HallDirectory.area(for: "brandywine") == "Middle Earth")
     }
 
+    @Test func thirdCommonsAliasesAreCuratedForSeptember() {
+        #expect(HallDirectory.displayName(for: "mesa-commons") == "Mesa Commons")
+        #expect(HallDirectory.area(for: "mesa-commons") == "Mesa Court")
+        #expect(HallDirectory.displayName(for: "middle-earth-towers") == "Middle Earth Towers Dining")
+        #expect(HallDirectory.campusHubKey(for: "anteatery") == "the-anteatery")
+        #expect(HallDirectory.fallbackIDs == ["anteatery", "brandywine"])
+    }
+
     @Test func unknownFutureHallsGetReadableNames() {
-        // When UCI opens the third commons, its API id renders sensibly with no code change.
-        #expect(HallDirectory.displayName(for: "middle-earth-towers") == "Middle Earth Towers")
+        // Truly unknown ids still prettify with no code change.
         #expect(HallDirectory.displayName(for: "el_mercado") == "El Mercado")
-        #expect(HallDirectory.area(for: "middle-earth-towers") == "UCI Campus")
+        #expect(HallDirectory.area(for: "el_mercado") == "UCI Campus")
     }
 }
 

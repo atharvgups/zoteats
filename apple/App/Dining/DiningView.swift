@@ -18,11 +18,12 @@ struct DiningView: View {
     @State private var showDietFilters = false
     @State private var mealActivity = MealActivityManager()
 
-    /// Candidate days; clamped to the feed's published date range when known.
+    /// All published days the feed currently exposes (often a week+ ahead).
+    /// Clamped to `/dateRange.latest` so empty 404 days never appear.
     private var upcomingDays: [(isoDate: String, label: String)] {
-        let candidates = UCITime.upcomingDays(count: 14)
+        let candidates = UCITime.upcomingDays(count: 21)
         guard let latest = store.publishedDateRange?.latest else {
-            return Array(candidates.prefix(5))
+            return Array(candidates.prefix(7))
         }
         let visible = candidates.filter { $0.isoDate <= latest }
         return visible.isEmpty ? Array(candidates.prefix(1)) : visible
@@ -542,34 +543,43 @@ private struct DayStrip: View {
     @Binding var selection: String?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
-                ForEach(days, id: \.isoDate) { day in
-                    let isSelected = selection == day.isoDate
-                    Button {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            selection = day.isoDate
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(days, id: \.isoDate) { day in
+                        let isSelected = selection == day.isoDate
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                selection = day.isoDate
+                            }
+                            Haptics.selection()
+                        } label: {
+                            VStack(spacing: 3) {
+                                Text(day.label)
+                                    .font(.system(size: 14, weight: isSelected ? .bold : .medium))
+                                    .foregroundStyle(isSelected ? Color.uciBlue : .secondary)
+                                Capsule()
+                                    .fill(isSelected ? Color.uciBlue : .clear)
+                                    .frame(height: 3)
+                            }
+                            .fixedSize()
                         }
-                        Haptics.selection()
-                    } label: {
-                        VStack(spacing: 3) {
-                            Text(day.label)
-                                .font(.system(size: 14, weight: isSelected ? .bold : .medium))
-                                .foregroundStyle(isSelected ? Color.uciBlue : .secondary)
-                            Capsule()
-                                .fill(isSelected ? Color.uciBlue : .clear)
-                                .frame(height: 3)
-                        }
-                        .fixedSize()
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Menu for \(day.label)")
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Menu for \(day.label)")
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                 }
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 2)
+            if days.count > 3 {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 4)
+                    .accessibilityHidden(true)
+            }
         }
-        .accessibilityLabel("Menu day")
+        .accessibilityLabel("Menu day, swipe for more days")
     }
 }
 

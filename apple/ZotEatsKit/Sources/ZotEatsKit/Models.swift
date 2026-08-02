@@ -19,10 +19,36 @@ public enum HallDirectory {
     static let known: [String: (name: String, area: String)] = [
         "anteatery": ("The Anteatery", "Mesa Court"),
         "brandywine": ("Brandywine", "Middle Earth"),
+        // Third residential dining commons — expected around Fall / September.
+        // Anteater API `/restaurants` will list the real id when it opens; these
+        // aliases only beautify likely keys. Unknown ids still use `prettify`.
+        "mesa-commons": ("Mesa Commons", "Mesa Court"),
+        "mesa-court-commons": ("Mesa Court Commons", "Mesa Court"),
+        "mesa-court-dining": ("Mesa Court Dining", "Mesa Court"),
+        "middle-earth-towers": ("Middle Earth Towers Dining", "Middle Earth"),
+        "middle-earth-commons": ("Middle Earth Commons", "Middle Earth"),
     ]
 
-    /// Fallback ordering when the live list is unavailable.
+    /// Offline fallback — live halls only (don't invent an unopened third).
     public static let fallbackIDs = ["anteatery", "brandywine"]
+
+    /// Dining-hub `url_key`s that belong on Eat, not Campus retail.
+    public static let campusHubExcludedKeys: Set<String> = [
+        "the-anteatery", "brandywine",
+        "mesa-commons", "mesa-court-commons", "mesa-court-dining",
+        "middle-earth-towers", "middle-earth-commons",
+    ]
+
+    /// Anteater API hall id → dining-hub url_key (for richer diet tags).
+    public static func campusHubKey(for hallID: String) -> String? {
+        switch hallID.lowercased() {
+        case "anteatery": return "the-anteatery"
+        case "brandywine": return "brandywine"
+        default:
+            // Future halls often share the same slug on both feeds.
+            return campusHubExcludedKeys.contains(hallID) ? hallID : nil
+        }
+    }
 
     public static func displayName(for id: String) -> String {
         known[id]?.name ?? prettify(id)
