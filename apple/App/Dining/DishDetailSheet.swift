@@ -14,64 +14,69 @@ struct DishDetailSheet: View {
         prefs.isFavorite(dish.name)
     }
 
+    private var hasTags: Bool {
+        !dish.dietaryTags.isEmpty || !dish.allergens.isEmpty
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
+        VStack(alignment: .leading, spacing: 14) {
+            header
 
-                statsRow
-
-                if !dish.dietaryTags.isEmpty {
-                    tagSection(
-                        title: "Dietary",
-                        icon: "leaf.fill",
-                        tint: .green
-                    ) {
-                        ForEach(dish.dietaryTags, id: \.self) { tag in
-                            TagChip(text: tag, color: TagPalette.dietColor(tag))
-                        }
-                    }
-                }
-
-                if !dish.allergens.isEmpty {
-                    tagSection(
-                        title: "Allergens",
-                        icon: "exclamationmark.triangle.fill",
-                        tint: .orange
-                    ) {
-                        ForEach(dish.allergens, id: \.self) { allergen in
-                            AllergenChip(text: allergen)
-                        }
-                    }
-                }
-
-                favoriteToggle
+            if hasTags {
+                chipBlock
             }
-            .padding(20)
-            .padding(.top, 8)
+
+            statsRow
+
+            favoriteToggle
         }
+        .padding(20)
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.screen)
         .overlay(alignment: .topTrailing) {
             closeButton
         }
-        .presentationDetents([.medium, .large])
+        // Fit content — medium detent left a huge empty band when tags were absent.
+        .presentationDetents([.height(hasTags ? 420 : 340), .large])
         .presentationDragIndicator(.visible)
     }
 
     // MARK: - Sections
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(dish.name)
-                .font(ZotFont.hero(28))
+                .font(ZotFont.hero(26))
                 .padding(.trailing, 40) // keep clear of the close button
 
             if let description = dish.description, !description.isEmpty {
                 Text(description)
                     .font(ZotFont.body)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var chipBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !dish.dietaryTags.isEmpty {
+                FlowLayout(spacing: 7) {
+                    ForEach(dish.dietaryTags, id: \.self) { tag in
+                        TagChip(text: tag, color: TagPalette.dietColor(tag))
+                    }
+                }
+            }
+            if !dish.allergens.isEmpty {
+                FlowLayout(spacing: 7) {
+                    ForEach(dish.allergens, id: \.self) { allergen in
+                        AllergenChip(text: allergen)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statsRow: some View {
@@ -83,32 +88,30 @@ struct DishDetailSheet: View {
                 label: "Calories"
             )
             StatCard(
-                icon: "scalemass.fill",
+                icon: servingIcon,
                 tint: .uciBlue,
-                value: dish.servingSize ?? "—",
+                value: prettyServing,
                 label: "Serving"
             )
         }
     }
 
-    private func tagSection(
-        title: String,
-        icon: String,
-        tint: Color,
-        @ViewBuilder chips: () -> some View
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: icon)
-                .font(ZotFont.sectionTitle)
-                .foregroundStyle(tint)
-                .accessibilityAddTraits(.isHeader)
-            FlowLayout(spacing: 7) {
-                chips()
-            }
+    /// Anteater often ships unit as "fl" for fluid ounces — show something readable.
+    private var prettyServing: String {
+        guard var serving = dish.servingSize, !serving.isEmpty else { return "—" }
+        // "4 fl" / "6 fl" → "4 fl oz"
+        if serving.range(of: #"^\d+(\.\d+)?\s*fl$"#, options: .regularExpression) != nil {
+            serving = serving.replacingOccurrences(of: "fl", with: "fl oz")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .zotCard()
+        return serving
+    }
+
+    private var servingIcon: String {
+        let s = (dish.servingSize ?? "").lowercased()
+        if s.contains("fl") || s.contains("oz") || s.contains("cup") || s.contains("ml") {
+            return "cup.and.saucer.fill"
+        }
+        return "scalemass.fill"
     }
 
     private var favoriteToggle: some View {
@@ -123,7 +126,7 @@ struct DishDetailSheet: View {
             )
             .font(ZotFont.pill.weight(.semibold))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
+            .padding(.vertical, 14)
             .background(
                 isFavorite ? AnyShapeStyle(Color.pink.opacity(0.15)) : AnyShapeStyle(Color.uciBlue),
                 in: Capsule()
@@ -132,6 +135,7 @@ struct DishDetailSheet: View {
             .symbolEffect(.bounce, value: isFavorite)
         }
         .buttonStyle(.plain)
+        .padding(.top, 2)
         .accessibilityLabel(
             isFavorite ? "Remove \(dish.name) from favorites" : "Add \(dish.name) to favorites"
         )
@@ -160,9 +164,9 @@ private struct StatCard: View {
     let label: String
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(tint)
             Text(value)
                 .font(.title3.weight(.bold))
@@ -173,8 +177,8 @@ private struct StatCard: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 10)
         .zotCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label): \(value)")

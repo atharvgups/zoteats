@@ -268,19 +268,35 @@ public struct DiningService: Sendable {
 
     private static func menuItem(from dish: APIDish) -> MenuItem {
         let serving: String? = dish.nutritionInfo?.servingSize.map { size in
-            if let unit = dish.nutritionInfo?.servingUnit { return "\(size) \(unit)" }
+            if let unit = dish.nutritionInfo?.servingUnit {
+                let combined = "\(size) \(unit)".trimmingCharacters(in: .whitespaces)
+                // Anteater sometimes ships unit as bare "fl" for fluid ounces.
+                if combined.range(of: #"^\d+(\.\d+)?\s*fl$"#, options: .regularExpression) != nil {
+                    return combined.replacingOccurrences(of: "fl", with: "fl oz")
+                }
+                return combined
+            }
             return size
         }
-        let description = dish.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description = Self.collapseWhitespace(dish.description)
         return MenuItem(
             id: dish.id,
-            name: dish.name,
-            description: (description?.isEmpty ?? true) ? nil : description,
+            name: Self.collapseWhitespace(dish.name) ?? dish.name,
+            description: description,
             calories: dish.nutritionInfo?.calories.map { Int($0.rounded()) },
             servingSize: serving,
             allergens: dish.dietRestriction?.allergens ?? [],
             dietaryTags: dish.dietRestriction?.dietaryTags ?? []
         )
+    }
+
+    /// Anteater names/descriptions often include double spaces ("Banana  Berry").
+    static func collapseWhitespace(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let collapsed = text
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return collapsed.isEmpty ? nil : collapsed
     }
 
     /// The Twisted Root is UCI's dedicated plant-based station at **both**
@@ -553,7 +569,9 @@ public struct DiningService: Sendable {
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
     static func dietLookupKeys(for name: String) -> [String] {
-        let lower = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = (collapseWhitespace(name) ?? name)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         var keys = [lower]
 
         var stripped = lower

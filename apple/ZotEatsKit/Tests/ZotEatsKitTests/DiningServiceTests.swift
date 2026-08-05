@@ -89,6 +89,12 @@ struct DiningServiceTests {
         #expect(ae.contains("grill chicken"))
         let sandwich = DiningService.dietLookupKeys(for: "Grilled Herb Chicken Sandwich")
         #expect(sandwich.contains("grilled herb chicken"))
+        // Collapse Anteater's double spaces so hub enrichment can match.
+        #expect(DiningService.collapseWhitespace("Banana  Berry Smoothie") == "Banana Berry Smoothie")
+        #expect(
+            DiningService.dietLookupKeys(for: "Banana  Berry Smoothie")
+                .contains("banana berry smoothie")
+        )
     }
 
     @Test func unpublishedFutureDayReadsAsNotPostedNotError() async throws {

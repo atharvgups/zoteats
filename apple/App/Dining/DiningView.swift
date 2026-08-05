@@ -127,6 +127,10 @@ struct DiningView: View {
                 }
             }
 
+            // Always-visible diet pills (from the Anteater dietRestriction flags /
+            // hub recipe tags). A buried Filters chip alone was too easy to miss.
+            dietFilterRow
+
             HStack(spacing: 10) {
                 DayStrip(
                     days: upcomingDays,
@@ -139,7 +143,7 @@ struct DiningView: View {
                     )
                 )
                 Spacer(minLength: 8)
-                filterChip
+                allergenAvoidChip
             }
             .padding(.horizontal, 20)
 
@@ -147,25 +151,82 @@ struct DiningView: View {
         }
     }
 
-    /// Compact chip summarizing dietary + allergen filters; opens the picker sheet.
-    private var filterChip: some View {
-        let dietCount = prefs.dietFilters.count
-        let allergenCount = prefs.allergenAvoids.count
-        let total = dietCount + allergenCount
+    private static let dietFilterOptions = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+
+    /// Horizontal diet pills on the Eat tab so filters stay obvious.
+    private var dietFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Self.dietFilterOptions, id: \.self) { option in
+                    let isOn = prefs.dietFilters.contains(option)
+                    Button {
+                        if isOn {
+                            prefs.dietFilters.remove(option)
+                        } else {
+                            prefs.dietFilters.insert(option)
+                        }
+                        Haptics.selection()
+                    } label: {
+                        Text(option)
+                            .font(ZotFont.pill.weight(isOn ? .semibold : .medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                isOn ? TagPalette.dietColor(option).opacity(0.18) : Color.card,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(isOn ? TagPalette.dietColor(option) : Color.primary)
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    isOn ? TagPalette.dietColor(option).opacity(0.45) : Color.cardBorder,
+                                    lineWidth: 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(option) filter\(isOn ? ", active" : "")")
+                    .accessibilityIdentifier(
+                        "diet-filter-\(option.lowercased().replacingOccurrences(of: " ", with: "-"))"
+                    )
+                }
+
+                if !prefs.dietFilters.isEmpty {
+                    Button {
+                        prefs.dietFilters = []
+                        Haptics.selection()
+                    } label: {
+                        Text("Clear")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear dietary filters")
+                    .accessibilityIdentifier("diet-filter-clear-pills")
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .accessibilityLabel("Dietary filters")
+        .accessibilityIdentifier("diet-filter-row")
+    }
+
+    /// Opens the allergen avoid sheet (diet pills stay always visible above).
+    private var allergenAvoidChip: some View {
+        let active = !prefs.allergenAvoids.isEmpty
         let label: String = {
-            if total == 0 { return "Filters" }
-            if total == 1, dietCount == 1 { return prefs.dietFilters.first! }
-            if total == 1, allergenCount == 1 { return "No \(prefs.allergenAvoids.first!)" }
-            return "\(total) filters"
+            if !active { return "Avoid" }
+            if prefs.allergenAvoids.count == 1 { return "No \(prefs.allergenAvoids.first!)" }
+            return "\(prefs.allergenAvoids.count) avoided"
         }()
-        let active = total > 0
         return Button {
             showDietFilters = true
             Haptics.selection()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease.circle\(active ? ".fill" : "")")
-                    .font(.system(size: 14, weight: .semibold))
+                Image(systemName: "exclamationmark.triangle\(active ? ".fill" : "")")
+                    .font(.system(size: 12, weight: .semibold))
                 Text(label)
                     .font(ZotFont.pill.weight(active ? .semibold : .medium))
                     .lineLimit(1)
@@ -173,24 +234,20 @@ struct DiningView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
-                active ? Color.uciBlue.opacity(0.12) : Color.card,
+                active ? TagPalette.allergenColor.opacity(0.14) : Color.card,
                 in: Capsule()
             )
-            .foregroundStyle(active ? Color.uciBlue : Color.primary)
+            .foregroundStyle(active ? TagPalette.allergenColor : Color.primary)
             .overlay(
                 Capsule().strokeBorder(
-                    active ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    active ? TagPalette.allergenColor.opacity(0.4) : Color.cardBorder,
                     lineWidth: 1
                 )
             )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("diet-filter-chip")
-        .accessibilityLabel(
-            active
-                ? "Menu filters: \(label)"
-                : "Menu filters"
-        )
+        .accessibilityLabel(active ? "Allergen avoids: \(label)" : "Avoid allergens")
     }
 
     /// Hall cards straight from the live API — a third commons appears here
@@ -584,15 +641,13 @@ private struct DayStrip: View {
     }
 }
 
-// MARK: - Dietary + allergen filter sheet
+// MARK: - Allergen avoid sheet
 
-/// Compact multi-select sheet — keeps Eat uncluttered vs a permanent pill row.
-/// Diet filters combine as AND; allergen avoids hide dishes that list them.
+/// Diet pills stay on the Eat tab; this sheet is for hiding allergens.
 struct DietFilterSheet: View {
     let prefs: Preferences
     @Environment(\.dismiss) private var dismiss
 
-    private static let dietOptions = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
     private static let allergenOptions = [
         "Eggs", "Fish", "Milk", "Peanuts", "Sesame", "Shellfish", "Soy", "Tree Nuts", "Wheat",
     ]
@@ -600,7 +655,7 @@ struct DietFilterSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Filters")
+                Text("Avoid allergens")
                     .font(ZotFont.hero(24))
                 Spacer()
                 Button {
@@ -618,60 +673,63 @@ struct DietFilterSheet: View {
             }
             .padding(.bottom, 2)
 
+            Text("Hides dishes that list the allergen. Diet filters stay on the Eat tab.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 8)
+
+            Text("Only works when UCI publishes allergen data for that dish.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.bottom, 8)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Diet — dishes must match all selected.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 6)
-
-                    ForEach(Self.dietOptions, id: \.self) { option in
-                        filterRow(
-                            title: option,
-                            subtitle: "Only \(option.lowercased()) dishes",
-                            color: TagPalette.dietColor(option),
-                            isSelected: prefs.dietFilters.contains(option)
-                        ) {
-                            if prefs.dietFilters.contains(option) {
-                                prefs.dietFilters.remove(option)
-                            } else {
-                                prefs.dietFilters.insert(option)
-                            }
-                        }
-                    }
-
-                    Text("Avoid allergens — hides dishes that list them.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 14)
-                        .padding(.bottom, 6)
-
-                    Text("Only works when UCI publishes allergen data for that dish.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.tertiary)
-                        .padding(.bottom, 4)
-
                     ForEach(Self.allergenOptions, id: \.self) { option in
-                        filterRow(
-                            title: option,
-                            subtitle: "Hide dishes with \(option.lowercased())",
-                            color: TagPalette.allergenColor,
-                            isSelected: prefs.allergenAvoids.contains(option)
-                        ) {
-                            if prefs.allergenAvoids.contains(option) {
+                        let isSelected = prefs.allergenAvoids.contains(option)
+                        Button {
+                            if isSelected {
                                 prefs.allergenAvoids.remove(option)
                             } else {
                                 prefs.allergenAvoids.insert(option)
                             }
-                        }
-                    }
-
-                    if prefs.hasActiveMenuFilters {
-                        Button {
-                            prefs.clearMenuFilters()
                             Haptics.selection()
                         } label: {
-                            Text("Clear all")
+                            HStack {
+                                TagChip(text: option, color: TagPalette.allergenColor)
+                                Text("Hide dishes with \(option.lowercased())")
+                                    .font(ZotFont.body)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                Spacer()
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
+                            }
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 14)
+                            .background(
+                                isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                                    .strokeBorder(
+                                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                        lineWidth: 1
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(option) avoid\(isSelected ? ", active" : "")")
+                    }
+
+                    if !prefs.allergenAvoids.isEmpty {
+                        Button {
+                            prefs.allergenAvoids = []
+                            Haptics.selection()
+                        } label: {
+                            Text("Clear avoids")
                                 .font(ZotFont.pill.weight(.semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 13)
@@ -691,48 +749,7 @@ struct DietFilterSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .background(Color.screen)
-        .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
         .animation(.snappy(duration: 0.2), value: prefs.allergenAvoids)
-    }
-
-    private func filterRow(
-        title: String,
-        subtitle: String,
-        color: Color,
-        isSelected: Bool,
-        toggle: @escaping () -> Void
-    ) -> some View {
-        Button {
-            toggle()
-            Haptics.selection()
-        } label: {
-            HStack {
-                TagChip(text: title, color: color)
-                Text(subtitle)
-                    .font(ZotFont.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 14)
-            .background(
-                isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
-                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                        lineWidth: 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(title) filter\(isSelected ? ", active" : "")")
     }
 }
 

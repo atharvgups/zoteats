@@ -408,10 +408,11 @@ public struct CampusService: Sendable {
         for attribute in raw.attributes ?? [] {
             switch attribute.name {
             case "marketing_name":
-                if let value = attribute.values.first, !value.isEmpty { name = value }
+                if let value = attribute.values.first, !value.isEmpty {
+                    name = DiningService.collapseWhitespace(value) ?? value
+                }
             case "marketing_description":
-                let value = attribute.values.first?.trimmingCharacters(in: .whitespacesAndNewlines)
-                description = (value?.isEmpty ?? true) ? nil : value
+                description = DiningService.collapseWhitespace(attribute.values.first)
             case "calories":
                 if let value = attribute.values.first, let parsed = Double(value) {
                     calories = Int(parsed.rounded())
@@ -444,9 +445,10 @@ public struct CampusService: Sendable {
         }
 
         guard !name.isEmpty else { return nil }
+        let cleanName = DiningService.collapseWhitespace(name) ?? name
         return MenuItem(
             id: sku,
-            name: name,
+            name: cleanName,
             description: description,
             calories: calories,
             servingSize: serving,
