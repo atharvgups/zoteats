@@ -1,8 +1,8 @@
-# ZotEats Privacy Policy
+# Anteats Privacy Policy
 
 _Last updated: July 2026_
 
-ZotEats is an unofficial student project for the UC Irvine community. The short
+Anteats is an unofficial student project for the UC Irvine community. The short
 version: **the app collects no personal data at all.**
 
 ## What we collect
@@ -29,12 +29,12 @@ exactly two services:
 
 These are standard, read-only HTTPS requests with no account identifiers or personal
 data attached. Like any web request, the operators of those services may see your IP
-address as part of serving the request; ZotEats sends nothing else. We do not operate
+address as part of serving the request; Anteats sends nothing else. We do not operate
 those services — see their own policies for details.
 
 ## App Store Connect "App Privacy" answers
 
-For the App Privacy section in App Store Connect, ZotEats qualifies for
+For the App Privacy section in App Store Connect, Anteats qualifies for
 **"Data Not Collected"**: the app does not collect any data from this app, for any
 purpose, in any category (no contact info, identifiers, usage data, diagnostics,
 location, or anything else).

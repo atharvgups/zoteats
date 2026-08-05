@@ -555,19 +555,34 @@ public struct DiningService: Sendable {
     static func dietLookupKeys(for name: String) -> [String] {
         let lower = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         var keys = [lower]
-        let withoutUCI = lower.replacingOccurrences(
+
+        var stripped = lower
+        // Anteater sometimes prefixes "AE "; hub omits it.
+        if stripped.hasPrefix("ae ") {
+            stripped = String(stripped.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            keys.append(stripped)
+        }
+        for suffix in [" sandwich", " burger", " wrap"] {
+            if stripped.hasSuffix(suffix) {
+                let base = String(stripped.dropLast(suffix.count)).trimmingCharacters(in: .whitespaces)
+                if !base.isEmpty { keys.append(base) }
+            }
+        }
+
+        let withoutUCI = stripped.replacingOccurrences(
             of: #"\s+uci$"#, with: "", options: .regularExpression
         )
-        if withoutUCI != lower { keys.append(withoutUCI) }
-        let normalized = lower.replacingOccurrences(
-            of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
-        )
-        if !normalized.isEmpty { keys.append(normalized) }
-        let normalizedNoUCI = withoutUCI.replacingOccurrences(
-            of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
-        )
-        if !normalizedNoUCI.isEmpty { keys.append(normalizedNoUCI) }
-        return keys
+        if withoutUCI != stripped { keys.append(withoutUCI) }
+
+        for variant in keys {
+            let normalized = variant.replacingOccurrences(
+                of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
+            )
+            if !normalized.isEmpty { keys.append(normalized) }
+        }
+        // Preserve order, drop dupes.
+        var seen = Set<String>()
+        return keys.filter { seen.insert($0).inserted }
     }
 
     private static func mergeUnique(_ base: [String], _ extra: [String]) -> [String] {

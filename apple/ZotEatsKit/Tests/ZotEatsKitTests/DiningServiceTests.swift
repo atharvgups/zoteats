@@ -85,6 +85,10 @@ struct DiningServiceTests {
         let keys = DiningService.dietLookupKeys(for: "Vegan Mac & Cheese UCI")
         #expect(keys.contains("vegan mac & cheese"))
         #expect(keys.contains("veganmaccheese"))
+        let ae = DiningService.dietLookupKeys(for: "AE Grill Chicken")
+        #expect(ae.contains("grill chicken"))
+        let sandwich = DiningService.dietLookupKeys(for: "Grilled Herb Chicken Sandwich")
+        #expect(sandwich.contains("grilled herb chicken"))
     }
 
     @Test func unpublishedFutureDayReadsAsNotPostedNotError() async throws {

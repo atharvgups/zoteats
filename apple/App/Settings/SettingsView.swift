@@ -23,7 +23,7 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Settings", subtitle: "Make ZotEats yours")
+                    ScreenHeader(title: "Settings", subtitle: "Make Anteats yours")
 
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
@@ -127,7 +127,7 @@ struct SettingsView: View {
             }
 
             if alertsDenied {
-                Text("Notifications are turned off for ZotEats in iOS Settings — enable them there first.")
+                Text("Notifications are turned off for Anteats in iOS Settings — enable them there first.")
                     .font(ZotFont.caption)
                     .foregroundStyle(TagPalette.terracotta)
             }
@@ -144,7 +144,7 @@ struct SettingsView: View {
             Text("About")
                 .font(ZotFont.sectionTitle)
 
-            Text("ZotEats is an unofficial student project for UC Irvine — dining menus, gym hours, and live campus busyness in one place. Not affiliated with UC Irvine.")
+            Text("Anteats is an unofficial student project for UC Irvine — dining menus, gym hours, and live campus busyness in one place. Not affiliated with UC Irvine.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
 

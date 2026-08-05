@@ -147,6 +147,7 @@ final class BusynessStore {
 final class Preferences {
     private static let favoritesKey = "zoteats.favoriteDishNames"
     private static let dietFiltersKey = "zoteats.dietFilters"
+    private static let allergenAvoidsKey = "zoteats.allergenAvoids"
     private static let legacyDietFilterKey = "zoteats.dietFilter"
 
     /// Favorite dishes by name (dish IDs rotate daily; names are stable).
@@ -157,6 +158,11 @@ final class Preferences {
     /// Active dietary filter tags (AND). Empty = show everything.
     var dietFilters: Set<String> {
         didSet { UserDefaults.standard.set(Array(dietFilters).sorted(), forKey: Self.dietFiltersKey) }
+    }
+
+    /// Allergens to hide (OR). A dish listing any avoided allergen is filtered out.
+    var allergenAvoids: Set<String> {
+        didSet { UserDefaults.standard.set(Array(allergenAvoids).sorted(), forKey: Self.allergenAvoidsKey) }
     }
 
     /// Convenience for single-filter callers (campus sheet, etc.).
@@ -171,6 +177,10 @@ final class Preferences {
         }
     }
 
+    var hasActiveMenuFilters: Bool {
+        !dietFilters.isEmpty || !allergenAvoids.isEmpty
+    }
+
     init() {
         favoriteDishNames = Set(UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? [])
         if let saved = UserDefaults.standard.stringArray(forKey: Self.dietFiltersKey) {
@@ -180,6 +190,25 @@ final class Preferences {
             UserDefaults.standard.removeObject(forKey: Self.legacyDietFilterKey)
         } else {
             dietFilters = []
+        }
+        allergenAvoids = Set(UserDefaults.standard.stringArray(forKey: Self.allergenAvoidsKey) ?? [])
+    }
+
+    func clearMenuFilters() {
+        dietFilters = []
+        allergenAvoids = []
+    }
+
+    func matchesMenuFilters(_ item: MenuItem) -> Bool {
+        let dietsOK = dietFilters.allSatisfy { filter in
+            item.dietaryTags.contains { $0.caseInsensitiveCompare(filter) == .orderedSame }
+        }
+        guard dietsOK else { return false }
+        guard !allergenAvoids.isEmpty else { return true }
+        // Hide dishes that list any avoided allergen. Unknown (empty) stays visible —
+        // many grill items still lack upstream data; hiding them would empty the menu.
+        return !item.allergens.contains { allergen in
+            allergenAvoids.contains { $0.caseInsensitiveCompare(allergen) == .orderedSame }
         }
     }
 

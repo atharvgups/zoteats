@@ -327,14 +327,32 @@ public struct CampusService: Sendable {
     }
 
     /// Dietary tag ids from the hub's recipe_attributes vocabulary, mapped to the
-    /// same labels the Eat tab uses (verified via attribute metadata query).
+    /// same labels the Eat tab uses (verified via Commerce_customAttributeMetadata).
     private static let dietaryTagIDs: [String: String] = [
         "96": "Vegan",
         "99": "Vegetarian",
         "133": "Halal",
         "87": "Kosher",
-        "78": "Gluten-Free",
+        "78": "Gluten-Free", // hub label is "Gluten Free"
         "102": "Locally Grown",
+        "108": "No Dairy",
+        "831": "Plant Powered",
+        "90": "Plant Forward",
+    ]
+
+    /// Hub `allergens_intolerances` option values → chip labels.
+    /// Many grill items leave allergen_statement as "not available" but still
+    /// publish these IDs — use them so Avoid filters and chips have data.
+    static let allergenIntoleranceIDs: [String: String] = [
+        "39": "Eggs",
+        "42": "Fish",
+        "45": "Milk",
+        "48": "Peanuts",
+        "51": "Sesame",
+        "54": "Shellfish",
+        "57": "Soy",
+        "60": "Tree Nuts",
+        "63": "Wheat",
     ]
 
     /// Parse hub `allergen_statement`. Real lists look like `Contains: Eggs, Milk`.
@@ -362,13 +380,29 @@ public struct CampusService: Sendable {
             }
     }
 
+    /// Map hub allergen option ids ("45,63") or ["45","63"] to labels.
+    static func allergens(fromIntoleranceIDs values: [String]) -> [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+        for raw in values.flatMap({ $0.components(separatedBy: ",") }) {
+            let id = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard id != "0", !id.isEmpty,
+                  let label = allergenIntoleranceIDs[id],
+                  seen.insert(label).inserted
+            else { continue }
+            result.append(label)
+        }
+        return result
+    }
+
     private static func menuItem(from raw: RawProduct) -> MenuItem? {
         guard let sku = raw.sku else { return nil }
         var name = raw.name ?? ""
         var description: String?
         var calories: Int?
         var serving: String?
-        var allergens: [String] = []
+        var allergensFromStatement: [String] = []
+        var allergensFromIDs: [String] = []
         var dietaryTags: [String] = []
 
         for attribute in raw.attributes ?? [] {
@@ -388,13 +422,25 @@ public struct CampusService: Sendable {
                 // "Contains: Eggs, Milk" -> ["Eggs", "Milk"].
                 // Hub often ships "Complete allergen information is not available…"
                 // — treat that as unknown (blank), never a chip.
-                allergens = Self.allergens(fromStatement: attribute.values.first)
+                allergensFromStatement = Self.allergens(fromStatement: attribute.values.first)
+            case "allergens_intolerances":
+                allergensFromIDs = Self.allergens(fromIntoleranceIDs: attribute.values)
             case "recipe_attributes":
                 dietaryTags = attribute.values.flatMap { $0.components(separatedBy: ",") }
                     .compactMap { dietaryTagIDs[$0.trimmingCharacters(in: .whitespaces)] }
             default:
                 break
             }
+        }
+
+        // Prefer statement text when present; otherwise fall back to ID list.
+        // Merge both so neither source alone can wipe the other.
+        let allergens = mergeUniqueLabels(allergensFromStatement, allergensFromIDs)
+
+        // Vegan ⇒ Vegetarian for filter matching.
+        if dietaryTags.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }),
+           !dietaryTags.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+            dietaryTags.append("Vegetarian")
         }
 
         guard !name.isEmpty else { return nil }
@@ -407,5 +453,15 @@ public struct CampusService: Sendable {
             allergens: allergens,
             dietaryTags: dietaryTags
         )
+    }
+
+    private static func mergeUniqueLabels(_ a: [String], _ b: [String]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for label in a + b {
+            let key = label.lowercased()
+            if seen.insert(key).inserted { out.append(label) }
+        }
+        return out
     }
 }

@@ -1,4 +1,4 @@
-# ZotEats — native iOS app
+# Anteats — native iOS app
 
 This directory contains the native SwiftUI app and its data layer.
 

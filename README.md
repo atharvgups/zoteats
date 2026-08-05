@@ -1,6 +1,6 @@
 <div align="center">
 
-# ZotEats 🐜
+# Anteats 🐜
 
 **UCI dining, campus food, gym, and study spots — in one native iOS app.**
 
@@ -11,7 +11,7 @@
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&logoColor=white)
 ![Status](https://img.shields.io/badge/status-beta-blue)
 
-<img src="docs/screenshots/demo.gif" alt="ZotEats demo" width="300" />
+<img src="docs/screenshots/demo.gif" alt="Anteats demo" width="300" />
 
 </div>
 

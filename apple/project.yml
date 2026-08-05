@@ -45,7 +45,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: ZotEats
+        CFBundleDisplayName: Anteats
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -75,7 +75,7 @@ targets:
     info:
       path: Widgets/Info.plist
       properties:
-        CFBundleDisplayName: ZotEats
+        CFBundleDisplayName: Anteats
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

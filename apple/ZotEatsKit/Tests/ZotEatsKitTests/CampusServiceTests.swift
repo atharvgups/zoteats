@@ -74,6 +74,12 @@ struct CampusServiceTests {
         #expect(CampusService.allergens(fromStatement: nil).isEmpty)
     }
 
+    @Test func allergenIntoleranceIDsMapToLabels() {
+        #expect(CampusService.allergens(fromIntoleranceIDs: ["45", "63", "39"]) == ["Milk", "Wheat", "Eggs"])
+        #expect(CampusService.allergens(fromIntoleranceIDs: ["0"]).isEmpty)
+        #expect(CampusService.allergens(fromIntoleranceIDs: ["45,57"]) == ["Milk", "Soy"])
+    }
+
     @Test func publishedMenuMapsDietaryTagsAndAllergens() async throws {
         let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
         let stations = try await service.menu(for: "halal-shack", date: "2026-07-13")
@@ -87,6 +93,11 @@ struct CampusServiceTests {
         #expect(eggs?.allergens.contains("Eggs") == true)
         #expect(eggs?.dietaryTags.contains("Halal") == true)
         #expect(eggs?.dietaryTags.contains("Vegetarian") == true)
+        // Turmeric Tofu uses allergens_intolerances id 57 + Plant Forward recipe attr.
+        let tofu = items.first { $0.name == "Turmeric Tofu Scramble" }
+        #expect(tofu?.allergens.contains("Soy") == true)
+        #expect(tofu?.dietaryTags.contains("Plant Forward") == true)
+        #expect(tofu?.dietaryTags.contains("Vegan") == true)
     }
 
     @Test func networkFailurePropagates() async {

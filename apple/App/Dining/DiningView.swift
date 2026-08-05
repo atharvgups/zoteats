@@ -93,7 +93,7 @@ struct DiningView: View {
     }
 
     private var hasActiveFilter: Bool {
-        !prefs.dietFilters.isEmpty || !trimmedQuery.isEmpty
+        prefs.hasActiveMenuFilters || !trimmedQuery.isEmpty
     }
 
     // MARK: - Sections
@@ -147,35 +147,39 @@ struct DiningView: View {
         }
     }
 
-    /// Compact chip summarizing dietary filters; opens the picker sheet.
+    /// Compact chip summarizing dietary + allergen filters; opens the picker sheet.
     private var filterChip: some View {
-        let active = prefs.dietFilters
-        let label = switch active.count {
-        case 0: "Filters"
-        case 1: active.first!
-        default: "\(active.count) filters"
-        }
+        let dietCount = prefs.dietFilters.count
+        let allergenCount = prefs.allergenAvoids.count
+        let total = dietCount + allergenCount
+        let label: String = {
+            if total == 0 { return "Filters" }
+            if total == 1, dietCount == 1 { return prefs.dietFilters.first! }
+            if total == 1, allergenCount == 1 { return "No \(prefs.allergenAvoids.first!)" }
+            return "\(total) filters"
+        }()
+        let active = total > 0
         return Button {
             showDietFilters = true
             Haptics.selection()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease.circle\(active.isEmpty ? "" : ".fill")")
+                Image(systemName: "line.3.horizontal.decrease.circle\(active ? ".fill" : "")")
                     .font(.system(size: 14, weight: .semibold))
                 Text(label)
-                    .font(ZotFont.pill.weight(active.isEmpty ? .medium : .semibold))
+                    .font(ZotFont.pill.weight(active ? .semibold : .medium))
                     .lineLimit(1)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
-                active.isEmpty ? Color.card : Color.uciBlue.opacity(0.12),
+                active ? Color.uciBlue.opacity(0.12) : Color.card,
                 in: Capsule()
             )
-            .foregroundStyle(active.isEmpty ? Color.primary : Color.uciBlue)
+            .foregroundStyle(active ? Color.uciBlue : Color.primary)
             .overlay(
                 Capsule().strokeBorder(
-                    active.isEmpty ? Color.cardBorder : Color.uciBlue.opacity(0.35),
+                    active ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
                     lineWidth: 1
                 )
             )
@@ -183,9 +187,9 @@ struct DiningView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("diet-filter-chip")
         .accessibilityLabel(
-            active.isEmpty
-                ? "Dietary filters"
-                : "Dietary filters: \(active.sorted().joined(separator: ", "))"
+            active
+                ? "Menu filters: \(label)"
+                : "Menu filters"
         )
     }
 
@@ -422,12 +426,7 @@ struct DiningView: View {
     // MARK: - Filtering
 
     private func matches(_ item: MenuItem) -> Bool {
-        // Multiple filters combine as AND — Vegan + Gluten-Free means both.
-        guard prefs.dietFilters.allSatisfy({ filter in
-            item.dietaryTags.contains { $0.caseInsensitiveCompare(filter) == .orderedSame }
-        }) else {
-            return false
-        }
+        guard prefs.matchesMenuFilters(item) else { return false }
         let query = trimmedQuery
         guard !query.isEmpty else { return true }
         if item.name.localizedCaseInsensitiveContains(query) { return true }
@@ -585,20 +584,23 @@ private struct DayStrip: View {
     }
 }
 
-// MARK: - Dietary filter sheet
+// MARK: - Dietary + allergen filter sheet
 
 /// Compact multi-select sheet — keeps Eat uncluttered vs a permanent pill row.
-/// Filters combine as AND: Vegan + Gluten-Free shows only dishes that are both.
+/// Diet filters combine as AND; allergen avoids hide dishes that list them.
 struct DietFilterSheet: View {
     let prefs: Preferences
     @Environment(\.dismiss) private var dismiss
 
-    private static let options = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+    private static let dietOptions = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+    private static let allergenOptions = [
+        "Eggs", "Fish", "Milk", "Peanuts", "Sesame", "Shellfish", "Soy", "Tree Nuts", "Wheat",
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Dietary filters")
+                Text("Filters")
                     .font(ZotFont.hero(24))
                 Spacer()
                 Button {
@@ -616,72 +618,121 @@ struct DietFilterSheet: View {
             }
             .padding(.bottom, 2)
 
-            Text("Pick as many as you need — dishes must match all of them.")
-                .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 10)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Diet — dishes must match all selected.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 6)
 
-            ForEach(Self.options, id: \.self) { option in
-                let isSelected = prefs.dietFilters.contains(option)
-                Button {
-                    if isSelected {
-                        prefs.dietFilters.remove(option)
-                    } else {
-                        prefs.dietFilters.insert(option)
+                    ForEach(Self.dietOptions, id: \.self) { option in
+                        filterRow(
+                            title: option,
+                            subtitle: "Only \(option.lowercased()) dishes",
+                            color: TagPalette.dietColor(option),
+                            isSelected: prefs.dietFilters.contains(option)
+                        ) {
+                            if prefs.dietFilters.contains(option) {
+                                prefs.dietFilters.remove(option)
+                            } else {
+                                prefs.dietFilters.insert(option)
+                            }
+                        }
                     }
-                    Haptics.selection()
-                } label: {
-                    HStack {
-                        TagChip(text: option, color: TagPalette.dietColor(option))
-                        Text("Only \(option.lowercased()) dishes")
-                            .font(ZotFont.body)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 14)
-                    .background(
-                        isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
-                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                lineWidth: 1
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
-            }
 
-            if !prefs.dietFilters.isEmpty {
-                Button {
-                    prefs.dietFilters = []
-                    Haptics.selection()
-                } label: {
-                    Text("Clear all")
-                        .font(ZotFont.pill.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(Color.primary.opacity(0.05), in: Capsule())
-                        .foregroundStyle(.primary)
+                    Text("Avoid allergens — hides dishes that list them.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 14)
+                        .padding(.bottom, 6)
+
+                    Text("Only works when UCI publishes allergen data for that dish.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.bottom, 4)
+
+                    ForEach(Self.allergenOptions, id: \.self) { option in
+                        filterRow(
+                            title: option,
+                            subtitle: "Hide dishes with \(option.lowercased())",
+                            color: TagPalette.allergenColor,
+                            isSelected: prefs.allergenAvoids.contains(option)
+                        ) {
+                            if prefs.allergenAvoids.contains(option) {
+                                prefs.allergenAvoids.remove(option)
+                            } else {
+                                prefs.allergenAvoids.insert(option)
+                            }
+                        }
+                    }
+
+                    if prefs.hasActiveMenuFilters {
+                        Button {
+                            prefs.clearMenuFilters()
+                            Haptics.selection()
+                        } label: {
+                            Text("Clear all")
+                                .font(ZotFont.pill.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color.primary.opacity(0.05), in: Capsule())
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 8)
+                        .accessibilityIdentifier("diet-filter-clear")
+                    }
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
-                .accessibilityIdentifier("diet-filter-clear")
             }
 
             Spacer(minLength: 0)
         }
         .padding(20)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .background(Color.screen)
         .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
+        .animation(.snappy(duration: 0.2), value: prefs.allergenAvoids)
+    }
+
+    private func filterRow(
+        title: String,
+        subtitle: String,
+        color: Color,
+        isSelected: Bool,
+        toggle: @escaping () -> Void
+    ) -> some View {
+        Button {
+            toggle()
+            Haptics.selection()
+        } label: {
+            HStack {
+                TagChip(text: title, color: color)
+                Text(subtitle)
+                    .font(ZotFont.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .background(
+                isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title) filter\(isSelected ? ", active" : "")")
     }
 }
 

@@ -99,6 +99,8 @@ enum TagPalette {
         case "Gluten-Free": ochre
         case "Organic": sage
         case "Locally Grown": clay
+        case "No Dairy": terracotta
+        case "Plant Forward", "Plant Powered": sage
         default: .secondary
         }
     }
