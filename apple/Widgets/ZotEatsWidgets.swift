@@ -11,23 +11,12 @@ import ZotEatsKit
 @main
 struct ZotEatsWidgetBundle: WidgetBundle {
     var body: some Widget {
-        // Nested bundles stay under WidgetBundleBuilder's arity limit.
-        HomeScreenWidgets()
-        LockScreenWidgets()
-    }
-}
-
-private struct HomeScreenWidgets: WidgetBundle {
-    var body: some Widget {
+        // Keep flat — nested WidgetBundles no longer type-check as Widget
+        // expressions on current SDKs (WidgetBundleBuilder arity is fine at 6).
         DiningStatusWidget()
         TodaysMenuWidget()
         CampusOpenWidget()
         ArcStatusWidget()
-    }
-}
-
-private struct LockScreenWidgets: WidgetBundle {
-    var body: some Widget {
         QuietestLibraryWidget()
         MealCountdownActivity()
     }
