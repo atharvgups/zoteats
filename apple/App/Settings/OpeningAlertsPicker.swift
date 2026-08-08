@@ -1,5 +1,5 @@
 import SwiftUI
-import AnteatsKit
+import ZotEatsKit
 
 // The "watchlist" picker behind Settings → Notifications → Opening alerts.
 // Pick any dining hall or campus spot; iOS pings you the moment it opens.
