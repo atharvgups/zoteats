@@ -137,17 +137,31 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1.5)
 
-        // ── Settings (top-right gear): live appearance toggle ─────────────
+        // ── Settings (top-right gear): appearance + notifications ─────────
         tapTab(app, "Eat")
         pause(2)
         tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)
         tapIfPresent(app.buttons["Dark appearance"])
-        pause(2.5)
-        tapIfPresent(app.buttons["Light appearance"])
-        pause(2.5)
-        tapIfPresent(app.buttons["System appearance"])
         pause(2)
+        tapIfPresent(app.buttons["System appearance"])
+        pause(1.5)
+        // Scroll to notifications / widgets tips.
+        app.swipeUp()
+        pause(1.5)
+        // Accept the system notification permission alert if it appears.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Allow"]
+        tapIfPresent(app.buttons["favorite-alerts-toggle"])
+        pause(1)
+        if allow.waitForExistence(timeout: 2) { allow.tap() }
+        pause(1.5)
+        tapIfPresent(app.buttons["test-notification-button"])
+        pause(2)
+        tapIfPresent(app.buttons["opening-alerts-row"])
+        pause(2.5)
+        tapIfPresent(app.buttons["Close opening alerts"])
+        pause(1.5)
         tapIfPresent(app.buttons["Close settings"])
         pause(2.5)
     }

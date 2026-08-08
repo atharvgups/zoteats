@@ -14,6 +14,9 @@ struct SettingsView: View {
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
     @State private var alertsDenied = false
+    @State private var watchedPlaces = OpeningAlerts.watchedIDs
+    @State private var showOpeningAlerts = false
+    @State private var testPingSent = false
 
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
@@ -28,6 +31,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
                         alertsCard
+                        widgetsCard
                         aboutCard
                         dataSourcesCard
                     }
@@ -55,6 +59,9 @@ struct SettingsView: View {
                     ZotCheer()
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
+            }
+            .sheet(isPresented: $showOpeningAlerts) {
+                OpeningAlertsPicker(watched: $watchedPlaces)
             }
         }
         .presentationDetents([.large])
@@ -92,10 +99,10 @@ struct SettingsView: View {
         .zotCard()
     }
 
-    // MARK: - Favorite alerts
+    // MARK: - Notifications
 
     private var alertsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Notifications")
                 .font(ZotFont.sectionTitle)
 
@@ -109,6 +116,7 @@ struct SettingsView: View {
                 }
             }
             .tint(.uciBlue)
+            .accessibilityIdentifier("favorite-alerts-toggle")
             .onChange(of: alertsEnabled) { _, enabled in
                 guard enabled else {
                     FavoriteAlerts.isEnabled = false
@@ -119,6 +127,7 @@ struct SettingsView: View {
                     FavoriteAlerts.isEnabled = granted
                     if granted {
                         await FavoriteAlerts.runCheck()
+                        await OpeningAlerts.refreshSchedules()
                     } else {
                         alertsEnabled = false
                         alertsDenied = true
@@ -126,15 +135,114 @@ struct SettingsView: View {
                 }
             }
 
+            Button {
+                showOpeningAlerts = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Opening alerts")
+                            .font(ZotFont.body)
+                            .foregroundStyle(.primary)
+                        Text("Watch a hall or café — ping when it opens.")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if !watchedPlaces.isEmpty {
+                        Text("\(watchedPlaces.count)")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .foregroundStyle(.uciBlue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.uciBlue.opacity(0.12), in: Capsule())
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("opening-alerts-row")
+
+            Button {
+                Task {
+                    let granted = await FavoriteAlerts.requestPermission()
+                    if granted {
+                        alertsDenied = false
+                        await FavoriteAlerts.sendTestNotification()
+                        withAnimation { testPingSent = true }
+                    } else {
+                        alertsDenied = true
+                    }
+                }
+            } label: {
+                Text(testPingSent ? "Test ping sent" : "Send test notification")
+                    .font(ZotFont.pill.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.primary.opacity(0.05), in: Capsule())
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("test-notification-button")
+
             if alertsDenied {
-                Text("Notifications are turned off for Anteats in iOS Settings — enable them there first.")
-                    .font(ZotFont.caption)
-                    .foregroundStyle(TagPalette.terracotta)
+                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+                    Text("Notifications are off — open iOS Settings for Anteats")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(TagPalette.terracotta)
+                }
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    // MARK: - Widgets
+
+    private var widgetsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Home Screen Widgets")
+                .font(ZotFont.sectionTitle)
+
+            Text("Long-press your Home Screen → tap Edit → Add Widget → search Anteats.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in / opens-at")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick Anteatery or Brandywine (medium/large)")
+                widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets that are open")
+                widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness (also on Lock Screen)")
+                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
+            }
+            .padding(.top, 4)
+
+            Text("Tip: Edit the Today's Menu widget to choose a hall. Track a live meal on Eat for the Dynamic Island countdown.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+    }
+
+    private func widgetTip(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.uciBlue)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(ZotFont.body.weight(.medium))
+                Text(detail)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     // MARK: - About

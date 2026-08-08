@@ -64,7 +64,10 @@ struct ZotEatsApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                Task { await FavoriteAlerts.runCheck() }
+                Task {
+                    await FavoriteAlerts.runCheck()
+                    await OpeningAlerts.refreshSchedules()
+                }
             case .background:
                 FavoriteAlerts.scheduleNextRefresh()
             default:
@@ -73,6 +76,7 @@ struct ZotEatsApp: App {
         }
         .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
             await FavoriteAlerts.runCheck()
+            await OpeningAlerts.refreshSchedules()
             await FavoriteAlerts.scheduleNextRefresh()
         }
     }
@@ -118,6 +122,15 @@ struct RootTabView: View {
             .onAppear {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
+            }
+            .onOpenURL { url in
+                switch url.host?.lowercased() {
+                case "eat", "dining": selection = .dining
+                case "campus": selection = .campus
+                case "gym": selection = .gym
+                case "study", "busyness": selection = .busyness
+                default: break
+                }
             }
     }
 

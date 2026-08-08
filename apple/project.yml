@@ -54,6 +54,9 @@ targets:
         NSSupportsLiveActivities: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.atharvgupta.zoteats.refresh]
+        CFBundleURLTypes:
+          - CFBundleURLName: Anteats
+            CFBundleURLSchemes: [anteats]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats

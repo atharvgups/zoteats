@@ -64,6 +64,7 @@ enum FavoriteAlerts {
             content.title = "Zot! \(match.dishName) is on the menu"
             content.body = "Being served at \(match.hallName) for \(match.period.lowercased()) today."
             content.sound = .default
+            content.userInfo = ["hall": match.hallName, "dish": match.dishName]
             try? await UNUserNotificationCenter.current().add(
                 UNNotificationRequest(identifier: key, content: content, trigger: nil)
             )
@@ -76,10 +77,38 @@ enum FavoriteAlerts {
         )
     }
 
-    /// Asks iOS for the next opportunistic background check (~breakfast time next day).
+    /// Asks iOS for the next opportunistic background check, aiming near
+    /// breakfast so favorite alerts land before the lunch rush.
     static func scheduleNextRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: refreshTaskID)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 4 * 60 * 60)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .current
+        let now = Date()
+        var components = cal.dateComponents([.year, .month, .day], from: now)
+        components.hour = 6
+        components.minute = 45
+        let todayTarget = cal.date(from: components) ?? now
+        let tomorrowTarget = cal.date(byAdding: .day, value: 1, to: todayTarget) ?? now.addingTimeInterval(86_400)
+        let preferred = todayTarget > now.addingTimeInterval(30 * 60) ? todayTarget : tomorrowTarget
+        request.earliestBeginDate = max(preferred, now.addingTimeInterval(60 * 60))
         try? BGTaskScheduler.shared.submit(request)
+    }
+
+    /// Immediate local notification so testers can verify permission + banners.
+    static func sendTestNotification() async {
+        let granted = await requestPermission()
+        guard granted else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Anteats alerts are on"
+        content.body = "You'll get a ping when a hearted dish is on today's menu."
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(
+                identifier: "anteats.test.\(Int(Date().timeIntervalSince1970))",
+                content: content,
+                trigger: trigger
+            )
+        )
     }
 }
