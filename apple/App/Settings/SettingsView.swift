@@ -151,7 +151,7 @@ struct SettingsView: View {
                     if !watchedPlaces.isEmpty {
                         Text("\(watchedPlaces.count)")
                             .font(ZotFont.pill.weight(.semibold))
-                            .foregroundStyle(.uciBlue)
+                            .foregroundStyle(Color.uciBlue)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Color.uciBlue.opacity(0.12), in: Capsule())
