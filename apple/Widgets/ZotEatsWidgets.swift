@@ -353,8 +353,8 @@ enum HallOption: String, AppEnum {
     case anteatery
     case brandywine
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Dining Hall"
-    static var caseDisplayRepresentations: [HallOption: DisplayRepresentation] = [
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Dining Hall"
+    static let caseDisplayRepresentations: [HallOption: DisplayRepresentation] = [
         .auto: DisplayRepresentation(title: "Auto (open now)"),
         .anteatery: DisplayRepresentation(title: "The Anteatery"),
         .brandywine: DisplayRepresentation(title: "Brandywine"),
@@ -370,8 +370,8 @@ enum HallOption: String, AppEnum {
 }
 
 struct TodaysMenuConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Today's Menu"
-    static var description: IntentDescription = IntentDescription(
+    static let title: LocalizedStringResource = "Today's Menu"
+    static let description: IntentDescription = IntentDescription(
         "Pick which dining hall's menu to show."
     )
 
