@@ -207,6 +207,21 @@ struct HallOpenStateTests {
         #expect(UCITime.countdown(from: 700, to: 820) == "2h")
     }
 
+    @Test func dateForMinutesStaysTodayWhenStillAhead() {
+        // Thursday 2026-07-09, noon Pacific.
+        let now = ISO8601DateFormatter().date(from: "2026-07-09T19:00:00Z")!
+        let date = UCITime.date(forMinutes: 13 * 60, nowMinutes: 12 * 60, now: now)
+        #expect(UCITime.nowMinutes(now: date) == 13 * 60)
+        #expect(PacificTime.todayISO(now: date) == "2026-07-09")
+    }
+
+    @Test func dateForMinutesRollsToTomorrowWhenPast() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-09T19:00:00Z")!
+        let date = UCITime.date(forMinutes: 8 * 60, nowMinutes: 12 * 60, now: now)
+        #expect(UCITime.nowMinutes(now: date) == 8 * 60)
+        #expect(PacificTime.todayISO(now: date) == "2026-07-10")
+    }
+
     @Test func liveLocationsCarryPeriodWindows() async {
         let service = DiningService(http: FixtureHTTP(), now: { ISO8601DateFormatter().date(from: "2026-07-09T19:30:00Z")! })
         let anteatery = await service.locations().first { $0.id == "anteatery" }!

@@ -23,6 +23,16 @@ public enum UCITime {
         return "\(hours)h \(minutes)m"
     }
 
+    /// Wall-clock `Date` for a Pacific minutes-since-midnight value.
+    /// Rolls to tomorrow when `target` is earlier than `nowMinutes`.
+    public static func date(forMinutes target: Int, nowMinutes: Int, now: Date = Date()) -> Date {
+        let calendar = PacificTime.calendar
+        let startOfDay = calendar.startOfDay(for: now)
+        let minutes = ((target % (24 * 60)) + (24 * 60)) % (24 * 60)
+        let dayOffset = minutes < nowMinutes ? 1 : 0
+        return calendar.date(byAdding: .minute, value: minutes + dayOffset * 24 * 60, to: startOfDay) ?? now
+    }
+
     /// Hour of day in Irvine (0-23), for greetings.
     public static func hour(now: Date = Date()) -> Int {
         PacificTime.nowMinutes(now: now) / 60

@@ -90,11 +90,14 @@ open apple/ZotEats.xcodeproj
 
 ### Shipped
 
-Home-screen widget · favorites when your dish is served · browse tomorrow's menus · dark mode · dietary filters
+Rich Home Screen / Lock Screen widgets (halls, today’s menu with hall picker, campus, ARC, quietest library) · Live Activity countdown · favorite + opening alerts with a Settings test ping · browse tomorrow’s menus · dark mode · dietary filters · deep links into Eat / Campus / Gym / Study
 
 ### Next
 
-- Favorite-dish notifications ("chicken tikka is at Brandywine today")
+- App Group so widgets can mirror favorite dishes and alert toggles
+- Auto-start Live Activity near meal end when dining is open
+- StandBy / larger lock-screen layouts and a richer “what’s for lunch” glance
+- Breakfast-aligned menu-drop reliability for favorite alerts
 - Real dining-hall and ARC busyness the moment campus sensors exist
 
 ## Disclaimer

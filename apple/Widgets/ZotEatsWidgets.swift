@@ -117,6 +117,14 @@ struct DiningStatusEntry: TimelineEntry {
         let statusText: String
         let isOpen: Bool
         let occupancy: Int?
+        /// When set, widget shows a live countdown (closes / opens).
+        let countdownEnd: Date?
+        let countdownKind: CountdownKind?
+
+        enum CountdownKind {
+            case closes
+            case opens
+        }
     }
 }
 
@@ -125,8 +133,8 @@ struct DiningStatusProvider: TimelineProvider {
         DiningStatusEntry(
             date: .now,
             halls: [
-                .init(name: "The Anteatery", statusText: "Dinner · closes 8 PM", isOpen: true, occupancy: 72),
-                .init(name: "Brandywine", statusText: "Dinner · closes 8 PM", isOpen: true, occupancy: 65),
+                .init(name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
+                .init(name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
             ],
             quietest: (name: "Science Library", percent: 12)
         )
@@ -157,11 +165,17 @@ struct DiningStatusProvider: TimelineProvider {
 
         let halls = locations.map { location -> DiningStatusEntry.HallStatus in
             let status: String
+            var countdownEnd: Date?
+            var countdownKind: DiningStatusEntry.HallStatus.CountdownKind?
             switch location.openState(nowMinutes: nowMinutes) {
             case .open(let period, let closesAt):
-                status = "\(period) · closes \(UCITime.format(minutes: closesAt % (24 * 60)))"
+                status = period
+                countdownEnd = UCITime.date(forMinutes: closesAt, nowMinutes: nowMinutes)
+                countdownKind = .closes
             case .openingLater(let period, let opensAt):
-                status = "\(period) at \(UCITime.format(minutes: opensAt))"
+                status = period
+                countdownEnd = UCITime.date(forMinutes: opensAt, nowMinutes: nowMinutes)
+                countdownKind = .opens
             case .closedForToday:
                 status = "Closed for today"
             case .unknown:
@@ -173,7 +187,9 @@ struct DiningStatusProvider: TimelineProvider {
                 statusText: status,
                 isOpen: location.openNow,
                 occupancy: FeatureFlags.diningHallOccupancy && location.openNow && estimate.percentNow > 0
-                    ? estimate.percentNow : nil
+                    ? estimate.percentNow : nil,
+                countdownEnd: countdownEnd,
+                countdownKind: countdownKind
             )
         }
 
@@ -282,12 +298,23 @@ struct DiningStatusView: View {
                         .foregroundStyle(gold)
                 }
             }
-            Text(hall.statusText)
-                .font(.system(size: family == .systemSmall ? 10 : 11))
-                .foregroundStyle(.white.opacity(0.75))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .padding(.leading, 10)
+            HStack(spacing: 4) {
+                Text(hall.statusText)
+                    .font(.system(size: family == .systemSmall ? 10 : 11))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+                if let end = hall.countdownEnd, let kind = hall.countdownKind, end > Date() {
+                    Text(kind == .closes ? "· closes" : "· opens")
+                        .font(.system(size: family == .systemSmall ? 10 : 11))
+                        .foregroundStyle(.white.opacity(0.55))
+                    Text(timerInterval: Date.now...end, countsDown: true)
+                        .font(.system(size: family == .systemSmall ? 10 : 11, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(gold)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .padding(.leading, 10)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -307,8 +334,8 @@ struct DiningStatusView: View {
     DiningStatusEntry(
         date: .now,
         halls: [
-            .init(name: "The Anteatery", statusText: "Dinner · closes 8 PM", isOpen: true, occupancy: 72),
-            .init(name: "Brandywine", statusText: "Dinner at 4:30 PM", isOpen: false, occupancy: nil),
+            .init(name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
+            .init(name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
         ],
         quietest: (name: "Science Library", percent: 12)
     )
@@ -352,6 +379,7 @@ struct TodaysMenuEntry: TimelineEntry {
     let hallName: String
     let period: String
     let dishes: [String]
+    let periodEndsAt: Date?
 }
 
 struct TodaysMenuProvider: AppIntentTimelineProvider {
@@ -360,7 +388,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             date: .now,
             hallName: "The Anteatery",
             period: "Lunch",
-            dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad", "Baked Potato"]
+            dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad", "Baked Potato"],
+            periodEndsAt: .now.addingTimeInterval(45 * 60)
         )
     }
 
@@ -386,7 +415,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             hall = locations.first(where: \.openNow) ?? locations.first
         }
         guard let hall else {
-            return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [])
+            return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], periodEndsAt: nil)
         }
 
         let pills = DiningService.primaryPeriods(from: hall.availablePeriods)
@@ -413,11 +442,19 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 .map(\.name)
                 .filter { seen.insert($0.lowercased()).inserted }
         }
+
+        let periodEndsAt: Date? = {
+            guard let window = timed.first(where: { $0.name.caseInsensitiveCompare(liveName) == .orderedSame }),
+                  let end = window.endMinutes else { return nil }
+            return UCITime.date(forMinutes: end, nowMinutes: nowMinutes)
+        }()
+
         return TodaysMenuEntry(
             date: .now,
             hallName: hall.name,
             period: period,
-            dishes: dishes
+            dishes: dishes,
+            periodEndsAt: periodEndsAt
         )
     }
 }
@@ -459,12 +496,20 @@ struct TodaysMenuView: View {
                     .lineLimit(1)
                 Spacer()
                 if !entry.period.isEmpty {
-                    Text(entry.period)
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(.white.opacity(0.16), in: Capsule())
-                        .foregroundStyle(.white)
+                    HStack(spacing: 5) {
+                        Text(entry.period)
+                            .font(.system(size: 10, weight: .bold))
+                        if let end = entry.periodEndsAt, end > Date() {
+                            Text(timerInterval: Date.now...end, countsDown: true)
+                                .font(.system(size: 10, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(gold)
+                        }
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(.white.opacity(0.16), in: Capsule())
+                    .foregroundStyle(.white)
                 }
             }
             .foregroundStyle(gold)
@@ -511,7 +556,8 @@ struct TodaysMenuView: View {
         date: .now,
         hallName: "The Anteatery",
         period: "Lunch",
-        dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"]
+        dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"],
+        periodEndsAt: .now.addingTimeInterval(45 * 60)
     )
 }
 
