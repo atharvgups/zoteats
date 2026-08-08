@@ -193,10 +193,15 @@ struct DiningStatusProvider: TimelineProvider {
             )
         }
 
-        let quietest = (try? await BusynessService().all())?
-            .filter { $0.isOpen && $0.percent != nil }
-            .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
-            .map { (name: $0.name, percent: $0.percent ?? 0) }
+        let quietest: (name: String, percent: Int)?
+        if let places = try? await BusynessService().all() {
+            quietest = places
+                .filter { place in place.isOpen && place.percent != nil }
+                .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
+                .map { (name: $0.name, percent: $0.percent ?? 0) }
+        } else {
+            quietest = nil
+        }
 
         return DiningStatusEntry(date: .now, halls: halls, quietest: quietest)
     }
@@ -935,7 +940,7 @@ struct QuietestLibraryProvider: TimelineProvider {
             return QuietestLibraryEntry(date: .now, name: best.title, percent: best.percent)
         }
         if let quietest = pool
-            .filter { $0.isOpen && $0.percent != nil }
+            .filter({ place in place.isOpen && place.percent != nil })
             .min(by: { ($0.percent ?? 101) < ($1.percent ?? 101) }) {
             return QuietestLibraryEntry(date: .now, name: quietest.name, percent: quietest.percent)
         }
