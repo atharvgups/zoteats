@@ -730,20 +730,29 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
                 "attributes": {"submitted": True},
             }
         },
+        ok_codes={200, 201, 409, 422},
     )
+    if confirmed.get("errors") and not confirmed.get("data"):
+        die(
+            "ASC rejected submitted=true. Finish age rating, pricing (Free), App Privacy, "
+            "and a review contact phone in App Store Connect, then re-run. "
+            f"Detail: {json.dumps(confirmed)[:1200]}"
+        )
     state = ((confirmed.get("data") or {}).get("attributes") or {}).get("state")
-    if not state and confirmed.get("already_exists"):
-        info("Submission confirm conflict — checking state.")
+    if not state:
         detail = api("GET", f"/v1/reviewSubmissions/{submission_id}", token)
         state = ((detail.get("data") or {}).get("attributes") or {}).get("state")
-    if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW", "READY_FOR_REVIEW"}:
+    # READY_FOR_REVIEW means the draft is packed but not yet sent to Apple.
+    if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
         info(f"Submitted for App Store review. State: {state}")
         return
-    # Surface raw errors clearly for ASC checklist gaps (screenshots, age rating, etc.).
     die(
-        "Review submission did not enter a reviewed/waiting state. "
-        f"state={state!r} response={json.dumps(confirmed)[:1000]}. "
-        "Check App Store Connect for missing age rating, pricing, screenshots, or privacy."
+        "Review submission is not with App Review yet "
+        f"(state={state!r}). Usually missing: age rating questionnaire, "
+        "price tier (Free), App Privacy “Data Not Collected”, and/or "
+        "REVIEW_CONTACT_PHONE. Fix in App Store Connect, then re-run the "
+        "App Store workflow with submit_only=true. "
+        f"Raw: {json.dumps(confirmed)[:800]}"
     )
 
 
