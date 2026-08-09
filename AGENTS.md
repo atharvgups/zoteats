@@ -53,3 +53,4 @@ renderer (`renderer/`). See `README.md` and `project-plans/` for the design and 
 - Whenever user-facing iOS work is ready to dogfood: push the branch, land it on `main` (or a ship merge the user approved), then **push the next tag** `testflight-x.y.z` (bump past the latest `git tag -l 'testflight-*'`). Do not leave testable UI fixes sitting only in an untagged PR.
 - Tag naming: `testflight-1.0.10` → marketing version `1.0.10`. Watch the **TestFlight** Actions workflow; Internal appears after ASC processing.
 - ASC external group is **`Zot Eats Testers!`** (override with repo var `TESTFLIGHT_EXTERNAL_GROUP_NAME`).
+- **App Store:** push `appstore-x.y.z` (or dispatch **App Store** with `submit_only` against an already-uploaded TestFlight build). Script: `apple/scripts/submit_app_store.py`; listing copy in `apple/AppStore/metadata.json`. First review may still need age rating / pricing / phone filled once in App Store Connect if ASC rejects the API submit.
