@@ -334,6 +334,11 @@ def ensure_review_detail(token: str, version_id: str, meta: dict) -> None:
     first = os.environ.get("REVIEW_CONTACT_FIRST_NAME", "Atharv")
     last = os.environ.get("REVIEW_CONTACT_LAST_NAME", "Gupta")
     phone = os.environ.get("REVIEW_CONTACT_PHONE", "").strip()
+    if not phone:
+        die(
+            "REVIEW_CONTACT_PHONE is required by App Store Connect for App Review. "
+            "Add it as a GitHub Actions secret, then re-run the App Store workflow."
+        )
     existing = api(
         "GET", f"/v1/appStoreVersions/{version_id}/appStoreReviewDetail", token
     ).get("data")
@@ -341,11 +346,10 @@ def ensure_review_detail(token: str, version_id: str, meta: dict) -> None:
         "contactEmail": email,
         "contactFirstName": first,
         "contactLastName": last,
+        "contactPhone": phone,
         "demoAccountRequired": False,
         "notes": meta.get("review_notes", ""),
     }
-    if phone:
-        attrs["contactPhone"] = phone
     if existing:
         api(
             "PATCH",
@@ -647,7 +651,7 @@ def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
 
 
 
-def ensure_age_rating(token: str, version_id: str) -> None:
+def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
     """Mark a clean age questionnaire for a campus utility with no mature content."""
     decl = api(
         "GET",
@@ -656,7 +660,19 @@ def ensure_age_rating(token: str, version_id: str) -> None:
         ok_codes={200, 404},
     ).get("data")
     if not decl:
-        warn("No ageRatingDeclaration on version — complete Age Rating in ASC UI.")
+        # Newer ASC apps hang the questionnaire off appInfo instead.
+        infos = api("GET", f"/v1/apps/{app_id}/appInfos?limit=5", token).get("data") or []
+        for info_row in infos:
+            decl = api(
+                "GET",
+                f"/v1/appInfos/{info_row['id']}/ageRatingDeclaration",
+                token,
+                ok_codes={200, 404},
+            ).get("data")
+            if decl:
+                break
+    if not decl:
+        warn("No ageRatingDeclaration found — complete Age Rating once in App Store Connect.")
         return
     none_keys = [
         "alcoholTobaccoOrDrugUseOrReferences",
