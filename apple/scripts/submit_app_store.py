@@ -646,8 +646,68 @@ def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
         info(f"Uploaded screenshot {rel} → {IPHONE_67_DISPLAY}")
 
 
+
+def ensure_age_rating(token: str, version_id: str) -> None:
+    """Mark a clean age questionnaire for a campus utility with no mature content."""
+    decl = api(
+        "GET",
+        f"/v1/appStoreVersions/{version_id}/ageRatingDeclaration",
+        token,
+        ok_codes={200, 404},
+    ).get("data")
+    if not decl:
+        warn("No ageRatingDeclaration on version — complete Age Rating in ASC UI.")
+        return
+    none_keys = [
+        "alcoholTobaccoOrDrugUseOrReferences",
+        "contests",
+        "gamblingSimulated",
+        "medicalOrTreatmentInformation",
+        "profanityOrCrudeHumor",
+        "sexualContentGraphicAndNudity",
+        "sexualContentOrNudity",
+        "horrorOrFearThemes",
+        "matureOrSuggestiveThemes",
+        "violenceCartoonOrFantasy",
+        "violenceRealistic",
+        "violenceRealisticProlongedGraphicOrSadistic",
+        "gunsOrOtherWeapons",
+    ]
+    # Prefer modern INFREQUENT/FREQUENT enums; fall back values still accepted as NONE.
+    attrs = {k: "NONE" for k in none_keys}
+    attrs.update(
+        {
+            "gambling": False,
+            "unrestrictedWebAccess": False,
+            "lootBox": False,
+            "healthOrWellnessTopics": False,
+            "messagingAndChat": False,
+            "parentalControls": False,
+            "ageAssurance": False,
+        }
+    )
+    result = api(
+        "PATCH",
+        f"/v1/ageRatingDeclarations/{decl['id']}",
+        token,
+        {
+            "data": {
+                "type": "ageRatingDeclarations",
+                "id": decl["id"],
+                "attributes": attrs,
+            }
+        },
+        ok_codes={200, 204, 409, 422},
+    )
+    if result.get("errors") and not result.get("data"):
+        warn(f"Age rating PATCH incomplete: {json.dumps(result)[:500]}")
+    else:
+        info("Updated age rating declaration (all content descriptors NONE).")
+
+
+
+
 def submit_for_review(token: str, app_id: str, version_id: str) -> None:
-    # Reuse an open submission if one exists.
     q = urllib.parse.urlencode(
         {
             "filter[app]": app_id,
@@ -656,7 +716,6 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         }
     )
     existing = api("GET", f"/v1/reviewSubmissions?{q}", token).get("data") or []
-    submission_id = None
     for sub in existing:
         state = (sub.get("attributes") or {}).get("state")
         info(f"Existing reviewSubmission state={state}")
@@ -664,36 +723,39 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
             info(f"Already in review (state={state}). Nothing to do.")
             return
         if state in {"READY_FOR_REVIEW", "UNRESOLVED_ISSUES"}:
-            submission_id = sub["id"]
-            break
+            # Cancel stale drafts so we can create a clean submission with the version attached.
+            api(
+                "PATCH",
+                f"/v1/reviewSubmissions/{sub['id']}",
+                token,
+                {
+                    "data": {
+                        "type": "reviewSubmissions",
+                        "id": sub["id"],
+                        "attributes": {"canceled": True},
+                    }
+                },
+                ok_codes={200, 204, 409, 422},
+            )
+            info(f"Canceled stale review submission {sub['id']} (was {state}).")
 
-    if submission_id is None:
-        created = api(
-            "POST",
-            "/v1/reviewSubmissions",
-            token,
-            {
-                "data": {
-                    "type": "reviewSubmissions",
-                    "attributes": {"platform": "IOS"},
-                    "relationships": {
-                        "app": {"data": {"type": "apps", "id": app_id}}
-                    },
-                }
-            },
-        )
-        if created.get("already_exists"):
-            existing = api("GET", f"/v1/reviewSubmissions?{q}", token).get("data") or []
-            for sub in existing:
-                state = (sub.get("attributes") or {}).get("state")
-                if state in {"READY_FOR_REVIEW", "UNRESOLVED_ISSUES"}:
-                    submission_id = sub["id"]
-                    break
-        else:
-            submission_id = (created.get("data") or {}).get("id")
-
+    created = api(
+        "POST",
+        "/v1/reviewSubmissions",
+        token,
+        {
+            "data": {
+                "type": "reviewSubmissions",
+                "attributes": {"platform": "IOS"},
+                "relationships": {
+                    "app": {"data": {"type": "apps", "id": app_id}}
+                },
+            }
+        },
+    )
+    submission_id = (created.get("data") or {}).get("id")
     if not submission_id:
-        die("Could not create or find a review submission.")
+        die(f"Could not create review submission: {json.dumps(created)[:800]}")
 
     item = api(
         "POST",
@@ -712,48 +774,71 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
                 },
             }
         },
-        ok_codes={200, 201, 409},
-    )
-    if item.get("already_exists"):
-        info("Version already on the review submission.")
-    else:
-        info("Added app store version to review submission.")
-
-    confirmed = api(
-        "PATCH",
-        f"/v1/reviewSubmissions/{submission_id}",
-        token,
-        {
-            "data": {
-                "type": "reviewSubmissions",
-                "id": submission_id,
-                "attributes": {"submitted": True},
-            }
-        },
         ok_codes={200, 201, 409, 422},
     )
-    if confirmed.get("errors") and not confirmed.get("data"):
+    if item.get("errors") and not item.get("data") and not item.get("already_exists"):
+        die(f"Could not add appStoreVersion to review submission: {json.dumps(item)[:1000]}")
+
+    items = api(
+        "GET",
+        f"/v1/reviewSubmissions/{submission_id}/items?limit=20",
+        token,
+        ok_codes={200, 404},
+    ).get("data") or []
+    info(f"Review submission items: {len(items)}")
+    if not items:
         die(
-            "ASC rejected submitted=true. Finish age rating, pricing (Free), App Privacy, "
-            "and a review contact phone in App Store Connect, then re-run. "
-            f"Detail: {json.dumps(confirmed)[:1200]}"
+            "Review submission has zero items after attach — ASC will reject submit. "
+            "Confirm the version has a build, screenshots, and is PREPARE_FOR_SUBMISSION."
         )
+
+    # Do not treat 409 as success here — we need the real error body.
+    url = f"{API}/v1/reviewSubmissions/{submission_id}"
+    body = {
+        "data": {
+            "type": "reviewSubmissions",
+            "id": submission_id,
+            "attributes": {"submitted": True},
+        }
+    }
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="PATCH",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            raw = resp.read()
+            confirmed = json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        die(
+            "ASC rejected submitted=true. In App Store Connect complete: "
+            "Pricing (Free), App Privacy (Data Not Collected), Age Rating (if still open), "
+            "and a Review contact phone. Then re-run. "
+            f"HTTP {exc.code}: {detail[:1200]}"
+        )
+
     state = ((confirmed.get("data") or {}).get("attributes") or {}).get("state")
     if not state:
         detail = api("GET", f"/v1/reviewSubmissions/{submission_id}", token)
         state = ((detail.get("data") or {}).get("attributes") or {}).get("state")
-    # READY_FOR_REVIEW means the draft is packed but not yet sent to Apple.
     if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
         info(f"Submitted for App Store review. State: {state}")
         return
     die(
         "Review submission is not with App Review yet "
-        f"(state={state!r}). Usually missing: age rating questionnaire, "
-        "price tier (Free), App Privacy “Data Not Collected”, and/or "
-        "REVIEW_CONTACT_PHONE. Fix in App Store Connect, then re-run the "
-        "App Store workflow with submit_only=true. "
+        f"(state={state!r}). Finish Pricing (Free) + App Privacy in App Store Connect, "
+        "set GitHub secret REVIEW_CONTACT_PHONE if asked, then re-run appstore-* . "
         f"Raw: {json.dumps(confirmed)[:800]}"
     )
+
 
 
 def main() -> None:
@@ -775,6 +860,7 @@ def main() -> None:
     ensure_app_info(token, app_id, meta)
     loc_id = ensure_version_localization(token, version_id, meta)
     ensure_review_detail(token, version_id, meta)
+    ensure_age_rating(token, version_id)
     try:
         ensure_screenshots(token, loc_id, meta)
     except SystemExit:
