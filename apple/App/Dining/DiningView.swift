@@ -55,13 +55,23 @@ struct DiningView: View {
             )
             .refreshable { await refresh() }
             .task { await store.loadLocations() }
-            .task(id: menuTaskID) { await loadCurrentMenu() }
-            .onChange(of: store.locations.value) { syncPeriodSelection() }
+            .task(id: menuTaskID) {
+                await loadCurrentMenu()
+                considerAutoMealActivity()
+            }
+            .onChange(of: store.locations.value) {
+                syncPeriodSelection()
+                considerAutoMealActivity()
+            }
             .onChange(of: store.publishedDateRange) { syncDateSelection() }
-            .onChange(of: selectedHall) { syncPeriodSelection() }
+            .onChange(of: selectedHall) {
+                syncPeriodSelection()
+                considerAutoMealActivity()
+            }
             .onAppear {
                 syncPeriodSelection()
                 syncDateSelection()
+                considerAutoMealActivity()
             }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
@@ -467,6 +477,28 @@ struct DiningView: View {
         await store.loadLocations()
         syncPeriodSelection()
         await loadCurrentMenu()
+        considerAutoMealActivity()
+    }
+
+    /// When a meal is in its last ~45 minutes, start the Dynamic Island countdown
+    /// without requiring a tap (respects Settings → Auto meal countdown).
+    private func considerAutoMealActivity() {
+        guard selectedDate == nil,
+              let location = selectedLocation,
+              let period = selectedPeriod,
+              let window = location.periods.first(where: {
+                  $0.name.caseInsensitiveCompare(period) == .orderedSame
+              }),
+              let start = window.startMinutes,
+              let end = window.endMinutes
+        else { return }
+        mealActivity.autoStartIfNeeded(
+            hallName: location.name,
+            hallID: location.id,
+            period: period,
+            startMinutes: start,
+            endMinutes: end
+        )
     }
 
     /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner).

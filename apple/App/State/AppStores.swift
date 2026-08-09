@@ -145,14 +145,17 @@ final class BusynessStore {
 @MainActor
 @Observable
 final class Preferences {
-    private static let favoritesKey = "zoteats.favoriteDishNames"
     private static let dietFiltersKey = "zoteats.dietFilters"
     private static let allergenAvoidsKey = "zoteats.allergenAvoids"
     private static let legacyDietFilterKey = "zoteats.dietFilter"
 
-    /// Favorite dishes by name (dish IDs rotate daily; names are stable).
+    /// Favorite dishes by name (IDs rotate daily; names are stable).
+    /// Mirrored into the App Group so Today's Menu widgets can pin them.
     var favoriteDishNames: Set<String> {
-        didSet { UserDefaults.standard.set(Array(favoriteDishNames), forKey: Self.favoritesKey) }
+        didSet {
+            SharedDefaults.setFavoriteDishNames(Array(favoriteDishNames).sorted())
+            WidgetReloader.reloadTodaysMenu()
+        }
     }
 
     /// Active dietary filter tags (AND). Empty = show everything.
@@ -182,7 +185,7 @@ final class Preferences {
     }
 
     init() {
-        favoriteDishNames = Set(UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? [])
+        favoriteDishNames = Set(SharedDefaults.favoriteDishNames())
         if let saved = UserDefaults.standard.stringArray(forKey: Self.dietFiltersKey) {
             dietFilters = Set(saved)
         } else if let legacy = UserDefaults.standard.string(forKey: Self.legacyDietFilterKey) {

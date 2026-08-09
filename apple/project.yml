@@ -57,6 +57,8 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: Anteats
             CFBundleURLSchemes: [anteats]
+    entitlements:
+      path: App/ZotEats.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats
@@ -67,6 +69,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGN_ENTITLEMENTS: App/ZotEats.entitlements
 
   ZotEatsWidgets:
     type: app-extension
@@ -81,12 +84,15 @@ targets:
         CFBundleDisplayName: Anteats
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widgets/ZotEatsWidgets.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats.widgets
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: "NO"
         SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: Widgets/ZotEatsWidgets.entitlements
 
   ZotEatsUITests:
     type: bundle.ui-testing

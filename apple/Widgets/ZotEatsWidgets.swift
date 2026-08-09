@@ -373,6 +373,8 @@ struct TodaysMenuEntry: TimelineEntry {
     let hallName: String
     let period: String
     let dishes: [String]
+    /// Dish names that are favorited (subset of `dishes`), for heart markers.
+    let favorited: Set<String>
     let periodEndsAt: Date?
 }
 
@@ -383,6 +385,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             hallName: "The Anteatery",
             period: "Lunch",
             dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad", "Baked Potato"],
+            favorited: ["Crispy Okra"],
             periodEndsAt: .now.addingTimeInterval(45 * 60)
         )
     }
@@ -409,7 +412,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             hall = locations.first(where: \.openNow) ?? locations.first
         }
         guard let hall else {
-            return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], periodEndsAt: nil)
+            return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], favorited: [], periodEndsAt: nil)
         }
 
         let pills = DiningService.primaryPeriods(from: hall.availablePeriods)
@@ -437,6 +440,12 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 .filter { seen.insert($0.lowercased()).inserted }
         }
 
+        let prioritized = SharedDefaults.prioritizeFavorites(
+            dishes: dishes,
+            favorites: SharedDefaults.favoriteDishNames()
+        )
+        dishes = prioritized.ordered
+
         let periodEndsAt: Date? = {
             guard let window = timed.first(where: { $0.name.caseInsensitiveCompare(liveName) == .orderedSame }),
                   let end = window.endMinutes else { return nil }
@@ -448,6 +457,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             hallName: hall.name,
             period: period,
             dishes: dishes,
+            favorited: prioritized.favorited,
             periodEndsAt: periodEndsAt
         )
     }
@@ -467,7 +477,7 @@ struct TodaysMenuWidget: Widget {
                 .widgetURL(AnteatsWidgetURL.eat)
         }
         .configurationDisplayName("Today's Menu")
-        .description("What's being served — pick Anteatery or Brandywine, or auto.")
+        .description("What's being served — favorites float to the top. Pick a hall or auto.")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
@@ -518,9 +528,15 @@ struct TodaysMenuView: View {
             } else {
                 ForEach(dishes, id: \.self) { dish in
                     HStack(spacing: 6) {
-                        Circle()
-                            .fill(gold)
-                            .frame(width: 3.5, height: 3.5)
+                        if entry.favorited.contains(dish) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(gold)
+                        } else {
+                            Circle()
+                                .fill(gold)
+                                .frame(width: 3.5, height: 3.5)
+                        }
                         Text(dish)
                             .font(.system(size: family == .systemLarge ? 13 : 12, weight: .medium))
                             .foregroundStyle(.white)
@@ -551,6 +567,7 @@ struct TodaysMenuView: View {
         hallName: "The Anteatery",
         period: "Lunch",
         dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"],
+        favorited: ["Crispy Okra"],
         periodEndsAt: .now.addingTimeInterval(45 * 60)
     )
 }

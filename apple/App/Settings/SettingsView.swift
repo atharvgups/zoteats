@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var showZot = false
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
+    @State private var autoMealActivity = MealActivityManager.autoStartEnabled
     @State private var alertsDenied = false
     @State private var watchedPlaces = OpeningAlerts.watchedIDs
     @State private var showOpeningAlerts = false
@@ -31,6 +32,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
                         alertsCard
+                        liveActivityCard
                         widgetsCard
                         aboutCard
                         dataSourcesCard
@@ -199,6 +201,34 @@ struct SettingsView: View {
         .zotCard()
     }
 
+    // MARK: - Live Activity
+
+    private var liveActivityCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Live Activity")
+                .font(ZotFont.sectionTitle)
+
+            Toggle(isOn: $autoMealActivity) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto meal countdown")
+                        .font(ZotFont.body)
+                    Text("When a hall meal is in its last \(MealActivityManager.autoStartWindowMinutes) minutes, start the Dynamic Island / Lock Screen timer automatically.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .tint(.uciBlue)
+            .accessibilityIdentifier("auto-meal-activity-toggle")
+            .onChange(of: autoMealActivity) { _, enabled in
+                MealActivityManager.autoStartEnabled = enabled
+                Haptics.selection()
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+    }
+
     // MARK: - Widgets
 
     private var widgetsCard: some View {
@@ -212,14 +242,14 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in / opens-at")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick Anteatery or Brandywine (medium/large)")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick a hall; hearted dishes float to the top")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets that are open")
                 widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness (also on Lock Screen)")
                 widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
             }
             .padding(.top, 4)
 
-            Text("Tip: Edit the Today's Menu widget to choose a hall. Track a live meal on Eat for the Dynamic Island countdown.")
+            Text("Tip: Edit Today's Menu to choose a hall. Favorites sync via App Group. Meal countdown can auto-start in the last 45 minutes (Settings → Live Activity).")
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
