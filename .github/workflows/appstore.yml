@@ -49,7 +49,7 @@ jobs:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       REVIEW_CONTACT_PHONE: ${{ secrets.REVIEW_CONTACT_PHONE }}
-      SUBMIT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.submit_only || github.event_name == 'push' && false }}
+      SUBMIT_ONLY: ${{ github.event_name == 'push' || inputs.submit_only }}
       # Tag pushes always submit; workflow_dispatch honors the checkbox (default true).
       SUBMIT_FOR_REVIEW: ${{ github.event_name == 'push' && 'true' || inputs.submit_for_review }}
     steps:
