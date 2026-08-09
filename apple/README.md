@@ -8,7 +8,7 @@ This directory contains the native SwiftUI app and its data layer.
 - `project.yml` — [XcodeGen](https://github.com/yonaskolb/XcodeGen) spec; the Xcode project is generated, never committed: `xcodegen generate --spec apple/project.yml --project apple/`.
 - `AppStore/` — listing metadata and privacy policy.
 
-CI (`.github/workflows/ios.yml`) runs package tests on every push; the macOS build + simulator screenshots + demo recording run on demand (commits containing `[demo]`, or manual dispatch). TestFlight uploads run via the `testflight-*` tag or manual dispatch (`.github/workflows/testflight.yml`).
+CI (`.github/workflows/ios.yml`) runs package tests on every push; the macOS build + simulator screenshots + demo recording run on demand (commits containing `[demo]`, or manual dispatch). TestFlight uploads run via the `testflight-*` tag or manual dispatch (`.github/workflows/testflight.yml`). App Store listing prep + App Review submission run via `appstore-*` tags or the **App Store** workflow (`.github/workflows/appstore.yml`) using `apple/scripts/submit_app_store.py` and `apple/AppStore/metadata.json`.
 
 ### TestFlight external testers (auto, one behind)
 

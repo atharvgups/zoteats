@@ -67,6 +67,7 @@ apple/
 - **Swift 6** with strict concurrency, `@Observable` stores, no external dependencies.
 - **CI** builds the app on macOS runners, captures light + dark screenshots of every screen, and records a full demo video on `[demo]` commits. Package tests run on every push.
 - **TestFlight** releases ship by pushing a `testflight-x.y.z` tag (or workflow dispatch). External testers automatically get the previous build when the next one uploads — see `apple/README.md`.
+- **App Store** submission: push an `appstore-x.y.z` tag (or run the **App Store** workflow) to attach the build, apply listing metadata/screenshots, and submit for App Review.
 - The repo root also contains the original [Glaze](https://glazeapp.com) desktop prototype this project grew out of.
 
 ## Development
@@ -86,7 +87,7 @@ open apple/ZotEats.xcodeproj
 
 ## Status
 
-**Beta** — build from source (commands above) or watch for TestFlight tags (`testflight-x.y.z`). Unofficial student project; not affiliated with UC Irvine.
+**Beta → App Store** — dogfood via TestFlight (`testflight-x.y.z`), then ship review with `appstore-x.y.z`. Unofficial student project; not affiliated with UC Irvine.
 
 ### Shipped
 
