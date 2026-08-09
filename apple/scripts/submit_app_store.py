@@ -860,7 +860,7 @@ def main() -> None:
     ensure_app_info(token, app_id, meta)
     loc_id = ensure_version_localization(token, version_id, meta)
     ensure_review_detail(token, version_id, meta)
-    ensure_age_rating(token, version_id)
+    ensure_age_rating(token, version_id, app_id)
     try:
         ensure_screenshots(token, loc_id, meta)
     except SystemExit:
