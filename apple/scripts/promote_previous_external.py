@@ -197,6 +197,35 @@ def build_still_exists(token: str, build_id: str) -> bool:
     return bool(result.get("data"))
 
 
+def build_ready_for_external(token: str, build_id: str) -> bool:
+    """True when buildBetaDetail looks attachable to an external group."""
+    result = api(
+        "GET",
+        f"/v1/builds/{build_id}/buildBetaDetail",
+        token,
+        allow_statuses={404},
+    )
+    if result.get("http_status") == 404:
+        info(f"No buildBetaDetail yet for {build_id}.")
+        return False
+    detail = result.get("data") or {}
+    attrs = detail.get("attributes") or {}
+    external_state = attrs.get("externalBuildState") or attrs.get("externalTestingState")
+    internal_state = attrs.get("internalBuildState")
+    info(
+        f"buildBetaDetail {build_id}: internal={internal_state} external={external_state}"
+    )
+    # Deny clearly terminal states; allow missing/unknown (older API shapes).
+    if external_state in {
+        "PROCESSING_EXCEPTION",
+        "MISSING_EXPORT_COMPLIANCE",
+        "EXPIRED",
+        "NOT_THAT_BUILD",
+    }:
+        return False
+    return True
+
+
 def find_external_group(token: str, app_id: str) -> dict:
     q = urllib.parse.urlencode({"filter[app]": app_id, "limit": 50})
     data = api("GET", f"/v1/betaGroups?{q}", token)
