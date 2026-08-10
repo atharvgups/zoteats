@@ -79,7 +79,14 @@ def make_token() -> str:
     )
 
 
-def api(method: str, path: str, token: str, body: dict | None = None) -> dict:
+def api(
+    method: str,
+    path: str,
+    token: str,
+    body: dict | None = None,
+    *,
+    allow_statuses: set[int] | None = None,
+) -> dict:
     url = path if path.startswith("http") else f"{API}{path}"
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(
@@ -102,7 +109,13 @@ def api(method: str, path: str, token: str, body: dict | None = None) -> dict:
         if exc.code == 409:
             info(f"ASC {method} {path} already applied (409): {detail[:300]}")
             return {"errors": [{"status": "409"}], "already_exists": True}
+        if allow_statuses and exc.code in allow_statuses:
+            return {
+                "errors": [{"status": str(exc.code), "detail": detail[:800]}],
+                "http_status": exc.code,
+            }
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+    return {}
 
 
 def find_app_id(token: str) -> str:
@@ -155,18 +168,33 @@ def wait_for_current_build(token: str, app_id: str) -> dict | None:
     )
 
 
-def previous_valid_build(builds: list[dict], current_id: str | None) -> dict | None:
-    candidates = []
+def previous_valid_builds(
+    builds: list[dict], current_id: str | None, *, skip_ids: set[str] | None = None
+) -> list[dict]:
+    """Return prior VALID non-expired builds newest-first (N−1, N−2, …)."""
+    skip = set(skip_ids or ())
+    candidates: list[dict] = []
     for build in builds:
+        build_id = build.get("id")
+        if not build_id or build_id in skip:
+            continue
+        if current_id and build_id == current_id:
+            continue
         attrs = build.get("attributes") or {}
         if attrs.get("expired"):
             continue
         if attrs.get("processingState") != "VALID":
             continue
-        if current_id and build.get("id") == current_id:
-            continue
         candidates.append(build)
-    return candidates[0] if candidates else None
+    return candidates
+
+
+def build_still_exists(token: str, build_id: str) -> bool:
+    """Confirm ASC still has this build (list endpoints can briefly return stale ids)."""
+    result = api("GET", f"/v1/builds/{build_id}", token, allow_statuses={404})
+    if result.get("http_status") == 404:
+        return False
+    return bool(result.get("data"))
 
 
 def find_external_group(token: str, app_id: str) -> dict:
@@ -222,25 +250,24 @@ def ensure_whats_new(token: str, build_id: str) -> None:
     info("Created en-US What's New for the promoted build.")
 
 
-def add_build_to_group(token: str, group_id: str, build_id: str) -> None:
-    result = api(
+def add_build_to_group(token: str, group_id: str, build_id: str) -> dict:
+    return api(
         "POST",
         f"/v1/betaGroups/{group_id}/relationships/builds",
         token,
         {"data": [{"type": "builds", "id": build_id}]},
+        allow_statuses={404},
     )
-    if not result.get("already_exists"):
-        info("Attached previous build to the external group.")
 
 
-def ensure_beta_review(token: str, build_id: str) -> None:
+def ensure_beta_review(token: str, build_id: str) -> dict:
     q = urllib.parse.urlencode({"filter[build]": build_id, "limit": 1})
     existing = api("GET", f"/v1/betaAppReviewSubmissions?{q}", token).get("data") or []
     if existing:
         state = (existing[0].get("attributes") or {}).get("betaReviewState")
         info(f"Beta review already present (state={state}).")
-        return
-    result = api(
+        return {"already_exists": True}
+    return api(
         "POST",
         "/v1/betaAppReviewSubmissions",
         token,
@@ -252,11 +279,35 @@ def ensure_beta_review(token: str, build_id: str) -> None:
                 },
             }
         },
+        allow_statuses={404},
     )
-    if result.get("already_exists"):
-        info("Beta review submission already existed.")
+
+
+def promote_build(token: str, group_id: str, build: dict) -> bool:
+    """Attach + submit one prior build. Returns False if ASC no longer has it."""
+    build_id = build["id"]
+    version = (build.get("attributes") or {}).get("version")
+    if not build_still_exists(token, build_id):
+        info(f"Skipping stale build id {build_id} (version={version}); not found in ASC.")
+        return False
+
+    ensure_whats_new(token, build_id)
+    attach = add_build_to_group(token, group_id, build_id)
+    if attach.get("http_status") == 404:
+        info(f"ASC could not attach build {version} ({build_id}); trying older build.")
+        return False
+    if not attach.get("already_exists"):
+        info("Attached previous build to the external group.")
+
+    review = ensure_beta_review(token, build_id)
+    if review.get("http_status") == 404:
+        info(f"ASC could not submit build {version} ({build_id}) for beta review; trying older.")
+        return False
+    if review.get("already_exists"):
+        pass
     else:
         info("Submitted previous build for external Beta App Review / distribution.")
+    return True
 
 
 def main() -> None:
@@ -269,32 +320,48 @@ def main() -> None:
 
     current = wait_for_current_build(token, app_id)
     current_id = current["id"] if current else None
-    builds = list_builds(token, app_id)
-    previous = previous_valid_build(builds, current_id)
-    if not previous:
-        info(
-            "No previous VALID build to promote yet "
-            "(first upload, or nothing older is ready). Skipping."
-        )
-        return
-
-    prev_attrs = previous.get("attributes") or {}
-    prev_version = prev_attrs.get("version")
-    info(
-        f"Promoting previous build {prev_version} "
-        f"(id={previous['id']}) to external testers; "
-        f"keeping current {BUILD_NUMBER} for internal dogfooding."
-    )
-
     group = find_external_group(token, app_id)
     group_id = group["id"]
     group_name = (group.get("attributes") or {}).get("name")
     info(f"External group: {group_name} ({group_id})")
 
-    ensure_whats_new(token, previous["id"])
-    add_build_to_group(token, group_id, previous["id"])
-    ensure_beta_review(token, previous["id"])
-    info("Done. External testers will get build " f"{prev_version} once review/notify completes.")
+    skip_ids: set[str] = set()
+    # Refetch + walk N−1, N−2, … when ASC returns stale build ids (common after
+    # force-retags of the same marketing version).
+    for attempt in range(5):
+        builds = list_builds(token, app_id, limit=50)
+        candidates = previous_valid_builds(builds, current_id, skip_ids=skip_ids)
+        if not candidates:
+            info(
+                "No previous VALID build to promote yet "
+                "(first upload, or nothing older is ready). Skipping."
+            )
+            return
+
+        previous = candidates[0]
+        prev_attrs = previous.get("attributes") or {}
+        prev_version = prev_attrs.get("version")
+        info(
+            f"Promoting previous build {prev_version} "
+            f"(id={previous['id']}) to external testers; "
+            f"keeping current {BUILD_NUMBER} for internal dogfooding"
+            + (f" (attempt {attempt + 1})." if attempt else ".")
+        )
+
+        if promote_build(token, group_id, previous):
+            info(
+                "Done. External testers will get build "
+                f"{prev_version} once review/notify completes."
+            )
+            return
+
+        skip_ids.add(previous["id"])
+        time.sleep(5)
+
+    die(
+        "Could not promote any previous VALID build to External Testing "
+        f"(skipped stale ids: {sorted(skip_ids)})."
+    )
 
 
 if __name__ == "__main__":

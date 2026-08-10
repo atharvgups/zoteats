@@ -49,8 +49,8 @@ renderer (`renderer/`). See `README.md` and `project-plans/` for the design and 
   `. ~/.swiftly/env.sh` before running `swift`.
 
 ### TestFlight dogfood vs public beta (always ship)
-- **You (Internal Testing) stay on the newest upload. Public/external testers stay one build behind (N−1).** After each successful `testflight-*` upload, CI promotes the previous VALID build to the External Testing group (see `apple/README.md` and `apple/scripts/promote_previous_external.py`).
-- Whenever user-facing iOS work is ready to dogfood: push the branch, land it on `main` (or a ship merge the user approved), then **push the next tag** `testflight-x.y.z` (bump past the latest `git tag -l 'testflight-*'`). Do not leave testable UI fixes sitting only in an untagged PR.
+- **Standing order:** always `git push` the working branch after changes, then ship a new `testflight-x.y.z` so the owner’s **Internal Testing** group gets the newest build (N). Public/external (“Zot Eats Testers!”) stays **one behind (N−1)** via `apple/scripts/promote_previous_external.py` after each successful upload. Never leave dogfood-ready iOS work only in an untagged PR.
+- Prefer a fresh tag bump over force-retagging the same `testflight-*` (force-retags confuse ASC build ids and can break External promote).
 - Tag naming: `testflight-1.0.10` → marketing version `1.0.10`. Watch the **TestFlight** Actions workflow; Internal appears after ASC processing.
 - ASC external group is **`Zot Eats Testers!`** (override with repo var `TESTFLIGHT_EXTERNAL_GROUP_NAME`).
 - **App Store:** push `appstore-x.y.z` (or dispatch **App Store** with `submit_only` against an already-uploaded TestFlight build). Script: `apple/scripts/submit_app_store.py`; listing copy in `apple/AppStore/metadata.json`. First review may still need age rating / pricing / phone filled once in App Store Connect if ASC rejects the API submit.
