@@ -251,11 +251,32 @@ def ensure_whats_new(token: str, build_id: str) -> None:
 
 
 def add_build_to_group(token: str, group_id: str, build_id: str) -> dict:
-    return api(
+    """Attach build↔group. Try both relationship directions; ASC 404s are flaky."""
+    group_first = api(
         "POST",
         f"/v1/betaGroups/{group_id}/relationships/builds",
         token,
         {"data": [{"type": "builds", "id": build_id}]},
+        allow_statuses={404},
+    )
+    if group_first.get("http_status") != 404:
+        return group_first
+
+    detail = ""
+    errors = group_first.get("errors") or []
+    if errors:
+        detail = str(errors[0].get("detail") or "")[:240]
+    info(
+        f"Group→build attach 404 for {build_id}"
+        + (f": {detail}" if detail else "")
+        + "; trying build→group."
+    )
+
+    return api(
+        "POST",
+        f"/v1/builds/{build_id}/relationships/betaGroups",
+        token,
+        {"data": [{"type": "betaGroups", "id": group_id}]},
         allow_statuses={404},
     )
 
