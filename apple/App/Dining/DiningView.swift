@@ -131,7 +131,8 @@ struct DiningView: View {
                     PillRow(
                         items: pills,
                         title: { $0 },
-                        selection: $selectedPeriod
+                        selection: $selectedPeriod,
+                        fillsWidth: true
                     )
                     .accessibilityLabel("Meal period")
                 }
