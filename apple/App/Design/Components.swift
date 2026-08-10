@@ -66,40 +66,62 @@ struct PillRow<Item: Hashable>: View {
     let title: (Item) -> String
     @Binding var selection: Item?
     var allowsDeselect = false
+    /// When true, pills share the row evenly (no horizontal scroll) — used for
+    /// Breakfast / Lunch / Dinner so they match the hall cards' full width.
+    var fillsWidth = false
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(items, id: \.self) { item in
-                    let isSelected = selection == item
-                    Button {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            selection = (isSelected && allowsDeselect) ? nil : item
-                        }
-                        Haptics.selection()
-                    } label: {
-                        Text(title(item))
-                            .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
-                                in: Capsule()
-                            )
-                            .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                            .overlay(
-                                Capsule().strokeBorder(
-                                    isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                    lineWidth: 1
-                                )
-                            )
+        Group {
+            if fillsWidth {
+                HStack(spacing: 8) {
+                    ForEach(items, id: \.self) { item in
+                        pill(item)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 2)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(items, id: \.self) { item in
+                            pill(item)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 2)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 2)
         }
+    }
+
+    private func pill(_ item: Item) -> some View {
+        let isSelected = selection == item
+        return Button {
+            withAnimation(.snappy(duration: 0.25)) {
+                selection = (isSelected && allowsDeselect) ? nil : item
+            }
+            Haptics.selection()
+        } label: {
+            Text(title(item))
+                .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .padding(.horizontal, fillsWidth ? 8 : 14)
+                .padding(.vertical, 8)
+                .background(
+                    isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
+                    in: Capsule()
+                )
+                .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                .overlay(
+                    Capsule().strokeBorder(
+                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                        lineWidth: 1
+                    )
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 
