@@ -340,6 +340,11 @@ def promote_build(token: str, group_id: str, build: dict) -> bool:
     if not build_still_exists(token, build_id):
         info(f"Skipping stale build id {build_id} (version={version}); not found in ASC.")
         return False
+    if not build_ready_for_external(token, build_id):
+        info(
+            f"Skipping build {version} ({build_id}); not ready for external testing yet."
+        )
+        return False
 
     ensure_whats_new(token, build_id)
     attach = add_build_to_group(token, group_id, build_id)
