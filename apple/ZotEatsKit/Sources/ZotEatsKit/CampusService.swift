@@ -184,6 +184,17 @@ public struct CampusService: Sendable {
                     todayISO: PacificTime.todayISO(now: tomorrowDate),
                     weekday: PacificTime.weekdayName(now: tomorrowDate)
                 )
+                let closesAt: Int? = {
+                    guard openNow else { return nil }
+                    // End of the window covering now (skip all-day — no useful boundary).
+                    guard let current = windows.first(where: { $0.contains(minute: nowMinutes) }),
+                          !current.isAllDay
+                    else { return nil }
+                    // Midnight-crossing windows: treat end as next-day minutes for dating.
+                    return current.end % (24 * 60) == 0 && current.end >= 24 * 60
+                        ? 24 * 60
+                        : current.end
+                }()
                 return CampusPlace(
                     id: key,
                     name: name,
@@ -192,6 +203,7 @@ public struct CampusService: Sendable {
                     todayHours: Self.format(windows: windows),
                     hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
                     opensAtMinutes: openNow ? nil : windows.map(\.start).filter { $0 > nowMinutes }.min(),
+                    closesAtMinutes: closesAt,
                     opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min()
                 )
             }

@@ -718,13 +718,37 @@ struct CampusOpenProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<CampusOpenEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let entry = await fetchEntry()
-            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(20 * 60))))
+            let places = (try? await CampusService().places()) ?? []
+            let entry = entry(from: places)
+            let reload = Self.nextCampusReload(now: .now, places: places)
+            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
+    }
+
+    /// Prefer close / next-open boundaries so Open Now flips without waiting on a fixed cadence.
+    private static func nextCampusReload(now: Date, places: [CampusPlace]) -> Date {
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        var boundaries: [Date] = []
+        for place in places {
+            if let minutes = place.closesAtMinutes {
+                boundaries.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
+            }
+            if let minutes = place.opensAtMinutes {
+                boundaries.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
+            }
+            if let minutes = place.opensTomorrowAtMinutes {
+                boundaries.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
+            }
+        }
+        return WidgetRefreshMath.nextReload(now: now, boundaries: boundaries, maxInterval: 20 * 60)
     }
 
     private func fetchEntry() async -> CampusOpenEntry {
         let places = (try? await CampusService().places()) ?? []
+        return entry(from: places)
+    }
+
+    private func entry(from places: [CampusPlace]) -> CampusOpenEntry {
         let open = places
             .filter(\.openNow)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -877,7 +901,14 @@ struct ArcStatusProvider: TimelineProvider {
         let deliver = UncheckedSendableBox(completion)
         Task {
             let entry = await fetchEntry()
-            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(15 * 60))))
+            let now = Date()
+            let boundary = GymService.nextScheduleBoundary(now: now)
+            let reload = WidgetRefreshMath.nextReload(
+                now: now,
+                boundaries: boundary.map { [$0] } ?? [],
+                maxInterval: 15 * 60
+            )
+            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
     }
 

@@ -91,4 +91,30 @@ public struct GymService: Sendable {
             quietestSummary: typical.quietestSummary
         )
     }
+
+    /// Next schedule open or close as a wall-clock `Date` (Irvine), for widget reload.
+    /// Uses the maintained weekly schedule — live hours strings aren't reliably parseable.
+    public static func nextScheduleBoundary(now: Date = Date()) -> Date? {
+        let weekday = PacificTime.weekdayName(now: now)
+        let minutes = PacificTime.nowMinutes(now: now)
+        guard let idx = arcWeek.firstIndex(where: { $0.day == weekday }) else { return nil }
+        let today = arcWeek[idx]
+        let openM = today.open * 60
+        let closeM = today.close * 60 // 24 → 1440 (midnight)
+
+        if minutes < openM {
+            return UCITime.date(forMinutes: openM, nowMinutes: minutes, now: now)
+        }
+        if minutes < closeM {
+            if closeM >= 24 * 60 {
+                let calendar = PacificTime.calendar
+                let start = calendar.startOfDay(for: now)
+                return calendar.date(byAdding: .day, value: 1, to: start)
+            }
+            return UCITime.date(forMinutes: closeM, nowMinutes: minutes, now: now)
+        }
+        // After today's close — next day's open (rolls via UCITime when open < now).
+        let next = arcWeek[(idx + 1) % arcWeek.count]
+        return UCITime.date(forMinutes: next.open * 60, nowMinutes: minutes, now: now)
+    }
 }

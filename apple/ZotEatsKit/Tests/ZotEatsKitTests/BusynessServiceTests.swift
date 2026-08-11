@@ -87,4 +87,32 @@ struct GymServiceTests {
             #expect(status.hoursApproximate)
         }
     }
+
+    @Test func nextScheduleBoundaryIsMidnightWhenOpenUntilClose() {
+        // Thursday 12:30 PM Pacific — schedule open 6 AM–midnight → next boundary is Friday 12 AM.
+        let boundary = GymService.nextScheduleBoundary(now: fixtureNow)
+        #expect(boundary != nil)
+        let calendar = PacificTime.calendar
+        let startOfDay = calendar.startOfDay(for: fixtureNow)
+        let expected = calendar.date(byAdding: .day, value: 1, to: startOfDay)
+        #expect(boundary == expected)
+    }
+
+    @Test func nextScheduleBoundaryIsOpenWhenBeforeOpen() {
+        // Thursday 5:00 AM Pacific — opens at 6 AM.
+        let early = ISO8601DateFormatter().date(from: "2026-07-09T12:00:00Z")!
+        let boundary = GymService.nextScheduleBoundary(now: early)
+        let minutes = PacificTime.nowMinutes(now: early)
+        let expected = UCITime.date(forMinutes: 6 * 60, nowMinutes: minutes, now: early)
+        #expect(boundary == expected)
+    }
+
+    @Test func nextScheduleBoundaryIsSundayOpenAfterSaturdayClose() {
+        // Saturday 10:00 PM Pacific — closed after 9 PM; next open is Sunday 8 AM.
+        let saturdayNight = ISO8601DateFormatter().date(from: "2026-07-12T05:00:00Z")!
+        let boundary = GymService.nextScheduleBoundary(now: saturdayNight)
+        let minutes = PacificTime.nowMinutes(now: saturdayNight)
+        let expected = UCITime.date(forMinutes: 8 * 60, nowMinutes: minutes, now: saturdayNight)
+        #expect(boundary == expected)
+    }
 }

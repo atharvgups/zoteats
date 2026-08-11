@@ -34,6 +34,9 @@ struct CampusServiceTests {
         #expect(starbucks != nil)
         #expect(starbucks?.openNow == true) // Monday 10 AM within 07:30-16:00
         #expect(starbucks?.todayHours?.contains("7:30 AM") == true)
+        // Open venues expose close minutes so Campus Open widgets can reload at the boundary.
+        #expect(starbucks?.closesAtMinutes == 16 * 60)
+        #expect(starbucks?.opensAtMinutes == nil)
     }
 
     @Test func weekendOffMeansClosedWithNoHours() async throws {
@@ -41,6 +44,7 @@ struct CampusServiceTests {
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
         #expect(starbucks?.openNow == false)
         #expect(starbucks?.todayHours == nil)
+        #expect(starbucks?.closesAtMinutes == nil)
         // Sunday evening watchers still need Monday's open for opening alerts.
         #expect(starbucks?.opensTomorrowAtMinutes == 7 * 60 + 30)
     }

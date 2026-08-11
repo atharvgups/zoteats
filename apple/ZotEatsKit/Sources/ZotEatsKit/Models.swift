@@ -307,6 +307,9 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     /// Minutes-since-midnight of today's next opening, when currently closed
     /// but opening later today. Nil while open or done for the day.
     public let opensAtMinutes: Int?
+    /// When open: end of the current window (Irvine minutes). Nil when closed,
+    /// open 24h, or hours unknown — drives Campus widget reload boundaries.
+    public let closesAtMinutes: Int?
     /// Tomorrow's earliest opening (Irvine), for evening opening-alert schedules
     /// after today's windows have passed. Nil when hours are unknown.
     public let opensTomorrowAtMinutes: Int?
@@ -319,6 +322,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         todayHours: String?,
         hasMenu: Bool = false,
         opensAtMinutes: Int? = nil,
+        closesAtMinutes: Int? = nil,
         opensTomorrowAtMinutes: Int? = nil
     ) {
         self.id = id
@@ -328,6 +332,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.todayHours = todayHours
         self.hasMenu = hasMenu
         self.opensAtMinutes = opensAtMinutes
+        self.closesAtMinutes = closesAtMinutes
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
     }
 
