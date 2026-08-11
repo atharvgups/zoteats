@@ -45,4 +45,24 @@ struct WidgetRefreshMathTests {
         )
         #expect(reload == now.addingTimeInterval(20 * 60))
     }
+
+    @Test func quietestOpenUsesShortCadence() {
+        let reload = WidgetRefreshMath.nextQuietestReload(now: now, anyLibraryOpen: true)
+        #expect(reload == now.addingTimeInterval(10 * 60))
+    }
+
+    @Test func quietestClosedUsesLongCadence() {
+        let reload = WidgetRefreshMath.nextQuietestReload(now: now, anyLibraryOpen: false)
+        #expect(reload == now.addingTimeInterval(60 * 60))
+    }
+
+    @Test func quietestBoundaryBeatsOpenCadence() {
+        let close = now.addingTimeInterval(3 * 60)
+        let reload = WidgetRefreshMath.nextQuietestReload(
+            now: now,
+            anyLibraryOpen: true,
+            boundaries: [close]
+        )
+        #expect(reload == close.addingTimeInterval(2))
+    }
 }

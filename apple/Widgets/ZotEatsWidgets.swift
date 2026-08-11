@@ -189,8 +189,9 @@ struct DiningStatusProvider: TimelineProvider {
 
         let quietest: (name: String, percent: Int)?
         if let places = try? await BusynessService().all() {
+            // Match the Quietest Library widget — books icon implies libraries.
             quietest = places
-                .filter { place in place.isOpen && place.percent != nil }
+                .filter { $0.category == "Library" && $0.isOpen && $0.percent != nil }
                 .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
                 .map { (name: $0.name, percent: $0.percent ?? 0) }
         } else {
@@ -1099,13 +1100,22 @@ struct QuietestLibraryProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuietestLibraryEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let entry = await fetchEntry()
-            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(15 * 60))))
+            let facilities = (try? await BusynessService().all()) ?? []
+            let entry = Self.entry(from: facilities)
+            let libraries = facilities.filter { $0.category == "Library" }
+            let pool = libraries.isEmpty ? facilities : libraries
+            let anyOpen = pool.contains(where: \.isOpen)
+            let reload = WidgetRefreshMath.nextQuietestReload(now: .now, anyLibraryOpen: anyOpen)
+            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
     }
 
     private func fetchEntry() async -> QuietestLibraryEntry {
         let facilities = (try? await BusynessService().all()) ?? []
+        return Self.entry(from: facilities)
+    }
+
+    private static func entry(from facilities: [BusynessPoint]) -> QuietestLibraryEntry {
         let libraries = facilities.filter { $0.category == "Library" }
         let pool = libraries.isEmpty ? facilities : libraries
 
@@ -1127,7 +1137,7 @@ struct QuietestLibraryProvider: TimelineProvider {
         return QuietestLibraryEntry(date: .now, name: "Libraries closed", percent: nil)
     }
 
-    private func shortLibrary(_ name: String) -> String {
+    private static func shortLibrary(_ name: String) -> String {
         name
             .replacingOccurrences(of: " Library", with: "")
             .replacingOccurrences(of: "Science", with: "Sci Lib")

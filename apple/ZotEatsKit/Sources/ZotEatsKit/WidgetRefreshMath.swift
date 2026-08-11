@@ -22,4 +22,19 @@ public enum WidgetRefreshMath {
         let afterBoundary = soonest.addingTimeInterval(max(0, padPastBoundary))
         return min(afterBoundary, cap)
     }
+
+    /// Quietest Library: Waitz rarely exposes parseable open/close times, so
+    /// bias the cadence by occupancy usefulness — short while libraries are
+    /// open (percents move), long when everything is closed overnight.
+    public static func nextQuietestReload(
+        now: Date,
+        anyLibraryOpen: Bool,
+        boundaries: [Date] = []
+    ) -> Date {
+        nextReload(
+            now: now,
+            boundaries: boundaries,
+            maxInterval: anyLibraryOpen ? 10 * 60 : 60 * 60
+        )
+    }
 }
