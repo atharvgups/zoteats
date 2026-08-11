@@ -968,12 +968,28 @@ struct ArcStatusEntry: TimelineEntry {
     let date: Date
     let isOpen: Bool
     let hoursLine: String
-    let livePercent: Int?
+    /// Live Waitz % or typical-pattern estimate (see `isTypical`).
+    let percent: Int?
+    let isTypical: Bool
+
+    init(
+        date: Date,
+        isOpen: Bool,
+        hoursLine: String,
+        percent: Int?,
+        isTypical: Bool = false
+    ) {
+        self.date = date
+        self.isOpen = isOpen
+        self.hoursLine = hoursLine
+        self.percent = percent
+        self.isTypical = isTypical
+    }
 }
 
 struct ArcStatusProvider: TimelineProvider {
     func placeholder(in context: Context) -> ArcStatusEntry {
-        ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12 AM", livePercent: 42)
+        ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12 AM", percent: 42)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ArcStatusEntry) -> Void) {
@@ -1009,14 +1025,13 @@ struct ArcStatusProvider: TimelineProvider {
             }
             return status.openNow ? "Open · \(hours)" : "Closed · \(hours)"
         }()
-        let livePercent = status.busyness.flatMap { point in
-            point.source == .live ? point.percent : nil
-        }
+        let crowding = ArcWidgetGlance.crowding(from: status)
         return ArcStatusEntry(
             date: .now,
             isOpen: status.openNow,
             hoursLine: hoursLine,
-            livePercent: livePercent
+            percent: crowding?.percent,
+            isTypical: crowding?.isTypical ?? false
         )
     }
 }
@@ -1028,7 +1043,7 @@ struct ArcStatusWidget: Widget {
                 .widgetURL(AnteatsWidgetURL.gym)
         }
         .configurationDisplayName("ARC Gym")
-        .description("Is the ARC open — and how full is it (live sensors only).")
+        .description("Is the ARC open — and how full is it (live sensors, or typical when Waitz is quiet).")
         .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
     }
 }
@@ -1044,7 +1059,7 @@ struct ArcStatusView: View {
         Group {
             switch family {
             case .accessoryCircular:
-                if let percent = entry.livePercent {
+                if let percent = entry.percent {
                     Gauge(value: Double(percent), in: 0...100) {
                         Text("ARC")
                     } currentValueLabel: {
@@ -1053,7 +1068,7 @@ struct ArcStatusView: View {
                             .monospacedDigit()
                     }
                     .gaugeStyle(.accessoryCircular)
-                    .accessibilityLabel("ARC \(percent) percent full")
+                    .accessibilityLabel(crowdingAccessibility(percent: percent))
                 } else {
                     VStack(spacing: 2) {
                         Image(systemName: "dumbbell.fill")
@@ -1070,14 +1085,17 @@ struct ArcStatusView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("ARC")
                             .font(.system(size: 13, weight: .semibold))
-                        Text(entry.livePercent.map { "\($0)% full · \(entry.hoursLine)" } ?? entry.hoursLine)
+                        Text(rectangularDetail)
                             .font(.system(size: 11))
                             .opacity(0.8)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
-                .accessibilityLabel("ARC, \(entry.hoursLine)")
+                .accessibilityLabel(
+                    entry.percent.map { crowdingAccessibility(percent: $0) + ", \(entry.hoursLine)" }
+                        ?? "ARC, \(entry.hoursLine)"
+                )
             default:
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 4) {
@@ -1093,12 +1111,12 @@ struct ArcStatusView: View {
                     }
                     .foregroundStyle(gold)
 
-                    if let percent = entry.livePercent {
+                    if let percent = entry.percent {
                         Text("\(percent)%")
                             .font(.system(size: 34, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(.white)
-                        Text("full · live")
+                        Text("full · \(entry.isTypical ? "typical" : "live")")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.white.opacity(0.75))
                     } else {
@@ -1112,7 +1130,10 @@ struct ArcStatusView: View {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                 }
-                .accessibilityLabel("ARC, \(entry.hoursLine)\(entry.livePercent.map { ", \($0) percent full" } ?? "")")
+                .accessibilityLabel(
+                    "ARC, \(entry.hoursLine)"
+                        + (entry.percent.map { ", \($0) percent full\(entry.isTypical ? ", typical estimate" : "")" } ?? "")
+                )
             }
         }
         .containerBackground(for: .widget) {
@@ -1124,12 +1145,23 @@ struct ArcStatusView: View {
             }
         }
     }
+
+    private var rectangularDetail: String {
+        guard let percent = entry.percent else { return entry.hoursLine }
+        let source = entry.isTypical ? "typical" : "live"
+        return "\(percent)% · \(source) · \(entry.hoursLine)"
+    }
+
+    private func crowdingAccessibility(percent: Int) -> String {
+        "ARC \(percent) percent full\(entry.isTypical ? ", typical estimate" : "")"
+    }
 }
 
 #Preview(as: .systemSmall) {
     ArcStatusWidget()
 } timeline: {
-    ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", livePercent: 38)
+    ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", percent: 38)
+    ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", percent: 55, isTypical: true)
 }
 
 // MARK: - Quietest library (home + lock screen)
