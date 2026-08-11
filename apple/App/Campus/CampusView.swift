@@ -88,13 +88,14 @@ struct CampusView: View {
                     .frame(height: 22)
                 ForEach(Self.categoryOrder, id: \.self) { category in
                     let isSelected = categoryFilter == category
+                    let short = Self.categoryShortNames[category] ?? category
                     Button {
                         withAnimation(.snappy(duration: 0.25)) {
                             categoryFilter = isSelected ? nil : category
                         }
                         Haptics.selection()
                     } label: {
-                        Text(Self.categoryShortNames[category] ?? category)
+                        Text(short)
                             .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
                             .padding(.horizontal, 13)
                             .padding(.vertical, 7)
@@ -111,6 +112,9 @@ struct CampusView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(short)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityHint(isSelected ? "Clears category filter" : "Filters to \(short)")
                 }
             }
             .padding(.horizontal, 20)
@@ -178,18 +182,38 @@ struct CampusView: View {
         case .loaded(let places):
             let brands = filteredBrands(from: places)
             if brands.isEmpty {
-                if openOnly {
+                let short = categoryFilter.flatMap { Self.categoryShortNames[$0] ?? $0 }
+                switch CampusListEmptyAction.resolve(
+                    hasCategoryFilter: categoryFilter != nil,
+                    openOnly: openOnly
+                ) {
+                case .clearCategory:
+                    EmptyStateView(
+                        icon: openOnly ? "moon.zzz" : "line.3.horizontal.decrease.circle",
+                        title: openOnly
+                            ? "Nothing's open in \(short ?? "this category")"
+                            : "Nothing in \(short ?? "this category")",
+                        message: openOnly
+                            ? "Try clearing the category filter, or show closed spots from the chip."
+                            : "Clear the category filter to see other campus spots.",
+                        actionTitle: "Clear category",
+                        retry: {
+                            withAnimation(.snappy(duration: 0.25)) { categoryFilter = nil }
+                            Haptics.selection()
+                        }
+                    )
+                    .zotCard()
+                    .accessibilityIdentifier("campus-clear-category")
+                case .showClosed:
                     EmptyStateView(
                         icon: "moon.zzz",
                         title: "Nothing's open right now",
-                        message: categoryFilter == nil
-                            ? "Every campus spot is closed at the moment."
-                            : "Nothing in this category is open at the moment.",
+                        message: "Every campus spot is closed at the moment.",
                         actionTitle: "Show closed spots",
                         retry: { withAnimation(.snappy(duration: 0.25)) { openOnly = false } }
                     )
                     .zotCard()
-                } else {
+                case .none:
                     EmptyStateView(
                         icon: "cup.and.saucer",
                         title: "Nothing to show",
