@@ -10,6 +10,7 @@ import ZotEatsKit
 struct CampusView: View {
     let store: CampusStore
     let prefs: Preferences
+    @Binding var pendingDeepLink: AnteatsDeepLink?
     @State private var selectedPlace: CampusPlace?
     /// Nil = all categories.
     @State private var categoryFilter: String?
@@ -53,7 +54,28 @@ struct CampusView: View {
                let place = store.places.value?.first(where: { $0.id == id }) {
                 selectedPlace = place
             }
+            applyPendingDeepLinkIfNeeded()
         }
+        .onChange(of: store.places.value) {
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onChange(of: pendingDeepLink) {
+            applyPendingDeepLinkIfNeeded()
+        }
+    }
+
+    private func applyPendingDeepLinkIfNeeded() {
+        guard let link = pendingDeepLink, link.tab == .campus else { return }
+        guard let placeID = link.placeID else {
+            pendingDeepLink = nil
+            return
+        }
+        // Keep the pending link until places finish loading.
+        guard let place = store.places.value?.first(where: { $0.id == placeID }) else { return }
+        openOnly = false
+        categoryFilter = nil
+        selectedPlace = place
+        pendingDeepLink = nil
     }
 
     /// One row of controls replaces the old endless stacked sections:
@@ -591,5 +613,5 @@ private struct CampusMenuItemRow: View {
 }
 
 #Preview {
-    CampusView(store: CampusStore(), prefs: Preferences())
+    CampusView(store: CampusStore(), prefs: Preferences(), pendingDeepLink: .constant(nil))
 }

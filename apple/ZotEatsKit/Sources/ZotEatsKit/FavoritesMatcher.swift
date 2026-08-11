@@ -6,11 +6,14 @@ public enum FavoritesMatcher {
     public struct Match: Equatable, Sendable {
         public let dishName: String
         public let hallName: String
+        /// Anteater API location id for deep links (`anteatery`, …).
+        public let locationId: String
         public let period: String
 
-        public init(dishName: String, hallName: String, period: String) {
+        public init(dishName: String, hallName: String, locationId: String, period: String) {
             self.dishName = dishName
             self.hallName = hallName
+            self.locationId = locationId
             self.period = period
         }
 
@@ -39,6 +42,7 @@ public enum FavoritesMatcher {
                     found[key] = Match(
                         dishName: item.name,
                         hallName: hallNames[menu.locationId] ?? HallDirectory.displayName(for: menu.locationId),
+                        locationId: menu.locationId,
                         period: menu.period
                     )
                 }

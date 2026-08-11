@@ -8,6 +8,7 @@ struct DiningView: View {
     let store: DiningStore
     let prefs: Preferences
     let plate: PlateStore
+    @Binding var pendingDeepLink: AnteatsDeepLink?
     @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
@@ -21,6 +22,8 @@ struct DiningView: View {
     @State private var mealActivity = MealActivityManager()
     /// CI screenshot launch args (`-showDishDetail` / `-showPlate`) fire once.
     @State private var didApplyScreenshotArgs = false
+    /// Dish name from a notification tap — opened once the menu finishes loading.
+    @State private var pendingDishName: String?
 
     /// All published days the feed currently exposes (often a week+ ahead).
     /// Clamped to `/dateRange.latest` so empty 404 days never appear.
@@ -63,20 +66,26 @@ struct DiningView: View {
                 await loadCurrentMenu()
                 considerAutoMealActivity()
                 applyScreenshotLaunchArgsIfNeeded()
+                openPendingDishIfPossible()
             }
             .onChange(of: store.locations.value) {
                 syncPeriodSelection()
                 considerAutoMealActivity()
+                applyPendingDeepLinkIfNeeded()
             }
             .onChange(of: store.publishedDateRange) { syncDateSelection() }
             .onChange(of: selectedHall) {
                 syncPeriodSelection()
                 considerAutoMealActivity()
             }
+            .onChange(of: pendingDeepLink) {
+                applyPendingDeepLinkIfNeeded()
+            }
             .onAppear {
                 syncPeriodSelection()
                 syncDateSelection()
                 considerAutoMealActivity()
+                applyPendingDeepLinkIfNeeded()
             }
             .sheet(item: $selectedDish) { dish in
                 // Plate CTA only for today — future menus are browse-only.
@@ -565,6 +574,42 @@ struct DiningView: View {
             startMinutes: start,
             endMinutes: end
         )
+    }
+
+    /// Notification / widget taps: select hall, period, date; stash dish for after load.
+    private func applyPendingDeepLinkIfNeeded() {
+        guard let link = pendingDeepLink, link.tab == .eat else { return }
+        if let hall = link.hall {
+            let known = store.locations.value?.contains { $0.id == hall } ?? false
+            if known || store.locations.value == nil {
+                selectedHall = hall
+            }
+        }
+        if let period = link.period {
+            selectedPeriod = period
+        }
+        if let date = link.date {
+            let today = UCITime.upcomingDays(count: 1).first?.isoDate
+            selectedDate = (date == today) ? nil : date
+        }
+        if let dish = link.dish {
+            pendingDishName = dish
+        }
+        pendingDeepLink = nil
+        openPendingDishIfPossible()
+    }
+
+    private func openPendingDishIfPossible() {
+        guard let name = pendingDishName else { return }
+        guard case .loaded(let menu) = currentMenuState else { return }
+        if let item = menu.stations.flatMap(\.items).first(where: {
+            $0.name.caseInsensitiveCompare(name) == .orderedSame
+        }) {
+            selectedDish = item
+        } else {
+            searchText = name
+        }
+        pendingDishName = nil
     }
 
     /// CI helpers: open a labeled dish sheet and/or seed My Plate for screenshots.
@@ -1095,5 +1140,10 @@ private struct CalorieBadge: View {
 }
 
 #Preview {
-    DiningView(store: DiningStore(), prefs: Preferences(), plate: PlateStore())
+    DiningView(
+        store: DiningStore(),
+        prefs: Preferences(),
+        plate: PlateStore(),
+        pendingDeepLink: .constant(nil)
+    )
 }

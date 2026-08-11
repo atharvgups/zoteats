@@ -107,7 +107,19 @@ enum OpeningAlerts {
                 content.body = "Doors are open — head over when you're ready."
             }
             content.sound = .default
-            content.userInfo = ["place": alert.placeID]
+            let link: AnteatsDeepLink = {
+                if alert.placeID.hasPrefix("campus:") {
+                    return .campus(placeID: String(alert.placeID.dropFirst("campus:".count)))
+                }
+                if alert.placeID.hasPrefix("dining:") {
+                    return .eat(hall: String(alert.placeID.dropFirst("dining:".count)))
+                }
+                return .eat()
+            }()
+            content.userInfo = [
+                "deeplink": link.url.absoluteString,
+                "place": alert.placeID,
+            ]
             let trigger = UNTimeIntervalNotificationTrigger(
                 timeInterval: max(1, alert.fireDate.timeIntervalSinceNow),
                 repeats: false

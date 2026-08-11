@@ -56,6 +56,10 @@ enum AppearanceSetting: String, CaseIterable, Identifiable {
 struct ZotEatsApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        NotificationRouter.shared.install()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootTabView()
@@ -105,6 +109,7 @@ struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
     // -showSettings lets CI screenshot the Settings sheet directly.
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
+    @State private var pendingDeepLink: AnteatsDeepLink?
 
     // App-lifetime stores: the iOS 26 tab system unloads off-screen tabs, so
     // per-view stores were recreated (and refetched everything) on every tab
@@ -127,6 +132,9 @@ struct RootTabView: View {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
                 plate.ensureCurrentDay()
+                NotificationRouter.shared.onDeepLink = { link in
+                    applyDeepLink(link)
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
@@ -134,14 +142,20 @@ struct RootTabView: View {
                 }
             }
             .onOpenURL { url in
-                switch url.host?.lowercased() {
-                case "eat", "dining": selection = .dining
-                case "campus": selection = .campus
-                case "gym": selection = .gym
-                case "study", "busyness": selection = .busyness
-                default: break
+                if let link = AnteatsDeepLink.parse(url) {
+                    applyDeepLink(link)
                 }
             }
+    }
+
+    private func applyDeepLink(_ link: AnteatsDeepLink) {
+        switch link.tab {
+        case .eat: selection = .dining
+        case .campus: selection = .campus
+        case .gym: selection = .gym
+        case .study: selection = .busyness
+        }
+        pendingDeepLink = link
     }
 
     // Visible labels are Eat / Campus / Gym / Study; internal AppTab ids and
@@ -151,10 +165,19 @@ struct RootTabView: View {
     private var tabs: some View {
         TabView(selection: $selection) {
             Tab("Eat", systemImage: "fork.knife", value: AppTab.dining) {
-                DiningView(store: diningStore, prefs: preferences, plate: plate)
+                DiningView(
+                    store: diningStore,
+                    prefs: preferences,
+                    plate: plate,
+                    pendingDeepLink: $pendingDeepLink
+                )
             }
             Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
-                CampusView(store: campusStore, prefs: preferences)
+                CampusView(
+                    store: campusStore,
+                    prefs: preferences,
+                    pendingDeepLink: $pendingDeepLink
+                )
             }
             Tab("Gym", systemImage: "dumbbell.fill", value: AppTab.gym) {
                 GymView(store: gymStore)

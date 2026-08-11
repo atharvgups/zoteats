@@ -50,6 +50,11 @@ enum MenuDropAlerts {
             content.title = "\(label)'s menu just dropped"
             content.body = "UCI Dining posted it — take a peek and plan your meals."
             content.sound = .default
+            let link = AnteatsDeepLink.eat(date: iso)
+            content.userInfo = [
+                "deeplink": link.url.absoluteString,
+                "date": iso,
+            ]
             try? await UNUserNotificationCenter.current().add(
                 UNNotificationRequest(
                     identifier: "menudrop:\(iso)",
