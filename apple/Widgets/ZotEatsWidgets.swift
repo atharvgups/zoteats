@@ -442,6 +442,8 @@ struct TodaysMenuEntry: TimelineEntry {
     let periodEndsAt: Date?
     /// Extra WidgetKit reload points (meal start when still closed, etc.).
     let reloadBoundaries: [Date]
+    /// Menu had dishes but Eat Filters removed every one.
+    let filtersEmptiedMenu: Bool
 
     init(
         date: Date,
@@ -451,7 +453,8 @@ struct TodaysMenuEntry: TimelineEntry {
         dishes: [String],
         favorited: Set<String>,
         periodEndsAt: Date?,
-        reloadBoundaries: [Date] = []
+        reloadBoundaries: [Date] = [],
+        filtersEmptiedMenu: Bool = false
     ) {
         self.date = date
         self.hallName = hallName
@@ -461,6 +464,7 @@ struct TodaysMenuEntry: TimelineEntry {
         self.favorited = favorited
         self.periodEndsAt = periodEndsAt
         self.reloadBoundaries = reloadBoundaries
+        self.filtersEmptiedMenu = filtersEmptiedMenu
     }
 
     /// Opens Eat on the hall + meal this glance is showing.
@@ -534,19 +538,19 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         }()
 
         var dishes: [String] = []
+        var favorited: Set<String> = []
+        var filtersEmptiedMenu = false
         if !period.isEmpty, let menu = try? await service.menu(for: hall.id, period: period) {
-            var seen = Set<String>()
-            dishes = menu.stations
-                .flatMap(\.items)
-                .map(\.name)
-                .filter { seen.insert($0.lowercased()).inserted }
+            let built = SharedDefaults.todaysMenuDishes(
+                stations: menu.stations,
+                dietFilters: Set(SharedDefaults.dietFilters()),
+                allergenAvoids: Set(SharedDefaults.allergenAvoids()),
+                favorites: SharedDefaults.favoriteDishNames()
+            )
+            dishes = built.ordered
+            favorited = built.favorited
+            filtersEmptiedMenu = built.filtersEmptiedMenu
         }
-
-        let prioritized = SharedDefaults.prioritizeFavorites(
-            dishes: dishes,
-            favorites: SharedDefaults.favoriteDishNames()
-        )
-        dishes = prioritized.ordered
 
         let periodEndsAt: Date? = {
             guard let window = timed.first(where: { $0.name.caseInsensitiveCompare(liveName) == .orderedSame }),
@@ -568,9 +572,10 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             hallID: hall.id,
             period: period,
             dishes: dishes,
-            favorited: prioritized.favorited,
+            favorited: favorited,
             periodEndsAt: periodEndsAt,
-            reloadBoundaries: reloadBoundaries
+            reloadBoundaries: reloadBoundaries,
+            filtersEmptiedMenu: filtersEmptiedMenu
         )
     }
 }
@@ -589,7 +594,7 @@ struct TodaysMenuWidget: Widget {
                 .widgetURL(entry.deepLinkURL)
         }
         .configurationDisplayName("Today's Menu")
-        .description("What's being served — favorites float to the top. Pick a hall or auto.")
+        .description("What's being served — Eat Filters + favorites from the app. Pick a hall or auto.")
         // system* for Home Screen; accessoryRectangular for Lock Screen / StandBy glance.
         .supportedFamilies([.systemMedium, .systemLarge, .accessoryRectangular])
     }
@@ -641,7 +646,7 @@ struct TodaysMenuView: View {
                         .lineLimit(1)
                 }
             } else {
-                Text("Menu not posted yet")
+                Text(entry.filtersEmptiedMenu ? "Nothing matches Eat Filters" : "Menu not posted yet")
                     .font(.system(size: 12))
                     .opacity(0.75)
                     .lineLimit(1)
@@ -692,7 +697,11 @@ struct TodaysMenuView: View {
             let dishes = Array(entry.dishes.prefix(dishLimit))
             if dishes.isEmpty {
                 Spacer()
-                Text("No menu posted right now — check back at the next meal.")
+                Text(
+                    entry.filtersEmptiedMenu
+                        ? "Nothing matches your Eat Filters — clear them in the app to see this menu."
+                        : "No menu posted right now — check back at the next meal."
+                )
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.8))
                 Spacer()

@@ -145,8 +145,6 @@ final class BusynessStore {
 @MainActor
 @Observable
 final class Preferences {
-    private static let dietFiltersKey = "zoteats.dietFilters"
-    private static let allergenAvoidsKey = "zoteats.allergenAvoids"
     private static let legacyDietFilterKey = "zoteats.dietFilter"
 
     /// Favorite dishes by name (IDs rotate daily; names are stable).
@@ -159,13 +157,20 @@ final class Preferences {
     }
 
     /// Active dietary filter tags (AND). Empty = show everything.
+    /// Mirrored into the App Group so Today's Menu honors Eat Filters.
     var dietFilters: Set<String> {
-        didSet { UserDefaults.standard.set(Array(dietFilters).sorted(), forKey: Self.dietFiltersKey) }
+        didSet {
+            SharedDefaults.setDietFilters(Array(dietFilters).sorted())
+            WidgetReloader.reloadTodaysMenu()
+        }
     }
 
     /// Allergens to hide (OR). A dish listing any avoided allergen is filtered out.
     var allergenAvoids: Set<String> {
-        didSet { UserDefaults.standard.set(Array(allergenAvoids).sorted(), forKey: Self.allergenAvoidsKey) }
+        didSet {
+            SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
+            WidgetReloader.reloadTodaysMenu()
+        }
     }
 
     /// Convenience for single-filter callers (campus sheet, etc.).
@@ -186,15 +191,19 @@ final class Preferences {
 
     init() {
         favoriteDishNames = Set(SharedDefaults.favoriteDishNames())
-        if let saved = UserDefaults.standard.stringArray(forKey: Self.dietFiltersKey) {
-            dietFilters = Set(saved)
+        let storedDiets = SharedDefaults.dietFilters()
+        if !storedDiets.isEmpty {
+            dietFilters = Set(storedDiets)
         } else if let legacy = UserDefaults.standard.string(forKey: Self.legacyDietFilterKey) {
             dietFilters = [legacy]
             UserDefaults.standard.removeObject(forKey: Self.legacyDietFilterKey)
         } else {
             dietFilters = []
         }
-        allergenAvoids = Set(UserDefaults.standard.stringArray(forKey: Self.allergenAvoidsKey) ?? [])
+        allergenAvoids = Set(SharedDefaults.allergenAvoids())
+        // Init assignments skip didSet — mirror into the App Group for widgets.
+        SharedDefaults.setDietFilters(Array(dietFilters).sorted())
+        SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
     }
 
     func clearMenuFilters() {
