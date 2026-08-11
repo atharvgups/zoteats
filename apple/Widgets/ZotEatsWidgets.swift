@@ -858,27 +858,9 @@ struct CampusOpenProvider: TimelineProvider {
         Task {
             let places = (try? await CampusService().places()) ?? []
             let entry = entry(from: places)
-            let reload = Self.nextCampusReload(now: .now, places: places)
+            let reload = CampusOpenReload.nextReload(now: .now, places: places)
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
-    }
-
-    /// Prefer close / next-open boundaries so Open Now flips without waiting on a fixed cadence.
-    private static func nextCampusReload(now: Date, places: [CampusPlace]) -> Date {
-        let nowMinutes = UCITime.nowMinutes(now: now)
-        var boundaries: [Date] = []
-        for place in places {
-            if let minutes = place.closesAtMinutes {
-                boundaries.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
-            }
-            if let minutes = place.opensAtMinutes {
-                boundaries.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
-            }
-            if let minutes = place.opensTomorrowAtMinutes {
-                boundaries.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
-            }
-        }
-        return WidgetRefreshMath.nextReload(now: now, boundaries: boundaries, maxInterval: 20 * 60)
     }
 
     private func fetchEntry() async -> CampusOpenEntry {

@@ -145,6 +145,9 @@ struct RootTabView: View {
                     preferences.reloadMenuFiltersFromSharedDefaults()
                     // Recompute Campus open/close from cached schedules (not a full network wait).
                     Task { await campusStore.loadPlaces() }
+                    // Gym + Study are app-lifetime stores — refresh Waitz / ARC open on warm resume.
+                    Task { await gymStore.load() }
+                    Task { await busynessStore.load() }
                     // Purge live "today" menus after Irvine midnight and refetch halls.
                     if diningStore.ensureCurrentDay() {
                         Task { await diningStore.loadLocations() }
