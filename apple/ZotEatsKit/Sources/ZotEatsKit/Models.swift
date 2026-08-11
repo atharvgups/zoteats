@@ -58,6 +58,16 @@ public enum HallDirectory {
         known[id]?.area ?? "UCI Campus"
     }
 
+    /// Reverse lookup for Live Activity cold-start sync when an older
+    /// activity only stored the display name (pre-`hallID` attribute).
+    public static func id(matchingDisplayName name: String) -> String? {
+        let needle = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return nil }
+        return known.first {
+            $0.value.name.caseInsensitiveCompare(needle) == .orderedSame
+        }?.key
+    }
+
     /// "middle-earth-commons" -> "Middle Earth Commons".
     static func prettify(_ id: String) -> String {
         id.split(whereSeparator: { $0 == "-" || $0 == "_" })

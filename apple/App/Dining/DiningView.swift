@@ -540,6 +540,9 @@ struct DiningView: View {
     /// When a meal is in its last ~45 minutes, start the Dynamic Island countdown
     /// without requiring a tap (respects Settings → Auto meal countdown).
     private func considerAutoMealActivity() {
+        // Tab unload / cold start drop in-memory trackedKey; reconcile first so
+        // Tracking stays honest and we don't recreate a live Island timer.
+        mealActivity.syncFromSystem()
         guard selectedDate == nil,
               let location = selectedLocation,
               let period = selectedPeriod,

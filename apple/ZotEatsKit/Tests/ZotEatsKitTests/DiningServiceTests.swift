@@ -282,6 +282,17 @@ struct HallDirectoryTests {
         #expect(HallDirectory.displayName(for: "el_mercado") == "El Mercado")
         #expect(HallDirectory.area(for: "el_mercado") == "UCI Campus")
     }
+
+    @Test func matchingDisplayNameFindsKnownHalls() {
+        #expect(HallDirectory.id(matchingDisplayName: "The Anteatery") == "anteatery")
+        // Case-insensitive — cold-start sync may see either casing.
+        #expect(HallDirectory.id(matchingDisplayName: "Brandywine") == "brandywine")
+        #expect(HallDirectory.id(matchingDisplayName: "brandywine") == "brandywine")
+        #expect(HallDirectory.id(matchingDisplayName: "Mesa Commons") == "mesa-commons")
+        #expect(HallDirectory.id(matchingDisplayName: "  The Anteatery  ") == "anteatery")
+        #expect(HallDirectory.id(matchingDisplayName: "Unknown Hall") == nil)
+        #expect(HallDirectory.id(matchingDisplayName: "") == nil)
+    }
 }
 
 @Suite("PacificTime")
