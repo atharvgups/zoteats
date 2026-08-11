@@ -349,15 +349,25 @@ struct DiningView: View {
         case .loaded(let menu):
             let stations = filteredStations(menu)
             if stations.isEmpty {
-                if hasActiveFilter {
+                if let copy = EatFilterEmptyCopy.resolve(
+                    hasSearch: !trimmedQuery.isEmpty,
+                    hasMenuFilters: prefs.hasActiveMenuFilters
+                ) {
                     EmptyStateView(
                         icon: "ant",
-                        title: "Nothing matches that filter",
-                        message: "The anteaters got to it first. Try a different search or clear your dietary filter.",
-                        actionTitle: "Clear filters",
+                        title: copy.title,
+                        message: copy.message,
+                        actionTitle: copy.actionTitle,
                         retry: {
-                            prefs.clearMenuFilters()
-                            searchText = ""
+                            switch copy.action {
+                            case .clearSearch:
+                                searchText = ""
+                            case .clearFilters:
+                                prefs.clearMenuFilters()
+                            case .clearBoth:
+                                prefs.clearMenuFilters()
+                                searchText = ""
+                            }
                             Haptics.selection()
                         }
                     )
