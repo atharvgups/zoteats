@@ -124,6 +124,7 @@ struct DiningStatusProvider: TimelineProvider {
             halls: [
                 .init(name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
                 .init(name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
+                .init(name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
             ],
             quietest: (name: "Science Library", percent: 12)
         )
@@ -240,8 +241,14 @@ struct DiningStatusView: View {
 
     private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
 
+    private var isCompact: Bool { family == .systemSmall }
+    private var visibleHalls: ArraySlice<DiningStatusEntry.HallStatus> {
+        entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact))
+    }
+    private var hallCount: Int { visibleHalls.count }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: family == .systemSmall ? 7 : 9) {
+        VStack(alignment: .leading, spacing: DiningStatusLayout.rowSpacing(isCompact: isCompact, hallCount: hallCount)) {
             HStack(spacing: 4) {
                 Image(systemName: "fork.knife")
                     .font(.system(size: 10, weight: .bold))
@@ -252,7 +259,7 @@ struct DiningStatusView: View {
             }
             .foregroundStyle(gold)
 
-            ForEach(entry.halls.prefix(family == .systemSmall ? 2 : 3), id: \.name) { hall in
+            ForEach(Array(visibleHalls), id: \.name) { hall in
                 hallRow(hall)
             }
 
@@ -280,35 +287,37 @@ struct DiningStatusView: View {
     }
 
     private func hallRow(_ hall: DiningStatusEntry.HallStatus) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        let nameSize = DiningStatusLayout.nameFontSize(isCompact: isCompact, hallCount: hallCount)
+        let statusSize = DiningStatusLayout.statusFontSize(isCompact: isCompact, hallCount: hallCount)
+        return VStack(alignment: .leading, spacing: DiningStatusLayout.usesDenseRows(hallCount: hallCount) ? 0 : 1) {
             HStack(spacing: 5) {
                 Circle()
                     .fill(hall.isOpen ? Color.green : Color.white.opacity(0.35))
                     .frame(width: 5, height: 5)
                 Text(shortName(hall.name))
-                    .font(.system(size: family == .systemSmall ? 12 : 13, weight: .semibold))
+                    .font(.system(size: nameSize, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 3)
                 if let occupancy = hall.occupancy {
                     Text("\(occupancy)%")
-                        .font(.system(size: family == .systemSmall ? 12 : 13, weight: .bold))
+                        .font(.system(size: nameSize, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(gold)
                 }
             }
             HStack(spacing: 4) {
                 Text(hall.statusText)
-                    .font(.system(size: family == .systemSmall ? 10 : 11))
+                    .font(.system(size: statusSize))
                     .foregroundStyle(.white.opacity(0.75))
                     .lineLimit(1)
                 if let end = hall.countdownEnd, let kind = hall.countdownKind, end > Date() {
                     Text(kind == .closes ? "· closes" : "· opens")
-                        .font(.system(size: family == .systemSmall ? 10 : 11))
+                        .font(.system(size: statusSize))
                         .foregroundStyle(.white.opacity(0.55))
                     Text(timerInterval: Date.now...end, countsDown: true)
-                        .font(.system(size: family == .systemSmall ? 10 : 11, weight: .semibold))
+                        .font(.system(size: statusSize, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(gold)
                         .multilineTextAlignment(.leading)
@@ -336,6 +345,7 @@ struct DiningStatusView: View {
         halls: [
             .init(name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
             .init(name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
+            .init(name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
         ],
         quietest: (name: "Science Library", percent: 12)
     )

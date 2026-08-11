@@ -316,7 +316,13 @@ struct DiningView: View {
                     EmptyStateView(
                         icon: "ant",
                         title: "Nothing matches that filter",
-                        message: "The anteaters got to it first. Try a different search or clear your dietary filter."
+                        message: "The anteaters got to it first. Try a different search or clear your dietary filter.",
+                        actionTitle: "Clear filters",
+                        retry: {
+                            prefs.clearMenuFilters()
+                            searchText = ""
+                            Haptics.selection()
+                        }
                     )
                 } else {
                     EmptyStateView(
