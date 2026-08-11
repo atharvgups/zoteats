@@ -1274,7 +1274,11 @@ struct QuietestLibraryProvider: TimelineProvider {
             let libraries = facilities.filter { $0.category == "Library" }
             let pool = libraries.isEmpty ? facilities : libraries
             let anyOpen = pool.contains(where: \.isOpen)
-            let reload = WidgetRefreshMath.nextQuietestReload(now: .now, anyLibraryOpen: anyOpen)
+            let reload = WidgetRefreshMath.nextQuietestReload(
+                now: .now,
+                anyLibraryOpen: anyOpen,
+                boundaries: [UCITime.nextIrvineMidnight()]
+            )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
     }
@@ -1293,7 +1297,11 @@ struct QuietestLibraryProvider: TimelineProvider {
                 facilityID: pick.facilityID
             )
         }
-        return QuietestLibraryEntry(date: .now, name: "Libraries closed", percent: nil)
+        return QuietestLibraryEntry(
+            date: .now,
+            name: QuietestLibraryGlance.closedTitle,
+            percent: nil
+        )
     }
 }
 

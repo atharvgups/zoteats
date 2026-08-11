@@ -278,7 +278,7 @@ struct SettingsView: View {
                 widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick any live hall (or Auto); Eat Filters + favorites sync — Clear filters on the widget when empty")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets that are open — or the next one that will be")
                 widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness — live sensors, or typical when Waitz is quiet")
-                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
+                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance — shows closed overnight")
             }
             .padding(.top, 4)
 

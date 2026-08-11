@@ -92,6 +92,8 @@ struct BusynessView: View {
                 let pick = QuietestLibraryPick.best(from: facilities)
                 if let pick {
                     QuietestNowCard(pick: pick)
+                } else if QuietestLibraryGlance.shouldShowClosed(from: facilities) {
+                    QuietestClosedCard()
                 }
                 let expandID = deepLinkFacilityID ?? pick?.facilityID
                 let grouped = groups(from: facilities)
@@ -157,6 +159,7 @@ struct QuietestNowCard: View {
 
             Spacer(minLength: 8)
 
+
             VStack(spacing: 0) {
                 Text("\(pick.percent)%")
                     .font(.system(size: 21, weight: .bold))
@@ -181,6 +184,43 @@ struct QuietestNowCard: View {
         .accessibilityLabel(
             "Quietest library right now: \(pick.title), \(pick.percent) percent full"
         )
+    }
+}
+
+/// Honest overnight / closed hero — matches Quietest widget "Libraries closed".
+struct QuietestClosedCard: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 38, height: 38)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("QUIETEST LIBRARY")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+                Text(QuietestLibraryGlance.closedTitle)
+                    .font(ZotFont.cardTitle)
+                    .foregroundStyle(.primary)
+                Text(QuietestLibraryGlance.closedDetail)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.primary.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)")
     }
 }
 
