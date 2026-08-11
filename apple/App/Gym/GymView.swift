@@ -186,7 +186,13 @@ struct GymRushCard: View {
                 TypicalTag()
                 Spacer()
             }
-            RushStrip(curve: curve, currentHour: UCITime.nowMinutes() / 60)
+            RushStrip(
+                curve: curve,
+                currentHour: GymRushHighlight.currentHour(
+                    openNow: status.openNow,
+                    nowMinutes: UCITime.nowMinutes()
+                ) ?? -1
+            )
             if let busiest = status.busiestSummary {
                 Text([busiest, status.quietestSummary].compactMap(\.self).joined(separator: " · "))
                     .font(ZotFont.caption)
