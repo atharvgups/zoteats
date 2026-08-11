@@ -144,7 +144,12 @@ struct DiningStatusProvider: TimelineProvider {
         let deliver = UncheckedSendableBox(completion)
         Task {
             let entry = await fetchEntry()
-            deliver.value(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(20 * 60))))
+            let reload = WidgetRefreshMath.nextReload(
+                now: .now,
+                boundaries: entry.halls.compactMap(\.countdownEnd),
+                maxInterval: 20 * 60
+            )
+            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
     }
 
@@ -376,6 +381,26 @@ struct TodaysMenuEntry: TimelineEntry {
     /// Dish names that are favorited (subset of `dishes`), for heart markers.
     let favorited: Set<String>
     let periodEndsAt: Date?
+    /// Extra WidgetKit reload points (meal start when still closed, etc.).
+    let reloadBoundaries: [Date]
+
+    init(
+        date: Date,
+        hallName: String,
+        period: String,
+        dishes: [String],
+        favorited: Set<String>,
+        periodEndsAt: Date?,
+        reloadBoundaries: [Date] = []
+    ) {
+        self.date = date
+        self.hallName = hallName
+        self.period = period
+        self.dishes = dishes
+        self.favorited = favorited
+        self.periodEndsAt = periodEndsAt
+        self.reloadBoundaries = reloadBoundaries
+    }
 }
 
 struct TodaysMenuProvider: AppIntentTimelineProvider {
@@ -397,7 +422,14 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
 
     func timeline(for configuration: TodaysMenuConfigurationIntent, in context: Context) async -> Timeline<TodaysMenuEntry> {
         let entry = await fetchEntry(for: configuration)
-        return Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(30 * 60)))
+        var boundaries = entry.reloadBoundaries
+        if let end = entry.periodEndsAt { boundaries.append(end) }
+        let reload = WidgetRefreshMath.nextReload(
+            now: .now,
+            boundaries: boundaries,
+            maxInterval: 30 * 60
+        )
+        return Timeline(entries: [entry], policy: .after(reload))
     }
 
     private func fetchEntry(for configuration: TodaysMenuConfigurationIntent) async -> TodaysMenuEntry {
@@ -452,13 +484,22 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             return UCITime.date(forMinutes: end, nowMinutes: nowMinutes)
         }()
 
+        // Reload when an upcoming meal actually starts so StandBy/Home swap dishes.
+        var reloadBoundaries: [Date] = []
+        if let window = timed.first(where: { $0.name.caseInsensitiveCompare(liveName) == .orderedSame }),
+           let start = window.startMinutes,
+           start > nowMinutes {
+            reloadBoundaries.append(UCITime.date(forMinutes: start, nowMinutes: nowMinutes))
+        }
+
         return TodaysMenuEntry(
             date: .now,
             hallName: hall.name,
             period: period,
             dishes: dishes,
             favorited: prioritized.favorited,
-            periodEndsAt: periodEndsAt
+            periodEndsAt: periodEndsAt,
+            reloadBoundaries: reloadBoundaries
         )
     }
 }
