@@ -16,18 +16,39 @@ final class PlateStore {
     }
 
     private(set) var entries: [PlateEntry] = []
+    /// Irvine calendar day the in-memory plate belongs to.
+    private var dateISO: String
 
     init() {
+        let today = Self.todayISO()
+        dateISO = today
         guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
-              let saved = try? JSONDecoder().decode(Saved.self, from: data),
-              saved.dateISO == Self.todayISO()
+              let saved = try? JSONDecoder().decode(Saved.self, from: data)
         else { return }
-        entries = saved.entries
+
+        entries = PlateDayMath.entriesIfCurrentDay(
+            savedDateISO: saved.dateISO,
+            entries: saved.entries,
+            todayISO: today
+        )
+        if PlateDayMath.shouldClear(savedDateISO: saved.dateISO, todayISO: today) {
+            // Drop yesterday's blob so a later crash mid-day can't resurrect it.
+            UserDefaults.standard.removeObject(forKey: Self.storageKey)
+        }
     }
 
     var isEmpty: Bool { entries.isEmpty }
     var totalCalories: Int { PlateTotals.calories(from: entries) }
     var totalProteinG: Int { PlateTotals.proteinGrams(from: entries) }
+
+    /// Call on foreground / Eat appear — app-lifetime store survives past midnight.
+    func ensureCurrentDay() {
+        let today = Self.todayISO()
+        guard dateISO != today else { return }
+        entries = []
+        dateISO = today
+        UserDefaults.standard.removeObject(forKey: Self.storageKey)
+    }
 
     func isOnPlate(_ dishName: String) -> Bool {
         entries.contains { $0.dishName == dishName }
@@ -35,6 +56,7 @@ final class PlateStore {
 
     /// One tap adds, a second tap removes — no separate delete mode needed.
     func toggle(_ item: MenuItem) {
+        ensureCurrentDay()
         if let index = entries.firstIndex(where: { $0.dishName == item.name }) {
             entries.remove(at: index)
         } else {
@@ -49,17 +71,20 @@ final class PlateStore {
     }
 
     func remove(_ entry: PlateEntry) {
+        ensureCurrentDay()
         entries.removeAll { $0.id == entry.id }
         persist()
     }
 
     func clear() {
         entries = []
+        dateISO = Self.todayISO()
         persist()
     }
 
     private func persist() {
-        let saved = Saved(dateISO: Self.todayISO(), entries: entries)
+        dateISO = Self.todayISO()
+        let saved = Saved(dateISO: dateISO, entries: entries)
         if let data = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)
         }

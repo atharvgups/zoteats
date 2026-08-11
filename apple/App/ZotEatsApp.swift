@@ -101,6 +101,7 @@ extension EnvironmentValues {
 }
 
 struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: AppTab = RootTabView.initialTab()
     // -showSettings lets CI screenshot the Settings sheet directly.
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
@@ -125,6 +126,12 @@ struct RootTabView: View {
             .onAppear {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
+                plate.ensureCurrentDay()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    plate.ensureCurrentDay()
+                }
             }
             .onOpenURL { url in
                 switch url.host?.lowercased() {
