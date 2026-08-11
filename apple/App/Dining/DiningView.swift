@@ -24,6 +24,7 @@ struct DiningView: View {
     @State private var didApplyScreenshotArgs = false
     /// Dish name from a notification tap — opened once the menu finishes loading.
     @State private var pendingDishName: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     /// All published days the feed currently exposes (often a week+ ahead).
     /// Clamped to `/dateRange.latest` so empty 404 days never appear.
@@ -86,6 +87,13 @@ struct DiningView: View {
                 syncDateSelection()
                 considerAutoMealActivity()
                 applyPendingDeepLinkIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Overnight warm launch: drop stale Dinner once Irvine is past last meal.
+                if phase == .active {
+                    syncPeriodSelection()
+                    considerAutoMealActivity()
+                }
             }
             .sheet(item: $selectedDish) { dish in
                 // Plate CTA only for today — future menus are browse-only.
@@ -315,10 +323,14 @@ struct DiningView: View {
                 selectedPeriod: selectedPeriod
             ) {
             case .emptyNoMenu:
+                let afterHours = selectedDate == nil
+                    && selectedLocation?.openState(nowMinutes: UCITime.nowMinutes()) == .closedForToday
                 EmptyStateView(
                     icon: "moon.zzz",
-                    title: "No menu yet",
-                    message: "\(selectedLocation?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
+                    title: afterHours ? "Dinner's done" : "No menu yet",
+                    message: afterHours
+                        ? "\(selectedLocation?.name ?? "This hall") is closed for tonight. Breakfast posts overnight — or pick tomorrow in the day strip."
+                        : "\(selectedLocation?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
                 ) {
                     Task { await refresh() }
                 }
@@ -654,12 +666,17 @@ struct DiningView: View {
         }
     }
 
-    /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner).
+    /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
+    /// matching Today's Menu after-hours truth (no stale Dinner overnight).
     private func syncPeriodSelection() {
         guard let location = selectedLocation else { return }
-        let pills = DiningService.primaryPeriods(from: location.availablePeriods)
-        if let selectedPeriod, pills.contains(selectedPeriod) { return }
-        selectedPeriod = defaultPeriod(for: location)
+        selectedPeriod = EatPeriodSelection.snap(
+            current: selectedPeriod,
+            availablePeriods: location.availablePeriods,
+            timedPeriods: location.periods,
+            nowMinutes: UCITime.nowMinutes(),
+            browsingFutureDay: selectedDate != nil
+        )
     }
 
     /// Snap off days the feed hasn't published yet (never leave the user on a 404 day).
@@ -668,36 +685,6 @@ struct DiningView: View {
         guard let selectedDate else { return }
         if days.contains(where: { $0.isoDate == selectedDate }) { return }
         self.selectedDate = nil
-    }
-
-    /// Map the live/upcoming meal onto a primary pill.
-    private func defaultPeriod(for location: DiningLocation) -> String? {
-        let pills = DiningService.primaryPeriods(from: location.availablePeriods)
-        guard !pills.isEmpty else { return nil }
-        let now = UCITime.nowMinutes()
-        let timed = location.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
-
-        let liveName: String? = {
-            if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
-                return current.name
-            }
-            if let upcoming = timed
-                .filter({ $0.startMinutes! > now })
-                .min(by: { $0.startMinutes! < $1.startMinutes! }) {
-                return upcoming.name
-            }
-            return timed.max(by: { $0.endMinutes! < $1.endMinutes! })?.name
-        }()
-
-        if let liveName {
-            let lower = liveName.lowercased()
-            if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
-                return "Breakfast"
-            }
-            if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
-            if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
-        }
-        return pills.first
     }
 
     /// Time-of-day greeting on UCI's clock.
