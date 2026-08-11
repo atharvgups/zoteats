@@ -188,14 +188,17 @@ struct CampusView: View {
                     openOnly: openOnly
                 ) {
                 case .clearCategory:
+                    let inCategory = CampusCategoryEmptyCopy.places(
+                        inCategory: categoryFilter,
+                        from: places
+                    )
+                    let hint = openOnly ? CampusNextOpenHint.best(from: inCategory) : nil
                     EmptyStateView(
                         icon: openOnly ? "moon.zzz" : "line.3.horizontal.decrease.circle",
                         title: openOnly
                             ? "Nothing's open in \(short ?? "this category")"
                             : "Nothing in \(short ?? "this category")",
-                        message: openOnly
-                            ? "Try clearing the category filter, or show closed spots from the chip."
-                            : "Clear the category filter to see other campus spots.",
+                        message: CampusCategoryEmptyCopy.message(openOnly: openOnly, hint: hint),
                         actionTitle: "Clear category",
                         retry: {
                             withAnimation(.snappy(duration: 0.25)) { categoryFilter = nil }
