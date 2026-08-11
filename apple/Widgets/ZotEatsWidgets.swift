@@ -1107,7 +1107,9 @@ struct ArcStatusProvider: TimelineProvider {
             openNow: status.openNow,
             todayHours: status.todayHours,
             nowMinutes: nowMinutes,
-            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday)
+            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday),
+            closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
+            opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
         )
         let crowding = ArcWidgetGlance.crowding(from: status)
         return ArcStatusEntry(

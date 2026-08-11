@@ -13,30 +13,72 @@ struct ArcIdleCopyTests {
                 openNow: false,
                 nowMinutes: 5 * 60,
                 opensAtMinutesToday: open,
-                closesAtMinutesToday: 24 * 60
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 6 * 60
             ) == "Closed — opens at 6:00 AM"
         )
         #expect(
             ArcIdleCopy.closedHoursLine(
                 todayHours: "6:00 AM – 12:00 AM",
                 nowMinutes: 5 * 60,
-                opensAtMinutesToday: open
+                opensAtMinutesToday: open,
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 6 * 60
             ) == "Opens at 6:00 AM"
         )
     }
 
-    @Test func afterCloseSaysSeeYouTomorrow() {
+    @Test func afterCloseNamesTomorrowsOpen() {
         let open = ArcIdleCopy.todayOpenMinutes(weekday: "Saturday")
         let close = ArcIdleCopy.todayCloseMinutes(weekday: "Saturday")
+        let tomorrow = ArcIdleCopy.tomorrowOpenMinutes(weekday: "Saturday")
         #expect(open == 8 * 60)
         #expect(close == 21 * 60)
+        #expect(tomorrow == 8 * 60) // Sunday
         #expect(
             ArcIdleCopy.noBusynessMessage(
                 openNow: false,
                 nowMinutes: 22 * 60,
                 opensAtMinutesToday: open,
-                closesAtMinutesToday: close
+                closesAtMinutesToday: close,
+                opensAtMinutesTomorrow: tomorrow
+            ) == "Closed — opens tomorrow at 8:00 AM"
+        )
+        #expect(
+            ArcIdleCopy.closedHoursLine(
+                todayHours: "8:00 AM – 9:00 PM",
+                nowMinutes: 22 * 60,
+                opensAtMinutesToday: open,
+                closesAtMinutesToday: close,
+                opensAtMinutesTomorrow: tomorrow
+            ) == "Opens tomorrow at 8:00 AM"
+        )
+    }
+
+    @Test func fridayMapsTomorrowToSaturdayEight() {
+        #expect(ArcIdleCopy.tomorrowOpenMinutes(weekday: "Friday") == 8 * 60)
+    }
+
+    @Test func closedInsideTodaysWindowDoesNotJumpToTomorrow() {
+        // Waitz can disagree with the maintained close — don't invent "tomorrow"
+        // while today's schedule still lists the hall as open.
+        #expect(
+            ArcIdleCopy.noBusynessMessage(
+                openNow: false,
+                nowMinutes: 23 * 60 + 30,
+                opensAtMinutesToday: 6 * 60,
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 8 * 60
             ) == "Closed — see you tomorrow"
+        )
+        #expect(
+            ArcIdleCopy.closedHoursLine(
+                todayHours: "6:00 AM – 12:00 AM",
+                nowMinutes: 23 * 60 + 30,
+                opensAtMinutesToday: 6 * 60,
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 8 * 60
+            ) == "Closed · 6:00 AM – 12:00 AM"
         )
     }
 
@@ -47,7 +89,8 @@ struct ArcIdleCopyTests {
                 openNow: false,
                 nowMinutes: 7 * 60,
                 opensAtMinutesToday: open,
-                closesAtMinutesToday: 21 * 60
+                closesAtMinutesToday: 21 * 60,
+                opensAtMinutesTomorrow: 8 * 60
             ) == "Closed — opens at 8:00 AM"
         )
     }
@@ -58,7 +101,8 @@ struct ArcIdleCopyTests {
                 openNow: true,
                 nowMinutes: 12 * 60,
                 opensAtMinutesToday: 6 * 60,
-                closesAtMinutesToday: 24 * 60
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 6 * 60
             ) == "No busyness estimate right now"
         )
     }
@@ -69,8 +113,22 @@ struct ArcIdleCopyTests {
                 openNow: true,
                 todayHours: "6:00 AM – 12:00 AM",
                 nowMinutes: 12 * 60,
-                opensAtMinutesToday: 6 * 60
+                opensAtMinutesToday: 6 * 60,
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 6 * 60
             ) == "Open until 12:00 AM"
+        )
+    }
+
+    @Test func unknownScheduleKeepsVagueTomorrow() {
+        #expect(
+            ArcIdleCopy.noBusynessMessage(
+                openNow: false,
+                nowMinutes: 22 * 60,
+                opensAtMinutesToday: nil,
+                closesAtMinutesToday: nil,
+                opensAtMinutesTomorrow: nil
+            ) == "Closed — see you tomorrow"
         )
     }
 }

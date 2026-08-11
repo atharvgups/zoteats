@@ -130,6 +130,9 @@ struct GymBusynessHero: View {
                                 ),
                                 closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(
                                     weekday: PacificTime.weekdayName()
+                                ),
+                                opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(
+                                    weekday: PacificTime.weekdayName()
                                 )
                             )
                     )
@@ -155,13 +158,14 @@ struct GymBusynessHero: View {
     }
 
     private var hoursLine: String {
-        ArcIdleCopy.hoursLine(
+        let weekday = PacificTime.weekdayName()
+        return ArcIdleCopy.hoursLine(
             openNow: status.openNow,
             todayHours: status.todayHours,
             nowMinutes: UCITime.nowMinutes(),
-            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(
-                weekday: PacificTime.weekdayName()
-            )
+            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday),
+            closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
+            opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
         )
     }
 }
