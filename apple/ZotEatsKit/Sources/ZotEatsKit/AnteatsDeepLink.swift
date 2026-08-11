@@ -117,6 +117,14 @@ public struct AnteatsDeepLink: Equatable, Sendable {
         AnteatsDeepLink(tab: .campus, placeID: placeID)
     }
 
+    public static func study() -> AnteatsDeepLink {
+        AnteatsDeepLink(tab: .study)
+    }
+
+    public static func gym() -> AnteatsDeepLink {
+        AnteatsDeepLink(tab: .gym)
+    }
+
     private static func normalizedHost(_ host: String) -> String {
         switch host {
         case "dining": return Tab.eat.rawValue

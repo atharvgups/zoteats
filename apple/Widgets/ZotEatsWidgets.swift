@@ -54,6 +54,12 @@ struct MealCountdownActivity: Widget {
             .activityBackgroundTint(activityBlue)
             .activitySystemActionForegroundColor(.white)
             .foregroundStyle(.white)
+            .widgetURL(
+                AnteatsDeepLink.eat(
+                    hall: context.attributes.hallID,
+                    period: context.attributes.period
+                ).url
+            )
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -90,6 +96,12 @@ struct MealCountdownActivity: Widget {
                 Image(systemName: "fork.knife")
                     .foregroundStyle(activityGold)
             }
+            .widgetURL(
+                AnteatsDeepLink.eat(
+                    hall: context.attributes.hallID,
+                    period: context.attributes.period
+                ).url
+            )
         }
     }
 }
@@ -102,6 +114,8 @@ struct DiningStatusEntry: TimelineEntry {
     let quietest: (name: String, percent: Int)?
 
     struct HallStatus {
+        /// Anteater API hall id for deep links.
+        let id: String
         let name: String
         let statusText: String
         let isOpen: Bool
@@ -122,9 +136,9 @@ struct DiningStatusProvider: TimelineProvider {
         DiningStatusEntry(
             date: .now,
             halls: [
-                .init(name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
-                .init(name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
-                .init(name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
+                .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
+                .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
+                .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
             ],
             quietest: (name: "Science Library", percent: 12)
         )
@@ -178,6 +192,7 @@ struct DiningStatusProvider: TimelineProvider {
             }
             let estimate = TypicalBusyness.dining(periods: location.periods)
             return .init(
+                id: location.id,
                 name: location.name,
                 statusText: status,
                 isOpen: location.openNow,
@@ -226,10 +241,10 @@ struct DiningStatusWidget: Widget {
 
 /// Deep links into the app when a widget is tapped.
 private enum AnteatsWidgetURL {
-    static let eat = URL(string: "anteats://eat")!
-    static let campus = URL(string: "anteats://campus")!
-    static let gym = URL(string: "anteats://gym")!
-    static let study = URL(string: "anteats://study")!
+    static let eat = AnteatsDeepLink.eat().url
+    static let campus = AnteatsDeepLink.campus(placeID: nil).url
+    static let gym = AnteatsDeepLink.gym().url
+    static let study = AnteatsDeepLink.study().url
 }
 
 struct DiningStatusView: View {
@@ -256,26 +271,30 @@ struct DiningStatusView: View {
             }
             .foregroundStyle(gold)
 
-            ForEach(Array(visibleHalls), id: \.name) { hall in
-                hallRow(hall)
+            ForEach(Array(visibleHalls), id: \.id) { hall in
+                Link(destination: AnteatsDeepLink.eat(hall: hall.id).url) {
+                    hallRow(hall)
+                }
             }
 
             if family == .systemMedium, let quietest = entry.quietest {
                 Divider()
                     .overlay(.white.opacity(0.25))
-                HStack(spacing: 5) {
-                    Image(systemName: "books.vertical.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(gold)
-                    Text("Quietest: \(quietest.name)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                    Spacer()
-                    Text("\(quietest.percent)%")
-                        .font(.system(size: 11, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(gold)
+                Link(destination: AnteatsDeepLink.study().url) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "books.vertical.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(gold)
+                        Text("Quietest: \(quietest.name)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(quietest.percent)%")
+                            .font(.system(size: 11, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(gold)
+                    }
                 }
             }
 
@@ -340,9 +359,9 @@ struct DiningStatusView: View {
     DiningStatusEntry(
         date: .now,
         halls: [
-            .init(name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
-            .init(name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
-            .init(name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
+            .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
+            .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
+            .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
         ],
         quietest: (name: "Science Library", percent: 12)
     )
@@ -743,7 +762,7 @@ struct TodaysMenuView: View {
 
 struct CampusOpenEntry: TimelineEntry {
     let date: Date
-    let openPlaces: [(name: String, hours: String)]
+    let openPlaces: [(id: String, name: String, hours: String)]
     let totalOpen: Int
 }
 
@@ -752,9 +771,9 @@ struct CampusOpenProvider: TimelineProvider {
         CampusOpenEntry(
             date: .now,
             openPlaces: [
-                (name: "Starbucks @ Student Center", hours: "until 8 PM"),
-                (name: "Zot N Go", hours: "Open 24 hours"),
-                (name: "Panda Express", hours: "until 7 PM"),
+                (id: "starbucks-at-student-center", name: "Starbucks @ Student Center", hours: "until 8 PM"),
+                (id: "zot-n-go", name: "Zot N Go", hours: "Open 24 hours"),
+                (id: "panda-express", name: "Panda Express", hours: "until 7 PM"),
             ],
             totalOpen: 6
         )
@@ -806,11 +825,11 @@ struct CampusOpenProvider: TimelineProvider {
         let open = places
             .filter(\.openNow)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        let rows = open.prefix(4).map { place -> (String, String) in
+        let rows = open.prefix(4).map { place -> (id: String, name: String, hours: String) in
             let hours = place.todayHours.map { compactHours($0) } ?? "Open"
-            return (place.name, hours)
+            return (id: place.id, name: place.name, hours: hours)
         }
-        return CampusOpenEntry(date: .now, openPlaces: rows.map { (name: $0.0, hours: $0.1) }, totalOpen: open.count)
+        return CampusOpenEntry(date: .now, openPlaces: rows, totalOpen: open.count)
     }
 
     /// "10:00 AM – 8:00 PM" -> "until 8:00 PM" for tight rows.
@@ -869,15 +888,19 @@ struct CampusOpenView: View {
                     .foregroundStyle(.white.opacity(0.8))
                 Spacer()
             } else if family == .systemSmall {
-                Text(entry.openPlaces.first?.name ?? "")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                if let hours = entry.openPlaces.first?.hours {
-                    Text(hours)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.75))
+                if let first = entry.openPlaces.first {
+                    Link(destination: AnteatsDeepLink.campus(placeID: first.id).url) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(first.name)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                            Text(first.hours)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.75))
+                        }
+                    }
                 }
                 if entry.totalOpen > 1 {
                     Text("+\(entry.totalOpen - 1) more open")
@@ -886,20 +909,22 @@ struct CampusOpenView: View {
                 }
                 Spacer(minLength: 0)
             } else {
-                ForEach(Array(entry.openPlaces.prefix(3).enumerated()), id: \.offset) { _, place in
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 5, height: 5)
-                        Text(place.name)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        Text(place.hours)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .lineLimit(1)
+                ForEach(Array(entry.openPlaces.prefix(3)), id: \.id) { place in
+                    Link(destination: AnteatsDeepLink.campus(placeID: place.id).url) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 5, height: 5)
+                            Text(place.name)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(place.hours)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .lineLimit(1)
+                        }
                     }
                 }
                 if entry.totalOpen > 3 {
@@ -921,8 +946,8 @@ struct CampusOpenView: View {
     CampusOpenEntry(
         date: .now,
         openPlaces: [
-            (name: "Starbucks @ Student Center", hours: "until 8 PM"),
-            (name: "Zot N Go", hours: "Open 24 hours"),
+            (id: "starbucks-at-student-center", name: "Starbucks @ Student Center", hours: "until 8 PM"),
+            (id: "zot-n-go", name: "Zot N Go", hours: "Open 24 hours"),
         ],
         totalOpen: 5
     )
