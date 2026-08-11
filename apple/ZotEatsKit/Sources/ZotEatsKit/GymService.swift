@@ -20,7 +20,7 @@ public struct GymService: Sendable {
     }
 
     /// Hours as (open, close) in 24h; close may be 24 (midnight). Maintained fallback.
-    static let arcWeek: [(day: String, open: Int, close: Int)] = [
+    public static let arcWeek: [(day: String, open: Int, close: Int)] = [
         ("Sunday", 8, 24),
         ("Monday", 6, 24),
         ("Tuesday", 6, 24),

@@ -119,7 +119,20 @@ struct GymBusynessHero: View {
                 HStack(spacing: 8) {
                     Image(systemName: "moon.zzz")
                         .foregroundStyle(.secondary)
-                    Text(status.openNow ? "No busyness estimate right now" : "Closed — see you tomorrow")
+                    Text(
+                        status.openNow
+                            ? "No busyness estimate right now"
+                            : ArcIdleCopy.noBusynessMessage(
+                                openNow: false,
+                                nowMinutes: UCITime.nowMinutes(),
+                                opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(
+                                    weekday: PacificTime.weekdayName()
+                                ),
+                                closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(
+                                    weekday: PacificTime.weekdayName()
+                                )
+                            )
+                    )
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -142,12 +155,14 @@ struct GymBusynessHero: View {
     }
 
     private var hoursLine: String {
-        guard let hours = status.todayHours else { return "Hours unavailable" }
-        // "6:00 AM – 12:00 AM" -> "Open until 12:00 AM" while open.
-        if status.openNow, let close = hours.components(separatedBy: "–").last?.trimmingCharacters(in: .whitespaces) {
-            return "Open until \(close)"
-        }
-        return "Today: \(hours)"
+        ArcIdleCopy.hoursLine(
+            openNow: status.openNow,
+            todayHours: status.todayHours,
+            nowMinutes: UCITime.nowMinutes(),
+            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(
+                weekday: PacificTime.weekdayName()
+            )
+        )
     }
 }
 

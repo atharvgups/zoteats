@@ -1106,13 +1106,14 @@ struct ArcStatusProvider: TimelineProvider {
 
     private func fetchEntry() async -> ArcStatusEntry {
         let status = await GymService().status()
-        let hoursLine: String = {
-            guard let hours = status.todayHours else { return status.openNow ? "Open" : "Closed" }
-            if status.openNow, let close = hours.components(separatedBy: "–").last?.trimmingCharacters(in: .whitespaces) {
-                return "Open until \(close)"
-            }
-            return status.openNow ? "Open · \(hours)" : "Closed · \(hours)"
-        }()
+        let nowMinutes = UCITime.nowMinutes()
+        let weekday = PacificTime.weekdayName()
+        let hoursLine = ArcIdleCopy.hoursLine(
+            openNow: status.openNow,
+            todayHours: status.todayHours,
+            nowMinutes: nowMinutes,
+            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday)
+        )
         let crowding = ArcWidgetGlance.crowding(from: status)
         return ArcStatusEntry(
             date: .now,
