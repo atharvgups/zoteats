@@ -43,7 +43,7 @@ struct OpeningAlertsPicker: View {
                                         placeRow(
                                             id: "dining:\(hall.id)",
                                             name: hall.name,
-                                            detail: hall.todayHours ?? "Closed today"
+                                            detail: hall.hoursLine()
                                         )
                                         if hall.id != filteredHalls.last?.id { Divider() }
                                     }
@@ -57,7 +57,7 @@ struct OpeningAlertsPicker: View {
                                             placeRow(
                                                 id: "campus:\(place.id)",
                                                 name: place.name,
-                                                detail: place.todayHours ?? "Closed today"
+                                                detail: place.hoursLine
                                             )
                                             if place.id != group.last?.id { Divider() }
                                         }
