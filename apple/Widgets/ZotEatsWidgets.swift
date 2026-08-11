@@ -1365,15 +1365,18 @@ struct QuietestLibraryView: View {
                         Text(entry.name)
                             .font(.system(size: 13, weight: .semibold))
                             .lineLimit(1)
-                        Text(entry.percent.map { "\($0)% full · quietest now" } ?? "No live data")
+                        Text(QuietestLibraryGlance.widgetRectangularDetail(percent: entry.percent))
                             .font(.system(size: 11))
                             .opacity(0.8)
+                            .lineLimit(2)
                     }
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
-                    "\(entry.name)\(entry.percent.map { ", \($0) percent full, quietest library right now" } ?? "")"
+                    entry.percent.map {
+                        "\(entry.name), \($0) percent full, quietest library right now"
+                    } ?? "\(entry.name). \(QuietestLibraryGlance.closedDetail)"
                 )
             default:
                 VStack(alignment: .leading, spacing: 8) {
@@ -1402,14 +1405,17 @@ struct QuietestLibraryView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.white.opacity(0.75))
                     } else {
-                        Text("No live data")
+                        Text(QuietestLibraryGlance.closedDetail)
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(3)
                     }
                     Spacer(minLength: 0)
                 }
                 .accessibilityLabel(
-                    "\(entry.name)\(entry.percent.map { ", \($0) percent full" } ?? "")"
+                    entry.percent.map {
+                        "\(entry.name), \($0) percent full"
+                    } ?? "\(entry.name). \(QuietestLibraryGlance.closedDetail)"
                 )
             }
         }

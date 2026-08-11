@@ -88,4 +88,27 @@ struct QuietestLibraryGlanceTests {
         )
         #expect(QuietestLibraryGlance.diningStatusTip(from: [closed]) == .librariesClosed)
     }
+
+    @Test func widgetRectangularDetailOpen() {
+        #expect(
+            QuietestLibraryGlance.widgetRectangularDetail(percent: 8)
+                == "8% full · quietest now"
+        )
+    }
+
+    @Test func widgetClosedSecondaryMatchesStudyNotFetchFailure() {
+        #expect(
+            QuietestLibraryGlance.widgetRectangularDetail(percent: nil)
+                == QuietestLibraryGlance.closedDetail
+        )
+        #expect(
+            QuietestLibraryGlance.widgetHomeSecondary(percent: nil)
+                == QuietestLibraryGlance.closedDetail
+        )
+        #expect(
+            QuietestLibraryGlance.widgetRectangularDetail(percent: nil)
+                != "No live data"
+        )
+        #expect(QuietestLibraryGlance.widgetHomeSecondary(percent: 12) == nil)
+    }
 }

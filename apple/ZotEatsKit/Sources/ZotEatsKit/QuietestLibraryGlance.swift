@@ -5,6 +5,20 @@ public enum QuietestLibraryGlance {
     public static let closedTitle = "Libraries closed"
     public static let closedDetail = "No open library floors reporting right now."
 
+    /// Lock Screen rectangular secondary line — busy % or overnight closed copy.
+    /// Never "No live data" for the closed path (that reads like a fetch failure).
+    public static func widgetRectangularDetail(percent: Int?) -> String {
+        if let percent {
+            return "\(percent)% full · quietest now"
+        }
+        return closedDetail
+    }
+
+    /// Home small secondary line when there is no quietest % (libraries closed).
+    public static func widgetHomeSecondary(percent: Int?) -> String? {
+        percent == nil ? closedDetail : nil
+    }
+
     /// Dining Status medium tip — open quietest floor or overnight closed copy.
     public enum DiningStatusTip: Equatable, Sendable {
         case open(name: String, percent: Int, facilityID: Int?)
