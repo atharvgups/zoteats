@@ -314,8 +314,9 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     public let todayHours: String?
     /// True when the venue publishes a menu on the dining hub.
     public let hasMenu: Bool
-    /// Minutes-since-midnight of today's next opening, when currently closed
-    /// but opening later today. Nil while open or done for the day.
+    /// Minutes-since-midnight of today's next opening still ahead (Irvine).
+    /// Set while closed-before-open **and** while open when a later window
+    /// remains (split schedules). Nil when done for the day.
     public let opensAtMinutes: Int?
     /// When open: end of the current window (Irvine minutes). Nil when closed,
     /// open 24h, or hours unknown — drives Campus widget reload boundaries.

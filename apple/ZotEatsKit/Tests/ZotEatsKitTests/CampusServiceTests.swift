@@ -36,7 +36,21 @@ struct CampusServiceTests {
         #expect(starbucks?.todayHours?.contains("7:30 AM") == true)
         // Open venues expose close minutes so Campus Open widgets can reload at the boundary.
         #expect(starbucks?.closesAtMinutes == 16 * 60)
+        // Single continuous window — no later reopen today.
         #expect(starbucks?.opensAtMinutes == nil)
+    }
+
+    @Test func nextOpeningMinutesFindsLaterWindowWhileOpen() {
+        let windows = [
+            CampusService.TimeWindow(start: 7 * 60 + 30, end: 11 * 60),
+            CampusService.TimeWindow(start: 16 * 60 + 30, end: 21 * 60),
+        ]
+        // 10 AM inside the morning window — still schedule the evening reopen.
+        #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 10 * 60) == 16 * 60 + 30)
+        // Before either window — morning open.
+        #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 6 * 60) == 7 * 60 + 30)
+        // After the last window.
+        #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 22 * 60) == nil)
     }
 
     @Test func weekendOffMeansClosedWithNoHours() async throws {

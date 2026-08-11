@@ -6,9 +6,9 @@ import ZotEatsKit
 // halls and campus venues in Settings; we schedule local notifications at
 // today's opening times whenever fresh hours arrive (foreground + background
 // refresh). Watching during lunch still schedules dinner; watching while a
-// café is open still schedules tomorrow morning. After the last window of
-// the day, we schedule tomorrow's first open. No servers — iOS fires them
-// even if the app stays closed.
+// café is open still schedules a later same-day reopen (split hours) or
+// tomorrow morning. After the last window of the day, we schedule tomorrow's
+// first open. No servers — iOS fires them even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -81,6 +81,7 @@ enum OpeningAlerts {
         for place in (try? await CampusService().places()) ?? [] {
             let id = "campus:\(place.id)"
             if let todayOpen = place.opensAtMinutes {
+                // Includes later same-day reopens while currently open.
                 candidates.append(.init(
                     id: id, name: place.name, opensAtMinutes: todayOpen, dayOffset: 0
                 ))

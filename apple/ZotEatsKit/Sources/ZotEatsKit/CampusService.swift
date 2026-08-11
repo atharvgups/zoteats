@@ -202,7 +202,7 @@ public struct CampusService: Sendable {
                     openNow: openNow,
                     todayHours: Self.format(windows: windows),
                     hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
-                    opensAtMinutes: openNow ? nil : windows.map(\.start).filter { $0 > nowMinutes }.min(),
+                    opensAtMinutes: Self.nextOpeningMinutes(windows: windows, nowMinutes: nowMinutes),
                     closesAtMinutes: closesAt,
                     opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min()
                 )
@@ -279,6 +279,12 @@ public struct CampusService: Sendable {
             }
         }
         return windows.sorted { $0.start < $1.start }
+    }
+
+    /// Earliest window start still ahead of `nowMinutes` — including the next
+    /// reopen while the venue is already open (split lunch/dinner schedules).
+    static func nextOpeningMinutes(windows: [TimeWindow], nowMinutes: Int) -> Int? {
+        windows.map(\.start).filter { $0 > nowMinutes }.min()
     }
 
     private static let dayAbbreviations = ["Sunday": "Su", "Monday": "Mo", "Tuesday": "Tu", "Wednesday": "We", "Thursday": "Th", "Friday": "Fr", "Saturday": "Sa"]
