@@ -41,6 +41,8 @@ struct CampusServiceTests {
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
         #expect(starbucks?.openNow == false)
         #expect(starbucks?.todayHours == nil)
+        // Sunday evening watchers still need Monday's open for opening alerts.
+        #expect(starbucks?.opensTomorrowAtMinutes == 7 * 60 + 30)
     }
 
     @Test func openingHoursRuleParsing() {

@@ -60,6 +60,52 @@ struct OpeningAlertPlannerTests {
         )
         #expect(plans.isEmpty)
     }
+
+    @Test func schedulesTomorrowWhenClosedForToday() {
+        // 10 PM Pacific — nothing left today; tomorrow breakfast should still schedule.
+        let tenPM = sevenAM.addingTimeInterval(15 * 3600)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 7 * 60 + 15,
+                    dayOffset: 1
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: tenPM
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-17")
+        #expect(PacificTime.todayISO(now: plan.fireDate) == "2026-07-17")
+        #expect(PacificTime.nowMinutes(now: plan.fireDate) == 7 * 60 + 15)
+    }
+
+    @Test func prefersTodayOverTomorrowWhenBothExist() {
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(id: "campus:starbucks", name: "Starbucks", opensAtMinutes: 8 * 60, dayOffset: 0),
+                .init(id: "campus:starbucks", name: "Starbucks", opensAtMinutes: 8 * 60, dayOffset: 1),
+            ],
+            watchedIDs: ["campus:starbucks"],
+            now: sevenAM
+        )
+        // Both would match the same place id — planner emits one alert per candidate.
+        // Callers should only pass one; if both slip through, today fires first.
+        #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16")
+        #expect(plans.count == 2)
+        #expect(plans[0].fireDate < plans[1].fireDate)
+    }
+
+    @Test func earliestOpeningPicksBreakfast() {
+        let periods = [
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60),
+            MealPeriodWindow(name: "Breakfast", startMinutes: 7 * 60 + 15, endMinutes: 11 * 60),
+        ]
+        #expect(OpeningAlertPlanner.earliestOpening(periods: periods) == 7 * 60 + 15)
+        #expect(OpeningAlertPlanner.earliestOpening(periods: []) == nil)
+    }
 }
 
 @Suite("OpeningAlertPlanner — dining next opening")

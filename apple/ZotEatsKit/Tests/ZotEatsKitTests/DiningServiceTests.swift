@@ -88,6 +88,13 @@ struct DiningServiceTests {
         #expect(menu.stations.contains { $0.name == "Available all day" })
     }
 
+    @Test func mealPeriodsExposeWindowsForADate() async {
+        let periods = await service().mealPeriods(for: "anteatery", dateISO: "2026-07-09")
+        #expect(!periods.isEmpty)
+        #expect(periods.contains { $0.startMinutes != nil && $0.endMinutes != nil })
+        #expect(OpeningAlertPlanner.earliestOpening(periods: periods) != nil)
+    }
+
     @Test func dietLookupKeysMatchHubNamingVariants() {
         let keys = DiningService.dietLookupKeys(for: "Vegan Mac & Cheese UCI")
         #expect(keys.contains("vegan mac & cheese"))

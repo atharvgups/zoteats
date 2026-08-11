@@ -424,6 +424,23 @@ public struct DiningService: Sendable {
         return hallIDs.compactMap { id in results.first { $0.id == id } }
     }
 
+    /// Meal-period windows for a hall on a specific Irvine ISO date.
+    /// Empty when unpublished (404) or offline — never throws.
+    public func mealPeriods(for hall: String, dateISO: String) async -> [MealPeriodWindow] {
+        do {
+            let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
+            return periods.map {
+                MealPeriodWindow(
+                    name: $0.name,
+                    startMinutes: PacificTime.parseMinutes($0.startTime),
+                    endMinutes: PacificTime.parseMinutes($0.endTime)
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
     private func location(for hall: String, dateISO: String, nowMinutes: Int) async -> DiningLocation {
         do {
             let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))

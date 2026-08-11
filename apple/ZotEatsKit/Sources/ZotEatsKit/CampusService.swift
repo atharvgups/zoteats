@@ -177,6 +177,13 @@ public struct CampusService: Sendable {
                 )
                 let nowMinutes = PacificTime.nowMinutes(now: currentDate)
                 let openNow = windows.contains { $0.contains(minute: nowMinutes) }
+                let calendar = PacificTime.calendar
+                let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+                let tomorrowWindows = Self.todayWindows(
+                    schedules: raw.aemAttributes?.hoursOfOperation?.schedule ?? [],
+                    todayISO: PacificTime.todayISO(now: tomorrowDate),
+                    weekday: PacificTime.weekdayName(now: tomorrowDate)
+                )
                 return CampusPlace(
                     id: key,
                     name: name,
@@ -184,7 +191,8 @@ public struct CampusService: Sendable {
                     openNow: openNow,
                     todayHours: Self.format(windows: windows),
                     hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
-                    opensAtMinutes: openNow ? nil : windows.map(\.start).filter { $0 > nowMinutes }.min()
+                    opensAtMinutes: openNow ? nil : windows.map(\.start).filter { $0 > nowMinutes }.min(),
+                    opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min()
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

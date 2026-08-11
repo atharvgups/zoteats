@@ -5,7 +5,9 @@ import ZotEatsKit
 // Opening alerts: "tell me the moment this spot opens." The user picks dining
 // halls and campus venues in Settings; we schedule local notifications at
 // today's opening times whenever fresh hours arrive (foreground + background
-// refresh). No servers — iOS fires them even if the app stays closed.
+// refresh). After the last window of the day, we schedule tomorrow's first
+// open so evening watchers still get a morning ping. No servers — iOS fires
+// them even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -29,7 +31,7 @@ enum OpeningAlerts {
         Task { await refreshSchedules() }
     }
 
-    /// Re-plans today's alerts from fresh hours. Cheap: services are TTL-cached,
+    /// Re-plans opening alerts from fresh hours. Cheap: services are TTL-cached,
     /// so foreground calls right after the stores load hit memory.
     static func refreshSchedules() async {
         let center = UNUserNotificationCenter.current()
@@ -47,29 +49,60 @@ enum OpeningAlerts {
         var candidates: [OpeningAlertPlanner.Candidate] = []
         var hoursByID: [String: String] = [:]
 
+        let dining = DiningService()
         let nowMinutes = UCITime.nowMinutes()
-        for hall in await DiningService().locations() {
+        let tomorrowISO = UCITime.upcomingDays(count: 2).dropFirst().first?.isoDate
+
+        for hall in await dining.locations() {
             let id = "dining:\(hall.id)"
-            candidates.append(.init(
-                id: id,
-                name: hall.name,
-                opensAtMinutes: hall.openNow
-                    ? nil
-                    : OpeningAlertPlanner.nextOpening(periods: hall.periods, nowMinutes: nowMinutes)
-            ))
-            if let hours = hall.todayHours { hoursByID[id] = hours }
+            if hall.openNow {
+                candidates.append(.init(id: id, name: hall.name, opensAtMinutes: nil))
+                if let hours = hall.todayHours { hoursByID[id] = hours }
+                continue
+            }
+            if let todayOpen = OpeningAlertPlanner.nextOpening(
+                periods: hall.periods, nowMinutes: nowMinutes
+            ) {
+                candidates.append(.init(
+                    id: id, name: hall.name, opensAtMinutes: todayOpen, dayOffset: 0
+                ))
+                if let hours = hall.todayHours { hoursByID[id] = hours }
+            } else if let tomorrowISO {
+                let periods = await dining.mealPeriods(for: hall.id, dateISO: tomorrowISO)
+                if let open = OpeningAlertPlanner.earliestOpening(periods: periods) {
+                    candidates.append(.init(
+                        id: id, name: hall.name, opensAtMinutes: open, dayOffset: 1
+                    ))
+                    if let summary = Self.hoursSummary(periods: periods) {
+                        hoursByID[id] = summary
+                    }
+                }
+            }
         }
+
         for place in (try? await CampusService().places()) ?? [] {
             let id = "campus:\(place.id)"
-            candidates.append(.init(id: id, name: place.name, opensAtMinutes: place.opensAtMinutes))
-            if let hours = place.todayHours { hoursByID[id] = hours }
+            if let todayOpen = place.opensAtMinutes {
+                candidates.append(.init(
+                    id: id, name: place.name, opensAtMinutes: todayOpen, dayOffset: 0
+                ))
+                if let hours = place.todayHours { hoursByID[id] = hours }
+            } else if !place.openNow, let tomorrowOpen = place.opensTomorrowAtMinutes {
+                candidates.append(.init(
+                    id: id, name: place.name, opensAtMinutes: tomorrowOpen, dayOffset: 1
+                ))
+                // tomorrowHours isn't on the model — fall back to a generic body.
+            } else {
+                candidates.append(.init(id: id, name: place.name, opensAtMinutes: nil))
+                if let hours = place.todayHours { hoursByID[id] = hours }
+            }
         }
 
         for alert in OpeningAlertPlanner.plan(candidates: candidates, watchedIDs: watched) {
             let content = UNMutableNotificationContent()
             content.title = "\(alert.placeName) just opened"
             if let hours = hoursByID[alert.placeID] {
-                content.body = "Open today \(hours). Head over when you're ready."
+                content.body = "Open \(hours). Head over when you're ready."
             } else {
                 content.body = "Doors are open — head over when you're ready."
             }
@@ -83,5 +116,12 @@ enum OpeningAlerts {
                 UNNotificationRequest(identifier: alert.identifier, content: content, trigger: trigger)
             )
         }
+    }
+
+    private static func hoursSummary(periods: [MealPeriodWindow]) -> String? {
+        let starts = periods.compactMap(\.startMinutes)
+        let ends = periods.compactMap(\.endMinutes)
+        guard let start = starts.min(), let end = ends.max() else { return nil }
+        return "\(UCITime.format(minutes: start)) – \(UCITime.format(minutes: end))"
     }
 }
