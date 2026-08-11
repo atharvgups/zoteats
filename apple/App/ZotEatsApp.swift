@@ -72,6 +72,7 @@ struct ZotEatsApp: App {
                     await FavoriteAlerts.runCheck()
                     await MenuDropAlerts.runCheck()
                     await OpeningAlerts.refreshSchedules()
+                    WidgetReloader.reloadAll()
                 }
             case .background:
                 FavoriteAlerts.scheduleNextRefresh()
@@ -83,6 +84,7 @@ struct ZotEatsApp: App {
             await FavoriteAlerts.runCheck()
             await MenuDropAlerts.runCheck()
             await OpeningAlerts.refreshSchedules()
+            WidgetReloader.reloadAll()
             await FavoriteAlerts.scheduleNextRefresh()
         }
     }

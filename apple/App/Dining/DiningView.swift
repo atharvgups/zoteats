@@ -309,7 +309,22 @@ struct DiningView: View {
     private var menuContent: some View {
         switch currentMenuState {
         case .idle, .loading:
-            loadingPlaceholder
+            switch DiningMenuIdleAction.resolve(
+                locationsLoaded: store.locations.value != nil,
+                availablePeriods: selectedLocation?.availablePeriods,
+                selectedPeriod: selectedPeriod
+            ) {
+            case .emptyNoMenu:
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "No menu yet",
+                    message: "\(selectedLocation?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
+                ) {
+                    Task { await refresh() }
+                }
+            case .loading:
+                loadingPlaceholder
+            }
         case .failed(let message):
             EmptyStateView(
                 icon: "fork.knife.circle",
