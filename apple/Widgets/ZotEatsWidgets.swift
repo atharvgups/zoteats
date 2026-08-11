@@ -111,7 +111,8 @@ struct MealCountdownActivity: Widget {
 struct DiningStatusEntry: TimelineEntry {
     let date: Date
     let halls: [HallStatus]
-    let quietest: (name: String, percent: Int, facilityID: Int?)?
+    /// Medium tip — open quietest floor or overnight "Libraries closed".
+    let quietest: QuietestLibraryGlance.DiningStatusTip?
 
     struct HallStatus {
         /// Anteater API hall id for deep links.
@@ -162,7 +163,7 @@ struct DiningStatusProvider: TimelineProvider {
                 .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
                 .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
             ],
-            quietest: (name: "Science Library", percent: 12, facilityID: 2)
+            quietest: .open(name: "Science Library", percent: 12, facilityID: 2)
         )
     }
 
@@ -238,10 +239,9 @@ struct DiningStatusProvider: TimelineProvider {
             )
         }
 
-        let quietest: (name: String, percent: Int, facilityID: Int?)?
-        if let places = try? await BusynessService().all(),
-           let pick = QuietestLibraryPick.best(from: places) {
-            quietest = (name: pick.title, percent: pick.percent, facilityID: pick.facilityID)
+        let quietest: QuietestLibraryGlance.DiningStatusTip?
+        if let places = try? await BusynessService().all() {
+            quietest = QuietestLibraryGlance.diningStatusTip(from: places)
         } else {
             quietest = nil
         }
@@ -312,23 +312,39 @@ struct DiningStatusView: View {
                 }
             }
 
-            if family == .systemMedium, let quietest = entry.quietest {
+            if family == .systemMedium, let tip = entry.quietest {
                 Divider()
                     .overlay(.white.opacity(0.25))
-                Link(destination: AnteatsDeepLink.study(facilityID: quietest.facilityID).url) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "books.vertical.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(gold)
-                        Text("Quietest: \(quietest.name)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(quietest.percent)%")
-                            .font(.system(size: 11, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundStyle(gold)
+                switch tip {
+                case .open(let name, let percent, let facilityID):
+                    Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "books.vertical.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(gold)
+                            Text("Quietest: \(name)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                            Spacer()
+                            Text("\(percent)%")
+                                .font(.system(size: 11, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(gold)
+                        }
+                    }
+                case .librariesClosed:
+                    Link(destination: AnteatsDeepLink.study().url) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "moon.zzz.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(gold.opacity(0.85))
+                            Text(QuietestLibraryGlance.closedTitle)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
                     }
                 }
             }
@@ -398,7 +414,7 @@ struct DiningStatusView: View {
             .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
             .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
         ],
-        quietest: (name: "Science Library", percent: 12, facilityID: 2)
+        quietest: .open(name: "Science Library", percent: 12, facilityID: 2)
     )
 }
 

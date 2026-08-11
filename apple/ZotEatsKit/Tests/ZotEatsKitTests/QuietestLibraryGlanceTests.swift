@@ -61,5 +61,31 @@ struct QuietestLibraryGlanceTests {
         )
         #expect(!QuietestLibraryGlance.hasLibraryFacilities([arc]))
         #expect(!QuietestLibraryGlance.shouldShowClosed(from: [arc]))
+        #expect(QuietestLibraryGlance.diningStatusTip(from: [arc]) == nil)
+    }
+
+    @Test func diningStatusTipOpenPick() {
+        let open = point(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            percent: 12,
+            isOpen: true
+        )
+        #expect(
+            QuietestLibraryGlance.diningStatusTip(from: [open])
+                == .open(name: "Science Library", percent: 12, facilityID: 2)
+        )
+    }
+
+    @Test func diningStatusTipLibrariesClosed() {
+        let closed = point(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            percent: 10,
+            isOpen: false
+        )
+        #expect(QuietestLibraryGlance.diningStatusTip(from: [closed]) == .librariesClosed)
     }
 }
