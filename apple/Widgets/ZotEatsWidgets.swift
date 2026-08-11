@@ -189,12 +189,9 @@ struct DiningStatusProvider: TimelineProvider {
         }
 
         let quietest: (name: String, percent: Int)?
-        if let places = try? await BusynessService().all() {
-            // Match the Quietest Library widget — books icon implies libraries.
-            quietest = places
-                .filter { $0.category == "Library" && $0.isOpen && $0.percent != nil }
-                .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
-                .map { (name: $0.name, percent: $0.percent ?? 0) }
+        if let places = try? await BusynessService().all(),
+           let pick = QuietestLibraryPick.best(from: places) {
+            quietest = (name: pick.title, percent: pick.percent)
         } else {
             quietest = nil
         }
@@ -1126,31 +1123,10 @@ struct QuietestLibraryProvider: TimelineProvider {
     }
 
     private static func entry(from facilities: [BusynessPoint]) -> QuietestLibraryEntry {
-        let libraries = facilities.filter { $0.category == "Library" }
-        let pool = libraries.isEmpty ? facilities : libraries
-
-        var floorCandidates: [(title: String, percent: Int)] = []
-        for facility in pool where facility.isOpen {
-            for floor in facility.subLocations ?? [] {
-                guard floor.isOpen, let percent = floor.percent else { continue }
-                floorCandidates.append((title: "\(shortLibrary(facility.name)) · \(floor.name)", percent: percent))
-            }
-        }
-        if let best = floorCandidates.min(by: { $0.percent < $1.percent }) {
-            return QuietestLibraryEntry(date: .now, name: best.title, percent: best.percent)
-        }
-        if let quietest = pool
-            .filter({ place in place.isOpen && place.percent != nil })
-            .min(by: { ($0.percent ?? 101) < ($1.percent ?? 101) }) {
-            return QuietestLibraryEntry(date: .now, name: quietest.name, percent: quietest.percent)
+        if let pick = QuietestLibraryPick.best(from: facilities) {
+            return QuietestLibraryEntry(date: .now, name: pick.title, percent: pick.percent)
         }
         return QuietestLibraryEntry(date: .now, name: "Libraries closed", percent: nil)
-    }
-
-    private static func shortLibrary(_ name: String) -> String {
-        name
-            .replacingOccurrences(of: " Library", with: "")
-            .replacingOccurrences(of: "Science", with: "Sci Lib")
     }
 }
 

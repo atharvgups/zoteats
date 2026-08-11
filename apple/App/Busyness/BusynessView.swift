@@ -54,8 +54,9 @@ struct BusynessView: View {
                 )
                 .zotCard()
             } else {
-                if let pick = Self.quietestPick(facilities) {
-                    QuietestNowCard(facility: pick)
+                let pick = QuietestLibraryPick.best(from: facilities)
+                if let pick {
+                    QuietestNowCard(pick: pick)
                 }
                 let grouped = groups(from: facilities)
                 ForEach(grouped, id: \.category) { group in
@@ -64,19 +65,12 @@ struct BusynessView: View {
                     BusynessGroupSection(
                         category: group.category,
                         facilities: group.facilities,
-                        showHeader: grouped.count > 1
+                        showHeader: grouped.count > 1,
+                        expandFacilityID: pick?.facilityID
                     )
                 }
             }
         }
-    }
-
-    /// The emptiest open facility right now — an actionable recommendation,
-    /// not just data. Requires a known percent to qualify.
-    static func quietestPick(_ facilities: [BusynessPoint]) -> BusynessPoint? {
-        facilities
-            .filter { $0.isOpen && $0.percent != nil }
-            .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
     }
 
     /// Groups facilities by category in fixed order, sorting each group
@@ -103,7 +97,7 @@ struct BusynessView: View {
 // MARK: - "Quietest right now" recommendation card
 
 struct QuietestNowCard: View {
-    let facility: BusynessPoint
+    let pick: QuietestLibraryPick
 
     var body: some View {
         HStack(spacing: 14) {
@@ -114,29 +108,27 @@ struct QuietestNowCard: View {
                 .background(Color.uciGold.opacity(0.14), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("QUIETEST RIGHT NOW")
+                Text("QUIETEST LIBRARY")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(0.6)
                     .foregroundStyle(.secondary)
-                Text(facility.name)
+                Text(pick.title)
                     .font(ZotFont.cardTitle)
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.8)
             }
 
             Spacer(minLength: 8)
 
-            if let percent = facility.percent {
-                VStack(spacing: 0) {
-                    Text("\(percent)%")
-                        .font(.system(size: 21, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(Color.uciBlue)
-                    Text("full")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+            VStack(spacing: 0) {
+                Text("\(pick.percent)%")
+                    .font(.system(size: 21, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.uciBlue)
+                Text("full")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(16)
@@ -151,7 +143,7 @@ struct QuietestNowCard: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Quietest right now: \(facility.name)\(facility.percent.map { ", \($0) percent full" } ?? "")"
+            "Quietest library right now: \(pick.title), \(pick.percent) percent full"
         )
     }
 }
@@ -162,6 +154,8 @@ struct BusynessGroupSection: View {
     let category: String
     let facilities: [BusynessPoint]
     var showHeader = true
+    /// Auto-expand the quietest library’s floors when Study recommends it.
+    var expandFacilityID: Int? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -174,7 +168,10 @@ struct BusynessGroupSection: View {
             }
 
             ForEach(facilities) { facility in
-                BusynessFacilityCard(facility: facility)
+                BusynessFacilityCard(
+                    facility: facility,
+                    initiallyExpanded: expandFacilityID == facility.id
+                )
             }
         }
     }
@@ -184,6 +181,7 @@ struct BusynessGroupSection: View {
 
 struct BusynessFacilityCard: View {
     let facility: BusynessPoint
+    var initiallyExpanded: Bool = false
     @State private var isExpanded = false
 
     /// Floors/zones after Lobby filtering + floor grouping.
@@ -237,18 +235,26 @@ struct BusynessFacilityCard: View {
             if hasFloors {
                 expandToggle
                 if isExpanded {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(floors) { floor in
-                            BusynessFloorBlock(floor: floor)
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    floorsList
                 }
             }
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .onAppear {
+            if initiallyExpanded, hasFloors {
+                isExpanded = true
+            }
+        }
+    }
+
+    private var floorsList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(floors) { floor in
+                BusynessFloorBlock(floor: floor)
+            }
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     private var expandToggle: some View {
