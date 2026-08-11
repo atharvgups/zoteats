@@ -340,7 +340,7 @@ private struct CampusBrandGroupRow: View {
                                         .font(ZotFont.caption.weight(.semibold))
                                         .foregroundStyle(.primary)
                                         .lineLimit(1)
-                                    Text(place.todayHours ?? "Closed today")
+                                    Text(place.hoursLine)
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
@@ -395,7 +395,7 @@ private struct CampusPlaceRow: View {
                             TagChip(text: "Menu", color: .uciBlue)
                         }
                     }
-                    Text(place.todayHours ?? "Closed today")
+                    Text(place.hoursLine)
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -414,7 +414,7 @@ private struct CampusPlaceRow: View {
         .accessibilityIdentifier("campus-place-\(place.id)")
         .zotCard()
         .accessibilityLabel(
-            "\(place.name), \(place.openNow ? "open" : "closed")\(place.todayHours.map { ", today \($0)" } ?? "")\(place.hasMenu ? ", menu available" : "")"
+            "\(place.name), \(place.openNow ? "open" : "closed"), \(place.hoursLine)\(place.hasMenu ? ", menu available" : "")"
         )
         .accessibilityHint("Shows menu and details")
     }
@@ -440,7 +440,7 @@ struct CampusMenuSheet: View {
                             .padding(.trailing, 44)
                         HStack(spacing: 8) {
                             StatusPill(isOpen: place.openNow)
-                            Text(place.todayHours ?? "Closed today")
+                            Text(place.hoursLine)
                                 .font(ZotFont.caption)
                                 .foregroundStyle(.secondary)
                         }

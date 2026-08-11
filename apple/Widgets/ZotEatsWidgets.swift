@@ -903,7 +903,10 @@ struct CampusOpenProvider: TimelineProvider {
             .filter(\.openNow)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         let rows = open.prefix(4).map { place -> (id: String, name: String, hours: String) in
-            let hours = place.todayHours.map { compactHours($0) } ?? "Open"
+            let hours = CampusPlaceHoursLine.widgetOpenHours(
+                todayHours: place.todayHours,
+                closesAtMinutes: place.closesAtMinutes
+            )
             return (id: place.id, name: place.name, hours: hours)
         }
         let nextOpen = open.isEmpty ? CampusNextOpenHint.best(from: places) : nil
@@ -915,14 +918,6 @@ struct CampusOpenProvider: TimelineProvider {
         )
     }
 
-    /// "10:00 AM – 8:00 PM" -> "until 8:00 PM" for tight rows.
-    private func compactHours(_ hours: String) -> String {
-        if hours.localizedCaseInsensitiveContains("24") { return "Open 24 hours" }
-        if let close = hours.components(separatedBy: "–").last?.trimmingCharacters(in: .whitespaces), !close.isEmpty {
-            return "until \(close)"
-        }
-        return hours
-    }
 }
 
 struct CampusOpenWidget: Widget {
