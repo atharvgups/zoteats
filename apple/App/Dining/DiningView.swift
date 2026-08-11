@@ -161,9 +161,10 @@ struct DiningView: View {
         return store.menuState(hall: selectedHall, period: selectedPeriod, date: selectedDate)
     }
 
-    /// Drives `.task(id:)` so the menu reloads whenever hall, period, or day changes.
+    /// Drives `.task(id:)` so the menu reloads whenever hall, period, day, or
+    /// Irvine day-rollover epoch changes.
     private var menuTaskID: String {
-        "\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")"
+        "\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")|\(store.dayEpoch)"
     }
 
     private var trimmedQuery: String {

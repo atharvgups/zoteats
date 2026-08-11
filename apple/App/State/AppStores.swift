@@ -31,11 +31,27 @@ final class DiningStore {
     var locations: LoadState<[DiningLocation]> = .idle
     /// Inclusive ISO window the feed currently publishes — clamps the day strip.
     private(set) var publishedDateRange: DiningService.PublishedDateRange?
-    /// Keyed by "\(hallID)|\(period)".
+    /// Keyed by "\(hallID)|\(period)|\(date ?? "today")".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
+    /// Irvine day `locations` were last loaded for — drives overnight rollover.
+    private(set) var locationsDateISO: String?
+    /// Bumps when live `"today"` menus are purged so Eat's `.task(id:)` refetches.
+    private(set) var dayEpoch: Int = 0
 
     init(service: DiningService = DiningService()) {
         self.service = service
+    }
+
+    /// Purge stale live menus after Irvine midnight. Returns true when a refetch is needed.
+    @discardableResult
+    func ensureCurrentDay(todayISO: String = PacificTime.todayISO()) -> Bool {
+        guard DiningDayMath.shouldRollover(loadedDateISO: locationsDateISO, todayISO: todayISO) else {
+            return false
+        }
+        menus = menus.filter { !DiningDayMath.isLiveTodayMenuKey($0.key) }
+        locationsDateISO = nil
+        dayEpoch += 1
+        return true
     }
 
     func loadLocations() async {
@@ -43,6 +59,7 @@ final class DiningStore {
         async let range = service.publishedDateRange()
         let result = await service.locations()
         publishedDateRange = await range
+        locationsDateISO = PacificTime.todayISO()
         // The service degrades per-hall; treat "no data at all" as an error state.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")

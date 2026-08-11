@@ -145,6 +145,10 @@ struct RootTabView: View {
                     preferences.reloadMenuFiltersFromSharedDefaults()
                     // Recompute Campus open/close from cached schedules (not a full network wait).
                     Task { await campusStore.loadPlaces() }
+                    // Purge live "today" menus after Irvine midnight and refetch halls.
+                    if diningStore.ensureCurrentDay() {
+                        Task { await diningStore.loadLocations() }
+                    }
                 }
             }
             .onOpenURL { url in
