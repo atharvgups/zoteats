@@ -152,16 +152,47 @@ public struct CampusService: Sendable {
     // MARK: - Public API
 
     /// All campus retail spots with today's hours and open state, commons excluded.
+    /// Schedule windows are TTL-cached; open/close fields recompute every call so a
+    /// long-lived CampusStore doesn't stay "Open" for up to an hour after close.
     public func places() async throws -> [CampusPlace] {
         let currentDate = now()
         let todayISO = PacificTime.todayISO(now: currentDate)
-        return try await cache.remember("campus:places:\(todayISO)", ttl: Self.locationsTTL) {
+        let schedules = try await placeSchedules(todayISO: todayISO, currentDate: currentDate)
+        let nowMinutes = PacificTime.nowMinutes(now: currentDate)
+        return schedules.map { row in
+            let status = CampusPlaceStatus.evaluate(
+                todayWindows: row.todayWindows,
+                tomorrowWindows: row.tomorrowWindows,
+                nowMinutes: nowMinutes
+            )
+            return CampusPlace(
+                id: row.id,
+                name: row.name,
+                category: row.category,
+                openNow: status.openNow,
+                todayHours: status.todayHours,
+                hasMenu: row.hasMenu,
+                opensAtMinutes: status.opensAtMinutes,
+                closesAtMinutes: status.closesAtMinutes,
+                opensTomorrowAtMinutes: status.opensTomorrowAtMinutes
+            )
+        }
+    }
+
+    private func placeSchedules(todayISO: String, currentDate: Date) async throws -> [PlaceSchedule] {
+        try await cache.remember("campus:schedules:\(todayISO)", ttl: Self.locationsTTL) {
             let query = """
             query($campusUrlKey:String!){getLocations(campusUrlKey:$campusUrlKey){\
             commerceAttributes{url_key hasActiveMenus}aemAttributes{name hoursOfOperation{schedule}}}}
             """
             let data = try await graphQL(LocationsData.self, query: query, variables: #"{"campusUrlKey":"campus"}"#)
-            return (data.getLocations ?? []).compactMap { raw -> CampusPlace? in
+            let calendar = PacificTime.calendar
+            let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+            let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
+            let weekday = PacificTime.weekdayName(now: currentDate)
+            let tomorrowWeekday = PacificTime.weekdayName(now: tomorrowDate)
+
+            return (data.getLocations ?? []).compactMap { raw -> PlaceSchedule? in
                 guard let key = raw.commerceAttributes?.url_key,
                       !Self.excludedKeys.contains(key),
                       let name = raw.aemAttributes?.name?
@@ -170,41 +201,24 @@ public struct CampusService: Sendable {
                       !name.isEmpty
                 else { return nil }
 
-                let windows = Self.todayWindows(
-                    schedules: raw.aemAttributes?.hoursOfOperation?.schedule ?? [],
+                let schedules = raw.aemAttributes?.hoursOfOperation?.schedule ?? []
+                let todayWindows = Self.todayWindows(
+                    schedules: schedules,
                     todayISO: todayISO,
-                    weekday: PacificTime.weekdayName(now: currentDate)
+                    weekday: weekday
                 )
-                let nowMinutes = PacificTime.nowMinutes(now: currentDate)
-                let openNow = windows.contains { $0.contains(minute: nowMinutes) }
-                let calendar = PacificTime.calendar
-                let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
                 let tomorrowWindows = Self.todayWindows(
-                    schedules: raw.aemAttributes?.hoursOfOperation?.schedule ?? [],
-                    todayISO: PacificTime.todayISO(now: tomorrowDate),
-                    weekday: PacificTime.weekdayName(now: tomorrowDate)
+                    schedules: schedules,
+                    todayISO: tomorrowISO,
+                    weekday: tomorrowWeekday
                 )
-                let closesAt: Int? = {
-                    guard openNow else { return nil }
-                    // End of the window covering now (skip all-day — no useful boundary).
-                    guard let current = windows.first(where: { $0.contains(minute: nowMinutes) }),
-                          !current.isAllDay
-                    else { return nil }
-                    // Midnight-crossing windows: treat end as next-day minutes for dating.
-                    return current.end % (24 * 60) == 0 && current.end >= 24 * 60
-                        ? 24 * 60
-                        : current.end
-                }()
-                return CampusPlace(
+                return PlaceSchedule(
                     id: key,
                     name: name,
                     category: Self.categorize(name),
-                    openNow: openNow,
-                    todayHours: Self.format(windows: windows),
                     hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
-                    opensAtMinutes: Self.nextOpeningMinutes(windows: windows, nowMinutes: nowMinutes),
-                    closesAtMinutes: closesAt,
-                    opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min()
+                    todayWindows: todayWindows,
+                    tomorrowWindows: tomorrowWindows
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -245,21 +259,36 @@ public struct CampusService: Sendable {
 
     // MARK: - Hours parsing
 
-    struct TimeWindow: Equatable {
-        let start: Int
-        let end: Int
+    public struct TimeWindow: Equatable, Sendable {
+        public let start: Int
+        public let end: Int
+
+        public init(start: Int, end: Int) {
+            self.start = start
+            self.end = end
+        }
 
         /// 00:00–00:00 (or a full 24h span) means round-the-clock.
-        var isAllDay: Bool {
+        public var isAllDay: Bool {
             start == end || end - start >= 24 * 60
         }
 
-        func contains(minute: Int) -> Bool {
+        public func contains(minute: Int) -> Bool {
             if isAllDay { return true }
             if end > start { return minute >= start && minute < end }
             // Window crossing midnight, e.g. 21:00–02:00.
             return minute >= start || minute < (end % (24 * 60))
         }
+    }
+
+    /// Schedule row cached for the day — open state is recomputed on each `places()` read.
+    struct PlaceSchedule: Sendable {
+        let id: String
+        let name: String
+        let category: String
+        let hasMenu: Bool
+        let todayWindows: [TimeWindow]
+        let tomorrowWindows: [TimeWindow]
     }
 
     /// Resolve today's open windows: dated special schedule wins over standard;

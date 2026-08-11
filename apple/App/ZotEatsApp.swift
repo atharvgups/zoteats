@@ -143,6 +143,8 @@ struct RootTabView: View {
                 if phase == .active {
                     plate.ensureCurrentDay()
                     preferences.reloadMenuFiltersFromSharedDefaults()
+                    // Recompute Campus open/close from cached schedules (not a full network wait).
+                    Task { await campusStore.loadPlaces() }
                 }
             }
             .onOpenURL { url in
