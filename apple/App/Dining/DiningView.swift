@@ -616,18 +616,28 @@ struct DiningView: View {
     /// Notification / widget taps: select hall, period, date; stash dish for after load.
     private func applyPendingDeepLinkIfNeeded() {
         guard let link = pendingDeepLink, link.tab == .eat else { return }
+        // Hall / period honesty needs the locations feed (after-hours clear, ended meals).
+        if (link.hall != nil || link.period != nil), store.locations.value == nil { return }
+
         if let hall = link.hall {
             let known = store.locations.value?.contains { $0.id == hall } ?? false
-            if known || store.locations.value == nil {
+            if known {
                 selectedHall = hall
             }
-        }
-        if let period = link.period {
-            selectedPeriod = period
         }
         if let date = link.date {
             let today = UCITime.upcomingDays(count: 1).first?.isoDate
             selectedDate = (date == today) ? nil : date
+        }
+        // Hall and/or period taps re-resolve; bare `anteats://eat` leaves the pill alone.
+        if (link.period != nil || link.hall != nil), let location = selectedLocation {
+            selectedPeriod = EatDeepLinkPeriod.resolve(
+                requested: link.period,
+                availablePeriods: location.availablePeriods,
+                timedPeriods: location.periods,
+                nowMinutes: UCITime.nowMinutes(),
+                browsingFutureDay: selectedDate != nil
+            )
         }
         if let dish = link.dish {
             pendingDishName = dish

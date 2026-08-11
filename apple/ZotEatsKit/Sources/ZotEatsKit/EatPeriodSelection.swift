@@ -31,7 +31,7 @@ public enum EatPeriodSelection {
 
         if choice.isAfterHours {
             // Drop auto/stale serving picks so Eat matches the widget empty state.
-            // Deeplinks that set a period after sync still win until the next snap.
+            // Eat deep links use `EatDeepLinkPeriod` so they can't re-pin Dinner after this.
             return nil
         }
 
