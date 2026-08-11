@@ -377,9 +377,7 @@ struct CampusMenuSheet: View {
     let prefs: Preferences
 
     @Environment(\.dismiss) private var dismiss
-
-    private static let dietFilters = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
-    @State private var dietFilter: String?
+    @State private var showDietFilters = false
 
     var body: some View {
         NavigationStack {
@@ -419,8 +417,10 @@ struct CampusMenuSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showDietFilters) {
+            DietFilterSheet(prefs: prefs)
+        }
         .task {
-            dietFilter = prefs.dietFilter
             await store.loadMenu(for: place.id)
         }
     }
@@ -441,21 +441,28 @@ struct CampusMenuSheet: View {
             if stations.isEmpty {
                 noMenuNote
             } else {
-                PillRow(
-                    items: Self.dietFilters,
-                    title: { $0 },
-                    selection: $dietFilter,
-                    allowsDeselect: true
-                )
-                .accessibilityLabel("Dietary filter")
+                filtersChip
+                    .padding(.horizontal, 20)
 
                 let filtered = filteredStations(stations)
                 if filtered.isEmpty {
                     EmptyStateView(
                         icon: "line.3.horizontal.decrease.circle",
-                        title: "Nothing matches that filter",
-                        message: "Try clearing the dietary filter."
+                        title: "Nothing matches those filters",
+                        message: "Clear Filters to see the full menu again."
                     )
+                    Button {
+                        prefs.clearMenuFilters()
+                        Haptics.selection()
+                    } label: {
+                        Text("Clear filters")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.primary.opacity(0.05), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 20)
                 } else {
                     ForEach(filtered) { station in
                         VStack(alignment: .leading, spacing: 8) {
@@ -471,6 +478,39 @@ struct CampusMenuSheet: View {
                 }
             }
         }
+    }
+
+    /// Same Filters chip language as Eat — shared prefs, not a local single-select.
+    private var filtersChip: some View {
+        let dietCount = prefs.dietFilters.count
+        let allergenCount = prefs.allergenAvoids.count
+        let total = dietCount + allergenCount
+        let label: String = {
+            if total == 0 { return "Filters" }
+            if total == 1, dietCount == 1 { return prefs.dietFilters.first! }
+            if total == 1, allergenCount == 1 { return "No \(prefs.allergenAvoids.first!)" }
+            return "Filters · \(total)"
+        }()
+        return Button {
+            showDietFilters = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(label)
+                    .font(ZotFont.pill.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                total > 0 ? Color.uciBlue.opacity(0.12) : Color.primary.opacity(0.05),
+                in: Capsule()
+            )
+            .foregroundStyle(total > 0 ? Color.uciBlue : .primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("campus-diet-filter-chip")
+        .accessibilityLabel(total == 0 ? "Filters" : "Filters, \(total) active")
     }
 
     private var noMenuNote: some View {
@@ -491,11 +531,11 @@ struct CampusMenuSheet: View {
     }
 
     private func filteredStations(_ stations: [MenuStation]) -> [MenuStation] {
-        guard let dietFilter else { return stations }
-        return stations.compactMap { station in
-            let items = station.items.filter { $0.dietaryTags.contains(dietFilter) }
-            return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
-        }
+        MenuFilterMatching.filterStations(
+            stations,
+            dietFilters: prefs.dietFilters,
+            allergenAvoids: prefs.allergenAvoids
+        )
     }
 }
 

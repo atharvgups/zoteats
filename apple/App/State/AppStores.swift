@@ -203,16 +203,11 @@ final class Preferences {
     }
 
     func matchesMenuFilters(_ item: MenuItem) -> Bool {
-        let dietsOK = dietFilters.allSatisfy { filter in
-            item.dietaryTags.contains { $0.caseInsensitiveCompare(filter) == .orderedSame }
-        }
-        guard dietsOK else { return false }
-        guard !allergenAvoids.isEmpty else { return true }
-        // Hide dishes that list any avoided allergen. Unknown (empty) stays visible —
-        // many grill items still lack upstream data; hiding them would empty the menu.
-        return !item.allergens.contains { allergen in
-            allergenAvoids.contains { $0.caseInsensitiveCompare(allergen) == .orderedSame }
-        }
+        MenuFilterMatching.matches(
+            item: item,
+            dietFilters: dietFilters,
+            allergenAvoids: allergenAvoids
+        )
     }
 
     func toggleFavorite(_ dishName: String) {
