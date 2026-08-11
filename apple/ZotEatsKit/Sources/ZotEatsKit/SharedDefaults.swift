@@ -47,6 +47,13 @@ public enum SharedDefaults {
         UserDefaults.standard.set(tags, forKey: allergenAvoidsKey)
     }
 
+    /// Wipe diet + allergen Eat Filters (App Group + standard). Used by the
+    /// Today's Menu widget Clear filters intent and in-app clear CTAs.
+    public static func clearMenuFilters() {
+        setDietFilters([])
+        setAllergenAvoids([])
+    }
+
     /// Put hearted dishes first (case-insensitive), then the rest of the menu
     /// in original order. Used by the Today's Menu widget.
     public static func prioritizeFavorites(

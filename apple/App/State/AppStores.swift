@@ -211,6 +211,19 @@ final class Preferences {
         allergenAvoids = []
     }
 
+    /// Re-read Eat Filters from the App Group after the Today’s Menu widget
+    /// (or another process) clears or changes them while we were suspended.
+    func reloadMenuFiltersFromSharedDefaults() {
+        let diets = Set(SharedDefaults.dietFilters())
+        let allergens = Set(SharedDefaults.allergenAvoids())
+        if diets != dietFilters {
+            dietFilters = diets
+        }
+        if allergens != allergenAvoids {
+            allergenAvoids = allergens
+        }
+    }
+
     func matchesMenuFilters(_ item: MenuItem) -> Bool {
         MenuFilterMatching.matches(
             item: item,

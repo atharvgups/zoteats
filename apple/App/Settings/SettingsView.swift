@@ -275,7 +275,7 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in / opens-at")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick any live hall (or Auto); Eat Filters + favorites sync via App Group")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick any live hall (or Auto); Eat Filters + favorites sync — Clear filters on the widget when empty")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets that are open")
                 widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness — live sensors, or typical when Waitz is quiet")
                 widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")

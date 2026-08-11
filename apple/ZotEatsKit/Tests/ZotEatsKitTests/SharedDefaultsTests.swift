@@ -49,6 +49,14 @@ struct SharedDefaultsTodaysMenuTests {
         )
     }
 
+    @Test func clearMenuFiltersWipesDietAndAllergens() {
+        SharedDefaults.setDietFilters(["Vegan"])
+        SharedDefaults.setAllergenAvoids(["Milk"])
+        SharedDefaults.clearMenuFilters()
+        #expect(SharedDefaults.dietFilters().isEmpty)
+        #expect(SharedDefaults.allergenAvoids().isEmpty)
+    }
+
     @Test func dietFilterAndFavoritesTogether() {
         let stations = [
             MenuStation(name: "Grill", items: [

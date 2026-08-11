@@ -134,6 +134,7 @@ struct RootTabView: View {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
                 plate.ensureCurrentDay()
+                preferences.reloadMenuFiltersFromSharedDefaults()
                 NotificationRouter.shared.onDeepLink = { link in
                     applyDeepLink(link)
                 }
@@ -141,6 +142,7 @@ struct RootTabView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     plate.ensureCurrentDay()
+                    preferences.reloadMenuFiltersFromSharedDefaults()
                 }
             }
             .onOpenURL { url in

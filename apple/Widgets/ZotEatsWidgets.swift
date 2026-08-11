@@ -596,6 +596,20 @@ struct TodaysMenuWidget: Widget {
     }
 }
 
+/// Clears App Group Eat Filters from the Home Screen when Today’s Menu is wiped empty.
+struct ClearEatFiltersIntent: AppIntent {
+    static var title: LocalizedStringResource = "Clear Eat Filters"
+    static var description = IntentDescription(
+        "Clear dietary and allergen filters so Today's Menu shows the full board."
+    )
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        SharedDefaults.clearMenuFilters()
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.todaysMenu)
+        return .result(dialog: "Eat Filters cleared")
+    }
+}
+
 struct TodaysMenuView: View {
     let entry: TodaysMenuEntry
     @Environment(\.widgetFamily) private var family
@@ -695,15 +709,30 @@ struct TodaysMenuView: View {
             let dishes = Array(entry.dishes.prefix(dishLimit))
             if dishes.isEmpty {
                 Spacer()
-                Text(
-                    entry.filtersEmptiedMenu
-                        ? "Nothing matches your Eat Filters — clear them in the app to see this menu."
-                        : entry.period.isEmpty
+                if entry.filtersEmptiedMenu {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Nothing matches your Eat Filters.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.8))
+                        Button(intent: ClearEatFiltersIntent()) {
+                            Text("Clear filters")
+                                .font(.system(size: 12, weight: .bold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(gold.opacity(0.95), in: Capsule())
+                                .foregroundStyle(Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    Text(
+                        entry.period.isEmpty
                             ? "Dinner's done — breakfast posts overnight."
                             : "No menu posted right now — check back at the next meal."
-                )
+                    )
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.8))
+                }
                 Spacer()
             } else {
                 ForEach(dishes, id: \.self) { dish in
