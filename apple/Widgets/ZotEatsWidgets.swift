@@ -123,10 +123,32 @@ struct DiningStatusEntry: TimelineEntry {
         /// When set, widget shows a live countdown (closes / opens).
         let countdownEnd: Date?
         let countdownKind: CountdownKind?
+        /// Primary meal pill for Eat deep links (nil after hours / unknown).
+        let deepLinkPeriod: String?
 
         enum CountdownKind {
             case closes
             case opens
+        }
+
+        init(
+            id: String,
+            name: String,
+            statusText: String,
+            isOpen: Bool,
+            occupancy: Int?,
+            countdownEnd: Date?,
+            countdownKind: CountdownKind?,
+            deepLinkPeriod: String? = nil
+        ) {
+            self.id = id
+            self.name = name
+            self.statusText = statusText
+            self.isOpen = isOpen
+            self.occupancy = occupancy
+            self.countdownEnd = countdownEnd
+            self.countdownKind = countdownKind
+            self.deepLinkPeriod = deepLinkPeriod
         }
     }
 }
@@ -178,7 +200,8 @@ struct DiningStatusProvider: TimelineProvider {
             let status: String
             var countdownEnd: Date?
             var countdownKind: DiningStatusEntry.HallStatus.CountdownKind?
-            switch location.openState(nowMinutes: nowMinutes) {
+            let state = location.openState(nowMinutes: nowMinutes)
+            switch state {
             case .open(let period, let closesAt):
                 status = period
                 countdownEnd = UCITime.date(forMinutes: closesAt, nowMinutes: nowMinutes)
@@ -207,7 +230,11 @@ struct DiningStatusProvider: TimelineProvider {
                 occupancy: FeatureFlags.diningHallOccupancy && location.openNow && estimate.percentNow > 0
                     ? estimate.percentNow : nil,
                 countdownEnd: countdownEnd,
-                countdownKind: countdownKind
+                countdownKind: countdownKind,
+                deepLinkPeriod: DiningStatusDeepLink.period(
+                    for: state,
+                    availablePeriods: location.availablePeriods
+                )
             )
         }
 
@@ -280,7 +307,7 @@ struct DiningStatusView: View {
             .foregroundStyle(gold)
 
             ForEach(Array(visibleHalls), id: \.id) { hall in
-                Link(destination: AnteatsDeepLink.eat(hall: hall.id).url) {
+                Link(destination: AnteatsDeepLink.eat(hall: hall.id, period: hall.deepLinkPeriod).url) {
                     hallRow(hall)
                 }
             }

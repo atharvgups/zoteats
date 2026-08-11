@@ -49,8 +49,9 @@ struct AnteatsDeepLinkTests {
     }
 
     @Test func diningStatusAndCampusOpenRowURLs() {
-        let hall = AnteatsDeepLink.eat(hall: "brandywine")
+        let hall = AnteatsDeepLink.eat(hall: "brandywine", period: "Lunch")
         #expect(AnteatsDeepLink.parse(hall.url)?.hall == "brandywine")
+        #expect(AnteatsDeepLink.parse(hall.url)?.period == "Lunch")
         let cafe = AnteatsDeepLink.campus(placeID: "starbucks-at-student-center")
         #expect(AnteatsDeepLink.parse(cafe.url)?.placeID == "starbucks-at-student-center")
         #expect(AnteatsDeepLink.parse(AnteatsDeepLink.study().url)?.tab == .study)

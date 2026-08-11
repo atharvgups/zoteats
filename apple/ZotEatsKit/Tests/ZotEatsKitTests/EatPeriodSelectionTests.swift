@@ -76,4 +76,17 @@ struct EatPeriodSelectionTests {
         )
         #expect(snapped == "Breakfast")
     }
+
+    @Test func stickyPriorPillSurvivesIntoNextMealWithoutDeeplink() {
+        // Dining Status must send period= — otherwise a Dinner selection sticks
+        // through lunch when the user only changes hall via the widget.
+        let snapped = EatPeriodSelection.snap(
+            current: "Dinner",
+            availablePeriods: available,
+            timedPeriods: day,
+            nowMinutes: 700,
+            browsingFutureDay: false
+        )
+        #expect(snapped == "Dinner")
+    }
 }
