@@ -10,6 +10,8 @@ struct BusynessView: View {
     @Environment(\.openSettings) private var openSettings
     /// Facility to expand/scroll to from Quietest widget / Dining tip.
     @State private var deepLinkFacilityID: Int?
+    /// Bumps on each Study facility deep link so warm re-taps re-expand floors.
+    @State private var expandPulse: Int = 0
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
 
@@ -49,6 +51,7 @@ struct BusynessView: View {
         if let facilityID = link.facilityID {
             guard store.facilities.value != nil else { return }
             deepLinkFacilityID = facilityID
+            expandPulse += 1
         }
         pendingDeepLink = nil
     }
@@ -95,7 +98,11 @@ struct BusynessView: View {
                 } else if QuietestLibraryGlance.shouldShowClosed(from: facilities) {
                     QuietestClosedCard()
                 }
-                let expandID = deepLinkFacilityID ?? pick?.facilityID
+                let expandID = StudyFacilityExpand.targetID(
+                    pendingFacilityID: StudyFacilityExpand.pendingFacilityID(from: pendingDeepLink),
+                    deepLinkFacilityID: deepLinkFacilityID,
+                    quietestFacilityID: pick?.facilityID
+                )
                 let grouped = groups(from: facilities)
                 ForEach(grouped, id: \.category) { group in
                     // A lone "Library" header under a tab named Study is noise;
@@ -104,7 +111,8 @@ struct BusynessView: View {
                         category: group.category,
                         facilities: group.facilities,
                         showHeader: grouped.count > 1,
-                        expandFacilityID: expandID
+                        expandFacilityID: expandID,
+                        expandPulse: expandPulse
                     )
                 }
             }
@@ -232,6 +240,8 @@ struct BusynessGroupSection: View {
     var showHeader = true
     /// Auto-expand the quietest library’s floors when Study recommends it.
     var expandFacilityID: Int? = nil
+    /// Increments on facility deep links so warm re-taps re-expand collapsed floors.
+    var expandPulse: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -246,7 +256,8 @@ struct BusynessGroupSection: View {
             ForEach(facilities) { facility in
                 BusynessFacilityCard(
                     facility: facility,
-                    initiallyExpanded: expandFacilityID == facility.id
+                    initiallyExpanded: expandFacilityID == facility.id,
+                    expandPulse: expandFacilityID == facility.id ? expandPulse : 0
                 )
                 .id(facility.id)
             }
@@ -259,6 +270,7 @@ struct BusynessGroupSection: View {
 struct BusynessFacilityCard: View {
     let facility: BusynessPoint
     var initiallyExpanded: Bool = false
+    var expandPulse: Int = 0
     @State private var isExpanded = false
 
     /// Floors/zones after Lobby filtering + floor grouping.
@@ -319,9 +331,20 @@ struct BusynessFacilityCard: View {
         .padding(16)
         .zotCard()
         .onAppear {
-            if initiallyExpanded, hasFloors {
-                isExpanded = true
-            }
+            expandIfRequested()
+        }
+        .onChange(of: initiallyExpanded) { _, shouldExpand in
+            if shouldExpand { expandIfRequested() }
+        }
+        .onChange(of: expandPulse) { _, _ in
+            if initiallyExpanded { expandIfRequested() }
+        }
+    }
+
+    private func expandIfRequested() {
+        guard initiallyExpanded, hasFloors, !isExpanded else { return }
+        withAnimation(.snappy(duration: 0.3)) {
+            isExpanded = true
         }
     }
 
