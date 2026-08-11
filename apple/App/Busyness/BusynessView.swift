@@ -48,9 +48,13 @@ struct BusynessView: View {
 
     private func applyPendingDeepLinkIfNeeded() {
         guard let link = pendingDeepLink, link.tab == .study else { return }
-        if let facilityID = link.facilityID {
-            guard store.facilities.value != nil else { return }
-            deepLinkFacilityID = facilityID
+        // Facility links wait for the feed; bare Study / Libraries closed clears
+        // a prior pin immediately so we don't keep scrolling to lunch's quietest.
+        if link.facilityID != nil, store.facilities.value == nil { return }
+        deepLinkFacilityID = StudyFacilityExpand.pinAfterApplying(
+            linkFacilityID: link.facilityID
+        )
+        if StudyFacilityExpand.shouldExpandPulse(linkFacilityID: link.facilityID) {
             expandPulse += 1
         }
         pendingDeepLink = nil
