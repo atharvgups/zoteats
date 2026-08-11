@@ -462,12 +462,11 @@ struct DiningView: View {
                     if tracking {
                         mealActivity.endAll()
                     } else {
-                        let secondsLeft = TimeInterval((end - now) * 60)
                         mealActivity.track(
                             hallName: location.name,
                             hallID: location.id,
                             period: menu.period,
-                            endsAt: Date(timeIntervalSinceNow: secondsLeft)
+                            endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now)
                         )
                     }
                     Haptics.selection()

@@ -10,7 +10,7 @@ import ZotEatsKit
 final class MealActivityManager {
     private static let autoEnabledKey = "zoteats.autoMealActivity"
     /// Minutes before meal end when auto-track kicks in.
-    static let autoStartWindowMinutes = 45
+    static let autoStartWindowMinutes = MealTrackMath.autoStartWindowMinutes
 
     private(set) var trackedKey: String?
 
@@ -28,7 +28,7 @@ final class MealActivityManager {
     }
 
     func isTracking(hall: String, period: String) -> Bool {
-        trackedKey == Self.key(hallID: hall, period: period)
+        trackedKey == MealTrackMath.key(hallID: hall, period: period)
     }
 
     /// Reconcile in-memory `trackedKey` with Live Activities that survived
@@ -52,10 +52,10 @@ final class MealActivityManager {
 
         let attrs = best.attributes
         if let hallID = Self.resolveHallID(explicit: attrs.hallID, hallName: attrs.hallName) {
-            trackedKey = Self.key(hallID: hallID, period: attrs.period)
+            trackedKey = MealTrackMath.key(hallID: hallID, period: attrs.period)
         } else {
             // Still block auto-start from stealing an unmapped live activity.
-            trackedKey = Self.key(hallID: "unknown", period: attrs.period)
+            trackedKey = MealTrackMath.key(hallID: "unknown", period: attrs.period)
         }
     }
 
@@ -70,7 +70,7 @@ final class MealActivityManager {
                 attributes: attributes,
                 content: ActivityContent(state: state, staleDate: endsAt)
             )
-            trackedKey = Self.key(hallID: hallID, period: period)
+            trackedKey = MealTrackMath.key(hallID: hallID, period: period)
             if haptic { Haptics.soft() }
         } catch {
             trackedKey = nil
@@ -85,20 +85,26 @@ final class MealActivityManager {
         period: String,
         startMinutes: Int,
         endMinutes: Int,
-        nowMinutes: Int = UCITime.nowMinutes()
+        nowMinutes: Int = UCITime.nowMinutes(),
+        now: Date = Date()
     ) -> Bool {
-        guard Self.autoStartEnabled, isAvailable else { return false }
-        guard nowMinutes >= startMinutes, nowMinutes < endMinutes else { return false }
-        let minutesLeft = endMinutes - nowMinutes
-        guard minutesLeft > 0, minutesLeft <= Self.autoStartWindowMinutes else { return false }
-        if isTracking(hall: hallID, period: period) { return false }
-        // Don't steal a manually tracked different meal (or an unmapped system activity).
-        if trackedKey != nil { return false }
+        guard isAvailable else { return false }
+        guard MealTrackMath.shouldAutoStart(
+            nowMinutes: nowMinutes,
+            startMinutes: startMinutes,
+            endMinutes: endMinutes,
+            alreadyTracking: trackedKey != nil,
+            autoEnabled: Self.autoStartEnabled
+        ) else { return false }
         // Belt-and-suspenders if sync couldn't map hallID but ActivityKit still has one.
         let live = Activity<MealActivityAttributes>.activities
-            .contains { $0.content.state.endsAt > Date() }
+            .contains { $0.content.state.endsAt > now }
         if live { return false }
-        let endsAt = Date(timeIntervalSinceNow: TimeInterval(minutesLeft * 60))
+        let endsAt = MealTrackMath.endsAt(
+            endMinutes: endMinutes,
+            nowMinutes: nowMinutes,
+            now: now
+        )
         track(hallName: hallName, hallID: hallID, period: period, endsAt: endsAt, haptic: false)
         return trackedKey != nil
     }
@@ -115,7 +121,7 @@ final class MealActivityManager {
     }
 
     static func key(hallID: String, period: String) -> String {
-        "\(hallID)|\(period)"
+        MealTrackMath.key(hallID: hallID, period: period)
     }
 
     static func resolveHallID(explicit: String?, hallName: String) -> String? {
