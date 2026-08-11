@@ -300,6 +300,7 @@ private struct NutritionDetailsCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Full nutrition, \(expanded ? "collapse" : "expand")")
+            .accessibilityIdentifier("full-nutrition-toggle")
 
             if expanded {
                 VStack(alignment: .leading, spacing: 0) {

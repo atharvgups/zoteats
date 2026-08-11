@@ -15,9 +15,10 @@ Nothing.
 
 ## What stays on your device
 
-Your preferences — favorited dishes and your dietary filter — are stored locally on
-your device using Apple's UserDefaults. They never leave your device, and we have no
-way to see them. Deleting the app deletes them.
+Your preferences — favorited dishes, dietary filters, opening-alert watches, and
+today's Plate Builder tally — are stored locally on your device using Apple's
+UserDefaults. They never leave your device, and we have no way to see them.
+Deleting the app deletes them. The plate resets each Irvine calendar day.
 
 ## Network requests
 

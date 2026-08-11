@@ -307,13 +307,44 @@ def ensure_version_localization(token: str, version_id: str, meta: dict) -> str:
                     },
                 }
             },
+            ok_codes={200, 201, 409, 422},
         )
+        if created.get("errors") or created.get("already_exists"):
+            # First App Store version often rejects whatsNew — retry without it.
+            attrs_no_wn = {k: v for k, v in attrs.items() if k != "whatsNew"}
+            created = api(
+                "POST",
+                "/v1/appStoreVersionLocalizations",
+                token,
+                {
+                    "data": {
+                        "type": "appStoreVersionLocalizations",
+                        "attributes": {"locale": locale, **attrs_no_wn},
+                        "relationships": {
+                            "appStoreVersion": {
+                                "data": {"type": "appStoreVersions", "id": version_id}
+                            }
+                        },
+                    }
+                },
+            )
         loc_id = (created.get("data") or {}).get("id")
+        if not loc_id:
+            # Race: localization may already exist after a 409.
+            locs = api(
+                "GET",
+                f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations?{q}",
+                token,
+            ).get("data") or []
+            for loc in locs:
+                if (loc.get("attributes") or {}).get("locale") == locale:
+                    loc_id = loc["id"]
+                    break
         if not loc_id:
             die("Failed to create version localization.")
         info(f"Created {locale} version localization.")
     else:
-        api(
+        patched = api(
             "PATCH",
             f"/v1/appStoreVersionLocalizations/{loc_id}",
             token,
@@ -324,7 +355,26 @@ def ensure_version_localization(token: str, version_id: str, meta: dict) -> str:
                     "attributes": attrs,
                 }
             },
+            ok_codes={200, 204, 409, 422},
         )
+        # First version / locked state: ASC rejects editing whatsNew — drop it and retry.
+        raw = str(patched.get("raw") or "")
+        if patched.get("errors") or "whatsNew" in raw:
+            attrs_no_wn = {k: v for k, v in attrs.items() if k != "whatsNew"}
+            api(
+                "PATCH",
+                f"/v1/appStoreVersionLocalizations/{loc_id}",
+                token,
+                {
+                    "data": {
+                        "type": "appStoreVersionLocalizations",
+                        "id": loc_id,
+                        "attributes": attrs_no_wn,
+                    }
+                },
+                ok_codes={200, 204, 409, 422},
+            )
+            warn("whatsNew not editable on this version (common for first release) — other listing fields updated.")
         info(f"Updated {locale} version localization.")
     return loc_id
 

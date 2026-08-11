@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var showZot = false
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
+    @State private var menuDropEnabled = MenuDropAlerts.isEnabled
     @State private var autoMealActivity = MealActivityManager.autoStartEnabled
     @State private var alertsDenied = false
     @State private var watchedPlaces = OpeningAlerts.watchedIDs
@@ -132,6 +133,34 @@ struct SettingsView: View {
                         await OpeningAlerts.refreshSchedules()
                     } else {
                         alertsEnabled = false
+                        alertsDenied = true
+                    }
+                }
+            }
+
+            Toggle(isOn: $menuDropEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Menu-drop alerts")
+                        .font(ZotFont.body)
+                    Text("Ping when UCI posts a future day's menu that wasn't up yet.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .tint(.uciBlue)
+            .accessibilityIdentifier("menu-drop-alerts-toggle")
+            .onChange(of: menuDropEnabled) { _, enabled in
+                guard enabled else {
+                    MenuDropAlerts.isEnabled = false
+                    return
+                }
+                Task {
+                    let granted = await FavoriteAlerts.requestPermission()
+                    MenuDropAlerts.isEnabled = granted
+                    if granted {
+                        await MenuDropAlerts.runCheck()
+                    } else {
+                        menuDropEnabled = false
                         alertsDenied = true
                     }
                 }

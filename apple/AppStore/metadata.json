@@ -12,15 +12,18 @@
   "keywords": "UCI,dining,Anteatery,Brandywine,library,ARC,busyness,campus,menu,Irvine",
   "promotional_text": "Live UCI menus, campus food hours, ARC + library busyness, widgets, and opening alerts \u2014 built by an Anteater.",
   "description": "Anteats is the unofficial UCI companion for eating, working out, and finding a quiet place to study \u2014 in one native iOS app.\n\nEAT\n\u2022 Live menus for The Anteatery and Brandywine with calories, allergens, and dietary filters (Vegan, Vegetarian, Halal, Kosher, Gluten-Free)\n\u2022 Countdowns like \u201cDinner starts in 16m,\u201d browse tomorrow\u2019s menu, and land on the meal happening right now\n\u2022 Full nutrition on dishes (macros + expandable label/ingredients)\n\u2022 Build today\u2019s plate with a running calorie/protein tally\n\u2022 Favorite dishes and get a ping when they\u2019re being served\n\nCAMPUS\n\u2022 Hours and open/closed for Starbucks, Panda, Subway, Zot N Go, food courts, and more\n\u2022 Filter by category or \u201copen now\u201d; opening alerts for the spots you care about\n\nGYM & STUDY\n\u2022 ARC status with live busyness when available\n\u2022 Library occupancy floor by floor, with a quietest-right-now pick\n\nWIDGETS & MORE\n\u2022 Home Screen and Lock Screen / StandBy widgets for halls, today\u2019s menu, campus, ARC, and quietest library\n\u2022 Live Activity meal countdown on Dynamic Island\n\u2022 Full dark mode \u00b7 no accounts \u00b7 no ads \u00b7 no tracking\n\nUnofficial student project. Not affiliated with or endorsed by UC Irvine. Data comes from public campus endpoints that may change.",
-  "whats_new": "Nutrition + Plate Builder: see protein/carbs/fat and the full label on dishes, tap + to tally today\u2019s plate (calories + protein), and glance What\u2019s for lunch from Lock Screen / StandBy. Filters, favorites widget, and opening alerts unchanged.",
+  "whats_new": "Nutrition + Plate Builder, menu-drop alerts when UCI posts a future day, and a Lock Screen / StandBy lunch glance. Filters, favorites widget, and opening alerts unchanged.",
   "review_notes": "No login or account is required. The app reads public UCI dining, campus food, ARC, and library busyness endpoints only.\n\nDemo path for review:\n1. Open the Eat tab \u2014 menus load automatically for today\u2019s meal.\n2. Tap a dish for macros / full nutrition / allergens; heart one to favorite; use + to add to My Plate.\n3. Open Settings (gear) \u2192 Notifications \u2192 Send test notification; optionally enable Opening alerts.\n4. Visit Campus, Gym, and Study tabs for live hours / busyness.\n5. Optional: add Anteats Home Screen widgets from the iOS widget gallery.\n\nPrivacy: Data Not Collected. Preferences stay on-device. Unofficial student project; not affiliated with UC Irvine.",
   "screenshot_files": [
     "docs/screenshots/eat_light.png",
+    "docs/screenshots/dish_nutrition_light.png",
+    "docs/screenshots/plate_light.png",
     "docs/screenshots/campus.png",
     "docs/screenshots/gym.png",
     "docs/screenshots/study.png",
     "docs/screenshots/settings.png",
     "docs/screenshots/eat_dark.png",
+    "docs/screenshots/dish_nutrition_dark.png",
     "docs/screenshots/campus_menu.png"
   ]
 }

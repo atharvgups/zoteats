@@ -66,6 +66,7 @@ struct ZotEatsApp: App {
             case .active:
                 Task {
                     await FavoriteAlerts.runCheck()
+                    await MenuDropAlerts.runCheck()
                     await OpeningAlerts.refreshSchedules()
                 }
             case .background:
@@ -76,6 +77,7 @@ struct ZotEatsApp: App {
         }
         .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
             await FavoriteAlerts.runCheck()
+            await MenuDropAlerts.runCheck()
             await OpeningAlerts.refreshSchedules()
             await FavoriteAlerts.scheduleNextRefresh()
         }

@@ -19,6 +19,8 @@ struct DiningView: View {
     @State private var showDietFilters = false
     @State private var showPlate = false
     @State private var mealActivity = MealActivityManager()
+    /// CI screenshot launch args (`-showDishDetail` / `-showPlate`) fire once.
+    @State private var didApplyScreenshotArgs = false
 
     /// All published days the feed currently exposes (often a week+ ahead).
     /// Clamped to `/dateRange.latest` so empty 404 days never appear.
@@ -60,6 +62,7 @@ struct DiningView: View {
             .task(id: menuTaskID) {
                 await loadCurrentMenu()
                 considerAutoMealActivity()
+                applyScreenshotLaunchArgsIfNeeded()
             }
             .onChange(of: store.locations.value) {
                 syncPeriodSelection()
@@ -553,6 +556,33 @@ struct DiningView: View {
             startMinutes: start,
             endMinutes: end
         )
+    }
+
+    /// CI helpers: open a labeled dish sheet and/or seed My Plate for screenshots.
+    private func applyScreenshotLaunchArgsIfNeeded() {
+        guard !didApplyScreenshotArgs else { return }
+        let args = ProcessInfo.processInfo.arguments
+        let wantDish = args.contains("-showDishDetail")
+        let wantPlate = args.contains("-showPlate")
+        guard wantDish || wantPlate else { return }
+
+        guard case .loaded(let menu) = currentMenuState else { return }
+        let items = menu.stations.flatMap(\.items)
+        guard !items.isEmpty else { return }
+        didApplyScreenshotArgs = true
+
+        if wantPlate {
+            for item in items.prefix(3) where !plate.isOnPlate(item.name) {
+                plate.toggle(item)
+            }
+            if !wantDish {
+                showPlate = true
+            }
+        }
+
+        if wantDish {
+            selectedDish = items.first { $0.nutrition?.hasMacros == true } ?? items.first
+        }
     }
 
     /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner).

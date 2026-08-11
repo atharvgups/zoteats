@@ -27,17 +27,31 @@ final class DemoTourUITests: XCTestCase {
         tapFirstMatch(app.buttons, labels: ["Dinner"])
         pause(2.5)
 
-        // Open the first dish's detail sheet.
+        // Open the first dish's detail sheet — expand nutrition, add to plate.
         let firstDish = app.buttons.matching(identifier: "dish-row").firstMatch
         if firstDish.waitForExistence(timeout: 5) {
             firstDish.tap()
             pause(3)
-            // Favorite it from the sheet.
-            tapFirstMatch(app.buttons, labelPrefixes: ["Add "])
+            tapIfPresent(app.buttons.matching(identifier: "full-nutrition-toggle").firstMatch)
+            pause(2)
+            // Favorite from the sheet, then add to plate.
+            tapFirstMatch(app.buttons, labelPrefixes: ["Add to Favorites", "Add "])
+            pause(1)
+            tapFirstMatch(app.buttons, labelPrefixes: ["Add to My Plate"])
             pause(1.5)
             tapIfPresent(app.buttons["Close"])
             pause(1.5)
         }
+
+        // Floating plate tally → My Plate sheet.
+        tapIfPresent(app.buttons.matching(identifier: "plate-tally-bar").firstMatch)
+        pause(2.5)
+        tapIfPresent(app.buttons["Close plate"])
+        pause(1.5)
+
+        // Also tap + on a row if the sheet path didn't seed the plate.
+        tapIfPresent(app.buttons.matching(identifier: "plate-toggle").firstMatch)
+        pause(1.5)
 
         // Browse tomorrow's menu, then come back to today.
         tapIfPresent(app.buttons["Menu for Tomorrow"])
