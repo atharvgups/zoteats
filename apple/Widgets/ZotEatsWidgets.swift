@@ -829,6 +829,20 @@ struct CampusOpenEntry: TimelineEntry {
     let date: Date
     let openPlaces: [(id: String, name: String, hours: String)]
     let totalOpen: Int
+    /// When nothing is open — soonest reopen for empty-state copy / deep link.
+    let nextOpen: CampusNextOpenHint.Hint?
+
+    init(
+        date: Date,
+        openPlaces: [(id: String, name: String, hours: String)],
+        totalOpen: Int,
+        nextOpen: CampusNextOpenHint.Hint? = nil
+    ) {
+        self.date = date
+        self.openPlaces = openPlaces
+        self.totalOpen = totalOpen
+        self.nextOpen = nextOpen
+    }
 }
 
 struct CampusOpenProvider: TimelineProvider {
@@ -876,7 +890,13 @@ struct CampusOpenProvider: TimelineProvider {
             let hours = place.todayHours.map { compactHours($0) } ?? "Open"
             return (id: place.id, name: place.name, hours: hours)
         }
-        return CampusOpenEntry(date: .now, openPlaces: rows, totalOpen: open.count)
+        let nextOpen = open.isEmpty ? CampusNextOpenHint.best(from: places) : nil
+        return CampusOpenEntry(
+            date: .now,
+            openPlaces: rows,
+            totalOpen: open.count,
+            nextOpen: nextOpen
+        )
     }
 
     /// "10:00 AM – 8:00 PM" -> "until 8:00 PM" for tight rows.
@@ -930,9 +950,23 @@ struct CampusOpenView: View {
 
             if entry.openPlaces.isEmpty {
                 Spacer()
-                Text("Nothing's open right now.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.8))
+                if let hint = entry.nextOpen {
+                    Link(destination: AnteatsDeepLink.campus(placeID: hint.placeID).url) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Nothing's open right now.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.8))
+                            Text(hint.line)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(gold)
+                                .lineLimit(2)
+                        }
+                    }
+                } else {
+                    Text("Nothing's open right now.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
                 Spacer()
             } else if family == .systemSmall {
                 if let first = entry.openPlaces.first {

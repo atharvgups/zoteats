@@ -205,10 +205,12 @@ struct CampusView: View {
                     .zotCard()
                     .accessibilityIdentifier("campus-clear-category")
                 case .showClosed:
+                    let hint = CampusNextOpenHint.best(from: places)
                     EmptyStateView(
                         icon: "moon.zzz",
                         title: "Nothing's open right now",
-                        message: "Every campus spot is closed at the moment.",
+                        message: hint?.line
+                            ?? "Every campus spot is closed at the moment.",
                         actionTitle: "Show closed spots",
                         retry: { withAnimation(.snappy(duration: 0.25)) { openOnly = false } }
                     )
