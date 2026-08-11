@@ -152,6 +152,84 @@ public extension DiningLocation {
     }
 }
 
+/// Full nutrition label for a dish, straight from UCI's published data.
+/// Everything optional — the feed omits fields for plenty of dishes.
+public struct NutritionFacts: Codable, Sendable, Equatable, Hashable {
+    public let proteinG: Double?
+    public let totalCarbsG: Double?
+    public let totalFatG: Double?
+    public let saturatedFatG: Double?
+    public let transFatG: Double?
+    public let sodiumMg: Double?
+    public let sugarsG: Double?
+    public let dietaryFiberG: Double?
+    public let ingredients: String?
+
+    public init(
+        proteinG: Double? = nil,
+        totalCarbsG: Double? = nil,
+        totalFatG: Double? = nil,
+        saturatedFatG: Double? = nil,
+        transFatG: Double? = nil,
+        sodiumMg: Double? = nil,
+        sugarsG: Double? = nil,
+        dietaryFiberG: Double? = nil,
+        ingredients: String? = nil
+    ) {
+        self.proteinG = proteinG
+        self.totalCarbsG = totalCarbsG
+        self.totalFatG = totalFatG
+        self.saturatedFatG = saturatedFatG
+        self.transFatG = transFatG
+        self.sodiumMg = sodiumMg
+        self.sugarsG = sugarsG
+        self.dietaryFiberG = dietaryFiberG
+        self.ingredients = ingredients
+    }
+
+    /// True when there's at least one macro number worth showing.
+    public var hasMacros: Bool {
+        proteinG != nil || totalCarbsG != nil || totalFatG != nil
+    }
+
+    /// True when the expandable full-label section has anything to list.
+    public var hasDetails: Bool {
+        hasMacros
+            || saturatedFatG != nil
+            || transFatG != nil
+            || sodiumMg != nil
+            || sugarsG != nil
+            || dietaryFiberG != nil
+            || !(ingredients?.isEmpty ?? true)
+    }
+}
+
+/// One dish tapped onto today's plate (local Plate Builder).
+public struct PlateEntry: Codable, Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let dishName: String
+    public let calories: Int?
+    public let proteinG: Double?
+
+    public init(id: UUID = UUID(), dishName: String, calories: Int?, proteinG: Double?) {
+        self.id = id
+        self.dishName = dishName
+        self.calories = calories
+        self.proteinG = proteinG
+    }
+}
+
+/// Pure plate totals — shared by the app store and kit unit tests.
+public enum PlateTotals {
+    public static func calories(from entries: [PlateEntry]) -> Int {
+        entries.compactMap(\.calories).reduce(0, +)
+    }
+
+    public static func proteinGrams(from entries: [PlateEntry]) -> Int {
+        Int(entries.compactMap(\.proteinG).reduce(0, +).rounded())
+    }
+}
+
 /// A single dish on a dining hall menu.
 public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: String
@@ -161,6 +239,8 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let servingSize: String?
     public let allergens: [String]
     public let dietaryTags: [String]
+    /// Full label when the feed provides it; nil keeps old snapshots decodable.
+    public let nutrition: NutritionFacts?
 
     public init(
         id: String,
@@ -169,7 +249,8 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         calories: Int?,
         servingSize: String?,
         allergens: [String],
-        dietaryTags: [String]
+        dietaryTags: [String],
+        nutrition: NutritionFacts? = nil
     ) {
         self.id = id
         self.name = name
@@ -178,6 +259,7 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         self.servingSize = servingSize
         self.allergens = allergens
         self.dietaryTags = dietaryTags
+        self.nutrition = nutrition
     }
 }
 

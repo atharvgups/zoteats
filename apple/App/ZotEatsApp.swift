@@ -111,6 +111,7 @@ struct RootTabView: View {
     @State private var gymStore = GymStore()
     @State private var busynessStore = BusynessStore()
     @State private var preferences = Preferences()
+    @State private var plate = PlateStore()
 
     var body: some View {
         tabs
@@ -141,7 +142,7 @@ struct RootTabView: View {
     private var tabs: some View {
         TabView(selection: $selection) {
             Tab("Eat", systemImage: "fork.knife", value: AppTab.dining) {
-                DiningView(store: diningStore, prefs: preferences)
+                DiningView(store: diningStore, prefs: preferences, plate: plate)
             }
             Tab("Campus", systemImage: "cup.and.saucer.fill", value: AppTab.campus) {
                 CampusView(store: campusStore, prefs: preferences)

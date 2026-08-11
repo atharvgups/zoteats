@@ -45,6 +45,13 @@ struct DiningServiceTests {
         #expect(items.contains { !$0.dietaryTags.isEmpty })
         // Station IDs resolve to real names, not the fallback.
         #expect(menu.stations.contains { $0.name != "Menu" })
+
+        // Full nutrition label rides along: macros, sodium, and ingredients.
+        let labeled = items.compactMap(\.nutrition)
+        #expect(labeled.contains { $0.hasMacros })
+        #expect(labeled.contains { $0.proteinG != nil && $0.totalCarbsG != nil && $0.totalFatG != nil })
+        #expect(labeled.contains { $0.sodiumMg != nil && $0.sugarsG != nil && $0.dietaryFiberG != nil })
+        #expect(labeled.contains { $0.ingredients?.isEmpty == false })
     }
 
     @Test func menuPeriodMatchIsCaseInsensitive() async throws {
