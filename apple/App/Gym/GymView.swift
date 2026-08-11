@@ -76,10 +76,12 @@ struct GymBusynessHero: View {
                 StatusPill(isOpen: status.openNow)
             }
 
-            if let point = status.busyness, let percent = point.percent {
+            // Gate on ArcWidgetGlance so closed ARC never shows a stale Waitz %.
+            if let crowding = ArcWidgetGlance.crowding(from: status),
+               let point = status.busyness {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("\(percent)%")
+                        Text("\(crowding.percent)%")
                             .font(.system(size: 44, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(point.level.color)
@@ -87,16 +89,16 @@ struct GymBusynessHero: View {
                             .font(ZotFont.sectionTitle)
                             .foregroundStyle(point.level.color)
                         Spacer()
-                        if point.source == .typical {
+                        if crowding.isTypical {
                             TypicalTag()
                         }
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(
-                        "\(percent) percent full, \(point.level.label)\(point.source == .typical ? ", typical estimate" : "")"
+                        "\(crowding.percent) percent full, \(point.level.label)\(crowding.isTypical ? ", typical estimate" : "")"
                     )
 
-                    OccupancyBar(percent: percent, level: point.level)
+                    OccupancyBar(percent: crowding.percent, level: point.level)
 
                     HStack {
                         if let count = point.count {

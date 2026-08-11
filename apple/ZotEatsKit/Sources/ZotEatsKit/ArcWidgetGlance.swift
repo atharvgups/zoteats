@@ -18,7 +18,10 @@ public enum ArcWidgetGlance {
         }
     }
 
+    /// Live / typical % only while ARC is open — Waitz often keeps a last-known
+    /// reading after close (same honesty gate as StudyFacilityCrowding).
     public static func crowding(from status: GymStatus) -> Crowding? {
+        guard status.openNow else { return nil }
         guard let point = status.busyness, let percent = point.percent else { return nil }
         return Crowding(percent: percent, isTypical: point.source == .typical)
     }

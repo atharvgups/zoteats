@@ -3,10 +3,10 @@ import Testing
 
 @Suite("ArcWidgetGlance")
 struct ArcWidgetGlanceTests {
-    private func status(busyness: BusynessPoint?) -> GymStatus {
+    private func status(busyness: BusynessPoint?, openNow: Bool = true) -> GymStatus {
         GymStatus(
             name: "ARC",
-            openNow: true,
+            openNow: openNow,
             todayHours: "6 AM–12 AM",
             weekHours: [],
             busyness: busyness,
@@ -57,5 +57,27 @@ struct ArcWidgetGlanceTests {
         #expect(ArcWidgetGlance.crowding(
             from: status(busyness: point(percent: nil, source: .live))
         ) == nil)
+    }
+
+    @Test func closedHidesStaleLivePercent() {
+        #expect(
+            ArcWidgetGlance.crowding(
+                from: status(
+                    busyness: point(percent: 42, source: .live),
+                    openNow: false
+                )
+            ) == nil
+        )
+    }
+
+    @Test func closedHidesTypicalPercentToo() {
+        #expect(
+            ArcWidgetGlance.crowding(
+                from: status(
+                    busyness: point(percent: 55, source: .typical),
+                    openNow: false
+                )
+            ) == nil
+        )
     }
 }
