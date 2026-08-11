@@ -291,28 +291,46 @@ struct BusynessFacilityCard: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if let percent = facility.percent {
+                if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+                   let percent = facility.percent {
                     Text("\(percent)%")
                         .font(.system(size: 28, weight: .bold))
                         .monospacedDigit()
+                        .foregroundStyle(facility.level.color)
+                    Text(facility.level.label)
+                        .font(ZotFont.pill)
+                        .foregroundStyle(facility.level.color)
+                } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+                    Text("—")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(facility.level.label)
+                        .font(ZotFont.pill)
                         .foregroundStyle(facility.level.color)
                 } else {
                     Text("—")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(.secondary)
+                    Text(StudyFacilityCrowding.closedLevelLabel)
+                        .font(ZotFont.pill)
+                        .foregroundStyle(.secondary)
                 }
-                Text(facility.level.label)
-                    .font(ZotFont.pill)
-                    .foregroundStyle(facility.level.color)
                 Spacer()
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(percentAccessibilityLabel)
 
-            OccupancyBar(percent: facility.percent, level: facility.level)
+            if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+                OccupancyBar(percent: facility.percent, level: facility.level)
+            } else {
+                Text(StudyFacilityCrowding.closedDetail)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             HStack {
-                if let count = facility.count, let capacity = facility.capacity {
+                if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+                   let count = facility.count, let capacity = facility.capacity {
                     Text("\(count) / \(capacity) people")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
@@ -321,7 +339,8 @@ struct BusynessFacilityCard: View {
                 UpdatedAgoText(date: facility.updatedAt)
             }
 
-            if hasFloors {
+            // Floor % goes stale overnight — only expand while the building is open.
+            if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
                 expandToggle
                 if isExpanded {
                     floorsList
@@ -342,7 +361,11 @@ struct BusynessFacilityCard: View {
     }
 
     private func expandIfRequested() {
-        guard initiallyExpanded, hasFloors, !isExpanded else { return }
+        guard initiallyExpanded,
+              hasFloors,
+              StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+              !isExpanded
+        else { return }
         withAnimation(.snappy(duration: 0.3)) {
             isExpanded = true
         }
@@ -382,10 +405,14 @@ struct BusynessFacilityCard: View {
     }
 
     private var percentAccessibilityLabel: String {
-        if let percent = facility.percent {
+        if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+           let percent = facility.percent {
             return "\(percent) percent full, \(facility.level.label)"
         }
-        return facility.level.label
+        if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+            return facility.level.label
+        }
+        return "\(StudyFacilityCrowding.closedLevelLabel). \(StudyFacilityCrowding.closedDetail)"
     }
 }
 
