@@ -169,6 +169,13 @@ public extension DiningLocation {
         }
         return .closedForToday
     }
+
+    /// Live serving flag from meal windows — prefer over fetch-time `openNow`
+    /// when the hall list has been sitting in memory across a meal boundary.
+    func isServing(nowMinutes: Int) -> Bool {
+        if case .open = openState(nowMinutes: nowMinutes) { return true }
+        return false
+    }
 }
 
 /// Full nutrition label for a dish, straight from UCI's published data.

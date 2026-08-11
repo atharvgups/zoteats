@@ -990,7 +990,7 @@ private struct HallCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "\(location.name), \(location.area), \(location.openNow ? "open" : "closed")"
+            "\(location.name), \(location.area), \(location.isServing(nowMinutes: UCITime.nowMinutes()) ? "open" : "closed")"
         )
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
@@ -998,7 +998,8 @@ private struct HallCard: View {
 
     /// Nom-style typical occupancy percent, shown only while the hall is serving.
     private var occupancy: (percent: Int, tint: Color)? {
-        guard location.openNow, !location.periods.isEmpty else { return nil }
+        let now = UCITime.nowMinutes()
+        guard location.isServing(nowMinutes: now), !location.periods.isEmpty else { return nil }
         let estimate = TypicalBusyness.dining(periods: location.periods)
         guard estimate.percentNow > 0 else { return nil }
         return (estimate.percentNow, estimate.levelNow.color)

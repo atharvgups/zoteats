@@ -211,6 +211,25 @@ struct HallOpenStateTests {
         #expect(hall(periods: day).openState(nowMinutes: 1300) == .closedForToday)
     }
 
+    @Test func isServingTracksWindowsEvenWhenOpenNowSnapshotIsStale() {
+        // Fetch-time openNow stayed false (pre-lunch), but periods say Lunch is on.
+        let staleClosed = hall(periods: day)
+        #expect(!staleClosed.openNow)
+        #expect(staleClosed.isServing(nowMinutes: 700))
+        #expect(!staleClosed.isServing(nowMinutes: 900))
+        #expect(!staleClosed.isServing(nowMinutes: 1300))
+
+        let staleOpen = DiningLocation(
+            id: "anteatery", name: "The Anteatery", area: "Mesa Court",
+            openNow: true, todayHours: "7:15 AM – 8:00 PM",
+            availablePeriods: day.map(\.name), periods: day,
+            hoursApproximate: false
+        )
+        #expect(staleOpen.openNow)
+        #expect(!staleOpen.isServing(nowMinutes: 900))
+        #expect(staleOpen.isServing(nowMinutes: 700))
+    }
+
     @Test func noPeriodsMeansUnknown() {
         #expect(hall(periods: []).openState(nowMinutes: 700) == .unknown)
     }

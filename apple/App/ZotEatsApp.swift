@@ -148,10 +148,10 @@ struct RootTabView: View {
                     // Gym + Study are app-lifetime stores — refresh Waitz / ARC open on warm resume.
                     Task { await gymStore.load() }
                     Task { await busynessStore.load() }
-                    // Purge live "today" menus after Irvine midnight and refetch halls.
-                    if diningStore.ensureCurrentDay() {
-                        Task { await diningStore.loadLocations() }
-                    }
+                    // Purge live "today" menus after Irvine midnight, then always
+                    // recompute hall open state from cached meal windows (Campus parity).
+                    diningStore.ensureCurrentDay()
+                    Task { await diningStore.loadLocations() }
                 }
             }
             .onOpenURL { url in

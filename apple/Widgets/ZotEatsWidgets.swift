@@ -223,12 +223,13 @@ struct DiningStatusProvider: TimelineProvider {
                 status = location.todayHours ?? "Hours unavailable"
             }
             let estimate = TypicalBusyness.dining(periods: location.periods)
+            let serving = location.isServing(nowMinutes: nowMinutes)
             return .init(
                 id: location.id,
                 name: location.name,
                 statusText: status,
-                isOpen: location.openNow,
-                occupancy: FeatureFlags.diningHallOccupancy && location.openNow && estimate.percentNow > 0
+                isOpen: serving,
+                occupancy: FeatureFlags.diningHallOccupancy && serving && estimate.percentNow > 0
                     ? estimate.percentNow : nil,
                 countdownEnd: countdownEnd,
                 countdownKind: countdownKind,
@@ -566,7 +567,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         if let id = configuration.hall.hallID {
             hall = locations.first { $0.id == id } ?? locations.first
         } else {
-            hall = locations.first(where: \.openNow) ?? locations.first
+            hall = locations.first(where: { $0.isServing(nowMinutes: nowMinutes) })
+                ?? locations.first
         }
         guard let hall else {
             return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], favorited: [], periodEndsAt: nil)
