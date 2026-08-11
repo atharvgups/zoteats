@@ -5,9 +5,10 @@ import ZotEatsKit
 // Opening alerts: "tell me the moment this spot opens." The user picks dining
 // halls and campus venues in Settings; we schedule local notifications at
 // today's opening times whenever fresh hours arrive (foreground + background
-// refresh). After the last window of the day, we schedule tomorrow's first
-// open so evening watchers still get a morning ping. No servers — iOS fires
-// them even if the app stays closed.
+// refresh). Watching during lunch still schedules dinner; watching while a
+// café is open still schedules tomorrow morning. After the last window of
+// the day, we schedule tomorrow's first open. No servers — iOS fires them
+// even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -55,12 +56,9 @@ enum OpeningAlerts {
 
         for hall in await dining.locations() {
             let id = "dining:\(hall.id)"
-            if hall.openNow {
-                candidates.append(.init(id: id, name: hall.name, opensAtMinutes: nil))
-                if let hours = hall.todayHours { hoursByID[id] = hours }
-                continue
-            }
-            if let todayOpen = OpeningAlertPlanner.nextOpening(
+            // Prefer the next meal still ahead today (including dinner while
+            // lunch is open). Only fall through to tomorrow after the last meal.
+            if let todayOpen = OpeningAlertPlanner.followingOpening(
                 periods: hall.periods, nowMinutes: nowMinutes
             ) {
                 candidates.append(.init(
@@ -87,7 +85,8 @@ enum OpeningAlerts {
                     id: id, name: place.name, opensAtMinutes: todayOpen, dayOffset: 0
                 ))
                 if let hours = place.todayHours { hoursByID[id] = hours }
-            } else if !place.openNow, let tomorrowOpen = place.opensTomorrowAtMinutes {
+            } else if let tomorrowOpen = place.opensTomorrowAtMinutes {
+                // Open now or done for today — still schedule tomorrow morning.
                 candidates.append(.init(
                     id: id, name: place.name, opensAtMinutes: tomorrowOpen, dayOffset: 1
                 ))

@@ -82,6 +82,46 @@ struct OpeningAlertPlannerTests {
         #expect(PacificTime.nowMinutes(now: plan.fireDate) == 7 * 60 + 15)
     }
 
+    @Test func schedulesDinnerWhileLunchIsOpen() {
+        // Noon: caller passes dinner via followingOpening — alert must still fire today.
+        let noon = sevenAM.addingTimeInterval(5 * 3600)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 16 * 60 + 30,
+                    dayOffset: 0
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: noon
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-16")
+        #expect(PacificTime.nowMinutes(now: plan.fireDate) == 16 * 60 + 30)
+    }
+
+    @Test func schedulesTomorrowWhileCampusIsStillOpen() {
+        // 2 PM: café open now; caller still passes tomorrow's open with dayOffset 1.
+        let twoPM = sevenAM.addingTimeInterval(7 * 3600)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "campus:starbucks",
+                    name: "Starbucks @ Student Center",
+                    opensAtMinutes: 7 * 60 + 30,
+                    dayOffset: 1
+                ),
+            ],
+            watchedIDs: ["campus:starbucks"],
+            now: twoPM
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.identifier == "open:campus:starbucks:2026-07-17")
+        #expect(PacificTime.nowMinutes(now: plan.fireDate) == 7 * 60 + 30)
+    }
+
     @Test func prefersTodayOverTomorrowWhenBothExist() {
         let plans = OpeningAlertPlanner.plan(
             candidates: [
@@ -124,6 +164,16 @@ struct DiningNextOpeningTests {
         #expect(OpeningAlertPlanner.nextOpening(periods: periods, nowMinutes: 12 * 60) == nil)
     }
 
+    @Test func followingOpeningDuringLunchPointsAtDinner() {
+        #expect(OpeningAlertPlanner.followingOpening(periods: periods, nowMinutes: 12 * 60) == 16 * 60 + 30)
+    }
+
+    @Test func followingOpeningMatchesNextOpeningWhenClosed() {
+        #expect(OpeningAlertPlanner.followingOpening(periods: periods, nowMinutes: 6 * 60) == 7 * 60 + 15)
+        #expect(OpeningAlertPlanner.followingOpening(periods: periods, nowMinutes: 15 * 60) == 16 * 60 + 30)
+        #expect(OpeningAlertPlanner.followingOpening(periods: periods, nowMinutes: 22 * 60) == nil)
+    }
+
     @Test func betweenLunchAndDinnerPointsAtDinner() {
         #expect(OpeningAlertPlanner.nextOpening(periods: periods, nowMinutes: 15 * 60) == 16 * 60 + 30)
     }
@@ -135,5 +185,6 @@ struct DiningNextOpeningTests {
     @Test func noTimedPeriodsIsNil() {
         let untimed = [MealPeriodWindow(name: "All Day", startMinutes: nil, endMinutes: nil)]
         #expect(OpeningAlertPlanner.nextOpening(periods: untimed, nowMinutes: 9 * 60) == nil)
+        #expect(OpeningAlertPlanner.followingOpening(periods: untimed, nowMinutes: 9 * 60) == nil)
     }
 }

@@ -39,7 +39,7 @@ public enum OpeningAlertPlanner {
     }
 
     /// Alerts for every watched place that opens later today **or** tomorrow
-    /// when today's windows are done (Irvine time).
+    /// (next meal while already open, or morning after today's windows end).
     public static func plan(
         candidates: [Candidate],
         watchedIDs: Set<String>,
@@ -75,17 +75,20 @@ public enum OpeningAlertPlanner {
         .sorted { $0.fireDate < $1.fireDate }
     }
 
-    /// A dining hall's next opening today: the earliest meal period that
-    /// hasn't started yet. Nil while open or after the last meal.
+    /// A dining hall's next *reopen* today: earliest meal start still ahead,
+    /// but nil while a period is being served (hall is already open).
     public static func nextOpening(periods: [MealPeriodWindow], nowMinutes: Int) -> Int? {
-        let upcoming = periods.compactMap(\.startMinutes).filter { $0 > nowMinutes }
-        guard let next = upcoming.min() else { return nil }
-        // If a period is currently being served, the hall is open — no alert.
         let openNow = periods.contains {
             guard let start = $0.startMinutes, let end = $0.endMinutes else { return false }
             return nowMinutes >= start && nowMinutes < end
         }
-        return openNow ? nil : next
+        return openNow ? nil : followingOpening(periods: periods, nowMinutes: nowMinutes)
+    }
+
+    /// Earliest meal start still ahead today — even while lunch/dinner is
+    /// already being served. Used so watching during lunch still schedules dinner.
+    public static func followingOpening(periods: [MealPeriodWindow], nowMinutes: Int) -> Int? {
+        periods.compactMap(\.startMinutes).filter { $0 > nowMinutes }.min()
     }
 
     /// Earliest meal start on a day of periods (e.g. tomorrow's breakfast).
