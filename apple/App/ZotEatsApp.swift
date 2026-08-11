@@ -185,7 +185,7 @@ struct RootTabView: View {
                 GymView(store: gymStore)
             }
             Tab("Study", systemImage: "books.vertical.fill", value: AppTab.busyness) {
-                BusynessView(store: busynessStore)
+                BusynessView(store: busynessStore, pendingDeepLink: $pendingDeepLink)
             }
         }
     }

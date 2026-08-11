@@ -1,7 +1,7 @@
 import Foundation
 
 /// Shared `anteats://` destinations for widgets, notification taps, and
-/// `onOpenURL`. Keeps tab routing + Eat/Campus query params in one place.
+/// `onOpenURL`. Keeps tab routing + Eat/Campus/Study query params in one place.
 public struct AnteatsDeepLink: Equatable, Sendable {
     public enum Tab: String, Equatable, Sendable {
         case eat
@@ -19,6 +19,8 @@ public struct AnteatsDeepLink: Equatable, Sendable {
     public var date: String?
     /// Campus hub url key without `campus:` prefix.
     public var placeID: String?
+    /// Waitz facility id for Study (Quietest Library / Dining tip).
+    public var facilityID: Int?
 
     public init(
         tab: Tab,
@@ -26,7 +28,8 @@ public struct AnteatsDeepLink: Equatable, Sendable {
         period: String? = nil,
         dish: String? = nil,
         date: String? = nil,
-        placeID: String? = nil
+        placeID: String? = nil,
+        facilityID: Int? = nil
     ) {
         self.tab = tab
         self.hall = hall
@@ -34,6 +37,7 @@ public struct AnteatsDeepLink: Equatable, Sendable {
         self.dish = dish
         self.date = date
         self.placeID = placeID
+        self.facilityID = facilityID
     }
 
     public static func parse(_ url: URL) -> AnteatsDeepLink? {
@@ -49,13 +53,16 @@ public struct AnteatsDeepLink: Equatable, Sendable {
                 .nilIfEmpty
         }
 
+        let facility: Int? = value("facility").flatMap(Int.init)
+
         return AnteatsDeepLink(
             tab: tab,
             hall: value("hall"),
             period: value("period"),
             dish: value("dish"),
             date: value("date"),
-            placeID: value("place")
+            placeID: value("place"),
+            facilityID: facility
         )
     }
 
@@ -100,6 +107,7 @@ public struct AnteatsDeepLink: Equatable, Sendable {
         if let dish { items.append(URLQueryItem(name: "dish", value: dish)) }
         if let date { items.append(URLQueryItem(name: "date", value: date)) }
         if let placeID { items.append(URLQueryItem(name: "place", value: placeID)) }
+        if let facilityID { items.append(URLQueryItem(name: "facility", value: String(facilityID))) }
         if !items.isEmpty { components.queryItems = items }
         return components.url ?? URL(string: "anteats://\(tab.rawValue)")!
     }
@@ -117,8 +125,8 @@ public struct AnteatsDeepLink: Equatable, Sendable {
         AnteatsDeepLink(tab: .campus, placeID: placeID)
     }
 
-    public static func study() -> AnteatsDeepLink {
-        AnteatsDeepLink(tab: .study)
+    public static func study(facilityID: Int? = nil) -> AnteatsDeepLink {
+        AnteatsDeepLink(tab: .study, facilityID: facilityID)
     }
 
     public static func gym() -> AnteatsDeepLink {

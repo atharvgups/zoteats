@@ -111,7 +111,7 @@ struct MealCountdownActivity: Widget {
 struct DiningStatusEntry: TimelineEntry {
     let date: Date
     let halls: [HallStatus]
-    let quietest: (name: String, percent: Int)?
+    let quietest: (name: String, percent: Int, facilityID: Int?)?
 
     struct HallStatus {
         /// Anteater API hall id for deep links.
@@ -140,7 +140,7 @@ struct DiningStatusProvider: TimelineProvider {
                 .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
                 .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
             ],
-            quietest: (name: "Science Library", percent: 12)
+            quietest: (name: "Science Library", percent: 12, facilityID: 2)
         )
     }
 
@@ -203,10 +203,10 @@ struct DiningStatusProvider: TimelineProvider {
             )
         }
 
-        let quietest: (name: String, percent: Int)?
+        let quietest: (name: String, percent: Int, facilityID: Int?)?
         if let places = try? await BusynessService().all(),
            let pick = QuietestLibraryPick.best(from: places) {
-            quietest = (name: pick.title, percent: pick.percent)
+            quietest = (name: pick.title, percent: pick.percent, facilityID: pick.facilityID)
         } else {
             quietest = nil
         }
@@ -280,7 +280,7 @@ struct DiningStatusView: View {
             if family == .systemMedium, let quietest = entry.quietest {
                 Divider()
                     .overlay(.white.opacity(0.25))
-                Link(destination: AnteatsDeepLink.study().url) {
+                Link(destination: AnteatsDeepLink.study(facilityID: quietest.facilityID).url) {
                     HStack(spacing: 5) {
                         Image(systemName: "books.vertical.fill")
                             .font(.system(size: 9, weight: .semibold))
@@ -363,7 +363,7 @@ struct DiningStatusView: View {
             .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
             .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
         ],
-        quietest: (name: "Science Library", percent: 12)
+        quietest: (name: "Science Library", percent: 12, facilityID: 2)
     )
 }
 
@@ -1129,6 +1129,14 @@ struct QuietestLibraryEntry: TimelineEntry {
     let date: Date
     let name: String
     let percent: Int?
+    let facilityID: Int?
+
+    init(date: Date, name: String, percent: Int?, facilityID: Int? = nil) {
+        self.date = date
+        self.name = name
+        self.percent = percent
+        self.facilityID = facilityID
+    }
 }
 
 struct QuietestLibraryProvider: TimelineProvider {
@@ -1165,7 +1173,12 @@ struct QuietestLibraryProvider: TimelineProvider {
 
     private static func entry(from facilities: [BusynessPoint]) -> QuietestLibraryEntry {
         if let pick = QuietestLibraryPick.best(from: facilities) {
-            return QuietestLibraryEntry(date: .now, name: pick.title, percent: pick.percent)
+            return QuietestLibraryEntry(
+                date: .now,
+                name: pick.title,
+                percent: pick.percent,
+                facilityID: pick.facilityID
+            )
         }
         return QuietestLibraryEntry(date: .now, name: "Libraries closed", percent: nil)
     }
@@ -1175,7 +1188,7 @@ struct QuietestLibraryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ZotEatsQuietestLibrary", provider: QuietestLibraryProvider()) { entry in
             QuietestLibraryView(entry: entry)
-                .widgetURL(AnteatsWidgetURL.study)
+                .widgetURL(AnteatsDeepLink.study(facilityID: entry.facilityID).url)
         }
         .configurationDisplayName("Quietest Library")
         .description("The quietest library floor right now — home screen or lock screen.")

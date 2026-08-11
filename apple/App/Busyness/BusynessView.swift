@@ -6,25 +6,60 @@ import ZotEatsKit
 
 struct BusynessView: View {
     let store: BusynessStore
+    @Binding var pendingDeepLink: AnteatsDeepLink?
     @Environment(\.openSettings) private var openSettings
+    /// Facility to expand/scroll to from Quietest widget / Dining tip.
+    @State private var deepLinkFacilityID: Int?
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
 
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the
     // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
-                content
-                    .padding(.horizontal, 20)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
+                    content
+                        .padding(.horizontal, 20)
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .refreshable { await store.load() }
+            .statusBarBackdrop()
+            .task { await store.load() }
+            .onChange(of: store.facilities.value) {
+                applyPendingDeepLinkIfNeeded()
+                scrollToDeepLinkedFacility(proxy: proxy)
+            }
+            .onChange(of: pendingDeepLink) {
+                applyPendingDeepLinkIfNeeded()
+                scrollToDeepLinkedFacility(proxy: proxy)
+            }
+            .onAppear {
+                applyPendingDeepLinkIfNeeded()
+                scrollToDeepLinkedFacility(proxy: proxy)
+            }
         }
-        .refreshable { await store.load() }
-        .statusBarBackdrop()
-        .task { await store.load() }
+    }
+
+    private func applyPendingDeepLinkIfNeeded() {
+        guard let link = pendingDeepLink, link.tab == .study else { return }
+        if let facilityID = link.facilityID {
+            guard store.facilities.value != nil else { return }
+            deepLinkFacilityID = facilityID
+        }
+        pendingDeepLink = nil
+    }
+
+    private func scrollToDeepLinkedFacility(proxy: ScrollViewProxy) {
+        guard let id = deepLinkFacilityID else { return }
+        DispatchQueue.main.async {
+            withAnimation(.snappy(duration: 0.35)) {
+                proxy.scrollTo(id, anchor: .center)
+            }
+        }
     }
 
     @ViewBuilder
@@ -58,6 +93,7 @@ struct BusynessView: View {
                 if let pick {
                     QuietestNowCard(pick: pick)
                 }
+                let expandID = deepLinkFacilityID ?? pick?.facilityID
                 let grouped = groups(from: facilities)
                 ForEach(grouped, id: \.category) { group in
                     // A lone "Library" header under a tab named Study is noise;
@@ -66,7 +102,7 @@ struct BusynessView: View {
                         category: group.category,
                         facilities: group.facilities,
                         showHeader: grouped.count > 1,
-                        expandFacilityID: pick?.facilityID
+                        expandFacilityID: expandID
                     )
                 }
             }
@@ -172,6 +208,7 @@ struct BusynessGroupSection: View {
                     facility: facility,
                     initiallyExpanded: expandFacilityID == facility.id
                 )
+                .id(facility.id)
             }
         }
     }

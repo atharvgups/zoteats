@@ -57,6 +57,16 @@ struct AnteatsDeepLinkTests {
         #expect(AnteatsDeepLink.parse(AnteatsDeepLink.gym().url)?.tab == .gym)
     }
 
+    @Test func studyFacilityRoundTrips() {
+        let link = AnteatsDeepLink.study(facilityID: 42)
+        #expect(link.url.absoluteString.contains("facility=42"))
+        let parsed = AnteatsDeepLink.parse(link.url)
+        #expect(parsed?.tab == .study)
+        #expect(parsed?.facilityID == 42)
+        #expect(AnteatsDeepLink.parse(URL(string: "anteats://study")!)?.facilityID == nil)
+        #expect(AnteatsDeepLink.parse(URL(string: "anteats://busyness?facility=23")!)?.facilityID == 23)
+    }
+
     @Test func notificationDeeplinkString() {
         let info: [AnyHashable: Any] = [
             "deeplink": "anteats://eat?hall=anteatery&period=Lunch&dish=Okra",
