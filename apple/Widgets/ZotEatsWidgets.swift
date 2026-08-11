@@ -478,7 +478,8 @@ struct TodaysMenuWidget: Widget {
         }
         .configurationDisplayName("Today's Menu")
         .description("What's being served — favorites float to the top. Pick a hall or auto.")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        // system* for Home Screen; accessoryRectangular for Lock Screen / StandBy glance.
+        .supportedFamilies([.systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
 
@@ -487,9 +488,67 @@ struct TodaysMenuView: View {
     @Environment(\.widgetFamily) private var family
 
     private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
-    private var dishLimit: Int { family == .systemLarge ? 10 : 4 }
+    private var dishLimit: Int {
+        switch family {
+        case .systemLarge: return 10
+        case .accessoryRectangular: return 2
+        default: return 4
+        }
+    }
 
     var body: some View {
+        switch family {
+        case .accessoryRectangular:
+            lunchGlance
+        default:
+            homeScreenMenu
+        }
+    }
+
+    /// Compact Lock Screen / StandBy “what’s for lunch” glance.
+    private var lunchGlance: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(glanceTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            if let first = Array(entry.dishes.prefix(dishLimit)).first {
+                Text(first)
+                    .font(.system(size: 12))
+                    .opacity(0.85)
+                    .lineLimit(1)
+                if entry.dishes.count > 1 {
+                    let second = entry.dishes[1]
+                    Text(second)
+                        .font(.system(size: 12))
+                        .opacity(0.7)
+                        .lineLimit(1)
+                }
+            } else {
+                Text("Menu not posted yet")
+                    .font(.system(size: 12))
+                    .opacity(0.75)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(entry.hallName) \(entry.period): \(Array(entry.dishes.prefix(dishLimit)).joined(separator: ", "))"
+        )
+    }
+
+    private var glanceTitle: String {
+        let period = entry.period.isEmpty ? "Menu" : entry.period
+        let hall = entry.hallName
+            .replacingOccurrences(of: "The ", with: "")
+        return "\(period) · \(hall)"
+    }
+
+    private var homeScreenMenu: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
                 Image(systemName: "fork.knife")
@@ -567,6 +626,19 @@ struct TodaysMenuView: View {
         hallName: "The Anteatery",
         period: "Lunch",
         dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"],
+        favorited: ["Crispy Okra"],
+        periodEndsAt: .now.addingTimeInterval(45 * 60)
+    )
+}
+
+#Preview(as: .accessoryRectangular) {
+    TodaysMenuWidget()
+} timeline: {
+    TodaysMenuEntry(
+        date: .now,
+        hallName: "The Anteatery",
+        period: "Lunch",
+        dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni"],
         favorited: ["Crispy Okra"],
         periodEndsAt: .now.addingTimeInterval(45 * 60)
     )
