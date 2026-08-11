@@ -47,11 +47,11 @@ struct DishDetailSheet: View {
                     NutritionDetailsCard(facts: facts)
                 }
 
-                favoriteToggle
-
                 if let plate {
                     plateToggle(plate)
                 }
+
+                favoriteToggle
             }
             .padding(20)
             .padding(.top, 4)
