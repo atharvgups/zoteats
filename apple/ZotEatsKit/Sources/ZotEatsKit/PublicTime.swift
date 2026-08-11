@@ -54,4 +54,11 @@ public enum UCITime {
             return (iso, label)
         }
     }
+
+    /// Next Irvine midnight strictly after `now` — day-rollover widget reload.
+    public static func nextIrvineMidnight(now: Date = Date()) -> Date {
+        let calendar = PacificTime.calendar
+        let startOfDay = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? now.addingTimeInterval(24 * 60 * 60)
+    }
 }

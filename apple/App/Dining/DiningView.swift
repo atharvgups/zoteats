@@ -1022,6 +1022,14 @@ private struct HallCard: View {
                 : "\(period) at \(UCITime.format(minutes: opensAt))"
             return (text, "clock.arrow.circlepath", .busyOrange)
         case .closedForToday:
+            if let open = location.opensTomorrowAtMinutes {
+                let meal = location.opensTomorrowPeriod ?? "Opens"
+                return (
+                    "\(meal) tomorrow · \(UCITime.format(minutes: open))",
+                    "moon.zzz",
+                    .secondary
+                )
+            }
             return ("Closed for today", "moon.zzz", .secondary)
         case .unknown:
             return nil

@@ -442,6 +442,11 @@ public struct DiningService: Sendable {
     }
 
     private func location(for hall: String, dateISO: String, nowMinutes: Int) async -> DiningLocation {
+        let calendar = PacificTime.calendar
+        let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: now()) ?? now()
+        let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
+        async let tomorrowWindows = mealPeriods(for: hall, dateISO: tomorrowISO)
+
         do {
             let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
             let starts = periods.compactMap { PacificTime.parseMinutes($0.startTime) }
@@ -455,6 +460,7 @@ public struct DiningService: Sendable {
             let todayHours: String? = (starts.isEmpty || ends.isEmpty)
                 ? nil
                 : "\(PacificTime.formatMinutes(starts.min()!)) – \(PacificTime.formatMinutes(ends.max()!))"
+            let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -469,9 +475,12 @@ public struct DiningService: Sendable {
                         endMinutes: PacificTime.parseMinutes($0.endTime)
                     )
                 },
-                hoursApproximate: false
+                hoursApproximate: false,
+                opensTomorrowAtMinutes: tomorrow.minutes,
+                opensTomorrowPeriod: tomorrow.period
             )
         } catch {
+            let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -480,9 +489,22 @@ public struct DiningService: Sendable {
                 todayHours: nil,
                 availablePeriods: [],
                 periods: [],
-                hoursApproximate: false
+                hoursApproximate: false,
+                opensTomorrowAtMinutes: tomorrow.minutes,
+                opensTomorrowPeriod: tomorrow.period
             )
         }
+    }
+
+    /// Earliest timed meal on tomorrow's board (for after-hours status).
+    private static func tomorrowOpening(
+        from periods: [MealPeriodWindow]
+    ) -> (minutes: Int?, period: String?) {
+        guard let minutes = OpeningAlertPlanner.earliestOpening(periods: periods) else {
+            return (nil, nil)
+        }
+        let period = periods.first { $0.startMinutes == minutes }?.name
+        return (minutes, period)
     }
 
     /// Primary meal pills students actually use. Brunch maps into Breakfast;

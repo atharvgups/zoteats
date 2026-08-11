@@ -103,6 +103,11 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let periods: [MealPeriodWindow]
     /// True when hours come from a maintained schedule rather than a live source.
     public let hoursApproximate: Bool
+    /// Tomorrow's earliest meal start (Irvine minutes). Set after today's last
+    /// window so Eat / Dining Status can show "Breakfast tomorrow · 7:15 AM".
+    public let opensTomorrowAtMinutes: Int?
+    /// Meal name for `opensTomorrowAtMinutes` (e.g. "Breakfast").
+    public let opensTomorrowPeriod: String?
 
     public init(
         id: String,
@@ -112,7 +117,9 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         todayHours: String?,
         availablePeriods: [String],
         periods: [MealPeriodWindow] = [],
-        hoursApproximate: Bool
+        hoursApproximate: Bool,
+        opensTomorrowAtMinutes: Int? = nil,
+        opensTomorrowPeriod: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -122,6 +129,8 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         self.availablePeriods = availablePeriods
         self.periods = periods
         self.hoursApproximate = hoursApproximate
+        self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
+        self.opensTomorrowPeriod = opensTomorrowPeriod
     }
 }
 

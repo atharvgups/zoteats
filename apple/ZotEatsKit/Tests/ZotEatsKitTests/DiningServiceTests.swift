@@ -244,6 +244,16 @@ struct HallOpenStateTests {
         // the timed ones must carry both bounds.
         #expect(anteatery.periods.contains { $0.startMinutes != nil && $0.endMinutes != nil })
     }
+
+    @Test func locationsCarryTomorrowsEarliestOpening() async {
+        // Evening after dinner — tomorrow open should still be filled from the feed.
+        let evening = ISO8601DateFormatter().date(from: "2026-07-10T05:00:00Z")! // 10 PM PDT
+        let service = DiningService(http: FixtureHTTP(), now: { evening })
+        let anteatery = await service.locations().first { $0.id == "anteatery" }!
+        #expect(anteatery.opensTomorrowAtMinutes != nil)
+        #expect(anteatery.opensTomorrowPeriod != nil)
+        #expect(anteatery.openState(nowMinutes: UCITime.nowMinutes(now: evening)) == .closedForToday)
+    }
 }
 
 @Suite("UpcomingDays")

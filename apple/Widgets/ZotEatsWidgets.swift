@@ -159,9 +159,11 @@ struct DiningStatusProvider: TimelineProvider {
         let deliver = UncheckedSendableBox(completion)
         Task {
             let entry = await fetchEntry()
+            var boundaries = entry.halls.compactMap(\.countdownEnd)
+            boundaries.append(UCITime.nextIrvineMidnight())
             let reload = WidgetRefreshMath.nextReload(
                 now: .now,
-                boundaries: entry.halls.compactMap(\.countdownEnd),
+                boundaries: boundaries,
                 maxInterval: 20 * 60
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
@@ -186,7 +188,13 @@ struct DiningStatusProvider: TimelineProvider {
                 countdownEnd = UCITime.date(forMinutes: opensAt, nowMinutes: nowMinutes)
                 countdownKind = .opens
             case .closedForToday:
-                status = "Closed for today"
+                if let open = location.opensTomorrowAtMinutes {
+                    status = location.opensTomorrowPeriod ?? "Opens tomorrow"
+                    countdownEnd = UCITime.date(forMinutes: open, nowMinutes: nowMinutes)
+                    countdownKind = .opens
+                } else {
+                    status = "Closed for today"
+                }
             case .unknown:
                 status = location.todayHours ?? "Hours unavailable"
             }
@@ -521,21 +529,13 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], favorited: [], periodEndsAt: nil)
         }
 
-        let pills = DiningService.primaryPeriods(from: hall.availablePeriods)
         let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
-        let liveName = timed.first { nowMinutes >= $0.startMinutes! && nowMinutes < $0.endMinutes! }?.name
-            ?? timed.first { $0.startMinutes! > nowMinutes }?.name
-            ?? hall.availablePeriods.last
-            ?? ""
-        let period: String = {
-            let lower = liveName.lowercased()
-            if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
-                return "Breakfast"
-            }
-            if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
-            if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
-            return pills.first ?? liveName
-        }()
+        let choice = TodaysMenuPeriodPick.choose(
+            timedPeriods: timed,
+            availablePeriods: hall.availablePeriods,
+            nowMinutes: nowMinutes
+        )
+        let period = choice.period
 
         var dishes: [String] = []
         var favorited: Set<String> = []
@@ -552,17 +552,13 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             filtersEmptiedMenu = built.filtersEmptiedMenu
         }
 
-        let periodEndsAt: Date? = {
-            guard let window = timed.first(where: { $0.name.caseInsensitiveCompare(liveName) == .orderedSame }),
-                  let end = window.endMinutes else { return nil }
-            return UCITime.date(forMinutes: end, nowMinutes: nowMinutes)
-        }()
+        let periodEndsAt: Date? = choice.endsAtMinutes.map {
+            UCITime.date(forMinutes: $0, nowMinutes: nowMinutes)
+        }
 
-        // Reload when an upcoming meal actually starts so StandBy/Home swap dishes.
-        var reloadBoundaries: [Date] = []
-        if let window = timed.first(where: { $0.name.caseInsensitiveCompare(liveName) == .orderedSame }),
-           let start = window.startMinutes,
-           start > nowMinutes {
+        // Reload at next meal start and Irvine midnight (no overnight stale Dinner).
+        var reloadBoundaries: [Date] = [UCITime.nextIrvineMidnight()]
+        if let start = choice.upcomingStartMinutes {
             reloadBoundaries.append(UCITime.date(forMinutes: start, nowMinutes: nowMinutes))
         }
 
@@ -646,7 +642,9 @@ struct TodaysMenuView: View {
                         .lineLimit(1)
                 }
             } else {
-                Text(entry.filtersEmptiedMenu ? "Nothing matches Eat Filters" : "Menu not posted yet")
+                Text(entry.filtersEmptiedMenu
+                     ? "Nothing matches Eat Filters"
+                     : entry.period.isEmpty ? "See you at breakfast" : "Menu not posted yet")
                     .font(.system(size: 12))
                     .opacity(0.75)
                     .lineLimit(1)
@@ -700,7 +698,9 @@ struct TodaysMenuView: View {
                 Text(
                     entry.filtersEmptiedMenu
                         ? "Nothing matches your Eat Filters — clear them in the app to see this menu."
-                        : "No menu posted right now — check back at the next meal."
+                        : entry.period.isEmpty
+                            ? "Dinner's done — breakfast posts overnight."
+                            : "No menu posted right now — check back at the next meal."
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.8))
