@@ -66,16 +66,31 @@ struct CampusView: View {
 
     private func applyPendingDeepLinkIfNeeded() {
         guard let link = pendingDeepLink, link.tab == .campus else { return }
-        guard let placeID = link.placeID else {
-            pendingDeepLink = nil
+        let feedReady: Bool = {
+            switch store.places {
+            case .loaded, .failed: return true
+            case .idle, .loading: return false
+            }
+        }()
+        switch CampusDeepLinkApply.resolve(
+            placeID: link.placeID,
+            places: store.places.value,
+            feedReady: feedReady
+        ) {
+        case .waitForPlaces:
             return
+        case .discard:
+            pendingDeepLink = nil
+        case .open(let placeID):
+            guard let place = store.places.value?.first(where: { $0.id == placeID }) else {
+                pendingDeepLink = nil
+                return
+            }
+            openOnly = false
+            categoryFilter = nil
+            selectedPlace = place
+            pendingDeepLink = nil
         }
-        // Keep the pending link until places finish loading.
-        guard let place = store.places.value?.first(where: { $0.id == placeID }) else { return }
-        openOnly = false
-        categoryFilter = nil
-        selectedPlace = place
-        pendingDeepLink = nil
     }
 
     /// One row of controls replaces the old endless stacked sections:
