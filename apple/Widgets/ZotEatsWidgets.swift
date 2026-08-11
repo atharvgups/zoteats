@@ -342,23 +342,53 @@ struct DiningStatusView: View {
 
 // MARK: - Today's Menu widget (configurable hall · medium / large)
 
-enum HallOption: String, AppEnum {
-    case auto
-    case anteatery
-    case brandywine
+/// Dynamic hall picker — Auto + whatever `/restaurants` returns (third commons
+/// appears without shipping a new AppEnum case).
+struct DiningHallEntity: AppEntity, Equatable {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Dining Hall")
+    static var defaultQuery = DiningHallEntityQuery()
 
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Dining Hall"
-    static let caseDisplayRepresentations: [HallOption: DisplayRepresentation] = [
-        .auto: DisplayRepresentation(title: "Auto (open now)"),
-        .anteatery: DisplayRepresentation(title: "The Anteatery"),
-        .brandywine: DisplayRepresentation(title: "Brandywine"),
-    ]
+    /// `"auto"` or a live Anteater API hall id (`anteatery`, `brandywine`, …).
+    var id: String
+    var title: String
 
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)")
+    }
+
+    /// Nil when Auto — provider picks an open hall.
     var hallID: String? {
-        switch self {
-        case .auto: return nil
-        case .anteatery: return "anteatery"
-        case .brandywine: return "brandywine"
+        id == TodaysMenuHallChoices.autoID ? nil : id
+    }
+
+    static var auto: DiningHallEntity {
+        DiningHallEntity(id: TodaysMenuHallChoices.autoID, title: TodaysMenuHallChoices.autoTitle)
+    }
+}
+
+struct DiningHallEntityQuery: EntityQuery {
+    func entities(for identifiers: [DiningHallEntity.ID]) async throws -> [DiningHallEntity] {
+        let all = await Self.allEntities()
+        let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        return identifiers.compactMap { id in
+            if let known = byID[id] { return known }
+            if id == TodaysMenuHallChoices.autoID { return .auto }
+            return DiningHallEntity(id: id, title: HallDirectory.displayName(for: id))
+        }
+    }
+
+    func suggestedEntities() async throws -> [DiningHallEntity] {
+        await Self.allEntities()
+    }
+
+    func defaultResult() async -> DiningHallEntity? {
+        .auto
+    }
+
+    private static func allEntities() async -> [DiningHallEntity] {
+        let locations = await DiningService().locations()
+        return TodaysMenuHallChoices.options(from: locations).map {
+            DiningHallEntity(id: $0.id, title: $0.title)
         }
     }
 }
@@ -366,11 +396,11 @@ enum HallOption: String, AppEnum {
 struct TodaysMenuConfigurationIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Today's Menu"
     static let description: IntentDescription = IntentDescription(
-        "Pick which dining hall's menu to show."
+        "Pick which dining hall's menu to show — including any new commons as they open."
     )
 
-    @Parameter(title: "Hall", default: .auto)
-    var hall: HallOption
+    @Parameter(title: "Hall", default: DiningHallEntity.auto)
+    var hall: DiningHallEntity
 }
 
 struct TodaysMenuEntry: TimelineEntry {

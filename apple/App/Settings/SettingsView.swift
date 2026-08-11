@@ -271,14 +271,14 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in / opens-at")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick a hall; hearted dishes float to the top")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick any live hall (or Auto); hearted dishes float to the top")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets that are open")
                 widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness (also on Lock Screen)")
                 widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
             }
             .padding(.top, 4)
 
-            Text("Tip: Edit Today's Menu to choose a hall. Favorites sync via App Group. Meal countdown can auto-start in the last 45 minutes (Settings → Live Activity).")
+            Text("Tip: Edit Today's Menu to choose Auto or any live hall (third commons appears when the API lists it). Favorites sync via App Group. Meal countdown can auto-start in the last 45 minutes (Settings → Live Activity).")
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
