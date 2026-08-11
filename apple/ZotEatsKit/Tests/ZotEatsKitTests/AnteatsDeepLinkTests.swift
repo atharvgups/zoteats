@@ -37,6 +37,17 @@ struct AnteatsDeepLinkTests {
         #expect(AnteatsDeepLink.parse(original.url) == original)
     }
 
+    @Test func todaysMenuWidgetURLIncludesHallAndPeriod() {
+        let url = AnteatsDeepLink.eat(hall: "anteatery", period: "Lunch").url
+        #expect(url.absoluteString.contains("hall=anteatery"))
+        #expect(url.absoluteString.contains("period=Lunch"))
+        let parsed = AnteatsDeepLink.parse(url)
+        #expect(parsed?.tab == .eat)
+        #expect(parsed?.hall == "anteatery")
+        #expect(parsed?.period == "Lunch")
+        #expect(parsed?.dish == nil)
+    }
+
     @Test func notificationDeeplinkString() {
         let info: [AnyHashable: Any] = [
             "deeplink": "anteats://eat?hall=anteatery&period=Lunch&dish=Okra",

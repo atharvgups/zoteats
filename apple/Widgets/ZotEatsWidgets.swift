@@ -414,6 +414,8 @@ struct TodaysMenuConfigurationIntent: WidgetConfigurationIntent {
 struct TodaysMenuEntry: TimelineEntry {
     let date: Date
     let hallName: String
+    /// Anteater API id for deep links (`anteatery`, …).
+    let hallID: String?
     let period: String
     let dishes: [String]
     /// Dish names that are favorited (subset of `dishes`), for heart markers.
@@ -425,6 +427,7 @@ struct TodaysMenuEntry: TimelineEntry {
     init(
         date: Date,
         hallName: String,
+        hallID: String? = nil,
         period: String,
         dishes: [String],
         favorited: Set<String>,
@@ -433,11 +436,20 @@ struct TodaysMenuEntry: TimelineEntry {
     ) {
         self.date = date
         self.hallName = hallName
+        self.hallID = hallID
         self.period = period
         self.dishes = dishes
         self.favorited = favorited
         self.periodEndsAt = periodEndsAt
         self.reloadBoundaries = reloadBoundaries
+    }
+
+    /// Opens Eat on the hall + meal this glance is showing.
+    var deepLinkURL: URL {
+        AnteatsDeepLink.eat(
+            hall: hallID,
+            period: period.isEmpty ? nil : period
+        ).url
     }
 }
 
@@ -446,6 +458,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         TodaysMenuEntry(
             date: .now,
             hallName: "The Anteatery",
+            hallID: "anteatery",
             period: "Lunch",
             dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad", "Baked Potato"],
             favorited: ["Crispy Okra"],
@@ -533,6 +546,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         return TodaysMenuEntry(
             date: .now,
             hallName: hall.name,
+            hallID: hall.id,
             period: period,
             dishes: dishes,
             favorited: prioritized.favorited,
@@ -553,7 +567,7 @@ struct TodaysMenuWidget: Widget {
                 .containerBackground(for: .widget) {
                     Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
                 }
-                .widgetURL(AnteatsWidgetURL.eat)
+                .widgetURL(entry.deepLinkURL)
         }
         .configurationDisplayName("Today's Menu")
         .description("What's being served — favorites float to the top. Pick a hall or auto.")
@@ -703,6 +717,7 @@ struct TodaysMenuView: View {
     TodaysMenuEntry(
         date: .now,
         hallName: "The Anteatery",
+        hallID: "anteatery",
         period: "Lunch",
         dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni", "Farro Salad"],
         favorited: ["Crispy Okra"],
@@ -716,6 +731,7 @@ struct TodaysMenuView: View {
     TodaysMenuEntry(
         date: .now,
         hallName: "The Anteatery",
+        hallID: "anteatery",
         period: "Lunch",
         dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni"],
         favorited: ["Crispy Okra"],
