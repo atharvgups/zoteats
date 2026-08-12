@@ -86,4 +86,49 @@ struct StudyFacilityAccessibilityLabelTests {
             ) == "Library, open, 10 percent full, Not Busy"
         )
     }
+
+    @Test("Open appends Updated freshness")
+    func openWithUpdated() {
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Langson Library",
+                isOpen: true,
+                percent: 80,
+                levelLabel: "Very Busy",
+                peopleCount: 480,
+                capacity: 600,
+                updatedRelative: "just now"
+            ) == "Langson Library, open, 80 percent full, Very Busy, 480 of 600 people, Updated just now"
+        )
+    }
+
+    @Test("Closed still announces Updated freshness")
+    func closedWithUpdated() {
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Langson Library",
+                isOpen: false,
+                percent: 40,
+                levelLabel: "Not Busy",
+                peopleCount: 100,
+                capacity: 600,
+                updatedRelative: "2 min. ago"
+            ) == "Langson Library, closed, Crowding updates when open, Updated 2 min. ago"
+        )
+    }
+
+    @Test("Blank updatedRelative is omitted")
+    func blankUpdatedOmitted() {
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Science Library",
+                isOpen: true,
+                percent: 12,
+                levelLabel: "Not Busy",
+                peopleCount: nil,
+                capacity: nil,
+                updatedRelative: "  "
+            ) == "Science Library, open, 12 percent full, Not Busy"
+        )
+    }
 }

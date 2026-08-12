@@ -371,7 +371,8 @@ struct BusynessFacilityCard: View {
                     percent: facility.percent,
                     levelLabel: facility.level.label,
                     peopleCount: facility.count,
-                    capacity: facility.capacity
+                    capacity: facility.capacity,
+                    updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt)
                 )
             )
 

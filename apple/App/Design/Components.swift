@@ -395,17 +395,9 @@ struct UpdatedAgoText: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            Text("Updated \(relative(to: context.date))")
+            Text(UpdatedAgoCopy.phrase(from: date, now: context.date))
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
         }
-    }
-
-    private func relative(to now: Date) -> String {
-        let seconds = Int(now.timeIntervalSince(date))
-        if seconds < 60 { return "just now" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: now)
     }
 }

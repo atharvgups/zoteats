@@ -1,7 +1,7 @@
 import Foundation
 
 /// VoiceOver for Study facility card chrome — one announcement for open/closed
-/// and crowding (OccupancyBar used to double-speak percent on open rows).
+/// crowding plus the same "Updated …" freshness sighted users see.
 public enum StudyFacilityAccessibilityLabel {
     public static func label(
         name: String,
@@ -9,34 +9,39 @@ public enum StudyFacilityAccessibilityLabel {
         percent: Int?,
         levelLabel: String?,
         peopleCount: Int?,
-        capacity: Int?
+        capacity: Int?,
+        updatedRelative: String? = nil
     ) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = [trimmed.isEmpty ? "Library" : trimmed]
         let level = levelLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard StudyFacilityCrowding.showsLiveCrowding(isOpen: isOpen) else {
+        if StudyFacilityCrowding.showsLiveCrowding(isOpen: isOpen) {
+            parts.append("open")
+
+            if let percent {
+                var crowd = "\(percent) percent full"
+                if let level, !level.isEmpty {
+                    crowd += ", \(level)"
+                }
+                parts.append(crowd)
+            } else if let level, !level.isEmpty {
+                parts.append(level)
+            }
+
+            if let peopleCount, let capacity {
+                parts.append("\(peopleCount) of \(capacity) people")
+            } else if let peopleCount {
+                parts.append("\(peopleCount) people")
+            }
+        } else {
             parts.append("closed")
             parts.append(StudyFacilityCrowding.closedDetail)
-            return parts.joined(separator: ", ")
         }
 
-        parts.append("open")
-
-        if let percent {
-            var crowd = "\(percent) percent full"
-            if let level, !level.isEmpty {
-                crowd += ", \(level)"
-            }
-            parts.append(crowd)
-        } else if let level, !level.isEmpty {
-            parts.append(level)
-        }
-
-        if let peopleCount, let capacity {
-            parts.append("\(peopleCount) of \(capacity) people")
-        } else if let peopleCount {
-            parts.append("\(peopleCount) people")
+        if let updated = updatedRelative?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !updated.isEmpty {
+            parts.append("Updated \(updated)")
         }
 
         return parts.joined(separator: ", ")
