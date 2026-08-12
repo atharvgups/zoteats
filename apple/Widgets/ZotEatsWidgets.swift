@@ -1109,19 +1109,23 @@ struct ArcStatusEntry: TimelineEntry {
     /// Live Waitz % or typical-pattern estimate (see `isTypical`).
     let percent: Int?
     let isTypical: Bool
+    /// True when hours come from the maintained schedule (Waitz hours missing).
+    let hoursApproximate: Bool
 
     init(
         date: Date,
         isOpen: Bool,
         hoursLine: String,
         percent: Int?,
-        isTypical: Bool = false
+        isTypical: Bool = false,
+        hoursApproximate: Bool = false
     ) {
         self.date = date
         self.isOpen = isOpen
         self.hoursLine = hoursLine
         self.percent = percent
         self.isTypical = isTypical
+        self.hoursApproximate = hoursApproximate
     }
 }
 
@@ -1172,7 +1176,8 @@ struct ArcStatusProvider: TimelineProvider {
             isOpen: status.openNow,
             hoursLine: hoursLine,
             percent: crowding?.percent,
-            isTypical: crowding?.isTypical ?? false
+            isTypical: crowding?.isTypical ?? false,
+            hoursApproximate: status.hoursApproximate
         )
     }
 }
@@ -1262,7 +1267,7 @@ struct ArcStatusView: View {
                             .font(.system(size: 28, weight: .bold))
                             .foregroundStyle(.white)
                     }
-                    Text(entry.hoursLine)
+                    Text(displayHoursLine)
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.75))
                         .lineLimit(2)
@@ -1281,10 +1286,18 @@ struct ArcStatusView: View {
         }
     }
 
+    /// Sighted cue when hours are schedule-maintained (widget has no footnote).
+    private var displayHoursLine: String {
+        guard entry.hoursApproximate,
+              !entry.hoursLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return entry.hoursLine }
+        return "\(entry.hoursLine) · approx"
+    }
+
     private var rectangularDetail: String {
-        guard let percent = entry.percent else { return entry.hoursLine }
+        guard let percent = entry.percent else { return displayHoursLine }
         let source = entry.isTypical ? "typical" : "live"
-        return "\(percent)% · \(source) · \(entry.hoursLine)"
+        return "\(percent)% · \(source) · \(displayHoursLine)"
     }
 
     private var arcAccessibilityLabel: String {
@@ -1292,7 +1305,8 @@ struct ArcStatusView: View {
             isOpen: entry.isOpen,
             hoursLine: entry.hoursLine,
             percent: entry.percent,
-            isTypical: entry.isTypical
+            isTypical: entry.isTypical,
+            hoursApproximate: entry.hoursApproximate
         )
     }
 }

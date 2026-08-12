@@ -2,12 +2,14 @@ import Foundation
 
 /// VoiceOver for the ARC Gym widget — closed must say closed *and* the
 /// next-open hoursLine (circular used to drop hours; rectangular/small dropped closed).
+/// When Waitz hours are missing, append the same approximate-schedule cue as Gym hero.
 public enum ArcWidgetAccessibilityLabel {
     public static func label(
         isOpen: Bool,
         hoursLine: String,
         percent: Int?,
-        isTypical: Bool
+        isTypical: Bool,
+        hoursApproximate: Bool = false
     ) -> String {
         let hours = hoursLine.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = ["ARC"]
@@ -26,6 +28,9 @@ public enum ArcWidgetAccessibilityLabel {
 
         if !hours.isEmpty {
             parts.append(hours)
+            if hoursApproximate {
+                parts.append(GymHeroAccessibilityLabel.approximateHoursCue)
+            }
         }
 
         return parts.joined(separator: ", ")

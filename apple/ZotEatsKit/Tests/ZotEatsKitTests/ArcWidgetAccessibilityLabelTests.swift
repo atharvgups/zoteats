@@ -62,4 +62,43 @@ struct ArcWidgetAccessibilityLabelTests {
             ) == "ARC, open, 55 percent full, typical estimate, Open until 12:00 AM"
         )
     }
+
+    @Test("Open approximate hours appends schedule cue")
+    func openApproximate() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                isTypical: false,
+                hoursApproximate: true
+            ) == "ARC, open, 42 percent full, live, Open until 12:00 AM, schedule may be approximate"
+        )
+    }
+
+    @Test("Closed Opens-at approximate appends cue after hours")
+    func closedApproximate() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: false,
+                hoursLine: "Opens at 6:00 AM",
+                percent: nil,
+                isTypical: false,
+                hoursApproximate: true
+            ) == "ARC, closed, Opens at 6:00 AM, schedule may be approximate"
+        )
+    }
+
+    @Test("Approximate with blank hours omits cue")
+    func approximateBlankHours() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: false,
+                hoursLine: "  ",
+                percent: nil,
+                isTypical: false,
+                hoursApproximate: true
+            ) == "ARC, closed"
+        )
+    }
 }
