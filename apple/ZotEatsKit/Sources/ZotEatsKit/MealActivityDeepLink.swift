@@ -4,7 +4,9 @@ import Foundation
 /// While the meal is live: today's hall + tracked period. After `endsAt`:
 /// use the post-close destination resolved at track time (next meal today, or
 /// tomorrow when after hours). Legacy activities that only stash
-/// `opensTomorrowPeriod` keep the overnight fallback.
+/// `opensTomorrowPeriod` (no `postClosePeriod`) keep the overnight fallback —
+/// new starts must not stash hall tomorrow when post-close is hall-only
+/// (`MealActivityPostClose.contentOpensTomorrowPeriod`).
 public enum MealActivityDeepLink {
     public static func link(
         hallID: String?,

@@ -88,6 +88,55 @@ struct MealActivityPostCloseTests {
         #expect(dest.period == nil)
         #expect(dest.date == nil)
     }
+
+    @Test func partialBoardContentStateDoesNotArmLegacyTomorrowDeepLink() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let midday = ISO8601DateFormatter().date(from: "2026-07-13T15:00:00Z")! // Mon 8 AM PDT
+        let breakfastEnd = ISO8601DateFormatter().date(from: "2026-07-13T18:30:00Z")! // Mon 11:30 AM PDT
+        let afterClose = breakfastEnd.addingTimeInterval(60)
+        let postClose = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 630,
+            timedPeriods: partial,
+            opensTomorrowPeriod: "Breakfast",
+            now: midday
+        )
+        #expect(postClose.period == nil)
+        let stash = MealActivityPostClose.contentOpensTomorrowPeriod(
+            postClose: postClose,
+            hallOpensTomorrowPeriod: "Breakfast"
+        )
+        #expect(stash == nil)
+        let link = MealActivityDeepLink.link(
+            hallID: "anteatery",
+            period: "Breakfast",
+            endsAt: breakfastEnd,
+            postClosePeriod: postClose.period,
+            postCloseDate: postClose.date,
+            opensTomorrowPeriod: stash,
+            now: afterClose
+        )
+        #expect(link.hall == "anteatery")
+        #expect(link.period == nil)
+        #expect(link.date == nil)
+    }
+
+    @Test func contentOpensTomorrowClearedEvenWhenPostCloseBakesTomorrow() {
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 1200,
+            timedPeriods: day,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(dest.period == "Breakfast")
+        #expect(
+            MealActivityPostClose.contentOpensTomorrowPeriod(
+                postClose: dest,
+                hallOpensTomorrowPeriod: "Breakfast"
+            ) == nil
+        )
+    }
 }
 
 @Suite("MealActivityDeepLink")

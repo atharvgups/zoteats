@@ -71,4 +71,20 @@ public enum MealActivityPostClose {
 
         return Destination(period: nil)
     }
+
+    /// `opensTomorrowPeriod` for Live Activity ContentState after resolving
+    /// post-close. Always nil — stashing the hall's tomorrow meal when
+    /// `postClose.period` is nil re-enables DeepLink's legacy overnight jump
+    /// on Breakfast-only / Lunch-without-Dinner boards (Island said done;
+    /// tap opened tomorrow while Status still said more meals post later).
+    public static func contentOpensTomorrowPeriod(
+        postClose: Destination,
+        hallOpensTomorrowPeriod: String?
+    ) -> String? {
+        _ = hallOpensTomorrowPeriod
+        // Destination already encodes tomorrow / next-open when known.
+        // Hall-only (nil period) must not arm the legacy DeepLink path.
+        _ = postClose
+        return nil
+    }
 }

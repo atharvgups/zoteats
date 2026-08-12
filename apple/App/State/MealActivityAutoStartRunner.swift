@@ -34,7 +34,10 @@ enum MealActivityAutoStartRunner {
             endMinutes: pick.endMinutes,
             postClosePeriod: postClose.period,
             postCloseDate: postClose.date,
-            opensTomorrowPeriod: pick.opensTomorrowPeriod
+            opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
+                postClose: postClose,
+                hallOpensTomorrowPeriod: pick.opensTomorrowPeriod
+            )
         )
     }
 }

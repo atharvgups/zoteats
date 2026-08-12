@@ -571,7 +571,10 @@ struct DiningView: View {
                             endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
                             postClosePeriod: postClose.period,
                             postCloseDate: postClose.date,
-                            opensTomorrowPeriod: location.opensTomorrowPeriod
+                            opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
+                                postClose: postClose,
+                                hallOpensTomorrowPeriod: location.opensTomorrowPeriod
+                            )
                         )
                     }
                     Haptics.selection()
@@ -759,7 +762,10 @@ struct DiningView: View {
             endMinutes: pick.endMinutes,
             postClosePeriod: postClose.period,
             postCloseDate: postClose.date,
-            opensTomorrowPeriod: pick.opensTomorrowPeriod
+            opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
+                postClose: postClose,
+                hallOpensTomorrowPeriod: pick.opensTomorrowPeriod
+            )
         )
     }
 
