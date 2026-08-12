@@ -334,6 +334,7 @@ struct DiningStatusView: View {
                                 .foregroundStyle(gold)
                         }
                     }
+                    .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
                 case .librariesClosed:
                     Link(destination: AnteatsDeepLink.study().url) {
                         HStack(spacing: 5) {
@@ -347,6 +348,7 @@ struct DiningStatusView: View {
                             Spacer(minLength: 0)
                         }
                     }
+                    .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
                 }
             }
 
@@ -395,7 +397,18 @@ struct DiningStatusView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(hall.name), \(hall.statusText)\(hall.occupancy.map { ", \($0) percent occupancy" } ?? "")"
+            DiningStatusAccessibilityLabel.hall(
+                name: hall.name,
+                statusText: hall.statusText,
+                isOpen: hall.isOpen,
+                occupancy: hall.occupancy,
+                countdown: {
+                    guard let end = hall.countdownEnd, end > Date(),
+                          let kind = hall.countdownKind
+                    else { return nil }
+                    return kind == .closes ? .closes : .opens
+                }()
+            )
         )
     }
 
