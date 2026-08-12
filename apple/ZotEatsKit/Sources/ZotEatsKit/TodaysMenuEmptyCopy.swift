@@ -59,7 +59,9 @@ public enum TodaysMenuEmptyCopy {
         filtersEmptiedMenu: Bool,
         opensTomorrowPeriod: String?,
         opensTomorrowAtMinutes: Int?,
-        surface: Surface
+        surface: Surface,
+        period: String = "",
+        upcomingStartMinutes: Int? = nil
     ) -> String {
         if filtersEmptiedMenu {
             return surface == .glance
@@ -72,6 +74,16 @@ public enum TodaysMenuEmptyCopy {
                 opensTomorrowAtMinutes: opensTomorrowAtMinutes,
                 surface: surface
             )
+        }
+        if let start = upcomingStartMinutes {
+            let meal = period.isEmpty ? "Next meal" : period
+            let time = UCITime.format(minutes: start)
+            switch surface {
+            case .glance:
+                return "\(meal) starts at \(time)"
+            case .home:
+                return "\(meal) starts at \(time) — dishes post when it opens"
+            }
         }
         return surface == .glance
             ? "Menu not posted yet"

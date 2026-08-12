@@ -55,6 +55,31 @@ struct TodaysMenuEmptyCopyTests {
         )
     }
 
+    @Test func upcomingEmptyNamesStartTime() {
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: false,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .glance,
+                period: "Dinner",
+                upcomingStartMinutes: 990
+            ) == "Dinner starts at 4:30 PM"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: false,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .home,
+                period: "Lunch",
+                upcomingStartMinutes: 11 * 60
+            ) == "Lunch starts at 11:00 AM — dishes post when it opens"
+        )
+    }
+
     @Test func tomorrowISOIsDayAfterToday() {
         let now = ISO8601DateFormatter().date(from: "2026-07-10T05:00:00Z")! // Thu 10 PM PDT
         #expect(TodaysMenuEmptyCopy.tomorrowISO(now: now) == "2026-07-10")

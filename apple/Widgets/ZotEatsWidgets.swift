@@ -530,6 +530,8 @@ struct TodaysMenuEntry: TimelineEntry {
     /// Dish names that are favorited (subset of `dishes`), for heart markers.
     let favorited: Set<String>
     let periodEndsAt: Date?
+    /// Between meals — countdown to upcoming meal start (opens, not closes).
+    let periodOpensAt: Date?
     /// Extra WidgetKit reload points (meal start when still closed, etc.).
     let reloadBoundaries: [Date]
     /// Menu had dishes but Eat Filters removed every one.
@@ -541,6 +543,8 @@ struct TodaysMenuEntry: TimelineEntry {
     /// Tomorrow open metadata for after-hours empty copy (nil when not after hours).
     let opensTomorrowAtMinutes: Int?
     let opensTomorrowPeriod: String?
+    /// Upcoming meal start (Irvine minutes) for empty "starts at" copy.
+    let upcomingStartMinutes: Int?
 
     init(
         date: Date,
@@ -550,12 +554,14 @@ struct TodaysMenuEntry: TimelineEntry {
         dishes: [String],
         favorited: Set<String>,
         periodEndsAt: Date?,
+        periodOpensAt: Date? = nil,
         reloadBoundaries: [Date] = [],
         filtersEmptiedMenu: Bool = false,
         deepLinkPeriod: String? = nil,
         deepLinkDate: String? = nil,
         opensTomorrowAtMinutes: Int? = nil,
-        opensTomorrowPeriod: String? = nil
+        opensTomorrowPeriod: String? = nil,
+        upcomingStartMinutes: Int? = nil
     ) {
         self.date = date
         self.hallName = hallName
@@ -564,12 +570,14 @@ struct TodaysMenuEntry: TimelineEntry {
         self.dishes = dishes
         self.favorited = favorited
         self.periodEndsAt = periodEndsAt
+        self.periodOpensAt = periodOpensAt
         self.reloadBoundaries = reloadBoundaries
         self.filtersEmptiedMenu = filtersEmptiedMenu
         self.deepLinkPeriod = deepLinkPeriod
         self.deepLinkDate = deepLinkDate
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
         self.opensTomorrowPeriod = opensTomorrowPeriod
+        self.upcomingStartMinutes = upcomingStartMinutes
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -605,6 +613,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         let entry = await fetchEntry(for: configuration)
         var boundaries = entry.reloadBoundaries
         if let end = entry.periodEndsAt { boundaries.append(end) }
+        if let open = entry.periodOpensAt { boundaries.append(open) }
         let reload = WidgetRefreshMath.nextReload(
             now: .now,
             boundaries: boundaries,
@@ -651,9 +660,13 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             filtersEmptiedMenu = built.filtersEmptiedMenu
         }
 
-        let periodEndsAt: Date? = choice.endsAtMinutes.map {
-            UCITime.date(forMinutes: $0, nowMinutes: nowMinutes)
-        }
+        let chrome = TodaysMenuPeriodChrome.resolve(
+            endsAtMinutes: choice.endsAtMinutes,
+            upcomingStartMinutes: choice.upcomingStartMinutes,
+            nowMinutes: nowMinutes
+        )
+        let periodEndsAt = chrome.kind == .closes ? chrome.countdownEnd : nil
+        let periodOpensAt = chrome.kind == .opens ? chrome.countdownEnd : nil
 
         let reloadBoundaries = TodaysMenuReload.boundaries(
             upcomingStartMinutes: choice.upcomingStartMinutes,
@@ -684,12 +697,14 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             dishes: dishes,
             favorited: favorited,
             periodEndsAt: periodEndsAt,
+            periodOpensAt: periodOpensAt,
             reloadBoundaries: reloadBoundaries,
             filtersEmptiedMenu: filtersEmptiedMenu,
             deepLinkPeriod: link.period,
             deepLinkDate: link.date,
             opensTomorrowAtMinutes: choice.isAfterHours ? hall.opensTomorrowAtMinutes : nil,
-            opensTomorrowPeriod: choice.isAfterHours ? hall.opensTomorrowPeriod : nil
+            opensTomorrowPeriod: choice.isAfterHours ? hall.opensTomorrowPeriod : nil,
+            upcomingStartMinutes: choice.upcomingStartMinutes
         )
     }
 }
@@ -780,7 +795,9 @@ struct TodaysMenuView: View {
                         filtersEmptiedMenu: entry.filtersEmptiedMenu,
                         opensTomorrowPeriod: entry.opensTomorrowPeriod,
                         opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
-                        surface: .glance
+                        surface: .glance,
+                        period: entry.period,
+                        upcomingStartMinutes: entry.upcomingStartMinutes
                     )
                 )
                     .font(.system(size: 12))
@@ -807,6 +824,9 @@ struct TodaysMenuView: View {
         let period = entry.period.isEmpty ? "Menu" : entry.period
         let hall = entry.hallName
             .replacingOccurrences(of: "The ", with: "")
+        if entry.periodOpensAt != nil {
+            return "\(period) up next · \(hall)"
+        }
         return "\(period) · \(hall)"
     }
 
@@ -826,6 +846,14 @@ struct TodaysMenuView: View {
                             .font(.system(size: 10, weight: .bold))
                         if let end = entry.periodEndsAt, end > Date() {
                             Text(timerInterval: Date.now...end, countsDown: true)
+                                .font(.system(size: 10, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(gold)
+                        } else if let open = entry.periodOpensAt, open > Date() {
+                            Text("· opens")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.75))
+                            Text(timerInterval: Date.now...open, countsDown: true)
                                 .font(.system(size: 10, weight: .bold))
                                 .monospacedDigit()
                                 .foregroundStyle(gold)
@@ -864,7 +892,9 @@ struct TodaysMenuView: View {
                             filtersEmptiedMenu: false,
                             opensTomorrowPeriod: entry.opensTomorrowPeriod,
                             opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
-                            surface: .home
+                            surface: .home,
+                            period: entry.period,
+                            upcomingStartMinutes: entry.upcomingStartMinutes
                         ) + "."
                     )
                     .font(.system(size: 12))
