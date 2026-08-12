@@ -8,16 +8,27 @@ struct BusynessView: View {
     let store: BusynessStore
     @Binding var pendingDeepLink: AnteatsDeepLink?
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.scenePhase) private var scenePhase
     /// Facility to expand/scroll to from Quietest widget / Dining tip.
     @State private var deepLinkFacilityID: Int?
     /// Bumps on each Study facility deep link so warm re-taps re-expand floors.
     @State private var expandPulse: Int = 0
+    /// Bumps after each Quietest / Waitz tick so hero + crowding re-render.
+    @State private var boundaryEpoch = 0
 
     private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
+
+    private var boundaryWatchID: String {
+        let openKey = store.facilities.value.map {
+            StudyBoundaryRefresh.anyLibraryOpen(from: $0) ? "open" : "closed"
+        } ?? "nil"
+        return "\(boundaryEpoch)|\(openKey)"
+    }
 
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the
     // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
+        let _ = boundaryEpoch
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -28,13 +39,19 @@ struct BusynessView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)
             }
-            .refreshable { await store.load() }
+            .refreshable {
+                await store.load()
+                boundaryEpoch += 1
+            }
             .statusBarBackdrop()
             .task {
                 await store.load()
                 // Failed feeds leave facilities.value nil — still settle pending links.
                 applyPendingDeepLinkIfNeeded()
                 scrollToDeepLinkedFacility(proxy: proxy)
+            }
+            .task(id: boundaryWatchID) {
+                await watchLibraryBoundaries()
             }
             .onChange(of: store.facilities.value) {
                 applyPendingDeepLinkIfNeeded()
@@ -44,11 +61,30 @@ struct BusynessView: View {
                 applyPendingDeepLinkIfNeeded()
                 scrollToDeepLinkedFacility(proxy: proxy)
             }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    boundaryEpoch += 1
+                }
+            }
             .onAppear {
                 applyPendingDeepLinkIfNeeded()
                 scrollToDeepLinkedFacility(proxy: proxy)
             }
         }
+    }
+
+    /// Sleep until morning open / midnight / Waitz cadence, then reload — same
+    /// honesty as the Quietest Library widget while Study stays open.
+    private func watchLibraryBoundaries() async {
+        guard let facilities = store.facilities.value else { return }
+        let fire = StudyBoundaryRefresh.nextFire(facilities: facilities)
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await store.load()
+        boundaryEpoch += 1
     }
 
     private func applyPendingDeepLinkIfNeeded() {
