@@ -37,12 +37,31 @@ public enum FavoritesMatcher {
         }
     }
 
+    /// Primary-pill order for tie-breaks (Breakfast → Lunch → Dinner).
+    public static func primaryPillRank(_ period: String) -> Int {
+        switch MealPeriodPill.canonical(period) {
+        case "Breakfast": return 0
+        case "Lunch": return 1
+        case "Dinner": return 2
+        default: return 99
+        }
+    }
+
+    /// Earlier primary pills than `period` (e.g. Dinner → Breakfast, Lunch).
+    public static func earlierPrimaryPills(before period: String) -> [String] {
+        let rank = primaryPillRank(period)
+        return ["Breakfast", "Lunch", "Dinner"].filter { primaryPillRank($0) < rank }
+    }
+
     /// Whether this check should post a notification for `match`.
+    /// - Parameter earlierPeriodStillOpen: true when that earlier primary pill
+    ///   is still live/upcoming today — blocks Dinner pings while Lunch remains.
     public static func shouldNotify(
         match: Match,
         dateISO: String,
         servingNow: Bool,
-        alreadyNotified: Set<String>
+        alreadyNotified: Set<String>,
+        earlierPeriodStillOpen: ((String) -> Bool)? = nil
     ) -> Bool {
         let phase: NotifyPhase = servingNow ? .serving : .upcoming
         let key = match.dedupeKey(dateISO: dateISO, phase: phase)
@@ -50,17 +69,33 @@ public enum FavoritesMatcher {
         if !servingNow, alreadyNotified.contains(match.legacyDedupeKey(dateISO: dateISO)) {
             return false
         }
+
+        // Don't flip to a later meal while an earlier meal for this dish was
+        // already announced and is still live/upcoming.
+        let dish = match.dishName.lowercased()
+        for earlier in earlierPrimaryPills(before: match.period) {
+            let pill = earlier.lowercased()
+            let notifiedEarlier =
+                alreadyNotified.contains("\(dateISO)|\(dish)|\(pill)|upcoming")
+                || alreadyNotified.contains("\(dateISO)|\(dish)|\(pill)|serving")
+            guard notifiedEarlier else { continue }
+            if earlierPeriodStillOpen?(earlier) == true {
+                return false
+            }
+        }
         return true
     }
 
     /// Case-insensitive name matching (favorites are stored by name because
     /// dish ids rotate daily). One match per dish name — currently-serving
-    /// halls/periods beat upcoming ones; otherwise first hit wins.
+    /// beats upcoming; sooner meal start beats later; earlier primary pill
+    /// beats later; otherwise first hit wins.
     public static func matches(
         favorites: Set<String>,
         menus: [DiningMenu],
         hallNames: [String: String],
-        isServing: ((String, String) -> Bool)? = nil
+        isServing: ((String, String) -> Bool)? = nil,
+        periodStartMinutes: ((String, String) -> Int?)? = nil
     ) -> [Match] {
         guard !favorites.isEmpty else { return [] }
         let wanted = Set(favorites.map { $0.lowercased() })
@@ -78,9 +113,12 @@ public enum FavoritesMatcher {
                         period: menu.period
                     )
                     if let existing = found[key] {
-                        let candidateServing = isServing?(candidate.locationId, candidate.period) ?? false
-                        let existingServing = isServing?(existing.locationId, existing.period) ?? false
-                        if candidateServing && !existingServing {
+                        if isPreferred(
+                            candidate: candidate,
+                            existing: existing,
+                            isServing: isServing,
+                            periodStartMinutes: periodStartMinutes
+                        ) {
                             found[key] = candidate
                         }
                     } else {
@@ -90,5 +128,32 @@ public enum FavoritesMatcher {
             }
         }
         return found.values.sorted { $0.dishName < $1.dishName }
+    }
+
+    private static func isPreferred(
+        candidate: Match,
+        existing: Match,
+        isServing: ((String, String) -> Bool)?,
+        periodStartMinutes: ((String, String) -> Int?)?
+    ) -> Bool {
+        let candidateServing = isServing?(candidate.locationId, candidate.period) ?? false
+        let existingServing = isServing?(existing.locationId, existing.period) ?? false
+        if candidateServing != existingServing {
+            return candidateServing && !existingServing
+        }
+
+        let candidateStart = periodStartMinutes?(candidate.locationId, candidate.period)
+        let existingStart = periodStartMinutes?(existing.locationId, existing.period)
+        if let candidateStart, let existingStart, candidateStart != existingStart {
+            return candidateStart < existingStart
+        }
+
+        let candidateRank = primaryPillRank(candidate.period)
+        let existingRank = primaryPillRank(existing.period)
+        if candidateRank != existingRank {
+            return candidateRank < existingRank
+        }
+
+        return false
     }
 }

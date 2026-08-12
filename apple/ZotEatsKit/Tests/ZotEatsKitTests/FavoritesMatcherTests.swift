@@ -68,6 +68,43 @@ struct FavoritesMatcherTests {
         #expect(matches[0].period == "Lunch")
     }
 
+    @Test func prefersSoonerUpcomingLunchOverDinnerWhenNeitherServing() {
+        // Dinner scanned first — must still pin Lunch (sooner open).
+        let matches = FavoritesMatcher.matches(
+            favorites: ["Crispy Okra"],
+            menus: [
+                menu("anteatery", period: "Dinner", dishes: ["Crispy Okra"]),
+                menu("brandywine", period: "Lunch", dishes: ["Crispy Okra"]),
+            ],
+            hallNames: ["anteatery": "The Anteatery", "brandywine": "Brandywine"],
+            isServing: { _, _ in false },
+            periodStartMinutes: { locationId, period in
+                switch (locationId, MealPeriodPill.canonical(period)) {
+                case ("brandywine", "Lunch"): return 11 * 60
+                case ("anteatery", "Dinner"): return 16 * 60 + 30
+                default: return nil
+                }
+            }
+        )
+        #expect(matches.count == 1)
+        #expect(matches[0].locationId == "brandywine")
+        #expect(matches[0].period == "Lunch")
+    }
+
+    @Test func prefersEarlierPillWhenStartsUnknown() {
+        let matches = FavoritesMatcher.matches(
+            favorites: ["Soup"],
+            menus: [
+                menu("anteatery", period: "Dinner", dishes: ["Soup"]),
+                menu("anteatery", period: "Lunch", dishes: ["Soup"]),
+            ],
+            hallNames: ["anteatery": "The Anteatery"],
+            isServing: { _, _ in false }
+        )
+        #expect(matches.count == 1)
+        #expect(matches[0].period == "Lunch")
+    }
+
     @Test func keepsFirstWhenBothServingOrBothUpcoming() {
         let bothUpcoming = FavoritesMatcher.matches(
             favorites: ["Soup"],
@@ -198,6 +235,40 @@ struct FavoritesMatcherTests {
         #expect(
             lunch.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
                 != dinner.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+        )
+    }
+
+    @Test func shouldNotifyBlocksDinnerWhileLunchStillRelevant() {
+        let lunch = FavoritesMatcher.Match(
+            dishName: "Soup",
+            hallName: "The Anteatery",
+            locationId: "anteatery",
+            period: "Lunch"
+        )
+        let dinner = FavoritesMatcher.Match(
+            dishName: "Soup",
+            hallName: "The Anteatery",
+            locationId: "anteatery",
+            period: "Dinner"
+        )
+        let lunchServing = lunch.dedupeKey(dateISO: "2026-07-16", phase: .serving)
+        #expect(
+            !FavoritesMatcher.shouldNotify(
+                match: dinner,
+                dateISO: "2026-07-16",
+                servingNow: false,
+                alreadyNotified: [lunchServing],
+                earlierPeriodStillOpen: { $0 == "Lunch" }
+            )
+        )
+        #expect(
+            FavoritesMatcher.shouldNotify(
+                match: dinner,
+                dateISO: "2026-07-16",
+                servingNow: false,
+                alreadyNotified: [lunchServing],
+                earlierPeriodStillOpen: { _ in false }
+            )
         )
     }
 }

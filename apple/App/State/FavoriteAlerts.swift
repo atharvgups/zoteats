@@ -6,8 +6,10 @@ import ZotEatsKit
 // Favorite-dish alerts: when a favorited dish shows up on today's menu,
 // send a local notification ("Zot! Crispy Okra is on the menu"). An early
 // menu-drop heads-up can upgrade once to "Being served now…" when the meal
-// opens — Opening Alerts catch-up parity. Checks run on foreground launches
-// and via opportunistic background refresh — no servers, no push infrastructure.
+// opens — Opening Alerts catch-up parity. Matches pin the soonest live /
+// upcoming meal so Dinner can't steal Lunch while Lunch is still relevant.
+// Checks run on foreground launches and via opportunistic background refresh
+// — no servers, no push infrastructure.
 
 @MainActor
 enum FavoriteAlerts {
@@ -77,6 +79,13 @@ enum FavoriteAlerts {
                     availablePeriods: windows.available,
                     nowMinutes: nowMinutes
                 )
+            },
+            periodStartMinutes: { locationId, period in
+                guard let windows = hallPeriods[locationId] else { return nil }
+                let pill = MealPeriodPill.canonical(period)
+                return windows.timed.first(where: {
+                    MealPeriodPill.canonical($0.name).caseInsensitiveCompare(pill) == .orderedSame
+                })?.startMinutes
             }
         ) {
             let deepLinkPeriod = MealPeriodPill.canonical(match.period)
@@ -94,7 +103,17 @@ enum FavoriteAlerts {
                 match: match,
                 dateISO: dateISO,
                 servingNow: servingNow,
-                alreadyNotified: notified
+                alreadyNotified: notified,
+                earlierPeriodStillOpen: { pill in
+                    hallPeriods.values.contains { windows in
+                        MealPillLiveness.isLiveOrUpcoming(
+                            pill: pill,
+                            timedPeriods: windows.timed,
+                            availablePeriods: windows.available,
+                            nowMinutes: nowMinutes
+                        )
+                    }
+                }
             ) else { continue }
 
             let phase: FavoritesMatcher.NotifyPhase = servingNow ? .serving : .upcoming
