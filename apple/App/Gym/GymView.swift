@@ -93,10 +93,6 @@ struct GymBusynessHero: View {
                             TypicalTag()
                         }
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        "\(crowding.percent) percent full, \(point.level.label)\(crowding.isTypical ? ", typical estimate" : "")"
-                    )
 
                     OccupancyBar(percent: crowding.percent, level: point.level)
 
@@ -121,23 +117,7 @@ struct GymBusynessHero: View {
                 HStack(spacing: 8) {
                     Image(systemName: "moon.zzz")
                         .foregroundStyle(.secondary)
-                    Text(
-                        status.openNow
-                            ? "No busyness estimate right now"
-                            : ArcIdleCopy.noBusynessMessage(
-                                openNow: false,
-                                nowMinutes: UCITime.nowMinutes(),
-                                opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(
-                                    weekday: PacificTime.weekdayName()
-                                ),
-                                closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(
-                                    weekday: PacificTime.weekdayName()
-                                ),
-                                opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(
-                                    weekday: PacificTime.weekdayName()
-                                )
-                            )
-                    )
+                    Text(idleMessage)
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -152,11 +132,12 @@ struct GymBusynessHero: View {
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
             }
-            .accessibilityElement(children: .combine)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(heroAccessibilityLabel)
     }
 
     private var hoursLine: String {
@@ -168,6 +149,38 @@ struct GymBusynessHero: View {
             opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday),
             closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
             opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
+        )
+    }
+
+    private var idleMessage: String {
+        status.openNow
+            ? "No busyness estimate right now"
+            : ArcIdleCopy.noBusynessMessage(
+                openNow: false,
+                nowMinutes: UCITime.nowMinutes(),
+                opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(
+                    weekday: PacificTime.weekdayName()
+                ),
+                closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(
+                    weekday: PacificTime.weekdayName()
+                ),
+                opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(
+                    weekday: PacificTime.weekdayName()
+                )
+            )
+    }
+
+    private var heroAccessibilityLabel: String {
+        let crowding = ArcWidgetGlance.crowding(from: status)
+        let point = status.busyness
+        return GymHeroAccessibilityLabel.label(
+            isOpen: status.openNow,
+            hoursLine: hoursLine,
+            percent: crowding?.percent,
+            levelLabel: crowding != nil ? point?.level.label : nil,
+            isTypical: crowding?.isTypical ?? false,
+            peopleCount: crowding != nil ? point?.count : nil,
+            idleMessage: crowding == nil ? idleMessage : nil
         )
     }
 }
