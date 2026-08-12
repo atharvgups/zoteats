@@ -33,7 +33,7 @@ struct ArcIdleCopyTests {
         let close = ArcIdleCopy.todayCloseMinutes(weekday: "Saturday")
         let tomorrow = ArcIdleCopy.tomorrowOpenMinutes(weekday: "Saturday")
         #expect(open == 8 * 60)
-        #expect(close == 21 * 60)
+        #expect(close == 20 * 60)
         #expect(tomorrow == 8 * 60) // Sunday
         #expect(
             ArcIdleCopy.noBusynessMessage(
@@ -46,7 +46,7 @@ struct ArcIdleCopyTests {
         )
         #expect(
             ArcIdleCopy.closedHoursLine(
-                todayHours: "8:00 AM – 9:00 PM",
+                todayHours: "8:00 AM – 8:00 PM",
                 nowMinutes: 22 * 60,
                 opensAtMinutesToday: open,
                 closesAtMinutesToday: close,
@@ -89,7 +89,7 @@ struct ArcIdleCopyTests {
                 openNow: false,
                 nowMinutes: 7 * 60,
                 opensAtMinutesToday: open,
-                closesAtMinutesToday: 21 * 60,
+                closesAtMinutesToday: 20 * 60,
                 opensAtMinutesTomorrow: 8 * 60
             ) == "Closed — opens at 8:00 AM"
         )

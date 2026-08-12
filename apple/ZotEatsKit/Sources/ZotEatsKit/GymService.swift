@@ -20,14 +20,15 @@ public struct GymService: Sendable {
     }
 
     /// Hours as (open, close) in 24h; close may be 24 (midnight). Maintained fallback.
+    /// Summer 2026 campusrec.uci.edu/arc/hours.html — Mon–Fri 6 AM–10 PM, Sat/Sun 8 AM–8 PM.
     public static let arcWeek: [(day: String, open: Int, close: Int)] = [
-        ("Sunday", 8, 24),
-        ("Monday", 6, 24),
-        ("Tuesday", 6, 24),
-        ("Wednesday", 6, 24),
-        ("Thursday", 6, 24),
-        ("Friday", 6, 24),
-        ("Saturday", 8, 21),
+        ("Sunday", 8, 20),
+        ("Monday", 6, 22),
+        ("Tuesday", 6, 22),
+        ("Wednesday", 6, 22),
+        ("Thursday", 6, 22),
+        ("Friday", 6, 22),
+        ("Saturday", 8, 20),
     ]
 
     static func formatHour(_ hour: Int) -> String {

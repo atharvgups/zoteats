@@ -58,7 +58,7 @@ struct BusynessServiceTests {
 @Suite("GymService")
 struct GymServiceTests {
     @Test func fallsBackToMaintainedScheduleWhenFeedIsDown() async {
-        // Thursday 12:30 PM Pacific — ARC schedule says open 6 AM to midnight.
+        // Thursday 12:30 PM Pacific — Summer schedule open 6 AM to 10 PM.
         let service = GymService(
             busyness: BusynessService(http: FailingHTTP(), now: { fixtureNow }),
             now: { fixtureNow }
@@ -67,7 +67,7 @@ struct GymServiceTests {
         #expect(status.name == "Anteater Recreation Center")
         #expect(status.openNow)
         #expect(status.hoursApproximate)
-        #expect(status.todayHours == "6:00 AM – 12:00 AM")
+        #expect(status.todayHours == "6:00 AM – 10:00 PM")
         #expect(status.weekHours.count == 7)
         // No live feed -> busyness is the typical-pattern estimate, flagged as such.
         #expect(status.busyness?.source == .typical)
@@ -88,13 +88,11 @@ struct GymServiceTests {
         }
     }
 
-    @Test func nextScheduleBoundaryIsMidnightWhenOpenUntilClose() {
-        // Thursday 12:30 PM Pacific — schedule open 6 AM–midnight → next boundary is Friday 12 AM.
+    @Test func nextScheduleBoundaryIsWeekdayClose() {
+        // Thursday 12:30 PM Pacific — Summer close is 10 PM same day.
         let boundary = GymService.nextScheduleBoundary(now: fixtureNow)
-        #expect(boundary != nil)
-        let calendar = PacificTime.calendar
-        let startOfDay = calendar.startOfDay(for: fixtureNow)
-        let expected = calendar.date(byAdding: .day, value: 1, to: startOfDay)
+        let minutes = PacificTime.nowMinutes(now: fixtureNow)
+        let expected = UCITime.date(forMinutes: 22 * 60, nowMinutes: minutes, now: fixtureNow)
         #expect(boundary == expected)
     }
 
@@ -108,11 +106,23 @@ struct GymServiceTests {
     }
 
     @Test func nextScheduleBoundaryIsSundayOpenAfterSaturdayClose() {
-        // Saturday 10:00 PM Pacific — closed after 9 PM; next open is Sunday 8 AM.
+        // Saturday 10:00 PM Pacific — closed after 8 PM; next open is Sunday 8 AM.
         let saturdayNight = ISO8601DateFormatter().date(from: "2026-07-12T05:00:00Z")!
         let boundary = GymService.nextScheduleBoundary(now: saturdayNight)
         let minutes = PacificTime.nowMinutes(now: saturdayNight)
         let expected = UCITime.date(forMinutes: 8 * 60, nowMinutes: minutes, now: saturdayNight)
         #expect(boundary == expected)
+    }
+
+    @Test func maintainedScheduleClosedAfterWeekdayTenPM() async {
+        // Thursday 10:30 PM Pacific — Summer weekday close is 10 PM.
+        let late = ISO8601DateFormatter().date(from: "2026-07-10T05:30:00Z")!
+        let service = GymService(
+            busyness: BusynessService(http: FailingHTTP(), now: { late }),
+            now: { late }
+        )
+        let status = await service.status()
+        #expect(!status.openNow)
+        #expect(status.todayHours == "6:00 AM – 10:00 PM")
     }
 }

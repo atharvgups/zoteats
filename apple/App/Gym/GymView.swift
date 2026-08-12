@@ -351,7 +351,7 @@ struct GymApproximateHoursFootnote: View {
                     status: GymStatus(
                         name: "Anteater Recreation Center",
                         openNow: true,
-                        todayHours: "6:00 AM – 12:00 AM",
+                        todayHours: "6:00 AM – 10:00 PM",
                         weekHours: [],
                         busyness: BusynessPoint(
                             id: -100,
@@ -377,10 +377,10 @@ struct GymApproximateHoursFootnote: View {
                     status: GymStatus(
                         name: "ARC",
                         openNow: true,
-                        todayHours: "6:00 AM – 12:00 AM",
+                        todayHours: "6:00 AM – 10:00 PM",
                         weekHours: [
-                            DayHours(day: "Sunday", hours: "8:00 AM – 12:00 AM"),
-                            DayHours(day: "Monday", hours: "6:00 AM – 12:00 AM"),
+                            DayHours(day: "Sunday", hours: "8:00 AM – 8:00 PM"),
+                            DayHours(day: "Monday", hours: "6:00 AM – 10:00 PM"),
                         ],
                         busyness: nil,
                         hoursApproximate: true
