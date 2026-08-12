@@ -74,7 +74,7 @@ struct MealCountdownActivity: Widget {
                 period: context.attributes.period,
                 endsAt: context.state.endsAt
             )
-            DynamicIsland {
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
                         Image(systemName: "fork.knife.circle.fill")
