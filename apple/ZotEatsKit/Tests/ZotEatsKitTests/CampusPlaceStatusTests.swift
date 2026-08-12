@@ -15,7 +15,8 @@ struct CampusPlaceStatusTests {
         #expect(status.closesAtMinutes == 16 * 60)
         #expect(status.opensAtMinutes == nil)
         #expect(status.opensTomorrowAtMinutes == 7 * 60 + 30)
-        #expect(status.todayHours?.contains("7:30 AM") == true)
+        #expect(status.tomorrowHours?.contains("7:30 AM") == true)
+        #expect(status.tomorrowHours?.contains("4:00 PM") == true)
     }
 
     @Test func afterCloseSurfacesTomorrowOpen() {
@@ -30,6 +31,19 @@ struct CampusPlaceStatusTests {
         #expect(status.closesAtMinutes == nil)
         #expect(status.opensAtMinutes == nil)
         #expect(status.opensTomorrowAtMinutes == 7 * 60 + 30)
+        #expect(status.tomorrowHours?.contains("7:30 AM") == true)
+        #expect(status.tomorrowHours?.contains("4:00 PM") == true)
+    }
+
+    @Test func emptyTomorrowWindowsOmitTomorrowHours() {
+        let today = [CampusService.TimeWindow(start: 7 * 60 + 30, end: 16 * 60)]
+        let status = CampusPlaceStatus.evaluate(
+            todayWindows: today,
+            tomorrowWindows: [],
+            nowMinutes: 17 * 60
+        )
+        #expect(status.opensTomorrowAtMinutes == nil)
+        #expect(status.tomorrowHours == nil)
     }
 
     @Test func splitHoursSchedulesLaterReopenWhileOpen() {
@@ -72,6 +86,7 @@ struct CampusServiceLiveOpenTests {
         #expect(closed?.openNow == false)
         #expect(closed?.closesAtMinutes == nil)
         #expect(closed?.opensTomorrowAtMinutes == 7 * 60 + 30)
+        #expect(closed?.tomorrowHours?.contains("7:30 AM") == true)
     }
 
     @Test func closedFlipsToOpenWithoutWaitingOutTTL() async throws {

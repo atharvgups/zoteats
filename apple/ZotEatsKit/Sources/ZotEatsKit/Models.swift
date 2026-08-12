@@ -340,6 +340,9 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     /// Tomorrow's earliest opening (Irvine), for evening opening-alert schedules
     /// after today's windows have passed. Nil when hours are unknown.
     public let opensTomorrowAtMinutes: Int?
+    /// Human-readable window(s) for tomorrow — Opening Alerts overnight body
+    /// ("Open 7:30 AM – 4:00 PM") when today's span would be wrong or empty.
+    public let tomorrowHours: String?
 
     public init(
         id: String,
@@ -350,7 +353,8 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         hasMenu: Bool = false,
         opensAtMinutes: Int? = nil,
         closesAtMinutes: Int? = nil,
-        opensTomorrowAtMinutes: Int? = nil
+        opensTomorrowAtMinutes: Int? = nil,
+        tomorrowHours: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -361,6 +365,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.opensAtMinutes = opensAtMinutes
         self.closesAtMinutes = closesAtMinutes
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
+        self.tomorrowHours = tomorrowHours
     }
 
     /// Brand prefix for grouping multi-location chains:

@@ -98,7 +98,7 @@ enum OpeningAlerts {
                 candidates.append(.init(
                     id: id, name: place.name, opensAtMinutes: tomorrowOpen, dayOffset: 1
                 ))
-                // tomorrowHours isn't on the model — fall back to a generic body.
+                if let hours = place.tomorrowHours { campusHoursByID[id] = hours }
             } else {
                 candidates.append(.init(id: id, name: place.name, opensAtMinutes: nil))
                 if let hours = place.todayHours { campusHoursByID[id] = hours }

@@ -174,7 +174,8 @@ public struct CampusService: Sendable {
                 hasMenu: row.hasMenu,
                 opensAtMinutes: status.opensAtMinutes,
                 closesAtMinutes: status.closesAtMinutes,
-                opensTomorrowAtMinutes: status.opensTomorrowAtMinutes
+                opensTomorrowAtMinutes: status.opensTomorrowAtMinutes,
+                tomorrowHours: status.tomorrowHours
             )
         }
     }

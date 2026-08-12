@@ -7,6 +7,8 @@ public enum CampusPlaceStatus {
     public struct Snapshot: Equatable, Sendable {
         public let openNow: Bool
         public let todayHours: String?
+        /// Formatted tomorrow windows for Opening Alerts overnight schedules.
+        public let tomorrowHours: String?
         public let opensAtMinutes: Int?
         public let closesAtMinutes: Int?
         public let opensTomorrowAtMinutes: Int?
@@ -14,12 +16,14 @@ public enum CampusPlaceStatus {
         public init(
             openNow: Bool,
             todayHours: String?,
+            tomorrowHours: String? = nil,
             opensAtMinutes: Int?,
             closesAtMinutes: Int?,
             opensTomorrowAtMinutes: Int?
         ) {
             self.openNow = openNow
             self.todayHours = todayHours
+            self.tomorrowHours = tomorrowHours
             self.opensAtMinutes = opensAtMinutes
             self.closesAtMinutes = closesAtMinutes
             self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
@@ -46,6 +50,7 @@ public enum CampusPlaceStatus {
         return Snapshot(
             openNow: openNow,
             todayHours: CampusService.format(windows: todayWindows),
+            tomorrowHours: CampusService.format(windows: tomorrowWindows),
             opensAtMinutes: CampusService.nextOpeningMinutes(
                 windows: todayWindows,
                 nowMinutes: nowMinutes
