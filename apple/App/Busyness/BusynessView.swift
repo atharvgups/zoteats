@@ -30,7 +30,12 @@ struct BusynessView: View {
             }
             .refreshable { await store.load() }
             .statusBarBackdrop()
-            .task { await store.load() }
+            .task {
+                await store.load()
+                // Failed feeds leave facilities.value nil — still settle pending links.
+                applyPendingDeepLinkIfNeeded()
+                scrollToDeepLinkedFacility(proxy: proxy)
+            }
             .onChange(of: store.facilities.value) {
                 applyPendingDeepLinkIfNeeded()
                 scrollToDeepLinkedFacility(proxy: proxy)
@@ -48,16 +53,32 @@ struct BusynessView: View {
 
     private func applyPendingDeepLinkIfNeeded() {
         guard let link = pendingDeepLink, link.tab == .study else { return }
-        // Facility links wait for the feed; bare Study / Libraries closed clears
-        // a prior pin immediately so we don't keep scrolling to lunch's quietest.
-        if link.facilityID != nil, store.facilities.value == nil { return }
-        deepLinkFacilityID = StudyFacilityExpand.pinAfterApplying(
-            linkFacilityID: link.facilityID
-        )
-        if StudyFacilityExpand.shouldExpandPulse(linkFacilityID: link.facilityID) {
-            expandPulse += 1
+        let feedReady: Bool = {
+            switch store.facilities {
+            case .loaded, .failed: return true
+            case .idle, .loading: return false
+            }
+        }()
+        switch StudyDeepLinkApply.resolve(
+            facilityID: link.facilityID,
+            facilities: store.facilities.value,
+            feedReady: feedReady
+        ) {
+        case .waitForFacilities:
+            return
+        case .discard:
+            // Unknown / failed — drop pin so Quietest auto-expand can win again.
+            deepLinkFacilityID = StudyFacilityExpand.pinAfterApplying(linkFacilityID: nil)
+            pendingDeepLink = nil
+        case .apply(let facilityID):
+            deepLinkFacilityID = StudyFacilityExpand.pinAfterApplying(
+                linkFacilityID: facilityID
+            )
+            if StudyFacilityExpand.shouldExpandPulse(linkFacilityID: facilityID) {
+                expandPulse += 1
+            }
+            pendingDeepLink = nil
         }
-        pendingDeepLink = nil
     }
 
     private func scrollToDeepLinkedFacility(proxy: ScrollViewProxy) {
