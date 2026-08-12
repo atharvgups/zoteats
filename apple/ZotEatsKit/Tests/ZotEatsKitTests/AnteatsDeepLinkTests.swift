@@ -88,6 +88,39 @@ struct AnteatsDeepLinkTests {
         )
     }
 
+    @Test("Opening Alert place fallback keeps meal and date")
+    func notificationOpeningPlaceKeepsMealAndDate() {
+        #expect(
+            AnteatsDeepLink.fromNotification(userInfo: [
+                "place": "dining:anteatery",
+                "period": "Lunch",
+                "date": "2026-08-17",
+            ]) == .eat(hall: "anteatery", period: "Lunch", date: "2026-08-17")
+        )
+    }
+
+    @Test("hallID fallback keeps overnight Opening Alert date")
+    func notificationHallIDKeepsDate() {
+        #expect(
+            AnteatsDeepLink.fromNotification(userInfo: [
+                "hallID": "brandywine",
+                "period": "Breakfast",
+                "date": "2026-08-18",
+            ]) == .eat(hall: "brandywine", period: "Breakfast", date: "2026-08-18")
+        )
+    }
+
+    @Test("deeplink string still wins over structured Opening keys")
+    func notificationDeeplinkPrefersURLOverPlace() {
+        #expect(
+            AnteatsDeepLink.fromNotification(userInfo: [
+                "deeplink": "anteats://eat?hall=anteatery&period=Dinner",
+                "place": "dining:brandywine",
+                "period": "Lunch",
+            ]) == .eat(hall: "anteatery", period: "Dinner")
+        )
+    }
+
     @Test func notificationFavoriteAndMenuDropKeys() {
         #expect(
             AnteatsDeepLink.fromNotification(userInfo: [

@@ -73,10 +73,21 @@ public struct AnteatsDeepLink: Equatable, Sendable {
            let link = parse(url) {
             return link
         }
+        let period = (userInfo["period"] as? String)?.nilIfEmpty
+        let dish = (userInfo["dish"] as? String)?.nilIfEmpty
+        let date = (userInfo["date"] as? String)?.nilIfEmpty
         if let place = userInfo["place"] as? String {
             if place.hasPrefix("dining:") {
                 let hall = String(place.dropFirst("dining:".count))
-                return AnteatsDeepLink(tab: .eat, hall: hall.nilIfEmpty)
+                // Opening Alerts stash period/date beside `place`; don't drop
+                // them when the deeplink URL path isn't used.
+                return AnteatsDeepLink(
+                    tab: .eat,
+                    hall: hall.nilIfEmpty,
+                    period: period,
+                    dish: dish,
+                    date: date
+                )
             }
             if place.hasPrefix("campus:") {
                 let id = String(place.dropFirst("campus:".count))
@@ -87,11 +98,12 @@ public struct AnteatsDeepLink: Equatable, Sendable {
             return AnteatsDeepLink(
                 tab: .eat,
                 hall: hallID,
-                period: (userInfo["period"] as? String)?.nilIfEmpty,
-                dish: (userInfo["dish"] as? String)?.nilIfEmpty
+                period: period,
+                dish: dish,
+                date: date
             )
         }
-        if let date = (userInfo["date"] as? String)?.nilIfEmpty {
+        if let date {
             return AnteatsDeepLink(tab: .eat, date: date)
         }
         return nil

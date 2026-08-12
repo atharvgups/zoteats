@@ -225,10 +225,23 @@ enum OpeningAlerts {
                 }
                 return .eat()
             }()
-            content.userInfo = [
+            // Mirror Favorite Alerts: structured keys defend meal + date when
+            // the deeplink URL isn't the path NotificationRouter uses.
+            var userInfo: [String: String] = [
                 "deeplink": link.url.absoluteString,
                 "place": alert.placeID,
             ]
+            if alert.placeID.hasPrefix("dining:") {
+                let hall = String(alert.placeID.dropFirst("dining:".count))
+                userInfo["hallID"] = hall
+                if let period = link.period {
+                    userInfo["period"] = period
+                }
+                if let date = link.date {
+                    userInfo["date"] = date
+                }
+            }
+            content.userInfo = userInfo
             let trigger = UNTimeIntervalNotificationTrigger(
                 timeInterval: max(1, alert.fireDate.timeIntervalSinceNow),
                 repeats: false
