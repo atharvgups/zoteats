@@ -40,7 +40,24 @@ final class MealActivityManager {
     /// overnight Islands don't sit on “has ended” forever.
     func syncFromSystem(now: Date = Date()) {
         let activities = Activity<MealActivityAttributes>.activities
-        Task { await Self.reconcileLinger(activities: activities, now: now) }
+        // Same Task pattern as `endAll` — Activity.end is nonisolated; keep
+        // final content (nil) so Swift 6 doesn't send ActivityContent.
+        Task {
+            for activity in activities {
+                let endsAt = activity.content.state.endsAt
+                if MealActivityLinger.shouldDismiss(endsAt: endsAt, now: now) {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                    continue
+                }
+                guard MealActivityLinger.isLingering(endsAt: endsAt, now: now) else { continue }
+                // Already system-ended with a dismissal date — don't re-end.
+                if activity.activityState == .ended || activity.activityState == .dismissed {
+                    continue
+                }
+                let dismissal = MealActivityLinger.dismissalDate(endsAt: endsAt)
+                await activity.end(nil, dismissalPolicy: .after(dismissal))
+            }
+        }
 
         let live = activities
             .filter { MealActivitySync.isLive(endsAt: $0.content.state.endsAt, now: now) }
@@ -56,31 +73,6 @@ final class MealActivityManager {
         } else {
             // Still block auto-start from stealing an unmapped live activity.
             trackedKey = MealTrackMath.key(hallID: "unknown", period: attrs.period)
-        }
-    }
-
-    /// Dismiss stale Islands and schedule linger end for just-ended meals.
-    private static func reconcileLinger(
-        activities: [Activity<MealActivityAttributes>],
-        now: Date
-    ) async {
-        for activity in activities {
-            let endsAt = activity.content.state.endsAt
-            if MealActivityLinger.shouldDismiss(endsAt: endsAt, now: now) {
-                await activity.end(nil, dismissalPolicy: .immediate)
-                continue
-            }
-            guard MealActivityLinger.isLingering(endsAt: endsAt, now: now) else { continue }
-            // Already system-ended with a dismissal date — don't re-end.
-            if activity.activityState == .ended || activity.activityState == .dismissed {
-                continue
-            }
-            let dismissal = MealActivityLinger.dismissalDate(endsAt: endsAt)
-            let content = ActivityContent(
-                state: activity.content.state,
-                staleDate: MealActivityLinger.staleDate(endsAt: endsAt)
-            )
-            await activity.end(content, dismissalPolicy: .after(dismissal))
         }
     }
 
