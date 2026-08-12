@@ -80,6 +80,16 @@ struct DiningBoardPublishTests {
         #expect(probes.first == earlyLunch)
     }
 
+    @Test func lastChanceLunchAndEarlyDinnerProbesPresent() {
+        #expect(DiningBoardPublish.publishProbeMinutes.contains(10 * 60 + 50))
+        #expect(DiningBoardPublish.publishProbeMinutes.contains(15 * 60 + 30))
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T21:00:00Z")! // Mon 2 PM PDT
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let probes = DiningBoardPublish.upcomingPublishProbeMinutes(nowMinutes: nowMinutes)
+        #expect(probes.contains(15 * 60 + 30))
+        #expect(probes.first == 15 * 60 + 30)
+    }
+
     @Test func futurePublishProbesEmptyAtEveningConfidence() {
         let now = ISO8601DateFormatter().date(from: "2026-07-14T03:00:00Z")! // Mon 8 PM PDT
         #expect(

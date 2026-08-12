@@ -192,8 +192,8 @@ struct TodaysMenuReloadTests {
     }
 
     @Test func awaitingLunchOnlyArmsDinnerPublishProbe() {
-        // Mon 4:00 PM — Lunch done, no Dinner yet → 4:15 probe beats 30m cap.
-        let now = ISO8601DateFormatter().date(from: "2026-07-13T23:00:00Z")!
+        // Mon 3:05 PM — Lunch done, no Dinner yet → 3:30 probe beats 30m cap.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T22:05:00Z")!
         let nowMinutes = UCITime.nowMinutes(now: now)
         let locations = [
             hall(
@@ -206,7 +206,7 @@ struct TodaysMenuReloadTests {
             ),
         ]
         let dinnerProbe = UCITime.date(
-            forMinutes: 16 * 60 + 15,
+            forMinutes: 15 * 60 + 30,
             nowMinutes: nowMinutes,
             now: now
         )

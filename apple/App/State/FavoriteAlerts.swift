@@ -128,20 +128,30 @@ enum FavoriteAlerts {
     /// Asks iOS for the next opportunistic background check, aiming near
     /// breakfast / lunch / dinner / evening menu drop, plus live meal opens
     /// and meal wrap-up (T−45) so Favorite Alerts and Live Activity auto-start
-    /// can fire without waiting on Eat-tab foreground.
+    /// can fire without waiting on Eat-tab foreground. While a hall still
+    /// awaits Lunch/Dinner publish, also short-lead the next publish probes
+    /// so Opening Alerts can re-arm before a typical 11:00 / 16:00 open.
     static func scheduleNextRefresh(service: DiningService = DiningService()) async {
         let locations = await service.locations()
+        let nowMinutes = UCITime.nowMinutes()
         let wrapUps = MealActivityAutoStart.wrapUpAimMinutes(locations: locations)
         let mealOpens = MealActivityAutoStart.mealOpenAimMinutes(locations: locations)
+        let publishProbes: [Int] = {
+            let awaiting = locations.contains {
+                DiningBoardPublish.awaitingLaterMeals(periods: $0.periods, nowMinutes: nowMinutes)
+            }
+            guard awaiting else { return [] }
+            return DiningBoardPublish.upcomingPublishProbeMinutes(nowMinutes: nowMinutes)
+        }()
         let inWindow = MealActivityAutoStart.pick(
             locations: locations,
-            nowMinutes: UCITime.nowMinutes(),
+            nowMinutes: nowMinutes,
             alreadyTracking: false,
             autoEnabled: MealActivityManager.autoStartEnabled
         ) != nil
         let request = BGAppRefreshTaskRequest(identifier: refreshTaskID)
         request.earliestBeginDate = FavoriteAlertRefresh.earliestBeginDate(
-            extraAimMinutes: wrapUps + mealOpens,
+            extraAimMinutes: wrapUps + mealOpens + publishProbes,
             allowImmediate: inWindow && MealActivityManager.autoStartEnabled
         )
         try? BGTaskScheduler.shared.submit(request)

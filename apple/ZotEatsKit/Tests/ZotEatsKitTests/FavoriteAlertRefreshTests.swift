@@ -29,15 +29,15 @@ struct FavoriteAlertRefreshTests {
     }
 
     @Test func middayAimsPreDinner() {
-        // Monday noon Pacific.
+        // Monday noon Pacific — early Dinner publish probe (before 4:00 open).
         let now = ISO8601DateFormatter().date(from: "2026-07-13T19:00:00Z")!
         let preferred = FavoriteAlertRefresh.preferredBeginDate(now: now)
-        let dinner = UCITime.date(
-            forMinutes: 16 * 60 + 15,
+        let dinnerProbe = UCITime.date(
+            forMinutes: 15 * 60 + 30,
             nowMinutes: UCITime.nowMinutes(now: now),
             now: now
         )
-        #expect(preferred == dinner)
+        #expect(preferred == dinnerProbe)
     }
 
     @Test func afterDinnerAimsEveningMenuDrop() {
@@ -65,23 +65,26 @@ struct FavoriteAlertRefreshTests {
     }
 
     @Test func skipsAimInsideLeadWindow() {
-        // Monday 11:00 AM — 11:15 is only 15m away (< 30m lead) → dinner.
+        // Monday 11:00 AM — 11:15 is only 15m away (< 30m lead) → early Dinner probe.
         let now = ISO8601DateFormatter().date(from: "2026-07-13T18:00:00Z")!
         let preferred = FavoriteAlertRefresh.preferredBeginDate(now: now)
-        let dinner = UCITime.date(
-            forMinutes: 16 * 60 + 15,
+        let dinnerProbe = UCITime.date(
+            forMinutes: 15 * 60 + 30,
             nowMinutes: UCITime.nowMinutes(now: now),
             now: now
         )
-        #expect(preferred == dinner)
+        #expect(preferred == dinnerProbe)
     }
 
     @Test func earliestBeginDateFloorsAtOneHour() {
-        // Monday 10:00 AM — preferred is 11:15; above the 1h floor.
+        // Monday 10:00 AM — preferred is 10:50; earliest still floors at now+1h.
         let ten = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")!
         let lunch = FavoriteAlertRefresh.preferredBeginDate(now: ten)
-        #expect(FavoriteAlertRefresh.earliestBeginDate(now: ten) == lunch)
-        #expect(lunch == ten.addingTimeInterval(75 * 60)) // 11:15
+        #expect(lunch == ten.addingTimeInterval(50 * 60)) // 10:50
+        #expect(
+            FavoriteAlertRefresh.earliestBeginDate(now: ten)
+                == ten.addingTimeInterval(60 * 60)
+        )
 
         // Just after a fire with preferred far out — still ≥ now+1h.
         let eleven = ISO8601DateFormatter().date(from: "2026-07-13T18:00:00Z")!
@@ -146,19 +149,58 @@ struct FavoriteAlertRefreshTests {
     }
 
     @Test func lunchOpenAimBeatsLateFixedPreLunch() {
-        // Monday 10:00 AM — live Lunch at 11:00 beats fixed 11:15 (which is after open).
-        let ten = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")!
+        // Monday 10:55 AM — live Lunch at 11:00 beats fixed 11:15 (after open).
+        let tenFiftyFive = ISO8601DateFormatter().date(from: "2026-07-13T17:55:00Z")!
         let lunchOpen = 11 * 60
         let preferred = FavoriteAlertRefresh.preferredBeginDate(
-            now: ten,
+            now: tenFiftyFive,
             extraAimMinutes: [lunchOpen]
         )
         let expected = UCITime.date(
             forMinutes: lunchOpen,
-            nowMinutes: UCITime.nowMinutes(now: ten),
-            now: ten
+            nowMinutes: UCITime.nowMinutes(now: tenFiftyFive),
+            now: tenFiftyFive
         )
         #expect(preferred == expected)
+    }
+
+    @Test func awaitingPublishProbeShortLeadBeforeLunchOpen() {
+        // Monday 10:35 — fixed 10:50 is inside 30m lead; short-lead extra probe wins.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:35:00Z")!
+        let lastChance = 10 * 60 + 50
+        let preferred = FavoriteAlertRefresh.preferredBeginDate(
+            now: now,
+            extraAimMinutes: [lastChance, 11 * 60 + 15]
+        )
+        let expected = UCITime.date(
+            forMinutes: lastChance,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(preferred == expected)
+        let earliest = FavoriteAlertRefresh.earliestBeginDate(
+            now: now,
+            extraAimMinutes: [lastChance, 11 * 60 + 15]
+        )
+        #expect(earliest == max(expected, now.addingTimeInterval(60)))
+        #expect(earliest < now.addingTimeInterval(60 * 60))
+    }
+
+    @Test func awaitingPublishProbeShortLeadBeforeDinnerOpen() {
+        // Monday 3:00 PM — short-lead 3:30 Dinner probe beats fixed 4:15 + 1h floor.
+        let three = ISO8601DateFormatter().date(from: "2026-07-13T22:00:00Z")!
+        let earlyDinner = 15 * 60 + 30
+        let earliest = FavoriteAlertRefresh.earliestBeginDate(
+            now: three,
+            extraAimMinutes: [earlyDinner, 16 * 60 + 15]
+        )
+        let expected = UCITime.date(
+            forMinutes: earlyDinner,
+            nowMinutes: UCITime.nowMinutes(now: three),
+            now: three
+        )
+        #expect(earliest == max(expected, three.addingTimeInterval(60)))
+        #expect(earliest < three.addingTimeInterval(60 * 60))
     }
 
     @Test func earlyDinnerOpenAimSkipsOneHourFloor() {

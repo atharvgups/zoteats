@@ -58,7 +58,7 @@ struct TodaysMenuEmptyCopyTests {
                 hallName: "Brandywine",
                 opensTomorrowPeriod: nil,
                 opensTomorrowAtMinutes: nil
-            ) == "Brandywine is closed for tonight. Breakfast posts overnight — or pick tomorrow in the day strip."
+            ) == "Brandywine is closed for tonight. Breakfast posts overnight — or pick the next day in the day strip."
         )
     }
 

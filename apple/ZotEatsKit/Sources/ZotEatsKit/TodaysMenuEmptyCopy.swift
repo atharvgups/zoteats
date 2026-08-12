@@ -93,7 +93,7 @@ public enum TodaysMenuEmptyCopy {
             let time = UCITime.format(minutes: open)
             return "\(name) is closed for tonight. \(meal) \(weekday) · \(time)."
         }
-        return "\(name) is closed for tonight. Breakfast posts overnight — or pick tomorrow in the day strip."
+        return "\(name) is closed for tonight. Breakfast posts overnight — or pick the next day in the day strip."
     }
 
     /// Tomorrow's Irvine ISO for Eat "See tomorrow" CTA / deep links.

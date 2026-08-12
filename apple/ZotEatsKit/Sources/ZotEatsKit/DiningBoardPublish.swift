@@ -9,10 +9,13 @@ public enum DiningBoardPublish {
 
     /// Approximate Lunch / Dinner / evening menu-drop publishes — shared with
     /// `FavoriteAlertRefresh.aimMinutes` so widgets + Eat wake when boards grow.
-    /// 10:30 is early enough to arm Opening Alerts before a typical 11:00 Lunch.
+    /// 10:30 / 10:50 bracket a typical 11:00 Lunch; 15:30 / 16:15 bracket Dinner
+    /// so Opening Alerts can re-arm after publish and before open.
     public static let publishProbeMinutes = [
         10 * 60 + 30,
+        10 * 60 + 50,
         11 * 60 + 15,
+        15 * 60 + 30,
         16 * 60 + 15,
         eveningConfidenceMinutes,
     ]
@@ -35,15 +38,19 @@ public enum DiningBoardPublish {
         return !hasDinner
     }
 
+    /// Future publish-probe minutes still ahead of `nowMinutes`.
+    public static func upcomingPublishProbeMinutes(nowMinutes: Int) -> [Int] {
+        guard nowMinutes < eveningConfidenceMinutes else { return [] }
+        return publishProbeMinutes.filter { $0 > nowMinutes }
+    }
+
     /// Future publish-probe wall clocks while still before evening confidence.
     public static func futurePublishProbeDates(
         nowMinutes: Int,
         now: Date = Date()
     ) -> [Date] {
-        guard nowMinutes < eveningConfidenceMinutes else { return [] }
-        return publishProbeMinutes.compactMap { minutes -> Date? in
-            guard minutes > nowMinutes else { return nil }
-            return UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now)
+        upcomingPublishProbeMinutes(nowMinutes: nowMinutes).map { minutes in
+            UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now)
         }
     }
 }
