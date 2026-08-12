@@ -1,7 +1,7 @@
 import Foundation
 
 /// VoiceOver for the in-app Gym hero — one announcement with open/closed,
-/// crowding, and hours (parity with ArcWidgetAccessibilityLabel).
+/// crowding, hours, and live Updated freshness (parity with Study facility).
 public enum GymHeroAccessibilityLabel {
     public static func label(
         isOpen: Bool,
@@ -10,7 +10,8 @@ public enum GymHeroAccessibilityLabel {
         levelLabel: String?,
         isTypical: Bool,
         peopleCount: Int?,
-        idleMessage: String?
+        idleMessage: String?,
+        updatedRelative: String? = nil
     ) -> String {
         let hours = hoursLine.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = ["ARC", "Anteater Recreation Center"]
@@ -40,6 +41,11 @@ public enum GymHeroAccessibilityLabel {
 
         if !hours.isEmpty {
             parts.append(hours)
+        }
+
+        if let updated = updatedRelative?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !updated.isEmpty {
+            parts.append("Updated \(updated)")
         }
 
         return parts.joined(separator: ", ")

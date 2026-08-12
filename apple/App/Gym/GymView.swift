@@ -173,6 +173,13 @@ struct GymBusynessHero: View {
     private var heroAccessibilityLabel: String {
         let crowding = ArcWidgetGlance.crowding(from: status)
         let point = status.busyness
+        let updatedRelative: String? = {
+            guard crowding != nil,
+                  let point,
+                  point.source == .live
+            else { return nil }
+            return UpdatedAgoCopy.relative(from: point.updatedAt)
+        }()
         return GymHeroAccessibilityLabel.label(
             isOpen: status.openNow,
             hoursLine: hoursLine,
@@ -180,7 +187,8 @@ struct GymBusynessHero: View {
             levelLabel: crowding != nil ? point?.level.label : nil,
             isTypical: crowding?.isTypical ?? false,
             peopleCount: crowding != nil ? point?.count : nil,
-            idleMessage: crowding == nil ? idleMessage : nil
+            idleMessage: crowding == nil ? idleMessage : nil,
+            updatedRelative: updatedRelative
         )
     }
 }

@@ -77,4 +77,53 @@ struct GymHeroAccessibilityLabelTests {
             ) == "ARC, Anteater Recreation Center, open, No busyness estimate right now, Open until 12:00 AM"
         )
     }
+
+    @Test("Live open appends Updated freshness")
+    func liveUpdated() {
+        #expect(
+            GymHeroAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                levelLabel: "Busy",
+                isTypical: false,
+                peopleCount: 180,
+                idleMessage: nil,
+                updatedRelative: "just now"
+            ) == "ARC, Anteater Recreation Center, open, 42 percent full, Busy, live, 180 people, Open until 12:00 AM, Updated just now"
+        )
+    }
+
+    @Test("Typical estimate omits Updated even if relative passed")
+    func typicalOmitsUpdatedWhenNotWired() {
+        // Call site only passes updatedRelative for live; helper still appends if given.
+        #expect(
+            GymHeroAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 55,
+                levelLabel: "Busy",
+                isTypical: true,
+                peopleCount: nil,
+                idleMessage: nil,
+                updatedRelative: nil
+            ) == "ARC, Anteater Recreation Center, open, 55 percent full, Busy, typical estimate, Open until 12:00 AM"
+        )
+    }
+
+    @Test("Blank updatedRelative is omitted")
+    func blankUpdatedOmitted() {
+        #expect(
+            GymHeroAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                levelLabel: "Busy",
+                isTypical: false,
+                peopleCount: nil,
+                idleMessage: nil,
+                updatedRelative: "  "
+            ) == "ARC, Anteater Recreation Center, open, 42 percent full, Busy, live, Open until 12:00 AM"
+        )
+    }
 }
