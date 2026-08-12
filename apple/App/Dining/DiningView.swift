@@ -61,10 +61,6 @@ struct DiningView: View {
         "\(selectedHall)|\(selectedDate ?? "today")"
     }
 
-    private var browsePeriodsTaskID: String {
-        "\(selectedHall)|\(selectedDate ?? "today")"
-    }
-
     private var boundaryWatchID: String {
         "\(boundaryEpoch)|\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")|\(store.dayEpoch)|\(store.locations.value?.map(\.id).joined() ?? "")"
     }
