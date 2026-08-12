@@ -375,7 +375,12 @@ private struct CampusBrandGroupRow: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(
-                            "\(brand) at \(place.locationDetail ?? place.name), \(place.openNow ? "open" : "closed")"
+                            CampusPlaceAccessibilityLabel.nested(
+                                brand: brand,
+                                locationDetail: place.locationDetail ?? place.name,
+                                openNow: place.openNow,
+                                hoursLine: place.hoursLine
+                            )
                         )
                         .accessibilityHint("Shows details")
                     }
@@ -429,7 +434,12 @@ private struct CampusPlaceRow: View {
         .accessibilityIdentifier("campus-place-\(place.id)")
         .zotCard()
         .accessibilityLabel(
-            "\(place.name), \(place.openNow ? "open" : "closed"), \(place.hoursLine)\(place.hasMenu ? ", menu available" : "")"
+            CampusPlaceAccessibilityLabel.place(
+                name: place.name,
+                openNow: place.openNow,
+                hoursLine: place.hoursLine,
+                hasMenu: place.hasMenu
+            )
         )
         .accessibilityHint("Shows menu and details")
     }
