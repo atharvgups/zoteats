@@ -206,12 +206,14 @@ struct DiningStatusProvider: TimelineProvider {
         let deliver = UncheckedSendableBox(completion)
         Task {
             let entry = await fetchEntry()
-            var boundaries = entry.halls.compactMap(\.countdownEnd)
-            boundaries.append(UCITime.nextIrvineMidnight())
-            let reload = WidgetRefreshMath.nextReload(
+            let librariesClosed: Bool = {
+                if case .librariesClosed = entry.quietest { return true }
+                return false
+            }()
+            let reload = DiningStatusReload.nextReload(
                 now: .now,
-                boundaries: boundaries,
-                maxInterval: 20 * 60
+                countdownEnds: entry.halls.compactMap(\.countdownEnd),
+                librariesClosed: librariesClosed
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
