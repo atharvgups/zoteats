@@ -248,12 +248,17 @@ struct DiningStatusProvider: TimelineProvider {
                 if case .librariesClosed = entry.quietest { return true }
                 return false
             }()
+            let quietestTipOpen: Bool = {
+                if case .open = entry.quietest { return true }
+                return false
+            }()
             let reload = DiningStatusReload.nextReload(
                 locations: locations,
                 nowMinutes: UCITime.nowMinutes(),
                 now: .now,
                 librariesClosed: librariesClosed,
-                libraryReopenMinutes: libraryReopenMinutes
+                libraryReopenMinutes: libraryReopenMinutes,
+                quietestTipOpen: quietestTipOpen
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }

@@ -3,7 +3,13 @@ import Foundation
 /// WidgetKit reload for Dining Status — every hall's meal open/close (and
 /// tomorrow opens / Irvine midnight), matching Today's Menu honesty, plus
 /// Quietest Waitz reopen / morning probes when the medium tip is "Libraries closed".
+/// While the Quietest tip is live-open, cadence matches Quietest/Study (10m).
 public enum DiningStatusReload {
+    /// Hall / closed-tip cadence (matches Campus / Quietest-closed).
+    public static let defaultMaxInterval: TimeInterval = 20 * 60
+    /// Live Quietest % tip — same as `WidgetRefreshMath.nextQuietestReload` open.
+    public static let quietestOpenMaxInterval: TimeInterval = 10 * 60
+
     public static func boundaries(
         locations: [DiningLocation],
         nowMinutes: Int,
@@ -30,9 +36,12 @@ public enum DiningStatusReload {
         now: Date = Date(),
         librariesClosed: Bool,
         libraryReopenMinutes: [Int] = [],
-        maxInterval: TimeInterval = 20 * 60
+        quietestTipOpen: Bool = false,
+        maxInterval: TimeInterval? = nil
     ) -> Date {
-        WidgetRefreshMath.nextReload(
+        let interval = maxInterval
+            ?? (quietestTipOpen ? quietestOpenMaxInterval : defaultMaxInterval)
+        return WidgetRefreshMath.nextReload(
             now: now,
             boundaries: boundaries(
                 locations: locations,
@@ -41,7 +50,7 @@ public enum DiningStatusReload {
                 librariesClosed: librariesClosed,
                 libraryReopenMinutes: libraryReopenMinutes
             ),
-            maxInterval: maxInterval
+            maxInterval: interval
         )
     }
 }

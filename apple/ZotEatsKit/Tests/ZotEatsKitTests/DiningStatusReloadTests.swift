@@ -191,4 +191,68 @@ struct DiningStatusReloadTests {
         #expect(boundaries.contains(tomorrow))
         #expect(boundaries.contains(UCITime.nextIrvineMidnight(now: now)))
     }
+
+    @Test func openQuietestTipUsesTenMinuteCadence() {
+        // Mid-morning with no soon meal edge — live Quietest % must match Quietest widget.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")! // Mon 10 AM PDT
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let reload = DiningStatusReload.nextReload(
+            locations: [],
+            nowMinutes: nowMinutes,
+            now: now,
+            librariesClosed: false,
+            quietestTipOpen: true
+        )
+        #expect(reload == now.addingTimeInterval(DiningStatusReload.quietestOpenMaxInterval))
+    }
+
+    @Test func closedOrMissingTipKeepsTwentyMinuteCadence() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")! // Mon 10 AM PDT
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let closed = DiningStatusReload.nextReload(
+            locations: [],
+            nowMinutes: nowMinutes,
+            now: now,
+            librariesClosed: true,
+            quietestTipOpen: false
+        )
+        // Morning probes already passed at 10 AM — 20m closed cadence.
+        #expect(closed == now.addingTimeInterval(DiningStatusReload.defaultMaxInterval))
+
+        let missing = DiningStatusReload.nextReload(
+            locations: [],
+            nowMinutes: nowMinutes,
+            now: now,
+            librariesClosed: false,
+            quietestTipOpen: false
+        )
+        #expect(missing == now.addingTimeInterval(DiningStatusReload.defaultMaxInterval))
+    }
+
+    @Test func mealEdgeBeatsOpenQuietestCadence() {
+        // Mon noon — Lunch close at 2:30 PM is hours away; with open tip, 10m cap wins.
+        // Sit 5 minutes before Lunch close so meal edge beats 10m.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T21:25:00Z")! // Mon 2:25 PM PDT
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let locations = [
+            hall(
+                id: "anteatery",
+                name: "The Anteatery",
+                periods: [
+                    MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+                ],
+                opensTomorrowAtMinutes: nil
+            ),
+        ]
+        let reload = DiningStatusReload.nextReload(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now,
+            librariesClosed: false,
+            quietestTipOpen: true
+        )
+        let lunchClose = UCITime.date(forMinutes: 870, nowMinutes: nowMinutes, now: now)
+        #expect(reload == lunchClose.addingTimeInterval(2))
+        #expect(reload < now.addingTimeInterval(DiningStatusReload.quietestOpenMaxInterval))
+    }
 }
