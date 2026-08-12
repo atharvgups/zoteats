@@ -1,23 +1,69 @@
 import Foundation
 
-/// Period query for Dining Status hall-row deep links into Eat.
-/// Open / opening-later rows carry the live meal (as a primary pill);
-/// after-hours / unknown omit period so Eat stays on its empty state.
+/// Eat destination for Dining Status hall-row deep links.
+/// Open / opening-later rows carry today's live meal; after hours with a known
+/// tomorrow open jump to tomorrow's board (period + date) instead of Eat's
+/// empty after-hours state.
 public enum DiningStatusDeepLink {
-    public static func period(
+    public struct Destination: Equatable, Sendable {
+        public let period: String?
+        public let date: String?
+
+        public init(period: String?, date: String? = nil) {
+            self.period = period
+            self.date = date
+        }
+    }
+
+    public static func destination(
         for state: HallOpenState,
-        availablePeriods: [String]
-    ) -> String? {
-        let liveName: String
+        availablePeriods: [String],
+        opensTomorrowAtMinutes: Int? = nil,
+        opensTomorrowPeriod: String? = nil,
+        now: Date = Date()
+    ) -> Destination {
         switch state {
         case .open(let period, _), .openingLater(let period, _):
-            liveName = period
-        case .closedForToday, .unknown:
-            return nil
+            return Destination(
+                period: primaryPill(
+                    for: period,
+                    pills: DiningService.primaryPeriods(from: availablePeriods)
+                )
+            )
+        case .closedForToday:
+            guard opensTomorrowAtMinutes != nil else {
+                return Destination(period: nil)
+            }
+            let pills = DiningService.primaryPeriods(from: availablePeriods)
+            let period: String?
+            if let meal = opensTomorrowPeriod {
+                period = primaryPill(for: meal, pills: pills) ?? meal
+            } else {
+                period = nil
+            }
+            let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+            return Destination(period: period, date: tomorrow)
+        case .unknown:
+            return Destination(period: nil)
         }
+    }
 
-        let pills = DiningService.primaryPeriods(from: availablePeriods)
-        return primaryPill(for: liveName, pills: pills)
+    /// Period-only convenience (same-day open / opening-later; after hours nil
+    /// unless tomorrow open metadata is passed through `destination`).
+    public static func period(
+        for state: HallOpenState,
+        availablePeriods: [String],
+        opensTomorrowAtMinutes: Int? = nil,
+        opensTomorrowPeriod: String? = nil,
+        now: Date = Date()
+    ) -> String? {
+        destination(
+            for: state,
+            availablePeriods: availablePeriods,
+            opensTomorrowAtMinutes: opensTomorrowAtMinutes,
+            opensTomorrowPeriod: opensTomorrowPeriod,
+            now: now
+        ).period
     }
 
     private static func primaryPill(for liveName: String, pills: [String]) -> String? {

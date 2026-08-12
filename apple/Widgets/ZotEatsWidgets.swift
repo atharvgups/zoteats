@@ -144,8 +144,10 @@ struct DiningStatusEntry: TimelineEntry {
         /// When set, widget shows a live countdown (closes / opens).
         let countdownEnd: Date?
         let countdownKind: CountdownKind?
-        /// Primary meal pill for Eat deep links (nil after hours / unknown).
+        /// Primary meal pill for Eat deep links (nil after hours without tomorrow).
         let deepLinkPeriod: String?
+        /// Tomorrow ISO when after-hours row deep-links into next day's board.
+        let deepLinkDate: String?
 
         enum CountdownKind {
             case closes
@@ -160,7 +162,8 @@ struct DiningStatusEntry: TimelineEntry {
             occupancy: Int?,
             countdownEnd: Date?,
             countdownKind: CountdownKind?,
-            deepLinkPeriod: String? = nil
+            deepLinkPeriod: String? = nil,
+            deepLinkDate: String? = nil
         ) {
             self.id = id
             self.name = name
@@ -170,6 +173,7 @@ struct DiningStatusEntry: TimelineEntry {
             self.countdownEnd = countdownEnd
             self.countdownKind = countdownKind
             self.deepLinkPeriod = deepLinkPeriod
+            self.deepLinkDate = deepLinkDate
         }
     }
 }
@@ -218,45 +222,40 @@ struct DiningStatusProvider: TimelineProvider {
         let nowMinutes = UCITime.nowMinutes()
 
         let halls = locations.map { location -> DiningStatusEntry.HallStatus in
-            let status: String
-            var countdownEnd: Date?
-            var countdownKind: DiningStatusEntry.HallStatus.CountdownKind?
             let state = location.openState(nowMinutes: nowMinutes)
-            switch state {
-            case .open(let period, let closesAt):
-                status = period
-                countdownEnd = UCITime.date(forMinutes: closesAt, nowMinutes: nowMinutes)
-                countdownKind = .closes
-            case .openingLater(let period, let opensAt):
-                status = period
-                countdownEnd = UCITime.date(forMinutes: opensAt, nowMinutes: nowMinutes)
-                countdownKind = .opens
-            case .closedForToday:
-                if let open = location.opensTomorrowAtMinutes {
-                    status = location.opensTomorrowPeriod ?? "Opens tomorrow"
-                    countdownEnd = UCITime.date(forMinutes: open, nowMinutes: nowMinutes)
-                    countdownKind = .opens
-                } else {
-                    status = "Closed for today"
+            let chrome = DiningStatusHallChrome.resolve(
+                state: state,
+                todayHours: location.todayHours,
+                opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: location.opensTomorrowPeriod,
+                nowMinutes: nowMinutes
+            )
+            let countdownKind: DiningStatusEntry.HallStatus.CountdownKind? = {
+                switch chrome.countdownKind {
+                case .closes: return .closes
+                case .opens: return .opens
+                case nil: return nil
                 }
-            case .unknown:
-                status = location.todayHours ?? "Hours unavailable"
-            }
+            }()
+            let link = DiningStatusDeepLink.destination(
+                for: state,
+                availablePeriods: location.availablePeriods,
+                opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: location.opensTomorrowPeriod
+            )
             let estimate = TypicalBusyness.dining(periods: location.periods)
             let serving = location.isServing(nowMinutes: nowMinutes)
             return .init(
                 id: location.id,
                 name: location.name,
-                statusText: status,
+                statusText: chrome.statusText,
                 isOpen: serving,
                 occupancy: FeatureFlags.diningHallOccupancy && serving && estimate.percentNow > 0
                     ? estimate.percentNow : nil,
-                countdownEnd: countdownEnd,
+                countdownEnd: chrome.countdownEnd,
                 countdownKind: countdownKind,
-                deepLinkPeriod: DiningStatusDeepLink.period(
-                    for: state,
-                    availablePeriods: location.availablePeriods
-                )
+                deepLinkPeriod: link.period,
+                deepLinkDate: link.date
             )
         }
 
@@ -328,7 +327,11 @@ struct DiningStatusView: View {
             .foregroundStyle(gold)
 
             ForEach(Array(visibleHalls), id: \.id) { hall in
-                Link(destination: AnteatsDeepLink.eat(hall: hall.id, period: hall.deepLinkPeriod).url) {
+                Link(destination: AnteatsDeepLink.eat(
+                    hall: hall.id,
+                    period: hall.deepLinkPeriod,
+                    date: hall.deepLinkDate
+                ).url) {
                     hallRow(hall)
                 }
             }
