@@ -1,8 +1,8 @@
 import Foundation
 
-/// In-app Study schedule refresh — same Waitz reopen probes, Irvine midnight,
-/// and open/closed Waitz cadence as the Quietest Library widget, so the
-/// Quietest hero, crowding, and Status pills flip while the Study tab stays open.
+/// In-app Study schedule refresh — same Waitz reopen / close probes, Irvine
+/// midnight, and open/closed Waitz cadence as the Quietest Library widget, so
+/// the Quietest hero, crowding, and Status pills flip while the Study tab stays open.
 public enum StudyBoundaryRefresh {
     /// Matches Quietest widget: library pool when present, else whole feed.
     public static func anyLibraryOpen(from facilities: [BusynessPoint]) -> Bool {
@@ -18,7 +18,8 @@ public enum StudyBoundaryRefresh {
         QuietestLibraryReload.nextReload(
             now: now,
             anyLibraryOpen: anyLibraryOpen(from: facilities),
-            reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities)
+            reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities),
+            closeMinutes: QuietestLibraryReload.closeMinutes(from: facilities)
         )
     }
 }

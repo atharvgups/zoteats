@@ -1,8 +1,8 @@
 import Foundation
 
-/// Study / Quietest closed chrome from Waitz `Closed until …` — reload already
-/// parses reopen minutes (`QuietestLibraryReload`); this surfaces “Opens at …”
-/// so overnight cards and widgets match Gym honesty.
+/// Study / Quietest hours chrome from Waitz — Closed-until → “Opens at …”,
+/// parseable open ranges → “Open until …”. Reload already parses reopen/
+/// close minutes; this keeps cards and widgets honest.
 public enum StudyIdleCopy {
     /// Soonest library-pool reopen from Waitz (sorted ascending).
     public static func soonestReopenMinutes(from facilities: [BusynessPoint]) -> Int? {
@@ -27,5 +27,10 @@ public enum StudyIdleCopy {
             return opensAtLine(minutes: minutes)
         }
         return StudyFacilityCrowding.closedDetail
+    }
+
+    /// Per-facility open secondary — nil when Waitz only says `"open"`.
+    public static func facilityOpenDetail(hoursSummary: String?) -> String? {
+        WaitzHoursSummary.openUntilLine(hoursSummary)
     }
 }

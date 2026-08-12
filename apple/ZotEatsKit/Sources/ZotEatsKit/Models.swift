@@ -485,6 +485,9 @@ public struct GymStatus: Codable, Sendable, Equatable {
     /// Waitz `Closed until …` reopen (Irvine minutes) when the ARC is closed
     /// with a parseable summary — drives Gym reload + “Opens at …” chrome.
     public let waitzReopenMinutes: Int?
+    /// Waitz live-range close (Irvine minutes) when hours come from a parseable
+    /// Waitz range — arms Gym reload for holiday / early closes.
+    public let waitzCloseMinutes: Int?
     /// Typical 24-hour rush curve for today (index = hour, 0 = closed).
     public let typicalCurve: [Int]?
     /// e.g. "Usually busiest 6–8 PM".
@@ -500,6 +503,7 @@ public struct GymStatus: Codable, Sendable, Equatable {
         busyness: BusynessPoint?,
         hoursApproximate: Bool,
         waitzReopenMinutes: Int? = nil,
+        waitzCloseMinutes: Int? = nil,
         typicalCurve: [Int]? = nil,
         busiestSummary: String? = nil,
         quietestSummary: String? = nil
@@ -511,6 +515,7 @@ public struct GymStatus: Codable, Sendable, Equatable {
         self.busyness = busyness
         self.hoursApproximate = hoursApproximate
         self.waitzReopenMinutes = waitzReopenMinutes
+        self.waitzCloseMinutes = waitzCloseMinutes
         self.typicalCurve = typicalCurve
         self.busiestSummary = busiestSummary
         self.quietestSummary = quietestSummary

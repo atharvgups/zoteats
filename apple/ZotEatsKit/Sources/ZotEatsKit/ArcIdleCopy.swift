@@ -116,10 +116,8 @@ public enum ArcIdleCopy {
     ) -> String {
         if openNow {
             guard let hours = todayHours else { return "Open" }
-            if let close = hours.components(separatedBy: "–").last?
-                .trimmingCharacters(in: .whitespaces),
-               !close.isEmpty {
-                return "Open until \(close)"
+            if let line = WaitzHoursSummary.openUntilLine(hours) {
+                return line
             }
             return "Open · \(hours)"
         }

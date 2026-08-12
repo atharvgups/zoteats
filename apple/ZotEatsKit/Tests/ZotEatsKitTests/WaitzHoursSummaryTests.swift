@@ -21,4 +21,29 @@ struct WaitzHoursSummaryTests {
         #expect(WaitzHoursSummary.closedUntilMinutes("Closed") == nil)
         #expect(WaitzHoursSummary.closedUntilMinutes("Closed until noon") == nil)
     }
+
+    @Test func displayableRangeRequiresParseableClocks() {
+        #expect(WaitzHoursSummary.isDisplayableHoursRange("6:00am-11:00pm"))
+        #expect(WaitzHoursSummary.isDisplayableHoursRange("6:00 AM – 10:00 PM"))
+        #expect(WaitzHoursSummary.isDisplayableHoursRange("6am - 12am"))
+        #expect(!WaitzHoursSummary.isDisplayableHoursRange("open"))
+        #expect(!WaitzHoursSummary.isDisplayableHoursRange("Closed until 12:00pm"))
+        #expect(!WaitzHoursSummary.isDisplayableHoursRange("Open 24 Hours"))
+        #expect(!WaitzHoursSummary.isDisplayableHoursRange("foo-bar"))
+        #expect(!WaitzHoursSummary.isDisplayableHoursRange(nil))
+    }
+
+    @Test func openUntilLineNormalizesClose() {
+        #expect(WaitzHoursSummary.openUntilLine("6:00 AM – 12:00 AM") == "Open until 12:00 AM")
+        #expect(WaitzHoursSummary.openUntilLine("6am - 12am") == "Open until 12:00 AM")
+        #expect(WaitzHoursSummary.openUntilLine("6:00am-11:00pm") == "Open until 11:00 PM")
+        #expect(WaitzHoursSummary.openUntilLine("open") == nil)
+        #expect(WaitzHoursSummary.openUntilLine("Closed until 8:00am") == nil)
+    }
+
+    @Test func rangeBoundsParsesOpenAndClose() {
+        #expect(WaitzHoursSummary.openMinutes("6:00am-11:00pm") == 6 * 60)
+        #expect(WaitzHoursSummary.closeMinutes("6:00am-11:00pm") == 23 * 60)
+        #expect(WaitzHoursSummary.closeMinutes("6am - 12am") == 0)
+    }
 }

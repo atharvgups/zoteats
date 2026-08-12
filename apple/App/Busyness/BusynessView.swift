@@ -395,6 +395,13 @@ struct BusynessFacilityCard: View {
 
                 if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
                     OccupancyBar(percent: facility.percent, level: facility.level)
+                    if let openLine = StudyIdleCopy.facilityOpenDetail(
+                        hoursSummary: facility.hoursSummary
+                    ) {
+                        Text(openLine)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     Text(StudyIdleCopy.facilityClosedDetail(hoursSummary: facility.hoursSummary))
                         .font(ZotFont.caption)

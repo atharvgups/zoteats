@@ -52,7 +52,8 @@ struct GymView: View {
     private func watchScheduleBoundaries() async {
         guard store.status.value != nil else { return }
         let fire = GymBoundaryRefresh.nextFire(
-            reopenMinutes: store.status.value?.waitzReopenMinutes
+            reopenMinutes: store.status.value?.waitzReopenMinutes,
+            closeMinutes: store.status.value?.waitzCloseMinutes
         )
         let delay = fire.timeIntervalSinceNow
         if delay > 0.05 {

@@ -61,10 +61,11 @@ public struct GymService: Sendable {
 
         let scheduleHours = today.map { "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))" }
         let waitzReopen = WaitzHoursSummary.closedUntilMinutes(liveHours)
-        // Only range-looking Waitz strings are displayable hours — "open" and
+        // Only parseable Waitz ranges are displayable hours — "open" and
         // "Closed until 8:00am" must not become "Open until open".
-        let usingLiveRange = Self.isDisplayableHoursRange(liveHours)
+        let usingLiveRange = WaitzHoursSummary.isDisplayableHoursRange(liveHours)
         let todayHours = usingLiveRange ? liveHours : scheduleHours
+        let waitzClose = usingLiveRange ? WaitzHoursSummary.closeMinutes(liveHours) : nil
 
         // Live sensor data wins; otherwise fall back to the typical-pattern
         // estimate, clearly flagged so the UI can label it.
@@ -93,6 +94,7 @@ public struct GymService: Sendable {
             busyness: liveBusyness ?? typicalPoint,
             hoursApproximate: !usingLiveRange,
             waitzReopenMinutes: waitzReopen,
+            waitzCloseMinutes: waitzClose,
             typicalCurve: typical.dayCurve,
             busiestSummary: typical.busiestSummary,
             quietestSummary: typical.quietestSummary
@@ -102,12 +104,7 @@ public struct GymService: Sendable {
     /// True for live Waitz hour strings that look like a continuous range
     /// (`"6:00 AM – 10:00 PM"`), not `"open"` / `"Closed until …"`.
     static func isDisplayableHoursRange(_ summary: String?) -> Bool {
-        guard let summary else { return false }
-        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        if WaitzHoursSummary.closedUntilMinutes(trimmed) != nil { return false }
-        if trimmed.lowercased() == "open" { return false }
-        return trimmed.contains("–") || trimmed.contains("-")
+        WaitzHoursSummary.isDisplayableHoursRange(summary)
     }
 
     /// Next schedule open or close as a wall-clock `Date` (Irvine), for widget reload.

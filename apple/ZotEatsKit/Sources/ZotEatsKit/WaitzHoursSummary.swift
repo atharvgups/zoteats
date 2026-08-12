@@ -1,7 +1,8 @@
 import Foundation
 
-/// Parse Waitz `hourSummary` strings. While open the feed often says `"open"`;
-/// while closed it usually ships the real reopen (`"Closed until 8:00am"`).
+/// Parse Waitz `hourSummary` strings. While open the feed often says `"open"`
+/// or a real range (`"6:00am-11:00pm"`, `"6am - 12am"`); while closed it
+/// usually ships the reopen (`"Closed until 8:00am"`).
 public enum WaitzHoursSummary {
     /// Irvine minutes for a `Closed until …` summary; nil for `"open"`, empty,
     /// or unparseable text.
@@ -17,6 +18,50 @@ public enum WaitzHoursSummary {
             .dropFirst(prefix.count)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return parseClock(timePart)
+    }
+
+    /// True only when both ends of a Waitz/schedule range parse as clocks —
+    /// never `"open"`, `"Closed until …"`, or a lone hyphenated word.
+    public static func isDisplayableHoursRange(_ summary: String?) -> Bool {
+        rangeBounds(summary) != nil
+    }
+
+    /// Open / close Irvine minutes for a continuous range string.
+    public static func rangeBounds(_ summary: String?) -> (open: Int, close: Int)? {
+        guard let summary else { return nil }
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if closedUntilMinutes(trimmed) != nil { return nil }
+        if trimmed.lowercased() == "open" { return nil }
+
+        let parts: [String]
+        if trimmed.contains("–") {
+            parts = trimmed.components(separatedBy: "–")
+        } else if trimmed.contains("-") {
+            parts = trimmed.components(separatedBy: "-")
+        } else {
+            return nil
+        }
+        guard parts.count == 2,
+              let open = parseClock(parts[0].trimmingCharacters(in: .whitespacesAndNewlines)),
+              let close = parseClock(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        return (open, close)
+    }
+
+    public static func openMinutes(_ summary: String?) -> Int? {
+        rangeBounds(summary)?.open
+    }
+
+    public static func closeMinutes(_ summary: String?) -> Int? {
+        rangeBounds(summary)?.close
+    }
+
+    /// `"Open until 10:00 PM"` when the range close parses; nil for `"open"` /
+    /// Closed-until / unparseable — never `"Open until open"`.
+    public static func openUntilLine(_ summary: String?) -> String? {
+        guard let close = closeMinutes(summary) else { return nil }
+        return "Open until \(UCITime.format(minutes: close))"
     }
 
     /// `8:00am`, `8:00 AM`, `12pm`, `10:00 PM` → minutes since midnight.

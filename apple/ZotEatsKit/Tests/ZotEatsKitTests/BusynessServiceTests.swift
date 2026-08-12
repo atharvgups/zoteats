@@ -94,9 +94,11 @@ struct GymServiceTests {
     @Test func displayableHoursRangeRejectsOpenAndClosedUntil() {
         #expect(GymService.isDisplayableHoursRange("6:00am-11:00pm"))
         #expect(GymService.isDisplayableHoursRange("6:00 AM – 10:00 PM"))
+        #expect(GymService.isDisplayableHoursRange("6am - 12am"))
         #expect(!GymService.isDisplayableHoursRange("open"))
         #expect(!GymService.isDisplayableHoursRange("Closed until 12:00pm"))
         #expect(!GymService.isDisplayableHoursRange("Open 24 Hours"))
+        #expect(!GymService.isDisplayableHoursRange("foo-bar"))
         #expect(!GymService.isDisplayableHoursRange(""))
         #expect(!GymService.isDisplayableHoursRange(nil))
     }

@@ -22,6 +22,41 @@ struct QuietestLibraryReloadTests {
         #expect(boundaries == [UCITime.nextIrvineMidnight(now: now)])
     }
 
+    @Test func openArmsWaitzCloseBoundary() {
+        // Mon 10 AM — Waitz says close at noon; must arm noon (not only midnight).
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")!
+        let noon = 12 * 60
+        let boundaries = QuietestLibraryReload.boundaries(
+            now: now,
+            anyLibraryOpen: true,
+            closeMinutes: [noon]
+        )
+        let noonDate = UCITime.date(
+            forMinutes: noon,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(boundaries.contains(noonDate))
+        #expect(boundaries.contains(UCITime.nextIrvineMidnight(now: now)))
+    }
+
+    @Test func openWaitzCloseNearBeatsCadence() {
+        // Mon 11:55 AM — Waitz close at noon beats 10m open cadence.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:55:00Z")!
+        let reload = QuietestLibraryReload.nextReload(
+            now: now,
+            anyLibraryOpen: true,
+            closeMinutes: [12 * 60]
+        )
+        let noon = UCITime.date(
+            forMinutes: 12 * 60,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(reload == noon.addingTimeInterval(2))
+        #expect(reload < now.addingTimeInterval(10 * 60))
+    }
+
     @Test func closedMorningProbeBeatsCadence() {
         // Monday 2026-07-13, 7:50 AM Pacific — 8:00 probe is 10m away.
         let now = ISO8601DateFormatter().date(from: "2026-07-13T14:50:00Z")!
@@ -104,5 +139,36 @@ struct QuietestLibraryReloadTests {
         )
         #expect(QuietestLibraryReload.reopenMinutes(from: [langson, arc]) == [8 * 60])
         #expect(QuietestLibraryReload.reopenMinutes(from: [arc]) == [12 * 60])
+    }
+
+    @Test func closeMinutesFromOpenLibraryRanges() {
+        let open = BusynessPoint(
+            id: 1,
+            name: "Langson Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 12,
+            level: .notBusy,
+            isOpen: true,
+            hoursSummary: "8:00am-10:00pm",
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            subLocations: nil
+        )
+        let closed = BusynessPoint(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 0,
+            level: .unknown,
+            isOpen: false,
+            hoursSummary: "8:00am-11:00pm",
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            subLocations: nil
+        )
+        #expect(QuietestLibraryReload.closeMinutes(from: [open, closed]) == [22 * 60])
+        #expect(QuietestLibraryReload.closeMinutes(from: [closed]) == [])
     }
 }

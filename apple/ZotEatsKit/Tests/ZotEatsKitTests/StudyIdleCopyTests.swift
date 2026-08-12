@@ -84,4 +84,18 @@ struct StudyIdleCopyTests {
                 == StudyFacilityCrowding.closedDetail
         )
     }
+
+    @Test func facilityOpenDetailFromWaitzRange() {
+        #expect(
+            StudyIdleCopy.facilityOpenDetail(hoursSummary: "6:00am-11:00pm")
+                == "Open until 11:00 PM"
+        )
+        #expect(
+            StudyIdleCopy.facilityOpenDetail(hoursSummary: "6am - 12am")
+                == "Open until 12:00 AM"
+        )
+        #expect(StudyIdleCopy.facilityOpenDetail(hoursSummary: "open") == nil)
+        #expect(StudyIdleCopy.facilityOpenDetail(hoursSummary: "Closed until 8:00am") == nil)
+        #expect(StudyIdleCopy.facilityOpenDetail(hoursSummary: nil) == nil)
+    }
 }

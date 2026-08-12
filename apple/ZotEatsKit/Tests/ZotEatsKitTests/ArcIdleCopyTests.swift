@@ -120,6 +120,32 @@ struct ArcIdleCopyTests {
         )
     }
 
+    @Test func hoursLineOpenUntilAsciiHyphenRange() {
+        #expect(
+            ArcIdleCopy.hoursLine(
+                openNow: true,
+                todayHours: "6am - 12am",
+                nowMinutes: 12 * 60,
+                opensAtMinutesToday: 6 * 60,
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 6 * 60
+            ) == "Open until 12:00 AM"
+        )
+    }
+
+    @Test func hoursLineNeverOpenUntilOpen() {
+        #expect(
+            ArcIdleCopy.hoursLine(
+                openNow: true,
+                todayHours: "open",
+                nowMinutes: 12 * 60,
+                opensAtMinutesToday: 6 * 60,
+                closesAtMinutesToday: 24 * 60,
+                opensAtMinutesTomorrow: 6 * 60
+            ) == "Open · open"
+        )
+    }
+
     @Test func unknownScheduleKeepsVagueTomorrow() {
         #expect(
             ArcIdleCopy.noBusynessMessage(

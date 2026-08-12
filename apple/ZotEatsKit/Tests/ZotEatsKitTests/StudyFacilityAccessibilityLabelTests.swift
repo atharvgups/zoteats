@@ -31,6 +31,21 @@ struct StudyFacilityAccessibilityLabelTests {
         )
     }
 
+    @Test("Open announces Waitz Open until")
+    func openWithHoursRange() {
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Langson Library",
+                isOpen: true,
+                percent: 12,
+                levelLabel: "Not Busy",
+                peopleCount: nil,
+                capacity: nil,
+                hoursSummary: "8:00am-10:00pm"
+            ) == "Langson Library, open, 12 percent full, Not Busy, Open until 10:00 PM"
+        )
+    }
+
     @Test("Open without percent keeps level")
     func openLevelOnly() {
         #expect(

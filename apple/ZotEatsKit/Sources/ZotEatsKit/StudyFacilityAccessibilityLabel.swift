@@ -35,6 +35,10 @@ public enum StudyFacilityAccessibilityLabel {
             } else if let peopleCount {
                 parts.append("\(peopleCount) people")
             }
+
+            if let openLine = StudyIdleCopy.facilityOpenDetail(hoursSummary: hoursSummary) {
+                parts.append(openLine)
+            }
         } else {
             parts.append("closed")
             parts.append(StudyIdleCopy.facilityClosedDetail(hoursSummary: hoursSummary))

@@ -2,7 +2,7 @@ import Foundation
 
 /// WidgetKit reload for Dining Status — every hall's meal open/close (and
 /// tomorrow opens / Irvine midnight), matching Today's Menu honesty, plus
-/// Quietest Waitz reopen / morning probes when the medium tip is "Libraries closed".
+/// Quietest Waitz reopen / close / morning probes for the medium tip.
 /// While the Quietest tip is live-open, cadence matches Quietest/Study (10m).
 public enum DiningStatusReload {
     /// Hall / closed-tip cadence (matches Campus / Quietest-closed).
@@ -15,7 +15,8 @@ public enum DiningStatusReload {
         nowMinutes: Int,
         now: Date = Date(),
         librariesClosed: Bool,
-        libraryReopenMinutes: [Int] = []
+        libraryReopenMinutes: [Int] = [],
+        libraryCloseMinutes: [Int] = []
     ) -> [Date] {
         var dates = TodaysMenuReload.boundaries(
             locations: locations,
@@ -25,7 +26,8 @@ public enum DiningStatusReload {
         dates.append(contentsOf: QuietestLibraryReload.boundaries(
             now: now,
             anyLibraryOpen: !librariesClosed,
-            reopenMinutes: libraryReopenMinutes
+            reopenMinutes: libraryReopenMinutes,
+            closeMinutes: libraryCloseMinutes
         ))
         return dates
     }
@@ -36,6 +38,7 @@ public enum DiningStatusReload {
         now: Date = Date(),
         librariesClosed: Bool,
         libraryReopenMinutes: [Int] = [],
+        libraryCloseMinutes: [Int] = [],
         quietestTipOpen: Bool = false,
         maxInterval: TimeInterval? = nil
     ) -> Date {
@@ -48,7 +51,8 @@ public enum DiningStatusReload {
                 nowMinutes: nowMinutes,
                 now: now,
                 librariesClosed: librariesClosed,
-                libraryReopenMinutes: libraryReopenMinutes
+                libraryReopenMinutes: libraryReopenMinutes,
+                libraryCloseMinutes: libraryCloseMinutes
             ),
             maxInterval: interval
         )
