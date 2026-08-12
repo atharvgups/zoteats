@@ -503,6 +503,88 @@ struct MealCountdownChromeTests {
         #expect(!MealCountdownChrome.hasEnded(endsAt: end, now: end.addingTimeInterval(-60)))
         #expect(MealCountdownChrome.hasEnded(endsAt: end, now: end))
     }
+
+    @Test("Closed compact trailing names same-day next meal instead of Done")
+    func compactTrailingNamesSameDayNextMeal() {
+        #expect(
+            MealCountdownChrome.compactTrailing(
+                period: "Lunch",
+                hasEnded: true,
+                postClosePeriod: "Dinner"
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Closed compact trailing uses Later while next meal is still awaiting")
+    func compactTrailingLaterWhileAwaiting() {
+        #expect(
+            MealCountdownChrome.compactTrailing(
+                period: "Breakfast",
+                hasEnded: true,
+                postClosePeriod: "Breakfast"
+            ) == "Later"
+        )
+    }
+
+    @Test("Closed compact trailing names tomorrow's meal when open is tomorrow")
+    func compactTrailingNamesTomorrowMeal() {
+        let thursdayEvening = ISO8601DateFormatter().date(from: "2026-07-10T04:00:00Z")!
+        #expect(
+            MealCountdownChrome.compactTrailing(
+                period: "Dinner",
+                hasEnded: true,
+                postClosePeriod: "Breakfast",
+                postCloseDate: "2026-07-10",
+                now: thursdayEvening
+            ) == "Breakfast"
+        )
+    }
+
+    @Test("Closed compact trailing uses weekday abbrev beyond tomorrow")
+    func compactTrailingWeekdayBeyondTomorrow() {
+        let fridayNight = ISO8601DateFormatter().date(from: "2026-07-11T05:00:00Z")!
+        #expect(
+            MealCountdownChrome.compactTrailing(
+                period: "Dinner",
+                hasEnded: true,
+                postClosePeriod: "Breakfast",
+                postCloseDate: "2026-07-13",
+                now: fridayNight
+            ) == "Mon"
+        )
+    }
+
+    @Test("Closed compact trailing stays Done without a next-open destination")
+    func compactTrailingDoneWithoutDestination() {
+        #expect(
+            MealCountdownChrome.compactTrailing(period: "Dinner", hasEnded: true) == "Done"
+        )
+        #expect(
+            MealCountdownChrome.compactTrailing(period: "Dinner", hasEnded: false) == "Done"
+        )
+    }
+
+    @Test("Closed compact trailing shortens Limited Dinner to Dinner")
+    func compactTrailingShortensLimitedDinner() {
+        #expect(
+            MealCountdownChrome.compactTrailing(
+                period: "Lunch",
+                hasEnded: true,
+                postClosePeriod: "Limited Dinner"
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Closed compact trailing keeps Brunch")
+    func compactTrailingKeepsBrunch() {
+        #expect(
+            MealCountdownChrome.compactTrailing(
+                period: "Lunch",
+                hasEnded: true,
+                postClosePeriod: "Brunch"
+            ) == "Brunch"
+        )
+    }
 }
 
 @Suite("MealActivitySync")
