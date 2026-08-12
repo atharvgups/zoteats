@@ -64,7 +64,20 @@ enum FavoriteAlerts {
         let dateISO = UCITime.upcomingDays(count: 1).first?.isoDate ?? ""
         var notified = Set(UserDefaults.standard.stringArray(forKey: notifiedKey) ?? [])
 
-        for match in FavoritesMatcher.matches(favorites: favorites, menus: menus, hallNames: hallNames) {
+        for match in FavoritesMatcher.matches(
+            favorites: favorites,
+            menus: menus,
+            hallNames: hallNames,
+            isServing: { locationId, period in
+                guard let windows = hallPeriods[locationId] else { return false }
+                return MealPillLiveness.isCurrentlyServing(
+                    pill: MealPeriodPill.canonical(period),
+                    timedPeriods: windows.timed,
+                    availablePeriods: windows.available,
+                    nowMinutes: nowMinutes
+                )
+            }
+        ) {
             let key = match.dedupeKey(dateISO: dateISO)
             guard !notified.contains(key) else { continue }
             notified.insert(key)

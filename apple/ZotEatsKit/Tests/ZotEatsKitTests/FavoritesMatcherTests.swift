@@ -49,6 +49,51 @@ struct FavoritesMatcherTests {
         #expect(matches[0].locationId == "anteatery")
     }
 
+    @Test func prefersCurrentlyServingOverUpcoming() {
+        // Anteatery Dinner (upcoming) is scanned first; Brandywine Lunch is live.
+        let matches = FavoritesMatcher.matches(
+            favorites: ["Crispy Okra"],
+            menus: [
+                menu("anteatery", period: "Dinner", dishes: ["Crispy Okra"]),
+                menu("brandywine", period: "Lunch", dishes: ["Crispy Okra"]),
+            ],
+            hallNames: ["anteatery": "The Anteatery", "brandywine": "Brandywine"],
+            isServing: { locationId, period in
+                locationId == "brandywine" && period == "Lunch"
+            }
+        )
+        #expect(matches.count == 1)
+        #expect(matches[0].locationId == "brandywine")
+        #expect(matches[0].hallName == "Brandywine")
+        #expect(matches[0].period == "Lunch")
+    }
+
+    @Test func keepsFirstWhenBothServingOrBothUpcoming() {
+        let bothUpcoming = FavoritesMatcher.matches(
+            favorites: ["Soup"],
+            menus: [
+                menu("anteatery", period: "Dinner", dishes: ["Soup"]),
+                menu("brandywine", period: "Dinner", dishes: ["Soup"]),
+            ],
+            hallNames: ["anteatery": "The Anteatery", "brandywine": "Brandywine"],
+            isServing: { _, _ in false }
+        )
+        #expect(bothUpcoming.count == 1)
+        #expect(bothUpcoming[0].locationId == "anteatery")
+
+        let bothServing = FavoritesMatcher.matches(
+            favorites: ["Soup"],
+            menus: [
+                menu("anteatery", period: "Lunch", dishes: ["Soup"]),
+                menu("brandywine", period: "Lunch", dishes: ["Soup"]),
+            ],
+            hallNames: ["anteatery": "The Anteatery", "brandywine": "Brandywine"],
+            isServing: { _, _ in true }
+        )
+        #expect(bothServing.count == 1)
+        #expect(bothServing[0].locationId == "anteatery")
+    }
+
     @Test func noFavoritesMeansNoWork() {
         #expect(FavoritesMatcher.matches(favorites: [], menus: [menu("anteatery", period: "Lunch", dishes: ["A"])], hallNames: [:]).isEmpty)
     }

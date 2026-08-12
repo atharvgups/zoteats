@@ -24,11 +24,13 @@ public enum FavoritesMatcher {
     }
 
     /// Case-insensitive name matching (favorites are stored by name because
-    /// dish ids rotate daily). One match per dish name — first hall/period wins.
+    /// dish ids rotate daily). One match per dish name — currently-serving
+    /// halls/periods beat upcoming ones; otherwise first hit wins.
     public static func matches(
         favorites: Set<String>,
         menus: [DiningMenu],
-        hallNames: [String: String]
+        hallNames: [String: String],
+        isServing: ((String, String) -> Bool)? = nil
     ) -> [Match] {
         guard !favorites.isEmpty else { return [] }
         let wanted = Set(favorites.map { $0.lowercased() })
@@ -38,13 +40,22 @@ public enum FavoritesMatcher {
             for station in menu.stations {
                 for item in station.items {
                     let key = item.name.lowercased()
-                    guard wanted.contains(key), found[key] == nil else { continue }
-                    found[key] = Match(
+                    guard wanted.contains(key) else { continue }
+                    let candidate = Match(
                         dishName: item.name,
                         hallName: hallNames[menu.locationId] ?? HallDirectory.displayName(for: menu.locationId),
                         locationId: menu.locationId,
                         period: menu.period
                     )
+                    if let existing = found[key] {
+                        let candidateServing = isServing?(candidate.locationId, candidate.period) ?? false
+                        let existingServing = isServing?(existing.locationId, existing.period) ?? false
+                        if candidateServing && !existingServing {
+                            found[key] = candidate
+                        }
+                    } else {
+                        found[key] = candidate
+                    }
                 }
             }
         }
