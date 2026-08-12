@@ -35,10 +35,14 @@ final class MealActivityManager {
     /// process death or Eat tab unload. Call before reading Tracking UI or
     /// auto-starting — otherwise we recreate / lie about "Track meal".
     ///
-    /// Ended activities linger so post-close chrome / deep links stay usable;
-    /// they do not own `trackedKey` and are not `.immediate` dismissed here.
+    /// Also bounds post-close linger: past `MealActivityLinger` → immediate
+    /// dismiss; meal just ended → ask the system to clear at dismissalDate so
+    /// overnight Islands don't sit on “has ended” forever.
     func syncFromSystem(now: Date = Date()) {
-        let live = Activity<MealActivityAttributes>.activities
+        let activities = Activity<MealActivityAttributes>.activities
+        Task { await Self.reconcileLinger(activities: activities, now: now) }
+
+        let live = activities
             .filter { MealActivitySync.isLive(endsAt: $0.content.state.endsAt, now: now) }
 
         guard let best = live.max(by: { $0.content.state.endsAt < $1.content.state.endsAt }) else {
@@ -52,6 +56,31 @@ final class MealActivityManager {
         } else {
             // Still block auto-start from stealing an unmapped live activity.
             trackedKey = MealTrackMath.key(hallID: "unknown", period: attrs.period)
+        }
+    }
+
+    /// Dismiss stale Islands and schedule linger end for just-ended meals.
+    private static func reconcileLinger(
+        activities: [Activity<MealActivityAttributes>],
+        now: Date
+    ) async {
+        for activity in activities {
+            let endsAt = activity.content.state.endsAt
+            if MealActivityLinger.shouldDismiss(endsAt: endsAt, now: now) {
+                await activity.end(nil, dismissalPolicy: .immediate)
+                continue
+            }
+            guard MealActivityLinger.isLingering(endsAt: endsAt, now: now) else { continue }
+            // Already system-ended with a dismissal date — don't re-end.
+            if activity.activityState == .ended || activity.activityState == .dismissed {
+                continue
+            }
+            let dismissal = MealActivityLinger.dismissalDate(endsAt: endsAt)
+            let content = ActivityContent(
+                state: activity.content.state,
+                staleDate: MealActivityLinger.staleDate(endsAt: endsAt)
+            )
+            await activity.end(content, dismissalPolicy: .after(dismissal))
         }
     }
 
@@ -76,8 +105,8 @@ final class MealActivityManager {
             opensTomorrowPeriod: opensTomorrowPeriod
         )
         do {
-            // Keep content fresh a bit past close so "has ended" chrome can render.
-            let stale = endsAt.addingTimeInterval(30 * 60)
+            // Keep content fresh through the post-close linger window.
+            let stale = MealActivityLinger.staleDate(endsAt: endsAt)
             _ = try Activity.request(
                 attributes: attributes,
                 content: ActivityContent(state: state, staleDate: stale)
