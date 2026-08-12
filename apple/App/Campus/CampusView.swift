@@ -16,7 +16,10 @@ struct CampusView: View {
     @State private var categoryFilter: String?
     /// Everything shows by default; the chip narrows to open places on demand.
     @State private var openOnly = false
+    /// Bumps after each open/close tick so pills / Open-now filter re-render.
+    @State private var boundaryEpoch = 0
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let categoryOrder = ["Coffee & Cafés", "Food Courts", "Markets", "Restaurants & Pubs"]
     private static let categoryShortNames = [
@@ -26,9 +29,16 @@ struct CampusView: View {
         "Restaurants & Pubs": "Pubs",
     ]
 
+    private var boundaryWatchID: String {
+        "\(boundaryEpoch)|\(store.places.value?.map(\.id).joined() ?? "")"
+    }
+
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the
     // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
+        // Status pills / hoursLine / Open-now filter read openNow from the store;
+        // re-render after each boundary tick.
+        let _ = boundaryEpoch
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
@@ -41,7 +51,10 @@ struct CampusView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .refreshable { await store.loadPlaces() }
+        .refreshable {
+            await store.loadPlaces()
+            boundaryEpoch += 1
+        }
         .statusBarBackdrop()
         .sheet(item: $selectedPlace) { place in
             CampusMenuSheet(place: place, store: store, prefs: prefs)
@@ -56,12 +69,34 @@ struct CampusView: View {
             }
             applyPendingDeepLinkIfNeeded()
         }
+        .task(id: boundaryWatchID) {
+            await watchOpenBoundaries()
+        }
         .onChange(of: store.places.value) {
             applyPendingDeepLinkIfNeeded()
         }
         .onChange(of: pendingDeepLink) {
             applyPendingDeepLinkIfNeeded()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                boundaryEpoch += 1
+            }
+        }
+    }
+
+    /// Sleep until the next café open/close / tomorrow open / midnight, then
+    /// recompute openNow from cached schedules (same honesty as the widget).
+    private func watchOpenBoundaries() async {
+        guard let places = store.places.value, !places.isEmpty else { return }
+        let fire = CampusOpenReload.nextReload(now: .now, places: places)
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await store.loadPlaces()
+        boundaryEpoch += 1
     }
 
     private func applyPendingDeepLinkIfNeeded() {

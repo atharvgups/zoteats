@@ -52,4 +52,26 @@ struct CampusOpenReloadTests {
         )
         #expect(boundaries.contains(tomorrowOpen))
     }
+
+    @Test func openBoundaryBeatsCapWhenSoon() {
+        // Mon 6:55 AM PDT — opens at 7:00 (5m), inside 20m in-app/widget cap.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T13:55:00Z")!
+        let place = CampusPlace(
+            id: "starbucks",
+            name: "Starbucks",
+            category: "Coffee & Cafés",
+            openNow: false,
+            todayHours: nil,
+            opensAtMinutes: 7 * 60,
+            closesAtMinutes: nil,
+            opensTomorrowAtMinutes: nil
+        )
+        let reload = CampusOpenReload.nextReload(now: now, places: [place], maxInterval: 20 * 60)
+        let expectedOpen = UCITime.date(
+            forMinutes: 7 * 60,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(reload == expectedOpen.addingTimeInterval(2))
+    }
 }
