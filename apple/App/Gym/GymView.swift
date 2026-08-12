@@ -10,10 +10,18 @@ import ZotEatsKit
 struct GymView: View {
     let store: GymStore
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.scenePhase) private var scenePhase
+    /// Bumps after each schedule / Waitz tick so StatusPill and crowding re-render.
+    @State private var boundaryEpoch = 0
+
+    private var boundaryWatchID: String {
+        "\(boundaryEpoch)|\(store.status.value != nil)"
+    }
 
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the
     // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
+        let _ = boundaryEpoch
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
@@ -23,9 +31,34 @@ struct GymView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .refreshable { await store.load() }
+        .refreshable {
+            await store.load()
+            boundaryEpoch += 1
+        }
         .statusBarBackdrop()
         .task { await store.load() }
+        .task(id: boundaryWatchID) {
+            await watchScheduleBoundaries()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                boundaryEpoch += 1
+            }
+        }
+    }
+
+    /// Sleep until ARC open/close (or 15m Waitz cadence), then reload — same
+    /// honesty as the ARC widget while the Gym tab stays open.
+    private func watchScheduleBoundaries() async {
+        guard store.status.value != nil else { return }
+        let fire = GymBoundaryRefresh.nextFire()
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await store.load()
+        boundaryEpoch += 1
     }
 
     @ViewBuilder
