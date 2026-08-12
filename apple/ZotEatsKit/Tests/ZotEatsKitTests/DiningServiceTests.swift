@@ -211,6 +211,44 @@ struct HallOpenStateTests {
         #expect(hall(periods: day).openState(nowMinutes: 1300) == .closedForToday)
     }
 
+    @Test func breakfastOnlyMidDayAwaitsMoreMealsNotTomorrow() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let location = DiningLocation(
+            id: "anteatery", name: "The Anteatery", area: "Mesa Court",
+            openNow: false, todayHours: nil,
+            availablePeriods: ["Breakfast"], periods: partial,
+            hoursApproximate: false,
+            opensTomorrowAtMinutes: 435,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        #expect(location.openState(nowMinutes: 700) == .awaitingMoreMeals)
+        #expect(
+            DiningLocationHoursLine.resolve(
+                state: location.openState(nowMinutes: 700),
+                todayHours: nil,
+                opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: location.opensTomorrowPeriod
+            ) == "More meals post later"
+        )
+        #expect(
+            DiningStatusDeepLink.destination(
+                for: .awaitingMoreMeals,
+                availablePeriods: location.availablePeriods,
+                opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: location.opensTomorrowPeriod
+            ) == .init(period: nil)
+        )
+    }
+
+    @Test func breakfastOnlyAfterEveningConfidenceIsClosedForToday() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        #expect(hall(periods: partial).openState(nowMinutes: 20 * 60) == .closedForToday)
+    }
+
     @Test func isServingTracksWindowsEvenWhenOpenNowSnapshotIsStale() {
         // Fetch-time openNow stayed false (pre-lunch), but periods say Lunch is on.
         let staleClosed = hall(periods: day)

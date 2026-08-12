@@ -44,6 +44,21 @@ struct TodaysMenuPeriodPickTests {
         #expect(choice.period.isEmpty)
         #expect(choice.endsAtMinutes == nil)
         #expect(choice.isAfterHours)
+        #expect(!choice.isAwaitingMoreMeals)
+    }
+
+    @Test func breakfastOnlyMidDayAwaitsNotAfterHours() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let choice = TodaysMenuPeriodPick.choose(
+            timedPeriods: partial,
+            availablePeriods: ["Breakfast"],
+            nowMinutes: 700
+        )
+        #expect(choice.period.isEmpty)
+        #expect(!choice.isAfterHours)
+        #expect(choice.isAwaitingMoreMeals)
     }
 
     @Test func brunchMapsToBreakfastPillKeepsLiveName() {

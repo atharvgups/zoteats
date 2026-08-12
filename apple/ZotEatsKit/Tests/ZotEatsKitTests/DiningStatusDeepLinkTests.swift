@@ -46,6 +46,18 @@ struct DiningStatusDeepLinkTests {
         )
     }
 
+    @Test func awaitingMoreMealsStaysOnTodayWithoutDate() {
+        let dest = DiningStatusDeepLink.destination(
+            for: .awaitingMoreMeals,
+            availablePeriods: available,
+            opensTomorrowAtMinutes: 435,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(dest.period == nil)
+        #expect(dest.date == nil)
+    }
+
     @Test func afterHoursWithTomorrowLinksToTomorrowBoard() {
         let dest = DiningStatusDeepLink.destination(
             for: .closedForToday,

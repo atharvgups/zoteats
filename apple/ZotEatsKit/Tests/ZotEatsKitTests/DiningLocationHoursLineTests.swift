@@ -39,6 +39,18 @@ struct DiningLocationHoursLineTests {
         )
     }
 
+    @Test("Partial board mid-day does not jump to tomorrow")
+    func awaitingMoreMeals() {
+        #expect(
+            DiningLocationHoursLine.resolve(
+                state: .awaitingMoreMeals,
+                todayHours: "7:15 AM – 10:30 AM",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                opensTomorrowPeriod: "Breakfast"
+            ) == "More meals post later"
+        )
+    }
+
     @Test("Closed with no tomorrow stays Closed for today")
     func closedNoTomorrow() {
         #expect(

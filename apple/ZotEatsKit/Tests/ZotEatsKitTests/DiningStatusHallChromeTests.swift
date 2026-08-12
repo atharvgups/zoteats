@@ -63,4 +63,19 @@ struct DiningStatusHallChromeTests {
         #expect(resolved.statusText == "Closed for today")
         #expect(resolved.countdownEnd == nil)
     }
+
+    @Test func awaitingMoreMealsHasNoTomorrowCountdown() {
+        let midday = ISO8601DateFormatter().date(from: "2026-07-13T18:30:00Z")! // Mon 11:30 AM PDT
+        let resolved = DiningStatusHallChrome.resolve(
+            state: .awaitingMoreMeals,
+            todayHours: nil,
+            opensTomorrowAtMinutes: 7 * 60 + 15,
+            opensTomorrowPeriod: "Breakfast",
+            nowMinutes: UCITime.nowMinutes(now: midday),
+            now: midday
+        )
+        #expect(resolved.statusText == "More meals post later")
+        #expect(resolved.countdownEnd == nil)
+        #expect(resolved.countdownKind == nil)
+    }
 }

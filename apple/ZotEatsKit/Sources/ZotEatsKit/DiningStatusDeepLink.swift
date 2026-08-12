@@ -27,6 +27,9 @@ public enum DiningStatusDeepLink {
             return Destination(
                 period: MealPeriodPill.match(period, in: DiningService.primaryPeriods(from: availablePeriods))
             )
+        case .awaitingMoreMeals:
+            // Stay on today's board — Lunch/Dinner may still publish.
+            return Destination(period: nil)
         case .closedForToday:
             guard opensTomorrowAtMinutes != nil else {
                 return Destination(period: nil)

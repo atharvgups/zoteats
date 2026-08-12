@@ -36,6 +36,16 @@ public enum TodaysMenuEmptyCopy {
         }
     }
 
+    /// Partial board after Breakfast (Dinner not posted yet).
+    public static func awaitingMoreMeals(surface: Surface) -> String {
+        switch surface {
+        case .glance:
+            return "More meals post later"
+        case .home:
+            return "More meals still posting today — pull to refresh"
+        }
+    }
+
     /// Eat tab after-hours empty message — hall + tomorrow meal/time when known.
     public static func eatAfterHoursMessage(
         hallName: String,
@@ -67,12 +77,16 @@ public enum TodaysMenuEmptyCopy {
         opensTomorrowAtMinutes: Int?,
         surface: Surface,
         period: String = "",
-        upcomingStartMinutes: Int? = nil
+        upcomingStartMinutes: Int? = nil,
+        awaitingMoreMeals: Bool = false
     ) -> String {
         if filtersEmptiedMenu {
             return surface == .glance
                 ? "Nothing matches Eat Filters"
                 : "Nothing matches your Eat Filters"
+        }
+        if awaitingMoreMeals {
+            return Self.awaitingMoreMeals(surface: surface)
         }
         if periodIsEmpty {
             return afterHours(

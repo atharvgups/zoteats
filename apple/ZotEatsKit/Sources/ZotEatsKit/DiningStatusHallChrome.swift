@@ -47,6 +47,12 @@ public enum DiningStatusHallChrome {
                 countdownEnd: UCITime.date(forMinutes: opensAt, nowMinutes: nowMinutes, now: now),
                 countdownKind: .opens
             )
+        case .awaitingMoreMeals:
+            return Resolved(
+                statusText: "More meals post later",
+                countdownEnd: nil,
+                countdownKind: nil
+            )
         case .closedForToday:
             if let open = opensTomorrowAtMinutes {
                 let meal = opensTomorrowPeriod ?? "Opens"

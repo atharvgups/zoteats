@@ -87,6 +87,29 @@ struct TodaysMenuEmptyCopyTests {
         )
     }
 
+    @Test func awaitingMoreMealsBeatsTomorrowEmptyCopy() {
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                surface: .glance,
+                awaitingMoreMeals: true
+            ) == "More meals post later"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                surface: .home,
+                awaitingMoreMeals: true
+            ) == "More meals still posting today — pull to refresh"
+        )
+    }
+
     @Test func tomorrowISOIsDayAfterToday() {
         let now = ISO8601DateFormatter().date(from: "2026-07-10T05:00:00Z")! // Thu 10 PM PDT
         #expect(TodaysMenuEmptyCopy.tomorrowISO(now: now) == "2026-07-10")

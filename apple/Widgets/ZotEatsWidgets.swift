@@ -618,6 +618,8 @@ struct TodaysMenuEntry: TimelineEntry {
     let opensTomorrowPeriod: String?
     /// Upcoming meal start (Irvine minutes) for empty "starts at" copy.
     let upcomingStartMinutes: Int?
+    /// Partial board — Dinner may still drop; don't use after-hours empty copy.
+    let awaitingMoreMeals: Bool
 
     init(
         date: Date,
@@ -634,7 +636,8 @@ struct TodaysMenuEntry: TimelineEntry {
         deepLinkDate: String? = nil,
         opensTomorrowAtMinutes: Int? = nil,
         opensTomorrowPeriod: String? = nil,
-        upcomingStartMinutes: Int? = nil
+        upcomingStartMinutes: Int? = nil,
+        awaitingMoreMeals: Bool = false
     ) {
         self.date = date
         self.hallName = hallName
@@ -651,6 +654,7 @@ struct TodaysMenuEntry: TimelineEntry {
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
         self.opensTomorrowPeriod = opensTomorrowPeriod
         self.upcomingStartMinutes = upcomingStartMinutes
+        self.awaitingMoreMeals = awaitingMoreMeals
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -781,7 +785,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             deepLinkDate: link.date,
             opensTomorrowAtMinutes: choice.isAfterHours ? hall.opensTomorrowAtMinutes : nil,
             opensTomorrowPeriod: choice.isAfterHours ? hall.opensTomorrowPeriod : nil,
-            upcomingStartMinutes: choice.upcomingStartMinutes
+            upcomingStartMinutes: choice.upcomingStartMinutes,
+            awaitingMoreMeals: choice.isAwaitingMoreMeals
         )
     }
 }
@@ -874,7 +879,8 @@ struct TodaysMenuView: View {
                         opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
                         surface: .glance,
                         period: entry.period,
-                        upcomingStartMinutes: entry.upcomingStartMinutes
+                        upcomingStartMinutes: entry.upcomingStartMinutes,
+                        awaitingMoreMeals: entry.awaitingMoreMeals
                     )
                 )
                     .font(.system(size: 12))
@@ -892,7 +898,8 @@ struct TodaysMenuView: View {
                 dishLimit: dishLimit,
                 surface: .glance,
                 opensTomorrowPeriod: entry.opensTomorrowPeriod,
-                opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes
+                opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
+                awaitingMoreMeals: entry.awaitingMoreMeals
             )
         )
     }
@@ -971,7 +978,8 @@ struct TodaysMenuView: View {
                             opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
                             surface: .home,
                             period: entry.period,
-                            upcomingStartMinutes: entry.upcomingStartMinutes
+                            upcomingStartMinutes: entry.upcomingStartMinutes,
+                            awaitingMoreMeals: entry.awaitingMoreMeals
                         ) + "."
                     )
                     .font(.system(size: 12))
@@ -1015,7 +1023,8 @@ struct TodaysMenuView: View {
                 dishLimit: dishLimit,
                 surface: .home,
                 opensTomorrowPeriod: entry.opensTomorrowPeriod,
-                opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes
+                opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
+                awaitingMoreMeals: entry.awaitingMoreMeals
             )
         )
     }

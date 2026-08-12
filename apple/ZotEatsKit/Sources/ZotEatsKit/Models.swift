@@ -141,7 +141,10 @@ public enum HallOpenState: Sendable, Equatable {
     case open(period: String, closesAt: Int)
     /// Between meals or before opening; `opensAt` is minutes since midnight Pacific.
     case openingLater(period: String, opensAt: Int)
-    /// All of today's windows have passed.
+    /// Published windows ended, but Dinner isn't posted yet and it's still
+    /// before evening — Lunch/Dinner may still drop (don't jump to tomorrow).
+    case awaitingMoreMeals
+    /// All of today's windows have passed (board looks complete, or evening).
     case closedForToday
     /// No period data available.
     case unknown
@@ -166,6 +169,9 @@ public extension DiningLocation {
             .min { $0.start < $1.start }
         if let upcoming {
             return .openingLater(period: upcoming.name, opensAt: upcoming.start)
+        }
+        if DiningBoardPublish.awaitingLaterMeals(periods: periods, nowMinutes: nowMinutes) {
+            return .awaitingMoreMeals
         }
         return .closedForToday
     }

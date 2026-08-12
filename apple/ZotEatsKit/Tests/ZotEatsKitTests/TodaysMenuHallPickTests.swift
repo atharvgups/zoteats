@@ -97,6 +97,33 @@ struct TodaysMenuHallPickTests {
         #expect(pick?.id == "anteatery")
     }
 
+    @Test func partialBoardMidDayDoesNotFlipToTomorrowOpen() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let anteatery = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: partial,
+            opensTomorrowAtMinutes: 7 * 60 + 15,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let brandywine = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: partial,
+            opensTomorrowAtMinutes: 7 * 60,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [anteatery, brandywine],
+            nowMinutes: 700
+        )
+        // Awaiting more meals — not closedForToday — so API-first, not soonest tomorrow.
+        #expect(pick?.id == "anteatery")
+        #expect(anteatery.openState(nowMinutes: 700) == .awaitingMoreMeals)
+    }
+
     @Test func afterHoursEqualTomorrowOpenStableByID() {
         let anteatery = hall(
             id: "anteatery",

@@ -1196,6 +1196,8 @@ private struct HallCard: View {
                 ? "\(period) starts in \(UCITime.countdown(from: now, to: opensAt))"
                 : "\(period) at \(UCITime.format(minutes: opensAt))"
             return (text, "clock.arrow.circlepath", .busyOrange)
+        case .awaitingMoreMeals:
+            return ("More meals post later", "clock.badge.questionmark", .busyOrange)
         case .closedForToday:
             if let open = location.opensTomorrowAtMinutes {
                 let meal = location.opensTomorrowPeriod ?? "Opens"

@@ -23,7 +23,8 @@ public enum TodaysMenuAccessibilityLabel {
         dishLimit: Int,
         surface: Surface,
         opensTomorrowPeriod: String? = nil,
-        opensTomorrowAtMinutes: Int? = nil
+        opensTomorrowAtMinutes: Int? = nil,
+        awaitingMoreMeals: Bool = false
     ) -> String {
         let listed = Array(dishes.prefix(max(0, dishLimit)))
         if !listed.isEmpty {
@@ -36,7 +37,8 @@ public enum TodaysMenuAccessibilityLabel {
             filtersEmptiedMenu: filtersEmptiedMenu,
             opensTomorrowPeriod: opensTomorrowPeriod,
             opensTomorrowAtMinutes: opensTomorrowAtMinutes,
-            surface: surface.emptyCopySurface
+            surface: surface.emptyCopySurface,
+            awaitingMoreMeals: awaitingMoreMeals
         )
 
         let head = period.isEmpty ? hallName : "\(hallName) \(period)"

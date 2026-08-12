@@ -14,6 +14,8 @@ public enum DiningLocationHoursLine {
             return "\(period) · until \(UCITime.format(minutes: closesAt % (24 * 60)))"
         case .openingLater(let period, let opensAt):
             return "\(period) at \(UCITime.format(minutes: opensAt))"
+        case .awaitingMoreMeals:
+            return "More meals post later"
         case .closedForToday:
             if let open = opensTomorrowAtMinutes {
                 let meal = opensTomorrowPeriod ?? "Opens"

@@ -14,19 +14,23 @@ public enum TodaysMenuPeriodPick {
         public let upcomingStartMinutes: Int?
         /// Past last meal — show empty, not stale Dinner.
         public let isAfterHours: Bool
+        /// Published windows ended but Dinner may still drop today.
+        public let isAwaitingMoreMeals: Bool
 
         public init(
             period: String,
             livePeriodName: String,
             endsAtMinutes: Int?,
             upcomingStartMinutes: Int?,
-            isAfterHours: Bool
+            isAfterHours: Bool,
+            isAwaitingMoreMeals: Bool = false
         ) {
             self.period = period
             self.livePeriodName = livePeriodName
             self.endsAtMinutes = endsAtMinutes
             self.upcomingStartMinutes = upcomingStartMinutes
             self.isAfterHours = isAfterHours
+            self.isAwaitingMoreMeals = isAwaitingMoreMeals
         }
     }
 
@@ -63,12 +67,17 @@ public enum TodaysMenuPeriodPick {
             )
         }
 
+        let awaiting = DiningBoardPublish.awaitingLaterMeals(
+            periods: timedPeriods,
+            nowMinutes: nowMinutes
+        )
         return Choice(
             period: "",
             livePeriodName: "",
             endsAtMinutes: nil,
             upcomingStartMinutes: nil,
-            isAfterHours: !timed.isEmpty
+            isAfterHours: !timed.isEmpty && !awaiting,
+            isAwaitingMoreMeals: awaiting
         )
     }
 }
