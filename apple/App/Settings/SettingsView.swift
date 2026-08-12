@@ -342,14 +342,21 @@ struct SettingsView: View {
             sourceRow(
                 icon: "fork.knife",
                 title: "Dining — Anteater API",
-                subtitle: "Community-maintained UCI data API",
+                subtitle: "Community-maintained UCI hall menus",
                 url: "https://anteaterapi.com"
+            )
+            Divider()
+            sourceRow(
+                icon: "cup.and.saucer.fill",
+                title: "Campus food — UCI Dining Hub",
+                subtitle: "Retail hours and menus (Starbucks, cafés, markets)",
+                url: "https://uci.campusdish.com"
             )
             Divider()
             sourceRow(
                 icon: "chart.bar.fill",
                 title: "Busyness — Waitz",
-                subtitle: "UCI's public live-occupancy feed",
+                subtitle: "Live library occupancy sensors",
                 url: "https://waitz.io/irvine"
             )
             Divider()

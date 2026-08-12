@@ -28,6 +28,6 @@ These cannot be automated from CI without your Apple account / ASC console:
 1. **App record** — create/confirm Anteats (`com.atharvgupta.zoteats`) in App Store Connect if not already.
 2. **Signing** — Distribution certificate + App Store provisioning profile (or Ascendency CI secrets already wired).
 3. **Age rating / pricing** — one-time Free + age questionnaire if ASC rejects the API submit.
-4. **Privacy nutrition labels** — confirm “Data Not Collected” matches `privacy-policy.md` in ASC.
+4. **Privacy nutrition labels** — confirm “Data Not Collected” is **Published** in ASC and matches `privacy-policy.md` + in-app `PrivacyInfo.xcprivacy`. Merge this branch to `main` before App Store submit so the privacy URL serves the Anteats policy.
 5. **Screenshots** — verify 6.7" (and any required 6.5"/iPad) sets look current after nutrition/plate UI lands; replace via CI screenshot artifacts if needed.
 6. **External TestFlight** — first build of a marketing version still needs Apple Beta App Review before “Zot Eats Testers!” gets it.

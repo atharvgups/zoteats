@@ -160,11 +160,15 @@ final class CampusStore {
         menus[placeID] ?? .idle
     }
 
-    func loadMenu(for placeID: String) async {
-        if menus[placeID]?.value == nil { menus[placeID] = .loading }
+    func loadMenu(for placeID: String, forceRefresh: Bool = false) async {
+        if forceRefresh || menus[placeID]?.value == nil {
+            menus[placeID] = .loading
+        }
         do {
-            let next = try await service.menu(for: placeID)
+            let next = try await service.menu(for: placeID, forceRefresh: forceRefresh)
             if menus[placeID]?.value != next {
+                menus[placeID] = .loaded(next)
+            } else if case .loading = menus[placeID] {
                 menus[placeID] = .loaded(next)
             }
         } catch {

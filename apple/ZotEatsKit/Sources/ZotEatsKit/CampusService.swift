@@ -258,9 +258,19 @@ public struct CampusService: Sendable {
 
     /// Published menu for a retail spot, grouped by meal period.
     /// Empty when the venue doesn't publish menus (brand-app-only places).
-    public func menu(for placeID: String, date: String? = nil) async throws -> [MenuStation] {
+    /// Pass `forceRefresh` when reopening a menu sheet so a stale empty TTL
+    /// doesn't keep saying "not posted" after Hub publishes.
+    public func menu(
+        for placeID: String,
+        date: String? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> [MenuStation] {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        return try await cache.remember("campus:menu:\(placeID):\(dateISO)", ttl: Self.menuTTL) {
+        let key = "campus:menu:\(placeID):\(dateISO)"
+        if forceRefresh {
+            await cache.invalidate(key)
+        }
+        return try await cache.remember(key, ttl: Self.menuTTL) {
             let query = """
             query($campusUrlKey:String!,$locationUrlKey:String!,$date:String!){\
             getLocationMealPeriodRecipes(campusUrlKey:$campusUrlKey,locationUrlKey:$locationUrlKey,date:$date){\

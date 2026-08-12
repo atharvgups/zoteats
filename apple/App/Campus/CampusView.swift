@@ -644,8 +644,8 @@ struct CampusMenuSheet: View {
             DietFilterSheet(prefs: prefs)
         }
         .task {
-            // Always probe the Hub menu — hasActiveMenus can lag; empty stays honest.
-            await store.loadMenu(for: place.id)
+            // Always probe the Hub menu — force so a stale empty TTL can't lie.
+            await store.loadMenu(for: place.id, forceRefresh: true)
         }
     }
 
@@ -659,8 +659,17 @@ struct CampusMenuSheet: View {
                 }
             }
             .padding(.horizontal, 20)
-        case .failed:
-            noMenuNote
+        case .failed(let message):
+            EmptyStateView(
+                icon: "wifi.exclamationmark",
+                title: "Menu unavailable",
+                message: message,
+                actionTitle: "Retry",
+                retry: {
+                    Task { await store.loadMenu(for: place.id, forceRefresh: true) }
+                }
+            )
+            .padding(.horizontal, 20)
         case .loaded(let stations):
             if stations.isEmpty {
                 noMenuNote
