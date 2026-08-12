@@ -122,9 +122,9 @@ struct DiningView: View {
             }
             .onChange(of: store.publishedDateRange) { syncDateSelection() }
             .onChange(of: selectedHall) {
-                // Manual hall change (or a new deep link's hall settle) drops any
-                // prior meal pin so snap can match the board in view.
-                pinnedDeepLinkPeriod = nil
+                // Do not clear pinnedDeepLinkPeriod here — deep-link apply also
+                // sets hall, and deferred onChange would wipe the meal pin and
+                // snap ended Lunch → Dinner. User hall taps clear the pin.
                 syncPeriodSelection()
                 considerAutoMealActivity()
             }
@@ -132,7 +132,8 @@ struct DiningView: View {
                 // After-hours Today clears the pill; moving to a future day must
                 // snap Breakfast (or first primary) so DayStrip / Menu Drop don't
                 // land on "No menu yet" with selectedPeriod == nil.
-                pinnedDeepLinkPeriod = nil
+                // Same as hall: deep links force today / future ISO — don't clear
+                // the meal pin from this onChange.
                 syncPeriodSelection()
             }
             .onChange(of: selectedPeriod) { _, newPeriod in
@@ -278,7 +279,12 @@ struct DiningView: View {
                         get: { selectedDate ?? upcomingDays.first?.isoDate },
                         set: { newValue in
                             let today = upcomingDays.first?.isoDate
-                            selectedDate = (newValue == today) ? nil : newValue
+                            let next = (newValue == today) ? nil : newValue
+                            // User DayStrip tap — drop deep-link meal pin.
+                            if next != selectedDate {
+                                pinnedDeepLinkPeriod = nil
+                            }
+                            selectedDate = next
                         }
                     )
                 )
@@ -369,6 +375,8 @@ struct DiningView: View {
             isSelected: location.id == selectedHall
         ) {
             guard location.id != selectedHall else { return }
+            // User hall tap — drop deep-link meal pin so snap matches this board.
+            pinnedDeepLinkPeriod = nil
             withAnimation(.snappy(duration: 0.3)) {
                 selectedHall = location.id
             }
@@ -438,6 +446,7 @@ struct DiningView: View {
                            opensNextDateISO: location?.opensNextDateISO,
                            opensNextDayOffset: location?.opensNextDayOffset
                        ) {
+                        pinnedDeepLinkPeriod = nil
                         selectedDate = jump
                         Haptics.selection()
                     } else {
@@ -858,11 +867,10 @@ struct DiningView: View {
                         preserveRequestedMeal: preserveMeal
                     )
                 }
-                if preserveMeal, let period = selectedPeriod {
-                    pinnedDeepLinkPeriod = period
-                } else {
-                    pinnedDeepLinkPeriod = nil
-                }
+                pinnedDeepLinkPeriod = EatDeepLinkMealPin.pin(
+                    preserveRequestedMeal: preserveMeal,
+                    resolvedPeriod: selectedPeriod
+                )
             }
             if let dish = link.dish {
                 pendingDishName = dish
