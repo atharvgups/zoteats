@@ -44,15 +44,25 @@ struct PlateSheet: View {
                     VStack(spacing: 8) {
                         ForEach(plate.entries) { entry in
                             HStack(spacing: 10) {
-                                Text(entry.dishName)
-                                    .font(ZotFont.body.weight(.medium))
-                                    .lineLimit(2)
-                                Spacer()
-                                if let calories = entry.calories {
-                                    Text("\(calories) cal")
-                                        .font(ZotFont.caption)
-                                        .foregroundStyle(.secondary)
+                                HStack(spacing: 10) {
+                                    Text(entry.dishName)
+                                        .font(ZotFont.body.weight(.medium))
+                                        .lineLimit(2)
+                                    Spacer()
+                                    if let calories = entry.calories {
+                                        Text("\(calories) cal")
+                                            .font(ZotFont.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(
+                                    PlateEntryAccessibility.label(
+                                        dishName: entry.dishName,
+                                        calories: entry.calories
+                                    )
+                                )
+
                                 Button {
                                     withAnimation(.snappy(duration: 0.2)) {
                                         plate.remove(entry)
