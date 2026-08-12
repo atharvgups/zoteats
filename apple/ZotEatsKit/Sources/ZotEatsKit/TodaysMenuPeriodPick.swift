@@ -16,6 +16,9 @@ public enum TodaysMenuPeriodPick {
         public let isAfterHours: Bool
         /// Published windows ended but Dinner may still drop today.
         public let isAwaitingMoreMeals: Bool
+        /// No timed windows on today's board (unpublished / empty) — after-hours
+        /// copy must not claim Dinner finished.
+        public let isEmptyBoard: Bool
 
         public init(
             period: String,
@@ -23,7 +26,8 @@ public enum TodaysMenuPeriodPick {
             endsAtMinutes: Int?,
             upcomingStartMinutes: Int?,
             isAfterHours: Bool,
-            isAwaitingMoreMeals: Bool = false
+            isAwaitingMoreMeals: Bool = false,
+            isEmptyBoard: Bool = false
         ) {
             self.period = period
             self.livePeriodName = livePeriodName
@@ -31,6 +35,7 @@ public enum TodaysMenuPeriodPick {
             self.upcomingStartMinutes = upcomingStartMinutes
             self.isAfterHours = isAfterHours
             self.isAwaitingMoreMeals = isAwaitingMoreMeals
+            self.isEmptyBoard = isEmptyBoard
         }
     }
 
@@ -74,8 +79,9 @@ public enum TodaysMenuPeriodPick {
         // Empty timed board early morning stays not-after-hours (Menu not posted yet).
         // After empty-board confidence — including weekend daytime — treat as
         // after-hours so widgets can show tomorrow / Monday next-open copy.
+        let emptyBoard = timed.isEmpty
         let afterHours = !awaiting && (
-            !timed.isEmpty
+            !emptyBoard
                 || DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: nowMinutes)
         )
         return Choice(
@@ -84,7 +90,8 @@ public enum TodaysMenuPeriodPick {
             endsAtMinutes: nil,
             upcomingStartMinutes: nil,
             isAfterHours: afterHours,
-            isAwaitingMoreMeals: awaiting
+            isAwaitingMoreMeals: awaiting,
+            isEmptyBoard: emptyBoard
         )
     }
 }

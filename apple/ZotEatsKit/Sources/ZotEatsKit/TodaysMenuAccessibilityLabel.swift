@@ -28,7 +28,8 @@ public enum TodaysMenuAccessibilityLabel {
         opensNextPeriod: String? = nil,
         opensNextAtMinutes: Int? = nil,
         opensNextWeekday: String? = nil,
-        isAfterHours: Bool = false
+        isAfterHours: Bool = false,
+        emptyBoard: Bool = false
     ) -> String {
         let listed = Array(dishes.prefix(max(0, dishLimit)))
         if !listed.isEmpty {
@@ -46,7 +47,8 @@ public enum TodaysMenuAccessibilityLabel {
             opensNextPeriod: opensNextPeriod,
             opensNextAtMinutes: opensNextAtMinutes,
             opensNextWeekday: opensNextWeekday,
-            isAfterHours: isAfterHours
+            isAfterHours: isAfterHours,
+            emptyBoard: emptyBoard
         )
 
         let head = period.isEmpty ? hallName : "\(hallName) \(period)"

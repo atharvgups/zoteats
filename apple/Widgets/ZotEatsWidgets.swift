@@ -632,8 +632,10 @@ struct TodaysMenuEntry: TimelineEntry {
     let upcomingStartMinutes: Int?
     /// Partial board — Dinner may still drop; don't use after-hours empty copy.
     let awaitingMoreMeals: Bool
-    /// True only after today's published windows ended (not unpublished boards).
+    /// True after published windows ended, or empty board past Lunch-probe confidence.
     let isAfterHours: Bool
+    /// No timed windows today — after-hours copy must not say Dinner's done.
+    let isEmptyBoard: Bool
 
     init(
         date: Date,
@@ -655,7 +657,8 @@ struct TodaysMenuEntry: TimelineEntry {
         opensNextAtMinutes: Int? = nil,
         opensNextWeekday: String? = nil,
         opensNextPeriod: String? = nil,
-        isAfterHours: Bool = false
+        isAfterHours: Bool = false,
+        isEmptyBoard: Bool = false
     ) {
         self.date = date
         self.hallName = hallName
@@ -677,6 +680,7 @@ struct TodaysMenuEntry: TimelineEntry {
         self.opensNextWeekday = opensNextWeekday
         self.opensNextPeriod = opensNextPeriod
         self.isAfterHours = isAfterHours
+        self.isEmptyBoard = isEmptyBoard
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -816,7 +820,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             opensNextAtMinutes: choice.isAfterHours ? hall.opensNextAtMinutes : nil,
             opensNextWeekday: choice.isAfterHours ? hall.opensNextWeekday : nil,
             opensNextPeriod: choice.isAfterHours ? hall.opensNextPeriod : nil,
-            isAfterHours: choice.isAfterHours
+            isAfterHours: choice.isAfterHours,
+            isEmptyBoard: choice.isEmptyBoard
         )
     }
 }
@@ -914,7 +919,8 @@ struct TodaysMenuView: View {
                         opensNextPeriod: entry.opensNextPeriod,
                         opensNextAtMinutes: entry.opensNextAtMinutes,
                         opensNextWeekday: entry.opensNextWeekday,
-                        isAfterHours: entry.isAfterHours
+                        isAfterHours: entry.isAfterHours,
+                        emptyBoard: entry.isEmptyBoard
                     )
                 )
                     .font(.system(size: 12))
@@ -937,7 +943,8 @@ struct TodaysMenuView: View {
                 opensNextPeriod: entry.opensNextPeriod,
                 opensNextAtMinutes: entry.opensNextAtMinutes,
                 opensNextWeekday: entry.opensNextWeekday,
-                isAfterHours: entry.isAfterHours
+                isAfterHours: entry.isAfterHours,
+                emptyBoard: entry.isEmptyBoard
             )
         )
     }
@@ -1021,7 +1028,8 @@ struct TodaysMenuView: View {
                             opensNextPeriod: entry.opensNextPeriod,
                             opensNextAtMinutes: entry.opensNextAtMinutes,
                             opensNextWeekday: entry.opensNextWeekday,
-                            isAfterHours: entry.isAfterHours
+                            isAfterHours: entry.isAfterHours,
+                            emptyBoard: entry.isEmptyBoard
                         ) + "."
                     )
                     .font(.system(size: 12))
@@ -1070,7 +1078,8 @@ struct TodaysMenuView: View {
                 opensNextPeriod: entry.opensNextPeriod,
                 opensNextAtMinutes: entry.opensNextAtMinutes,
                 opensNextWeekday: entry.opensNextWeekday,
-                isAfterHours: entry.isAfterHours
+                isAfterHours: entry.isAfterHours,
+                emptyBoard: entry.isEmptyBoard
             )
         )
     }

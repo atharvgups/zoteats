@@ -382,11 +382,13 @@ struct DiningView: View {
                 )
                 let awaiting = emptyKind == .awaitingMoreMeals
                 let afterHours = emptyKind == .afterHours
+                let emptyBoard = afterHours && (location?.periods.isEmpty ?? false)
                 EmptyStateView(
                     icon: awaiting ? "clock.arrow.circlepath" : "moon.zzz",
                     title: TodaysMenuEmptyCopy.eatIdleEmptyTitle(
                         awaitingMoreMeals: awaiting,
-                        afterHours: afterHours
+                        afterHours: afterHours,
+                        emptyBoard: emptyBoard
                     ),
                     message: {
                         switch emptyKind {
@@ -401,7 +403,8 @@ struct DiningView: View {
                                 opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
                                 opensNextPeriod: location?.opensNextPeriod,
                                 opensNextAtMinutes: location?.opensNextAtMinutes,
-                                opensNextWeekday: location?.opensNextWeekday
+                                opensNextWeekday: location?.opensNextWeekday,
+                                emptyBoard: emptyBoard
                             )
                         case .noMenuPosted:
                             return "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."

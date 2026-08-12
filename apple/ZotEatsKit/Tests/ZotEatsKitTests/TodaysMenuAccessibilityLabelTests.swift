@@ -123,6 +123,25 @@ struct TodaysMenuAccessibilityLabelTests {
         )
     }
 
+    @Test("Empty-board after-hours omits Dinner's done")
+    func emptyBoardAfterHours() {
+        #expect(
+            TodaysMenuAccessibilityLabel.label(
+                hallName: "The Anteatery",
+                period: "",
+                dishes: [],
+                filtersEmptiedMenu: false,
+                dishLimit: 4,
+                surface: .home,
+                opensNextPeriod: "Breakfast",
+                opensNextAtMinutes: 7 * 60 + 15,
+                opensNextWeekday: "Monday",
+                isAfterHours: true,
+                emptyBoard: true
+            ) == "The Anteatery. Breakfast Monday · 7:15 AM"
+        )
+    }
+
     @Test("Not-posted empty matches glance and home copy")
     func notPosted() {
         #expect(

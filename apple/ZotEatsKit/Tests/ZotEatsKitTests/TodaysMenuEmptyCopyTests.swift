@@ -163,6 +163,71 @@ struct TodaysMenuEmptyCopyTests {
         )
     }
 
+    @Test func emptyBoardAfterHoursOmitsDinnerDoneFraming() {
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .home,
+                opensNextPeriod: "Breakfast",
+                opensNextAtMinutes: 7 * 60 + 15,
+                opensNextWeekday: "Monday",
+                isAfterHours: true,
+                emptyBoard: true
+            ) == "Breakfast Monday · 7:15 AM"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .home,
+                isAfterHours: true,
+                emptyBoard: true
+            ) == "Closed for today"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                surface: .home,
+                isAfterHours: true,
+                emptyBoard: false
+            ) == "Dinner's done — Breakfast tomorrow · 7:15 AM"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatIdleEmptyTitle(
+                awaitingMoreMeals: false,
+                afterHours: true,
+                emptyBoard: true
+            ) == "Closed for today"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatAfterHoursMessage(
+                hallName: "The Anteatery",
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                opensNextPeriod: "Breakfast",
+                opensNextAtMinutes: 7 * 60 + 15,
+                opensNextWeekday: "Monday",
+                emptyBoard: true
+            ) == "The Anteatery isn't serving today. Breakfast Monday · 7:15 AM."
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatAfterHoursMessage(
+                hallName: "The Anteatery",
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                emptyBoard: false
+            ) == "The Anteatery is closed for tonight. Breakfast tomorrow · 7:15 AM."
+        )
+    }
+
     @Test func eatIdleEmptyHonorsAwaitingMoreMeals() {
         #expect(
             TodaysMenuEmptyCopy.eatIdleEmptyTitle(

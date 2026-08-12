@@ -16,7 +16,8 @@ public enum TodaysMenuEmptyCopy {
         surface: Surface,
         opensNextPeriod: String? = nil,
         opensNextAtMinutes: Int? = nil,
-        opensNextWeekday: String? = nil
+        opensNextWeekday: String? = nil,
+        emptyBoard: Bool = false
     ) -> String {
         if let open = opensTomorrowAtMinutes {
             let meal = MealPeriodDisplay.label(
@@ -24,12 +25,11 @@ public enum TodaysMenuEmptyCopy {
                 pill: "Breakfast"
             )
             let time = UCITime.format(minutes: open)
-            switch surface {
-            case .glance:
-                return "\(meal) tomorrow · \(time)"
-            case .home:
-                return "Dinner's done — \(meal) tomorrow · \(time)"
-            }
+            let next = "\(meal) tomorrow · \(time)"
+            // Empty/unpublished boards never served Dinner — Status parity, no
+            // "Dinner's done" framing (weekend daytime next-open path).
+            if emptyBoard || surface == .glance { return next }
+            return "Dinner's done — \(next)"
         }
         if let open = opensNextAtMinutes,
            let weekday = opensNextWeekday,
@@ -39,12 +39,9 @@ public enum TodaysMenuEmptyCopy {
                 pill: "Breakfast"
             )
             let time = UCITime.format(minutes: open)
-            switch surface {
-            case .glance:
-                return "\(meal) \(weekday) · \(time)"
-            case .home:
-                return "Dinner's done — \(meal) \(weekday) · \(time)"
-            }
+            let next = "\(meal) \(weekday) · \(time)"
+            if emptyBoard || surface == .glance { return next }
+            return "Dinner's done — \(next)"
         }
         switch surface {
         case .glance:
@@ -52,6 +49,7 @@ public enum TodaysMenuEmptyCopy {
             // neither tomorrow nor a later next-open is known.
             return "Closed for today"
         case .home:
+            if emptyBoard { return "Closed for today" }
             return "Dinner's done — closed for today"
         }
     }
@@ -69,10 +67,14 @@ public enum TodaysMenuEmptyCopy {
     /// Eat tab empty title when the selected hall has no selectable meal pill.
     public static func eatIdleEmptyTitle(
         awaitingMoreMeals: Bool,
-        afterHours: Bool
+        afterHours: Bool,
+        emptyBoard: Bool = false
     ) -> String {
         if awaitingMoreMeals { return "More meals coming" }
-        if afterHours { return "Dinner's done" }
+        if afterHours {
+            // Unpublished day — Status says Closed for today, not Dinner's done.
+            return emptyBoard ? "Closed for today" : "Dinner's done"
+        }
         return "No menu yet"
     }
 
@@ -90,7 +92,8 @@ public enum TodaysMenuEmptyCopy {
         opensTomorrowAtMinutes: Int?,
         opensNextPeriod: String? = nil,
         opensNextAtMinutes: Int? = nil,
-        opensNextWeekday: String? = nil
+        opensNextWeekday: String? = nil,
+        emptyBoard: Bool = false
     ) -> String {
         let hall = hallName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = hall.isEmpty ? "This hall" : hall
@@ -100,6 +103,9 @@ public enum TodaysMenuEmptyCopy {
                 pill: "Breakfast"
             )
             let time = UCITime.format(minutes: open)
+            if emptyBoard {
+                return "\(name) isn't serving today. \(meal) tomorrow · \(time)."
+            }
             return "\(name) is closed for tonight. \(meal) tomorrow · \(time)."
         }
         if let open = opensNextAtMinutes,
@@ -110,7 +116,13 @@ public enum TodaysMenuEmptyCopy {
                 pill: "Breakfast"
             )
             let time = UCITime.format(minutes: open)
+            if emptyBoard {
+                return "\(name) isn't serving today. \(meal) \(weekday) · \(time)."
+            }
             return "\(name) is closed for tonight. \(meal) \(weekday) · \(time)."
+        }
+        if emptyBoard {
+            return "\(name) isn't serving today."
         }
         return "\(name) is closed for tonight."
     }
@@ -174,7 +186,8 @@ public enum TodaysMenuEmptyCopy {
         opensNextPeriod: String? = nil,
         opensNextAtMinutes: Int? = nil,
         opensNextWeekday: String? = nil,
-        isAfterHours: Bool = false
+        isAfterHours: Bool = false,
+        emptyBoard: Bool = false
     ) -> String {
         if filtersEmptiedMenu {
             return surface == .glance
@@ -198,7 +211,8 @@ public enum TodaysMenuEmptyCopy {
                 surface: surface,
                 opensNextPeriod: opensNextPeriod,
                 opensNextAtMinutes: opensNextAtMinutes,
-                opensNextWeekday: opensNextWeekday
+                opensNextWeekday: opensNextWeekday,
+                emptyBoard: emptyBoard
             )
         }
         if let start = upcomingStartMinutes {
