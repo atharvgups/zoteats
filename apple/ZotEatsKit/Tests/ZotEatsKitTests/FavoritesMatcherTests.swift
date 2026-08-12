@@ -98,11 +98,106 @@ struct FavoritesMatcherTests {
         #expect(FavoritesMatcher.matches(favorites: [], menus: [menu("anteatery", period: "Lunch", dishes: ["A"])], hallNames: [:]).isEmpty)
     }
 
-    @Test func dedupeKeyIsPerDayPerDish() {
+    @Test func dedupeKeyIsPerDayDishMealAndPhase() {
         let match = FavoritesMatcher.Match(
             dishName: "Crispy Okra", hallName: "X", locationId: "anteatery", period: "Lunch"
         )
-        #expect(match.dedupeKey(dateISO: "2026-07-16") == "2026-07-16|crispy okra")
-        #expect(match.dedupeKey(dateISO: "2026-07-17") != match.dedupeKey(dateISO: "2026-07-16"))
+        #expect(
+            match.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+                == "2026-07-16|crispy okra|lunch|upcoming"
+        )
+        #expect(
+            match.dedupeKey(dateISO: "2026-07-16", phase: .serving)
+                == "2026-07-16|crispy okra|lunch|serving"
+        )
+        #expect(
+            match.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+                != match.dedupeKey(dateISO: "2026-07-16", phase: .serving)
+        )
+        #expect(match.legacyDedupeKey(dateISO: "2026-07-16") == "2026-07-16|crispy okra")
+    }
+
+    @Test func shouldNotifyAllowsServingUpgradeAfterUpcoming() {
+        let match = FavoritesMatcher.Match(
+            dishName: "Crispy Okra",
+            hallName: "The Anteatery",
+            locationId: "anteatery",
+            period: "Lunch"
+        )
+        let upcomingKey = match.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+        #expect(
+            FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: false,
+                alreadyNotified: []
+            )
+        )
+        #expect(
+            !FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: false,
+                alreadyNotified: [upcomingKey]
+            )
+        )
+        #expect(
+            FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: true,
+                alreadyNotified: [upcomingKey]
+            )
+        )
+        #expect(
+            !FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: true,
+                alreadyNotified: [
+                    upcomingKey,
+                    match.dedupeKey(dateISO: "2026-07-16", phase: .serving),
+                ]
+            )
+        )
+    }
+
+    @Test func shouldNotifyLegacyUpcomingBlocksOnlyUpcoming() {
+        let match = FavoritesMatcher.Match(
+            dishName: "Crispy Okra",
+            hallName: "The Anteatery",
+            locationId: "anteatery",
+            period: "Lunch"
+        )
+        let legacy = match.legacyDedupeKey(dateISO: "2026-07-16")
+        #expect(
+            !FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: false,
+                alreadyNotified: [legacy]
+            )
+        )
+        #expect(
+            FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: true,
+                alreadyNotified: [legacy]
+            )
+        )
+    }
+
+    @Test func dinnerPhaseKeysDifferFromLunch() {
+        let lunch = FavoritesMatcher.Match(
+            dishName: "Soup", hallName: "X", locationId: "anteatery", period: "Lunch"
+        )
+        let dinner = FavoritesMatcher.Match(
+            dishName: "Soup", hallName: "X", locationId: "anteatery", period: "Dinner"
+        )
+        #expect(
+            lunch.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+                != dinner.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+        )
     }
 }

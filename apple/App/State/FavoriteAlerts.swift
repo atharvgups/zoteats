@@ -4,9 +4,10 @@ import BackgroundTasks
 import ZotEatsKit
 
 // Favorite-dish alerts: when a favorited dish shows up on today's menu,
-// send one local notification per dish per day ("Zot! Crispy Okra is at
-// The Anteatery today"). Checks run on foreground launches and via
-// opportunistic background refresh — no servers, no push infrastructure.
+// send a local notification ("Zot! Crispy Okra is on the menu"). An early
+// menu-drop heads-up can upgrade once to "Being served now…" when the meal
+// opens — Opening Alerts catch-up parity. Checks run on foreground launches
+// and via opportunistic background refresh — no servers, no push infrastructure.
 
 @MainActor
 enum FavoriteAlerts {
@@ -78,10 +79,6 @@ enum FavoriteAlerts {
                 )
             }
         ) {
-            let key = match.dedupeKey(dateISO: dateISO)
-            guard !notified.contains(key) else { continue }
-            notified.insert(key)
-
             let deepLinkPeriod = MealPeriodPill.canonical(match.period)
             let hallWindows = hallPeriods[match.locationId]
             let servingNow = hallWindows.map {
@@ -92,6 +89,17 @@ enum FavoriteAlerts {
                     nowMinutes: nowMinutes
                 )
             } ?? false
+
+            guard FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: dateISO,
+                servingNow: servingNow,
+                alreadyNotified: notified
+            ) else { continue }
+
+            let phase: FavoritesMatcher.NotifyPhase = servingNow ? .serving : .upcoming
+            let key = match.dedupeKey(dateISO: dateISO, phase: phase)
+            notified.insert(key)
 
             let content = UNMutableNotificationContent()
             content.title = "Zot! \(match.dishName) is on the menu"
