@@ -711,7 +711,14 @@ struct TodaysMenuView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(entry.hallName) \(entry.period): \(Array(entry.dishes.prefix(dishLimit)).joined(separator: ", "))"
+            TodaysMenuAccessibilityLabel.label(
+                hallName: entry.hallName,
+                period: entry.period,
+                dishes: entry.dishes,
+                filtersEmptiedMenu: entry.filtersEmptiedMenu,
+                dishLimit: dishLimit,
+                surface: .glance
+            )
         )
     }
 
@@ -808,7 +815,14 @@ struct TodaysMenuView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(entry.hallName) \(entry.period): \(Array(entry.dishes.prefix(dishLimit)).joined(separator: ", "))"
+            TodaysMenuAccessibilityLabel.label(
+                hallName: entry.hallName,
+                period: entry.period,
+                dishes: entry.dishes,
+                filtersEmptiedMenu: entry.filtersEmptiedMenu,
+                dishLimit: dishLimit,
+                surface: .home
+            )
         )
     }
 }
