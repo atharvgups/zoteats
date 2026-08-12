@@ -21,7 +21,7 @@ public enum QuietestLibraryGlance {
 
     /// Dining Status medium tip — open quietest floor or overnight closed copy.
     public enum DiningStatusTip: Equatable, Sendable {
-        case open(name: String, percent: Int, facilityID: Int?)
+        case open(name: String, percent: Int, facilityID: Int?, updatedAt: Date)
         case librariesClosed
     }
 
@@ -39,7 +39,12 @@ public enum QuietestLibraryGlance {
     /// Tip for the Dining Halls medium footer. Nil when the feed has no libraries.
     public static func diningStatusTip(from facilities: [BusynessPoint]) -> DiningStatusTip? {
         if let pick = QuietestLibraryPick.best(from: facilities) {
-            return .open(name: pick.title, percent: pick.percent, facilityID: pick.facilityID)
+            return .open(
+                name: pick.title,
+                percent: pick.percent,
+                facilityID: pick.facilityID,
+                updatedAt: pick.updatedAt
+            )
         }
         return shouldShowClosed(from: facilities) ? .librariesClosed : nil
     }

@@ -9,7 +9,8 @@ struct QuietestLibraryGlanceTests {
         name: String,
         category: String,
         percent: Int?,
-        isOpen: Bool
+        isOpen: Bool,
+        updatedAt: Date = Date()
     ) -> BusynessPoint {
         BusynessPoint(
             id: id,
@@ -21,7 +22,7 @@ struct QuietestLibraryGlanceTests {
             level: BusynessService.level(forPercent: percent),
             isOpen: isOpen,
             hoursSummary: nil,
-            updatedAt: Date(),
+            updatedAt: updatedAt,
             subLocations: nil
         )
     }
@@ -65,16 +66,18 @@ struct QuietestLibraryGlanceTests {
     }
 
     @Test func diningStatusTipOpenPick() {
+        let stamp = Date(timeIntervalSince1970: 1_720_000_100)
         let open = point(
             id: 2,
             name: "Science Library",
             category: "Library",
             percent: 12,
-            isOpen: true
+            isOpen: true,
+            updatedAt: stamp
         )
         #expect(
             QuietestLibraryGlance.diningStatusTip(from: [open])
-                == .open(name: "Science Library", percent: 12, facilityID: 2)
+                == .open(name: "Science Library", percent: 12, facilityID: 2, updatedAt: stamp)
         )
     }
 

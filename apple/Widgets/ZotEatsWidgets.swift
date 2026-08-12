@@ -183,7 +183,7 @@ struct DiningStatusProvider: TimelineProvider {
                 .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
                 .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
             ],
-            quietest: .open(name: "Science Library", percent: 12, facilityID: 2)
+            quietest: .open(name: "Science Library", percent: 12, facilityID: 2, updatedAt: .now)
         )
     }
 
@@ -337,7 +337,7 @@ struct DiningStatusView: View {
                 Divider()
                     .overlay(.white.opacity(0.25))
                 switch tip {
-                case .open(let name, let percent, let facilityID):
+                case .open(let name, let percent, let facilityID, _):
                     Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
                         HStack(spacing: 5) {
                             Image(systemName: "books.vertical.fill")
@@ -448,7 +448,7 @@ struct DiningStatusView: View {
             .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
             .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
         ],
-        quietest: .open(name: "Science Library", percent: 12, facilityID: 2)
+        quietest: .open(name: "Science Library", percent: 12, facilityID: 2, updatedAt: .now)
     )
 }
 

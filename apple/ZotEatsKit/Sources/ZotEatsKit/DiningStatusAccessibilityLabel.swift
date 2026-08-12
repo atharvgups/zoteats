@@ -1,7 +1,8 @@
 import Foundation
 
 /// VoiceOver labels for Dining Status — closed halls must say closed/opens,
-/// and the medium libraries tip must announce overnight closed detail.
+/// and the medium libraries tip must announce overnight closed detail plus
+/// Updated freshness on open quietest tips (Quietest Library widget parity).
 public enum DiningStatusAccessibilityLabel {
     public enum Countdown: Equatable, Sendable {
         case opens
@@ -28,10 +29,14 @@ public enum DiningStatusAccessibilityLabel {
         return parts.joined(separator: ", ")
     }
 
-    public static func quietestTip(_ tip: QuietestLibraryGlance.DiningStatusTip) -> String {
+    public static func quietestTip(
+        _ tip: QuietestLibraryGlance.DiningStatusTip,
+        now: Date = Date()
+    ) -> String {
         switch tip {
-        case .open(let name, let percent, _):
-            return "Quietest: \(name), \(percent) percent full"
+        case .open(let name, let percent, _, let updatedAt):
+            let updated = UpdatedAgoCopy.relative(from: updatedAt, now: now)
+            return "Quietest: \(name), \(percent) percent full, Updated \(updated)"
         case .librariesClosed:
             return "\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)"
         }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ZotEatsKit
 
@@ -42,12 +43,33 @@ struct DiningStatusAccessibilityLabelTests {
         )
     }
 
-    @Test("Quietest open tip")
+    @Test("Quietest open tip includes Updated freshness")
     func quietestOpen() {
+        let now = Date()
+        let tip = QuietestLibraryGlance.DiningStatusTip.open(
+            name: "Science Library",
+            percent: 12,
+            facilityID: 2,
+            updatedAt: now.addingTimeInterval(-30)
+        )
         #expect(
-            DiningStatusAccessibilityLabel.quietestTip(
-                .open(name: "Science Library", percent: 12, facilityID: 2)
-            ) == "Quietest: Science Library, 12 percent full"
+            DiningStatusAccessibilityLabel.quietestTip(tip, now: now)
+                == "Quietest: Science Library, 12 percent full, Updated just now"
+        )
+    }
+
+    @Test("Quietest open tip minutes ago")
+    func quietestOpenMinutesAgo() {
+        let now = Date()
+        let tip = QuietestLibraryGlance.DiningStatusTip.open(
+            name: "Langson · 4th Floor",
+            percent: 8,
+            facilityID: 3,
+            updatedAt: now.addingTimeInterval(-5 * 60)
+        )
+        #expect(
+            DiningStatusAccessibilityLabel.quietestTip(tip, now: now)
+                == "Quietest: Langson · 4th Floor, 8 percent full, Updated 5 min. ago"
         )
     }
 
