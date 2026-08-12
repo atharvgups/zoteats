@@ -2,7 +2,9 @@ import Foundation
 
 /// Period to apply from an Eat deep link / notification — after-hours clears,
 /// and an ended meal falls through to the live or upcoming pill (same liveness
-/// gate as Eat's sticky pill via `MealPillLiveness`).
+/// gate as Eat's sticky pill via `MealPillLiveness`). Future-day browse (Menu
+/// Drop date-only links included) snaps the first primary pill when none is
+/// requested.
 public enum EatDeepLinkPeriod {
     public static func resolve(
         requested: String?,

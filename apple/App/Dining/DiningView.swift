@@ -83,6 +83,12 @@ struct DiningView: View {
                 syncPeriodSelection()
                 considerAutoMealActivity()
             }
+            .onChange(of: selectedDate) {
+                // After-hours Today clears the pill; moving to a future day must
+                // snap Breakfast (or first primary) so DayStrip / Menu Drop don't
+                // land on "No menu yet" with selectedPeriod == nil.
+                syncPeriodSelection()
+            }
             .onChange(of: pendingDeepLink) {
                 applyPendingDeepLinkIfNeeded()
             }
@@ -647,8 +653,11 @@ struct DiningView: View {
                 let today = UCITime.upcomingDays(count: 1).first?.isoDate
                 selectedDate = (date == today) ? nil : date
             }
-            // Hall and/or period taps re-resolve; bare `anteats://eat` leaves the pill alone.
-            if (link.period != nil || link.hall != nil), let location = selectedLocation {
+            // Hall, period, or date taps re-resolve the pill. Bare `anteats://eat`
+            // leaves selection alone. Date-only Menu Drop links need a future-day
+            // Breakfast snap when today is after hours (pill was cleared).
+            if link.period != nil || link.hall != nil || link.date != nil,
+               let location = selectedLocation {
                 selectedPeriod = EatDeepLinkPeriod.resolve(
                     requested: link.period,
                     availablePeriods: location.availablePeriods,

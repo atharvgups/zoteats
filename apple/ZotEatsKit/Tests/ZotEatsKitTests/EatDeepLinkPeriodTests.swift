@@ -76,6 +76,19 @@ struct EatDeepLinkPeriodTests {
         )
     }
 
+    @Test("Future-day nil request snaps first primary pill")
+    func futureDayNilRequestSnapsBreakfast() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: nil,
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 1300,
+                browsingFutureDay: true
+            ) == "Breakfast"
+        )
+    }
+
     @Test("Nil request picks live meal")
     func nilPicksLive() {
         #expect(
