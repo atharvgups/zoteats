@@ -82,6 +82,36 @@ public enum MealActivityPostClose {
         return Destination(period: nil)
     }
 
+    /// True when a Live Activity's baked post-close should be rewritten from a
+    /// fresher hall board (Lunch/Dinner published during countdown or linger).
+    public static func needsRefresh(
+        currentPeriod: String?,
+        currentDate: String?,
+        fresh: Destination
+    ) -> Bool {
+        normalize(currentPeriod) != normalize(fresh.period)
+            || normalize(currentDate) != normalize(fresh.date)
+    }
+
+    /// End minute for the meal an activity is tracking — used to recompute
+    /// post-close against an updated board.
+    public static func trackedPeriodEndMinutes(
+        trackedPeriod: String,
+        timedPeriods: [MealPeriodWindow]
+    ) -> Int? {
+        let tracked = trackedPeriod.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tracked.isEmpty else { return nil }
+        if let exact = timedPeriods.first(where: {
+            $0.name.caseInsensitiveCompare(tracked) == .orderedSame
+        }), let end = exact.endMinutes {
+            return end
+        }
+        let pill = MealPeriodPill.canonical(tracked)
+        return timedPeriods.first(where: {
+            MealPeriodPill.canonical($0.name).caseInsensitiveCompare(pill) == .orderedSame
+        })?.endMinutes
+    }
+
     /// `opensTomorrowPeriod` for Live Activity ContentState after resolving
     /// post-close. Always nil — stashing the hall's tomorrow meal when
     /// `postClose.period` is nil re-enables DeepLink's legacy overnight jump
@@ -96,5 +126,9 @@ public enum MealActivityPostClose {
         // Hall-only (nil period) must not arm the legacy DeepLink path.
         _ = postClose
         return nil
+    }
+
+    private static func normalize(_ value: String?) -> String {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 }

@@ -7,10 +7,12 @@ import ZotEatsKit
 @MainActor
 enum MealActivityAutoStartRunner {
     static func run(service: DiningService = DiningService()) async {
-        guard MealActivityManager.autoStartEnabled else { return }
         let manager = MealActivityManager()
         manager.syncFromSystem()
         let locations = await service.locations()
+        // Refresh baked post-close even when already tracking (board grew).
+        manager.refreshPostCloseIfNeeded(locations: locations)
+        guard MealActivityManager.autoStartEnabled else { return }
         guard let pick = MealActivityAutoStart.pick(
             locations: locations,
             nowMinutes: UCITime.nowMinutes(),

@@ -137,6 +137,100 @@ struct MealActivityPostCloseTests {
             ) == nil
         )
     }
+
+    @Test func needsRefreshWhenBoardGainsNextMeal() {
+        let breakfastOnly = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let withLunch = breakfastOnly + [
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        ]
+        let baked = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 630,
+            timedPeriods: breakfastOnly,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(baked.period == "Breakfast")
+        let fresh = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 630,
+            timedPeriods: withLunch,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(fresh.period == "Lunch")
+        #expect(
+            MealActivityPostClose.needsRefresh(
+                currentPeriod: baked.period,
+                currentDate: baked.date,
+                fresh: fresh
+            )
+        )
+        #expect(
+            !MealActivityPostClose.needsRefresh(
+                currentPeriod: fresh.period,
+                currentDate: fresh.date,
+                fresh: fresh
+            )
+        )
+        #expect(
+            MealCountdownChrome.islandBottom(
+                period: "Breakfast",
+                hasEnded: true,
+                postClosePeriod: fresh.period,
+                postCloseDate: fresh.date
+            ) == "Breakfast has ended — Lunch is next"
+        )
+    }
+
+    @Test func lunchWithoutDinnerUpgradesWhenDinnerPublishes() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        ]
+        let full = partial + [
+            MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+        ]
+        let baked = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 870,
+            timedPeriods: partial,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(baked.period == "Lunch")
+        let fresh = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 870,
+            timedPeriods: full,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(fresh.period == "Dinner")
+        #expect(
+            MealActivityPostClose.needsRefresh(
+                currentPeriod: baked.period,
+                currentDate: baked.date,
+                fresh: fresh
+            )
+        )
+    }
+
+    @Test func trackedPeriodEndMinutesMatchesLiveName() {
+        let limited = [
+            MealPeriodWindow(name: "Limited Dinner", startMinutes: 1020, endMinutes: 1140),
+        ]
+        #expect(
+            MealActivityPostClose.trackedPeriodEndMinutes(
+                trackedPeriod: "Limited Dinner",
+                timedPeriods: limited
+            ) == 1140
+        )
+        #expect(
+            MealActivityPostClose.trackedPeriodEndMinutes(
+                trackedPeriod: "Dinner",
+                timedPeriods: limited
+            ) == 1140
+        )
+    }
 }
 
 @Suite("MealActivityDeepLink")

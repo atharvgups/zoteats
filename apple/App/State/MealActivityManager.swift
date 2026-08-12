@@ -154,6 +154,64 @@ final class MealActivityManager {
         return trackedKey != nil
     }
 
+    /// Recompute post-close from fresh hall boards while a Live Activity is
+    /// still live or lingering — Lunch/Dinner often publish after track/auto-start.
+    func refreshPostCloseIfNeeded(
+        locations: [DiningLocation],
+        now: Date = Date()
+    ) {
+        let activities = Activity<MealActivityAttributes>.activities
+        guard !activities.isEmpty else { return }
+        let halls = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0) })
+
+        Task {
+            for activity in activities {
+                let endsAt = activity.content.state.endsAt
+                if MealActivityLinger.shouldDismiss(endsAt: endsAt, now: now) {
+                    continue
+                }
+                guard let hallID = Self.resolveHallID(
+                    explicit: activity.attributes.hallID,
+                    hallName: activity.attributes.hallName
+                ),
+                    let location = halls[hallID],
+                    let endMinutes = MealActivityPostClose.trackedPeriodEndMinutes(
+                        trackedPeriod: activity.attributes.period,
+                        timedPeriods: location.periods
+                    )
+                else { continue }
+
+                let fresh = MealActivityPostClose.destination(
+                    currentPeriodEndMinutes: endMinutes,
+                    timedPeriods: location.periods,
+                    opensTomorrowPeriod: location.opensTomorrowPeriod,
+                    now: now,
+                    opensNextPeriod: location.opensNextPeriod,
+                    opensNextDayOffset: location.opensNextDayOffset,
+                    opensNextDateISO: location.opensNextDateISO
+                )
+                let state = activity.content.state
+                guard MealActivityPostClose.needsRefresh(
+                    currentPeriod: state.postClosePeriod,
+                    currentDate: state.postCloseDate,
+                    fresh: fresh
+                ) else { continue }
+
+                let updated = MealActivityAttributes.ContentState(
+                    endsAt: endsAt,
+                    postClosePeriod: fresh.period,
+                    postCloseDate: fresh.date,
+                    opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
+                        postClose: fresh,
+                        hallOpensTomorrowPeriod: location.opensTomorrowPeriod
+                    )
+                )
+                let stale = MealActivityLinger.staleDate(endsAt: endsAt)
+                await activity.update(ActivityContent(state: updated, staleDate: stale))
+            }
+        }
+    }
+
     func endAll() {
         trackedKey = nil
         let activities = Activity<MealActivityAttributes>.activities

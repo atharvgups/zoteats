@@ -741,8 +741,11 @@ struct DiningView: View {
         // Tracking stays honest and we don't recreate a live Island timer.
         mealActivity.syncFromSystem()
         guard selectedDate == nil,
-              let locations = store.locations.value,
-              let pick = MealActivityAutoStart.pick(
+              let locations = store.locations.value
+        else { return }
+        // Board may have grown (Lunch/Dinner publish) since track/auto-start.
+        mealActivity.refreshPostCloseIfNeeded(locations: locations)
+        guard let pick = MealActivityAutoStart.pick(
                 locations: locations,
                 nowMinutes: UCITime.nowMinutes(),
                 alreadyTracking: mealActivity.trackedKey != nil,
