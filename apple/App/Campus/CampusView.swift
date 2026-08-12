@@ -567,7 +567,7 @@ private struct CampusPlaceRow: View {
             Button(action: onToggleFavorite) {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(isFavorite ? Color.uciBlue : .tertiary)
+                    .foregroundStyle(isFavorite ? Color.uciBlue : Color.secondary.opacity(0.45))
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             }
