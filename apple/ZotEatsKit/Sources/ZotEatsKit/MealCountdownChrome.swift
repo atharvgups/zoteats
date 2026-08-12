@@ -7,12 +7,27 @@ public enum MealCountdownChrome {
     }
 
     /// Lock-screen secondary line under the hall name.
-    public static func lockStatus(period: String, hasEnded: Bool) -> String {
+    /// After close, matches Island / Status destination chrome (next meal,
+    /// tomorrow, Fri→Mon weekday) — not a dead-end "Dinner has ended".
+    public static func lockStatus(
+        period: String,
+        hasEnded: Bool,
+        postClosePeriod: String? = nil,
+        postCloseDate: String? = nil,
+        now: Date = Date()
+    ) -> String {
         let meal = period.trimmingCharacters(in: .whitespacesAndNewlines)
-        if meal.isEmpty {
-            return hasEnded ? "Meal has ended" : "Ends in"
+        if !hasEnded {
+            return meal.isEmpty ? "Ends in" : "\(meal) ends in"
         }
-        return hasEnded ? "\(meal) has ended" : "\(meal) ends in"
+        let endedPrefix = meal.isEmpty ? "Meal has ended" : "\(meal) has ended"
+        return postCloseLine(
+            endedPrefix: endedPrefix,
+            trackedMeal: meal,
+            postClosePeriod: postClosePeriod,
+            postCloseDate: postCloseDate,
+            now: now
+        )
     }
 
     /// Expanded Island bottom line — after close, match the post-close deep link
@@ -36,6 +51,23 @@ public enum MealCountdownChrome {
         }
 
         let endedPrefix = meal.isEmpty ? "This meal has ended" : "\(meal) has ended"
+        return postCloseLine(
+            endedPrefix: endedPrefix,
+            trackedMeal: meal,
+            postClosePeriod: postClosePeriod,
+            postCloseDate: postCloseDate,
+            now: now
+        )
+    }
+
+    /// Shared Lock / Island post-close destination line so the surfaces can't drift.
+    private static func postCloseLine(
+        endedPrefix: String,
+        trackedMeal: String,
+        postClosePeriod: String?,
+        postCloseDate: String?,
+        now: Date
+    ) -> String {
         let nextRaw = postClosePeriod?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let nextDate = postCloseDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !nextRaw.isEmpty else {
@@ -43,7 +75,7 @@ public enum MealCountdownChrome {
         }
 
         let nextPill = MealPeriodPill.canonical(nextRaw)
-        let trackedPill = meal.isEmpty ? "" : MealPeriodPill.canonical(meal)
+        let trackedPill = trackedMeal.isEmpty ? "" : MealPeriodPill.canonical(trackedMeal)
 
         // Partial board: post-close keeps last posted meal (1.0.185) — Status parity.
         if !trackedPill.isEmpty,
