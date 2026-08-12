@@ -62,7 +62,11 @@ struct DiningView: View {
                 prompt: "Search today's dishes"
             )
             .refreshable { await refresh() }
-            .task { await store.loadLocations() }
+            .task {
+                await store.loadLocations()
+                // Failed feeds leave locations.value nil — still settle pending links.
+                applyPendingDeepLinkIfNeeded()
+            }
             .task(id: menuTaskID) {
                 await loadCurrentMenu()
                 considerAutoMealActivity()
@@ -616,34 +620,48 @@ struct DiningView: View {
     /// Notification / widget taps: select hall, period, date; stash dish for after load.
     private func applyPendingDeepLinkIfNeeded() {
         guard let link = pendingDeepLink, link.tab == .eat else { return }
-        // Hall / period honesty needs the locations feed (after-hours clear, ended meals).
-        if (link.hall != nil || link.period != nil), store.locations.value == nil { return }
-
-        if let hall = link.hall {
-            let known = store.locations.value?.contains { $0.id == hall } ?? false
-            if known {
-                selectedHall = hall
+        let needsLocations = link.hall != nil || link.period != nil
+        let feedReady: Bool = {
+            switch store.locations {
+            case .loaded, .failed: return true
+            case .idle, .loading: return false
             }
+        }()
+        switch EatDeepLinkApply.resolve(
+            hallID: link.hall,
+            needsLocations: needsLocations,
+            locations: store.locations.value,
+            feedReady: feedReady
+        ) {
+        case .waitForLocations:
+            return
+        case .discard:
+            pendingDeepLink = nil
+            return
+        case .apply(let hallID):
+            if let hallID {
+                selectedHall = hallID
+            }
+            if let date = link.date {
+                let today = UCITime.upcomingDays(count: 1).first?.isoDate
+                selectedDate = (date == today) ? nil : date
+            }
+            // Hall and/or period taps re-resolve; bare `anteats://eat` leaves the pill alone.
+            if (link.period != nil || link.hall != nil), let location = selectedLocation {
+                selectedPeriod = EatDeepLinkPeriod.resolve(
+                    requested: link.period,
+                    availablePeriods: location.availablePeriods,
+                    timedPeriods: location.periods,
+                    nowMinutes: UCITime.nowMinutes(),
+                    browsingFutureDay: selectedDate != nil
+                )
+            }
+            if let dish = link.dish {
+                pendingDishName = dish
+            }
+            pendingDeepLink = nil
+            openPendingDishIfPossible()
         }
-        if let date = link.date {
-            let today = UCITime.upcomingDays(count: 1).first?.isoDate
-            selectedDate = (date == today) ? nil : date
-        }
-        // Hall and/or period taps re-resolve; bare `anteats://eat` leaves the pill alone.
-        if (link.period != nil || link.hall != nil), let location = selectedLocation {
-            selectedPeriod = EatDeepLinkPeriod.resolve(
-                requested: link.period,
-                availablePeriods: location.availablePeriods,
-                timedPeriods: location.periods,
-                nowMinutes: UCITime.nowMinutes(),
-                browsingFutureDay: selectedDate != nil
-            )
-        }
-        if let dish = link.dish {
-            pendingDishName = dish
-        }
-        pendingDeepLink = nil
-        openPendingDishIfPossible()
     }
 
     private func openPendingDishIfPossible() {
