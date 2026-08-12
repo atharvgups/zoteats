@@ -58,6 +58,36 @@ struct MealActivityPostCloseTests {
         #expect(dest.period == nil)
         #expect(dest.date == nil)
     }
+
+    @Test func breakfastOnlyBoardDoesNotJumpToTomorrow() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let midday = ISO8601DateFormatter().date(from: "2026-07-13T15:00:00Z")! // Mon 8 AM PDT
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 630,
+            timedPeriods: partial,
+            opensTomorrowPeriod: "Breakfast",
+            now: midday
+        )
+        #expect(dest.period == nil)
+        #expect(dest.date == nil)
+    }
+
+    @Test func lunchWithoutDinnerDoesNotJumpToTomorrow() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        ]
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 870,
+            timedPeriods: partial,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(dest.period == nil)
+        #expect(dest.date == nil)
+    }
 }
 
 @Suite("MealActivityDeepLink")

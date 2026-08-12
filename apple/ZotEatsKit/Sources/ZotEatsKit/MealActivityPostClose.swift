@@ -2,7 +2,8 @@ import Foundation
 
 /// Where the meal-end Live Activity should send the user after `endsAt`.
 /// Prefer the next same-day meal (Lunch → Dinner); only fall through to
-/// tomorrow when today's board is done — Dining Status after-hours parity.
+/// tomorrow when today's board looks done — Dining Status after-hours parity
+/// (skip tomorrow while Dinner may still publish).
 public enum MealActivityPostClose {
     public struct Destination: Equatable, Sendable {
         public let period: String?
@@ -30,6 +31,16 @@ public enum MealActivityPostClose {
             })
             .min(by: { $0.start < $1.start }) {
             return Destination(period: MealPeriodPill.canonical(next.name))
+        }
+
+        // Breakfast-only (or Lunch without Dinner) boards often still publish
+        // later — don't bake tomorrow into the Island while Status says
+        // "More meals post later". Evaluate as of meal end.
+        if DiningBoardPublish.awaitingLaterMeals(
+            periods: timedPeriods,
+            nowMinutes: currentPeriodEndMinutes
+        ) {
+            return Destination(period: nil)
         }
 
         let tomorrowMeal = opensTomorrowPeriod?
