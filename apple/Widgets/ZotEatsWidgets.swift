@@ -1405,11 +1405,11 @@ struct QuietestLibraryView: View {
                             .monospacedDigit()
                     }
                     .gaugeStyle(.accessoryCircular)
-                    .accessibilityLabel("\(entry.name), \(percent) percent full")
+                    .accessibilityLabel(quietestAccessibilityLabel(includeQuietestQualifier: false))
                 } else {
                     Image(systemName: "books.vertical.fill")
                         .font(.system(size: 20, weight: .semibold))
-                        .accessibilityLabel(entry.name)
+                        .accessibilityLabel(quietestAccessibilityLabel(includeQuietestQualifier: false))
                 }
             case .accessoryRectangular:
                 HStack(spacing: 8) {
@@ -1427,11 +1427,7 @@ struct QuietestLibraryView: View {
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(
-                    entry.percent.map {
-                        "\(entry.name), \($0) percent full, quietest library right now"
-                    } ?? "\(entry.name). \(QuietestLibraryGlance.closedDetail)"
-                )
+                .accessibilityLabel(quietestAccessibilityLabel(includeQuietestQualifier: true))
             default:
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 4) {
@@ -1466,11 +1462,7 @@ struct QuietestLibraryView: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .accessibilityLabel(
-                    entry.percent.map {
-                        "\(entry.name), \($0) percent full"
-                    } ?? "\(entry.name). \(QuietestLibraryGlance.closedDetail)"
-                )
+                .accessibilityLabel(quietestAccessibilityLabel(includeQuietestQualifier: false))
             }
         }
         .containerBackground(for: .widget) {
@@ -1481,6 +1473,14 @@ struct QuietestLibraryView: View {
                 uciBlue
             }
         }
+    }
+
+    private func quietestAccessibilityLabel(includeQuietestQualifier: Bool) -> String {
+        QuietestLibraryAccessibilityLabel.label(
+            name: entry.name,
+            percent: entry.percent,
+            includeQuietestQualifier: includeQuietestQualifier
+        )
     }
 }
 
