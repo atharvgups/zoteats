@@ -24,6 +24,9 @@ struct DiningView: View {
     @State private var didApplyScreenshotArgs = false
     /// Dish name from a notification tap — opened once the menu finishes loading.
     @State private var pendingDishName: String?
+    /// Explicit period from Opening Alerts / widgets / Favorite Alerts — hold
+    /// Eat snap so an ended Lunch isn't remapped the moment the hall settles.
+    @State private var pinnedDeepLinkPeriod: String?
     /// Bumps after each meal-boundary tick so hall chrome / pills re-render.
     @State private var boundaryEpoch = 0
     @Environment(\.scenePhase) private var scenePhase
@@ -119,6 +122,9 @@ struct DiningView: View {
             }
             .onChange(of: store.publishedDateRange) { syncDateSelection() }
             .onChange(of: selectedHall) {
+                // Manual hall change (or a new deep link's hall settle) drops any
+                // prior meal pin so snap can match the board in view.
+                pinnedDeepLinkPeriod = nil
                 syncPeriodSelection()
                 considerAutoMealActivity()
             }
@@ -126,7 +132,13 @@ struct DiningView: View {
                 // After-hours Today clears the pill; moving to a future day must
                 // snap Breakfast (or first primary) so DayStrip / Menu Drop don't
                 // land on "No menu yet" with selectedPeriod == nil.
+                pinnedDeepLinkPeriod = nil
                 syncPeriodSelection()
+            }
+            .onChange(of: selectedPeriod) { _, newPeriod in
+                if let pinned = pinnedDeepLinkPeriod, newPeriod != pinned {
+                    pinnedDeepLinkPeriod = nil
+                }
             }
             .onChange(of: pendingDeepLink) {
                 applyPendingDeepLinkIfNeeded()
@@ -819,6 +831,9 @@ struct DiningView: View {
             // Hall, period, or date taps re-resolve the pill. Bare `anteats://eat`
             // leaves selection alone. Date-only Menu Drop links need a future-day
             // Breakfast snap when today is after hours (pill was cleared).
+            // Opening Alerts / Status period taps / Favorite dishes keep the
+            // named meal; hall-only links still snap live.
+            let preserveMeal = link.period != nil || link.dish != nil
             if link.period != nil || link.hall != nil || link.date != nil {
                 // Future-day links wait for that day's periods so weekend Brunch
                 // pills don't block weekday Lunch / Breakfast snaps.
@@ -831,7 +846,7 @@ struct DiningView: View {
                         timedPeriods: windows,
                         nowMinutes: UCITime.nowMinutes(),
                         browsingFutureDay: true,
-                        preserveRequestedMeal: link.dish != nil
+                        preserveRequestedMeal: preserveMeal
                     )
                 } else if let location = selectedLocation {
                     selectedPeriod = EatDeepLinkPeriod.resolve(
@@ -840,8 +855,13 @@ struct DiningView: View {
                         timedPeriods: location.periods,
                         nowMinutes: UCITime.nowMinutes(),
                         browsingFutureDay: false,
-                        preserveRequestedMeal: link.dish != nil
+                        preserveRequestedMeal: preserveMeal
                     )
+                }
+                if preserveMeal, let period = selectedPeriod {
+                    pinnedDeepLinkPeriod = period
+                } else {
+                    pinnedDeepLinkPeriod = nil
                 }
             }
             if let dish = link.dish {
@@ -898,9 +918,9 @@ struct DiningView: View {
     /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
     /// matching Today's Menu after-hours truth (no stale Dinner overnight).
     private func syncPeriodSelection() {
-        // Hold an ended meal while a dish deep link is still resolving —
-        // Favorite Alerts pin Lunch; snapping to Dinner loads the wrong board.
-        if pendingDishName != nil { return }
+        // Hold an explicit deep-linked meal (Opening Alert / widget / dish) so
+        // Eat snap doesn't remap ended Lunch → Dinner under the user.
+        if pendingDishName != nil || pinnedDeepLinkPeriod != nil { return }
         guard let available = boardAvailablePeriods,
               let timed = boardTimedPeriods
         else { return }

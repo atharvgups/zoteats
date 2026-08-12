@@ -64,8 +64,23 @@ struct EatDeepLinkPeriodTests {
         )
     }
 
-    @Test("Dish deeplink preserves Dinner after hours")
-    func dishPreservesAfterHoursDinner() {
+    @Test("Opening Alert period deeplink preserves ended Lunch")
+    func openingAlertPreservesEndedLunch() {
+        // Same preserve flag as dish links — Opening Alerts carry period, no dish.
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Lunch",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 900,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Lunch"
+        )
+    }
+
+    @Test("Explicit period deeplink preserves Dinner after hours")
+    func explicitPeriodPreservesAfterHoursDinner() {
         #expect(
             EatDeepLinkPeriod.resolve(
                 requested: "Dinner",
@@ -78,8 +93,8 @@ struct EatDeepLinkPeriodTests {
         )
     }
 
-    @Test("Dish preserve without requested meal still picks live")
-    func dishPreserveNilStillPicksLive() {
+    @Test("Preserve flag without requested meal still picks live")
+    func preserveNilStillPicksLive() {
         #expect(
             EatDeepLinkPeriod.resolve(
                 requested: nil,

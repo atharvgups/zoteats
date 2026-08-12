@@ -6,9 +6,10 @@ import Foundation
 /// Drop date-only links included) snaps the first primary pill when none is
 /// requested.
 ///
-/// Dish deep links (Favorite Alerts, shared dish URLs) pass
-/// `preserveRequestedMeal: true` so an ended Lunch still opens the Lunch board
-/// where the dish lives, instead of remapping to Dinner / clearing after hours.
+/// Explicit meal targets (Opening Alerts, Status/widget period taps, Favorite
+/// Alerts, shared dish URLs) pass `preserveRequestedMeal: true` so an ended
+/// Lunch still opens the Lunch board instead of remapping to Dinner / clearing
+/// after hours. Hall-only links leave the flag false so Eat can snap live.
 public enum EatDeepLinkPeriod {
     public static func resolve(
         requested: String?,
@@ -28,8 +29,8 @@ public enum EatDeepLinkPeriod {
             return pills.first
         }
 
-        // Favorite / dish targets: keep the named meal whenever it exists on the
-        // board, even when ended or after hours.
+        // Named meal from a notification / widget: keep it on the board even
+        // when ended or after hours (late Opening Alert taps, dish targets).
         if preserveRequestedMeal,
            let requested,
            let pill = MealPeriodPill.match(requested, in: pills) {
