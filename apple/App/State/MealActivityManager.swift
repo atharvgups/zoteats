@@ -59,12 +59,22 @@ final class MealActivityManager {
         }
     }
 
-    func track(hallName: String, hallID: String, period: String, endsAt: Date, haptic: Bool = true) {
+    func track(
+        hallName: String,
+        hallID: String,
+        period: String,
+        endsAt: Date,
+        opensTomorrowPeriod: String? = nil,
+        haptic: Bool = true
+    ) {
         guard isAvailable else { return }
         endAll()
 
         let attributes = MealActivityAttributes(hallName: hallName, period: period, hallID: hallID)
-        let state = MealActivityAttributes.ContentState(endsAt: endsAt)
+        let state = MealActivityAttributes.ContentState(
+            endsAt: endsAt,
+            opensTomorrowPeriod: opensTomorrowPeriod
+        )
         do {
             _ = try Activity.request(
                 attributes: attributes,
@@ -85,6 +95,7 @@ final class MealActivityManager {
         period: String,
         startMinutes: Int,
         endMinutes: Int,
+        opensTomorrowPeriod: String? = nil,
         nowMinutes: Int = UCITime.nowMinutes(),
         now: Date = Date()
     ) -> Bool {
@@ -105,7 +116,14 @@ final class MealActivityManager {
             nowMinutes: nowMinutes,
             now: now
         )
-        track(hallName: hallName, hallID: hallID, period: period, endsAt: endsAt, haptic: false)
+        track(
+            hallName: hallName,
+            hallID: hallID,
+            period: period,
+            endsAt: endsAt,
+            opensTomorrowPeriod: opensTomorrowPeriod,
+            haptic: false
+        )
         return trackedKey != nil
     }
 

@@ -25,7 +25,8 @@ struct MealCountdownAccessibilityLabelTests {
             MealCountdownAccessibilityLabel.label(
                 hallName: "The Anteatery",
                 period: "Dinner",
-                endsAt: eightPM
+                endsAt: eightPM,
+                now: twoPM
             ) == "The Anteatery, Dinner ends at 8:00 PM"
         )
     }
@@ -36,7 +37,8 @@ struct MealCountdownAccessibilityLabelTests {
             MealCountdownAccessibilityLabel.label(
                 hallName: "Brandywine",
                 period: "Lunch",
-                endsAt: twoPM
+                endsAt: twoPM,
+                now: twoPM.addingTimeInterval(-3600)
             ) == "Brandywine, Lunch ends at 2:00 PM"
         )
     }
@@ -47,7 +49,8 @@ struct MealCountdownAccessibilityLabelTests {
             MealCountdownAccessibilityLabel.label(
                 hallName: "Mesa Commons",
                 period: "Dinner",
-                endsAt: midnight
+                endsAt: midnight,
+                now: eightPM
             ) == "Mesa Commons, Dinner ends at 12:00 AM"
         )
     }
@@ -58,7 +61,8 @@ struct MealCountdownAccessibilityLabelTests {
             MealCountdownAccessibilityLabel.label(
                 hallName: "  The Anteatery  ",
                 period: " Dinner ",
-                endsAt: eightPM
+                endsAt: eightPM,
+                now: twoPM
             ) == "The Anteatery, Dinner ends at 8:00 PM"
         )
     }
@@ -69,8 +73,21 @@ struct MealCountdownAccessibilityLabelTests {
             MealCountdownAccessibilityLabel.label(
                 hallName: "The Anteatery",
                 period: "   ",
-                endsAt: eightPM
+                endsAt: eightPM,
+                now: twoPM
             ) == "The Anteatery, Ends at 8:00 PM"
+        )
+    }
+
+    @Test("After close announces has ended")
+    func afterClose() {
+        #expect(
+            MealCountdownAccessibilityLabel.label(
+                hallName: "The Anteatery",
+                period: "Dinner",
+                endsAt: eightPM,
+                now: eightPM.addingTimeInterval(60)
+            ) == "The Anteatery, Dinner has ended"
         )
     }
 
@@ -82,7 +99,8 @@ struct MealCountdownAccessibilityLabelTests {
             MealCountdownAccessibilityLabel.label(
                 hallName: "The Anteatery",
                 period: "Dinner",
-                endsAt: eightPM
+                endsAt: eightPM,
+                now: twoPM
             ).contains("8:00 PM")
         )
     }

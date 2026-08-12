@@ -30,6 +30,13 @@ private let activityGold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255
 struct MealCountdownActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MealActivityAttributes.self) { context in
+            let ended = MealCountdownChrome.hasEnded(endsAt: context.state.endsAt)
+            let deepLink = MealActivityDeepLink.link(
+                hallID: context.attributes.hallID,
+                period: context.attributes.period,
+                endsAt: context.state.endsAt,
+                opensTomorrowPeriod: context.state.opensTomorrowPeriod
+            )
             // Lock screen banner.
             HStack(spacing: 12) {
                 Image(systemName: "fork.knife.circle.fill")
@@ -38,17 +45,28 @@ struct MealCountdownActivity: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.hallName)
                         .font(.system(size: 15, weight: .semibold))
-                    Text("\(context.attributes.period) ends in")
+                    Text(
+                        MealCountdownChrome.lockStatus(
+                            period: context.attributes.period,
+                            hasEnded: ended
+                        )
+                    )
                         .font(.system(size: 12))
                         .opacity(0.8)
                 }
                 Spacer()
-                Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
-                    .font(.system(size: 28, weight: .bold))
-                    .monospacedDigit()
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 100)
-                    .foregroundStyle(activityGold)
+                if ended {
+                    Text("Done")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(activityGold)
+                } else {
+                    Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                        .font(.system(size: 28, weight: .bold))
+                        .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 100)
+                        .foregroundStyle(activityGold)
+                }
             }
             .padding(16)
             .activityBackgroundTint(activityBlue)
@@ -62,13 +80,15 @@ struct MealCountdownActivity: Widget {
                     endsAt: context.state.endsAt
                 )
             )
-            .widgetURL(
-                AnteatsDeepLink.eat(
-                    hall: context.attributes.hallID,
-                    period: MealPeriodPill.canonical(context.attributes.period)
-                ).url
-            )
+            .widgetURL(deepLink.url)
         } dynamicIsland: { context in
+            let ended = MealCountdownChrome.hasEnded(endsAt: context.state.endsAt)
+            let deepLink = MealActivityDeepLink.link(
+                hallID: context.attributes.hallID,
+                period: context.attributes.period,
+                endsAt: context.state.endsAt,
+                opensTomorrowPeriod: context.state.opensTomorrowPeriod
+            )
             let voiceOver = MealCountdownAccessibilityLabel.label(
                 hallName: context.attributes.hallName,
                 period: context.attributes.period,
@@ -87,16 +107,28 @@ struct MealCountdownActivity: Widget {
                     .accessibilityLabel(voiceOver)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
-                        .font(.system(size: 22, weight: .bold))
-                        .monospacedDigit()
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 84)
-                        .foregroundStyle(activityGold)
-                        .accessibilityHidden(true)
+                    if ended {
+                        Text("Done")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(activityGold)
+                            .accessibilityHidden(true)
+                    } else {
+                        Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                            .font(.system(size: 22, weight: .bold))
+                            .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 84)
+                            .foregroundStyle(activityGold)
+                            .accessibilityHidden(true)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text("\(context.attributes.period) is wrapping up — grab a bite while you can")
+                    Text(
+                        MealCountdownChrome.islandBottom(
+                            period: context.attributes.period,
+                            hasEnded: ended
+                        )
+                    )
                         .font(.system(size: 12))
                         .opacity(0.8)
                         .accessibilityHidden(true)
@@ -106,22 +138,24 @@ struct MealCountdownActivity: Widget {
                     .foregroundStyle(activityGold)
                     .accessibilityLabel(voiceOver)
             } compactTrailing: {
-                Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
-                    .monospacedDigit()
-                    .frame(maxWidth: 52)
-                    .foregroundStyle(activityGold)
-                    .accessibilityHidden(true)
+                if ended {
+                    Text("Done")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(activityGold)
+                        .accessibilityHidden(true)
+                } else {
+                    Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                        .monospacedDigit()
+                        .frame(maxWidth: 52)
+                        .foregroundStyle(activityGold)
+                        .accessibilityHidden(true)
+                }
             } minimal: {
                 Image(systemName: "fork.knife")
                     .foregroundStyle(activityGold)
                     .accessibilityLabel(voiceOver)
             }
-            .widgetURL(
-                AnteatsDeepLink.eat(
-                    hall: context.attributes.hallID,
-                    period: MealPeriodPill.canonical(context.attributes.period)
-                ).url
-            )
+            .widgetURL(deepLink.url)
         }
     }
 }

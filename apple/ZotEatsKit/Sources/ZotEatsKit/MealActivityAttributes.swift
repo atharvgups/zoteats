@@ -8,9 +8,13 @@ public struct MealActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         /// When the tracked meal period ends; the UI counts down to it.
         public var endsAt: Date
+        /// Live meal name for tomorrow's first open (Brunch / Breakfast) — used
+        /// after `endsAt` so Island taps jump to tomorrow instead of a dead pill.
+        public var opensTomorrowPeriod: String?
 
-        public init(endsAt: Date) {
+        public init(endsAt: Date, opensTomorrowPeriod: String? = nil) {
             self.endsAt = endsAt
+            self.opensTomorrowPeriod = opensTomorrowPeriod
         }
     }
 

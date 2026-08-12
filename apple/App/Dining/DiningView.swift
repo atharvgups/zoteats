@@ -528,7 +528,8 @@ struct DiningView: View {
                             hallName: location.name,
                             hallID: location.id,
                             period: menu.period,
-                            endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now)
+                            endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
+                            opensTomorrowPeriod: location.opensTomorrowPeriod
                         )
                     }
                     Haptics.selection()
@@ -709,7 +710,8 @@ struct DiningView: View {
             hallID: location.id,
             period: window.livePeriodName,
             startMinutes: window.startMinutes,
-            endMinutes: window.endMinutes
+            endMinutes: window.endMinutes,
+            opensTomorrowPeriod: location.opensTomorrowPeriod
         )
     }
 
