@@ -532,6 +532,7 @@ struct DiningView: View {
                 }
                 .padding(.horizontal, 20)
                 .transition(.opacity)
+                .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
             }
 
             ForEach(stations) { station in
@@ -544,7 +545,6 @@ struct DiningView: View {
                 .padding(.horizontal, 20)
             }
         }
-        .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
     }
 
     private func dishRow(_ item: MenuItem) -> some View {
