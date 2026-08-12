@@ -2,14 +2,17 @@ import Foundation
 
 /// Eat destination for the meal-end Live Activity.
 /// While the meal is live: today's hall + tracked period. After `endsAt`:
-/// jump to tomorrow's board when known (Dining Status after-hours parity),
-/// otherwise hall-only so we don't reopen a finished Dinner pill.
+/// use the post-close destination resolved at track time (next meal today, or
+/// tomorrow when after hours). Legacy activities that only stash
+/// `opensTomorrowPeriod` keep the overnight fallback.
 public enum MealActivityDeepLink {
     public static func link(
         hallID: String?,
         period: String,
         endsAt: Date,
-        opensTomorrowPeriod: String?,
+        postClosePeriod: String? = nil,
+        postCloseDate: String? = nil,
+        opensTomorrowPeriod: String? = nil,
         now: Date = Date()
     ) -> AnteatsDeepLink {
         let hall = hallID.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
@@ -21,6 +24,16 @@ public enum MealActivityDeepLink {
             )
         }
 
+        if let pill = postClosePeriod?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !pill.isEmpty {
+            let date = postCloseDate?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty
+            return .eat(hall: hall, period: MealPeriodPill.canonical(pill), date: date)
+        }
+
+        // Legacy ContentState: only tomorrow was stashed.
         guard let tomorrowMeal = opensTomorrowPeriod?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !tomorrowMeal.isEmpty

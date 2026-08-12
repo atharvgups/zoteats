@@ -35,6 +35,8 @@ struct MealCountdownActivity: Widget {
                 hallID: context.attributes.hallID,
                 period: context.attributes.period,
                 endsAt: context.state.endsAt,
+                postClosePeriod: context.state.postClosePeriod,
+                postCloseDate: context.state.postCloseDate,
                 opensTomorrowPeriod: context.state.opensTomorrowPeriod
             )
             // Lock screen banner.
@@ -87,6 +89,8 @@ struct MealCountdownActivity: Widget {
                 hallID: context.attributes.hallID,
                 period: context.attributes.period,
                 endsAt: context.state.endsAt,
+                postClosePeriod: context.state.postClosePeriod,
+                postCloseDate: context.state.postCloseDate,
                 opensTomorrowPeriod: context.state.opensTomorrowPeriod
             )
             let voiceOver = MealCountdownAccessibilityLabel.label(

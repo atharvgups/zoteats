@@ -2,6 +2,64 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
+@Suite("MealActivityPostClose")
+struct MealActivityPostCloseTests {
+    private let day = [
+        MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+    ]
+    private let evening = ISO8601DateFormatter().date(from: "2026-07-10T02:30:00Z")! // Thu 7:30 PM PDT
+
+    @Test func lunchEndLinksSameDayDinner() {
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 870,
+            timedPeriods: day,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(dest.period == "Dinner")
+        #expect(dest.date == nil)
+    }
+
+    @Test func dinnerEndLinksTomorrowBreakfast() {
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 1200,
+            timedPeriods: day,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(dest.period == "Breakfast")
+        #expect(dest.date == "2026-07-10")
+    }
+
+    @Test func brunchEndLinksDinnerSameDay() {
+        let brunchDay = [
+            MealPeriodWindow(name: "Brunch", startMinutes: 600, endMinutes: 840),
+            MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+        ]
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 840,
+            timedPeriods: brunchDay,
+            opensTomorrowPeriod: "Brunch",
+            now: evening
+        )
+        #expect(dest.period == "Dinner")
+        #expect(dest.date == nil)
+    }
+
+    @Test func noNextAndNoTomorrowIsHallOnly() {
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 1200,
+            timedPeriods: day,
+            opensTomorrowPeriod: nil,
+            now: evening
+        )
+        #expect(dest.period == nil)
+        #expect(dest.date == nil)
+    }
+}
+
 @Suite("MealActivityDeepLink")
 struct MealActivityDeepLinkTests {
     /// Thursday 2026-07-09 7:30 PM Pacific — Dinner still live, ends 8 PM.
@@ -14,7 +72,8 @@ struct MealActivityDeepLinkTests {
             hallID: "anteatery",
             period: "Dinner",
             endsAt: eightPM,
-            opensTomorrowPeriod: "Breakfast",
+            postClosePeriod: "Breakfast",
+            postCloseDate: "2026-07-10",
             now: sevenThirty
         )
         #expect(link.hall == "anteatery")
@@ -22,12 +81,27 @@ struct MealActivityDeepLinkTests {
         #expect(link.date == nil)
     }
 
-    @Test func afterCloseJumpsToTomorrowBoard() {
+    @Test func afterCloseUsesSameDayPostClose() {
+        let link = MealActivityDeepLink.link(
+            hallID: "anteatery",
+            period: "Lunch",
+            endsAt: eightPM,
+            postClosePeriod: "Dinner",
+            postCloseDate: nil,
+            opensTomorrowPeriod: "Breakfast",
+            now: eightOhOne
+        )
+        #expect(link.period == "Dinner")
+        #expect(link.date == nil)
+    }
+
+    @Test func afterCloseUsesTomorrowPostClose() {
         let link = MealActivityDeepLink.link(
             hallID: "anteatery",
             period: "Dinner",
             endsAt: eightPM,
-            opensTomorrowPeriod: "Breakfast",
+            postClosePeriod: "Breakfast",
+            postCloseDate: "2026-07-10",
             now: eightOhOne
         )
         #expect(link.hall == "anteatery")
@@ -35,12 +109,23 @@ struct MealActivityDeepLinkTests {
         #expect(link.date == "2026-07-10")
     }
 
-    @Test func afterCloseWithoutTomorrowIsHallOnly() {
+    @Test func legacyOpensTomorrowFallback() {
         let link = MealActivityDeepLink.link(
             hallID: "anteatery",
             period: "Dinner",
             endsAt: eightPM,
-            opensTomorrowPeriod: nil,
+            opensTomorrowPeriod: "Breakfast",
+            now: eightOhOne
+        )
+        #expect(link.period == "Breakfast")
+        #expect(link.date == "2026-07-10")
+    }
+
+    @Test func afterCloseWithoutDestinationIsHallOnly() {
+        let link = MealActivityDeepLink.link(
+            hallID: "anteatery",
+            period: "Dinner",
+            endsAt: eightPM,
             now: eightOhOne
         )
         #expect(link.hall == "anteatery")
@@ -53,22 +138,10 @@ struct MealActivityDeepLinkTests {
             hallID: "brandywine",
             period: "Limited Dinner",
             endsAt: eightPM,
-            opensTomorrowPeriod: "Brunch",
+            postClosePeriod: "Breakfast",
             now: sevenThirty
         )
         #expect(link.period == "Dinner")
-    }
-
-    @Test func brunchTomorrowCanonicalizesAfterClose() {
-        let link = MealActivityDeepLink.link(
-            hallID: "brandywine",
-            period: "Dinner",
-            endsAt: eightPM,
-            opensTomorrowPeriod: "Brunch",
-            now: eightOhOne
-        )
-        #expect(link.period == "Breakfast")
-        #expect(link.date == "2026-07-10")
     }
 }
 
@@ -95,5 +168,14 @@ struct MealCountdownChromeTests {
         let end = ISO8601DateFormatter().date(from: "2026-07-10T03:00:00Z")!
         #expect(!MealCountdownChrome.hasEnded(endsAt: end, now: end.addingTimeInterval(-60)))
         #expect(MealCountdownChrome.hasEnded(endsAt: end, now: end))
+    }
+}
+
+@Suite("MealActivitySync")
+struct MealActivitySyncTests {
+    @Test func endedIsNotLive() {
+        let end = ISO8601DateFormatter().date(from: "2026-07-10T03:00:00Z")!
+        #expect(MealActivitySync.isLive(endsAt: end, now: end.addingTimeInterval(-1)))
+        #expect(!MealActivitySync.isLive(endsAt: end, now: end))
     }
 }

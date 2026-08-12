@@ -524,11 +524,18 @@ struct DiningView: View {
                     if tracking {
                         mealActivity.endAll()
                     } else {
+                        let postClose = MealActivityPostClose.destination(
+                            currentPeriodEndMinutes: end,
+                            timedPeriods: location.periods,
+                            opensTomorrowPeriod: location.opensTomorrowPeriod
+                        )
                         mealActivity.track(
                             hallName: location.name,
                             hallID: location.id,
                             period: menu.period,
                             endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
+                            postClosePeriod: postClose.period,
+                            postCloseDate: postClose.date,
                             opensTomorrowPeriod: location.opensTomorrowPeriod
                         )
                     }
@@ -705,12 +712,19 @@ struct DiningView: View {
         else { return }
         // Use the live API name (Brunch / Limited Dinner) so the Island label
         // and Tracking key match the Track meal button.
+        let postClose = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: window.endMinutes,
+            timedPeriods: location.periods,
+            opensTomorrowPeriod: location.opensTomorrowPeriod
+        )
         mealActivity.autoStartIfNeeded(
             hallName: location.name,
             hallID: location.id,
             period: window.livePeriodName,
             startMinutes: window.startMinutes,
             endMinutes: window.endMinutes,
+            postClosePeriod: postClose.period,
+            postCloseDate: postClose.date,
             opensTomorrowPeriod: location.opensTomorrowPeriod
         )
     }

@@ -34,18 +34,14 @@ final class MealActivityManager {
     /// Reconcile in-memory `trackedKey` with Live Activities that survived
     /// process death or Eat tab unload. Call before reading Tracking UI or
     /// auto-starting — otherwise we recreate / lie about "Track meal".
+    ///
+    /// Ended activities linger so post-close chrome / deep links stay usable;
+    /// they do not own `trackedKey` and are not `.immediate` dismissed here.
     func syncFromSystem(now: Date = Date()) {
-        let activities = Activity<MealActivityAttributes>.activities
-        var valid: [Activity<MealActivityAttributes>] = []
-        for activity in activities {
-            if activity.content.state.endsAt <= now {
-                Task { await activity.end(nil, dismissalPolicy: .immediate) }
-            } else {
-                valid.append(activity)
-            }
-        }
+        let live = Activity<MealActivityAttributes>.activities
+            .filter { MealActivitySync.isLive(endsAt: $0.content.state.endsAt, now: now) }
 
-        guard let best = valid.max(by: { $0.content.state.endsAt < $1.content.state.endsAt }) else {
+        guard let best = live.max(by: { $0.content.state.endsAt < $1.content.state.endsAt }) else {
             trackedKey = nil
             return
         }
@@ -64,6 +60,8 @@ final class MealActivityManager {
         hallID: String,
         period: String,
         endsAt: Date,
+        postClosePeriod: String? = nil,
+        postCloseDate: String? = nil,
         opensTomorrowPeriod: String? = nil,
         haptic: Bool = true
     ) {
@@ -73,12 +71,16 @@ final class MealActivityManager {
         let attributes = MealActivityAttributes(hallName: hallName, period: period, hallID: hallID)
         let state = MealActivityAttributes.ContentState(
             endsAt: endsAt,
+            postClosePeriod: postClosePeriod,
+            postCloseDate: postCloseDate,
             opensTomorrowPeriod: opensTomorrowPeriod
         )
         do {
+            // Keep content fresh a bit past close so "has ended" chrome can render.
+            let stale = endsAt.addingTimeInterval(30 * 60)
             _ = try Activity.request(
                 attributes: attributes,
-                content: ActivityContent(state: state, staleDate: endsAt)
+                content: ActivityContent(state: state, staleDate: stale)
             )
             trackedKey = MealTrackMath.key(hallID: hallID, period: period)
             if haptic { Haptics.soft() }
@@ -95,6 +97,8 @@ final class MealActivityManager {
         period: String,
         startMinutes: Int,
         endMinutes: Int,
+        postClosePeriod: String? = nil,
+        postCloseDate: String? = nil,
         opensTomorrowPeriod: String? = nil,
         nowMinutes: Int = UCITime.nowMinutes(),
         now: Date = Date()
@@ -109,7 +113,7 @@ final class MealActivityManager {
         ) else { return false }
         // Belt-and-suspenders if sync couldn't map hallID but ActivityKit still has one.
         let live = Activity<MealActivityAttributes>.activities
-            .contains { $0.content.state.endsAt > now }
+            .contains { MealActivitySync.isLive(endsAt: $0.content.state.endsAt, now: now) }
         if live { return false }
         let endsAt = MealTrackMath.endsAt(
             endMinutes: endMinutes,
@@ -121,6 +125,8 @@ final class MealActivityManager {
             hallID: hallID,
             period: period,
             endsAt: endsAt,
+            postClosePeriod: postClosePeriod,
+            postCloseDate: postCloseDate,
             opensTomorrowPeriod: opensTomorrowPeriod,
             haptic: false
         )

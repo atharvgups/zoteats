@@ -8,12 +8,22 @@ public struct MealActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         /// When the tracked meal period ends; the UI counts down to it.
         public var endsAt: Date
-        /// Live meal name for tomorrow's first open (Brunch / Breakfast) — used
-        /// after `endsAt` so Island taps jump to tomorrow instead of a dead pill.
+        /// Canonical Eat pill after close (next meal today, or tomorrow's open).
+        public var postClosePeriod: String?
+        /// Tomorrow ISO when `postClosePeriod` is tomorrow's board; nil same-day.
+        public var postCloseDate: String?
+        /// Legacy overnight field — kept for activities started before post-close.
         public var opensTomorrowPeriod: String?
 
-        public init(endsAt: Date, opensTomorrowPeriod: String? = nil) {
+        public init(
+            endsAt: Date,
+            postClosePeriod: String? = nil,
+            postCloseDate: String? = nil,
+            opensTomorrowPeriod: String? = nil
+        ) {
             self.endsAt = endsAt
+            self.postClosePeriod = postClosePeriod
+            self.postCloseDate = postCloseDate
             self.opensTomorrowPeriod = opensTomorrowPeriod
         }
     }
