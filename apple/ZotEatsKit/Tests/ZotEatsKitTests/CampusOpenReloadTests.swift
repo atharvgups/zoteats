@@ -64,7 +64,10 @@ struct CampusOpenReloadTests {
             todayHours: nil,
             opensAtMinutes: 7 * 60,
             closesAtMinutes: nil,
-            opensTomorrowAtMinutes: nil
+            opensTomorrowAtMinutes: nil,
+            upcomingWindows: [
+                CampusHoursWindow(startMinutes: 7 * 60, endMinutes: 16 * 60),
+            ]
         )
         let reload = CampusOpenReload.nextReload(now: now, places: [place], maxInterval: 20 * 60)
         let expectedOpen = UCITime.date(
@@ -73,5 +76,32 @@ struct CampusOpenReloadTests {
             now: now
         )
         #expect(reload == expectedOpen.addingTimeInterval(2))
+    }
+
+    @Test func splitScheduleIncludesLaterReopenBoundary() {
+        // Mon 10 AM PDT — morning still open; afternoon reopen must be in the set.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")!
+        let place = CampusPlace(
+            id: "zot-n-go",
+            name: "Zot n Go",
+            category: "Markets",
+            openNow: true,
+            todayHours: "7:30 AM – 11:00 AM, 4:30 PM – 9:00 PM",
+            opensAtMinutes: 16 * 60 + 30,
+            closesAtMinutes: 11 * 60,
+            upcomingWindows: [
+                CampusHoursWindow(startMinutes: 16 * 60 + 30, endMinutes: 21 * 60),
+            ],
+            tomorrowOpenWindows: [
+                CampusHoursWindow(startMinutes: 7 * 60 + 30, endMinutes: 11 * 60),
+            ]
+        )
+        let boundaries = CampusOpenReload.boundaries(places: [place], now: now)
+        let afternoon = UCITime.date(
+            forMinutes: 16 * 60 + 30,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(boundaries.contains(afternoon))
     }
 }

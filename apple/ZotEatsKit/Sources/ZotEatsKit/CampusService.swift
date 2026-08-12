@@ -175,7 +175,13 @@ public struct CampusService: Sendable {
                 opensAtMinutes: status.opensAtMinutes,
                 closesAtMinutes: status.closesAtMinutes,
                 opensTomorrowAtMinutes: status.opensTomorrowAtMinutes,
-                tomorrowHours: status.tomorrowHours
+                tomorrowHours: status.tomorrowHours,
+                upcomingWindows: Self.followingOpenings(
+                    windows: row.todayWindows,
+                    nowMinutes: nowMinutes
+                ).map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
+                tomorrowOpenWindows: Self.allOpenings(windows: row.tomorrowWindows)
+                    .map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) }
             )
         }
     }
@@ -314,7 +320,21 @@ public struct CampusService: Sendable {
     /// Earliest window start still ahead of `nowMinutes` — including the next
     /// reopen while the venue is already open (split lunch/dinner schedules).
     static func nextOpeningMinutes(windows: [TimeWindow], nowMinutes: Int) -> Int? {
-        windows.map(\.start).filter { $0 > nowMinutes }.min()
+        followingOpenings(windows: windows, nowMinutes: nowMinutes).first?.start
+    }
+
+    /// Every open window still ahead today (morning + afternoon reopens), sorted
+    /// by start — Opening Alerts / widget boundaries pre-arm the full chain.
+    static func followingOpenings(windows: [TimeWindow], nowMinutes: Int) -> [TimeWindow] {
+        allOpenings(windows: windows).filter { $0.start > nowMinutes }
+    }
+
+    /// Every timed open window on a day, sorted by start (skips all-day spans —
+    /// those have no useful open ping).
+    static func allOpenings(windows: [TimeWindow]) -> [TimeWindow] {
+        windows
+            .filter { !$0.isAllDay }
+            .sorted { $0.start < $1.start }
     }
 
     private static let dayAbbreviations = ["Sunday": "Su", "Monday": "Mo", "Tuesday": "Tu", "Wednesday": "We", "Thursday": "Th", "Friday": "Fr", "Saturday": "Sa"]

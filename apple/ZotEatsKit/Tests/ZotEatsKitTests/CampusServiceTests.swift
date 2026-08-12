@@ -53,6 +53,20 @@ struct CampusServiceTests {
         #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 22 * 60) == nil)
     }
 
+    @Test func followingOpeningsReturnsEveryRemainingWindow() {
+        let windows = [
+            CampusService.TimeWindow(start: 16 * 60 + 30, end: 21 * 60),
+            CampusService.TimeWindow(start: 7 * 60 + 30, end: 11 * 60),
+            CampusService.TimeWindow(start: 0, end: 0), // all-day — skipped
+        ]
+        let morning = CampusService.followingOpenings(windows: windows, nowMinutes: 6 * 60)
+        #expect(morning.map(\.start) == [7 * 60 + 30, 16 * 60 + 30])
+        let duringMorning = CampusService.followingOpenings(windows: windows, nowMinutes: 10 * 60)
+        #expect(duringMorning.map(\.start) == [16 * 60 + 30])
+        #expect(CampusService.followingOpenings(windows: windows, nowMinutes: 22 * 60).isEmpty)
+        #expect(CampusService.allOpenings(windows: windows).map(\.start) == [7 * 60 + 30, 16 * 60 + 30])
+    }
+
     @Test func weekendOffMeansClosedWithNoHours() async throws {
         let service = CampusService(http: FixtureHTTP(), now: { sundayMorning })
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }

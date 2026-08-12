@@ -28,11 +28,14 @@ public enum OpeningAlertPlanner {
         public let dayOffset: Int
         /// Live dining meal name when known (Brunch, Dinner, …); campus omits.
         public let mealPeriod: String?
-        /// Dining meal close (minutes since midnight); campus omits.
+        /// Dining meal close (minutes since midnight); campus per-window close.
         public let closesAtMinutes: Int?
         /// Campus continuous hours for that fire day ("7:30 AM – 4:00 PM").
         /// Carried per candidate so today + tomorrow don't clobber one map slot.
         public let hoursSpan: String?
+        /// Campus open-window start — disambiguates same-day split schedules in
+        /// notification ids (`open:campus:…:450`). Dining omits (uses meal pill).
+        public let windowStartMinutes: Int?
 
         public init(
             id: String,
@@ -41,7 +44,8 @@ public enum OpeningAlertPlanner {
             dayOffset: Int = 0,
             mealPeriod: String? = nil,
             closesAtMinutes: Int? = nil,
-            hoursSpan: String? = nil
+            hoursSpan: String? = nil,
+            windowStartMinutes: Int? = nil
         ) {
             self.id = id
             self.name = name
@@ -50,13 +54,21 @@ public enum OpeningAlertPlanner {
             self.mealPeriod = mealPeriod
             self.closesAtMinutes = closesAtMinutes
             self.hoursSpan = hoursSpan
+            // Campus defaults the window key to the open minute; dining omits
+            // (meal pill already disambiguates).
+            if let windowStartMinutes {
+                self.windowStartMinutes = windowStartMinutes
+            } else if mealPeriod == nil {
+                self.windowStartMinutes = opensAtMinutes
+            } else {
+                self.windowStartMinutes = nil
+            }
         }
     }
 
     public struct PlannedAlert: Sendable, Equatable {
-        /// Campus: `open:<placeID>:<dateISO>`.
-        /// Dining: `open:<placeID>:<dateISO>:<canonicalPill>` so Breakfast /
-        /// Lunch / Dinner can all stay pending the same day.
+        /// Campus: `open:<placeID>:<dateISO>:<startMinutes>` so split windows
+        /// don't overwrite each other. Dining: `…:<canonicalPill>`.
         public let identifier: String
         public let placeID: String
         public let placeName: String
@@ -65,9 +77,9 @@ public enum OpeningAlertPlanner {
         public let mealPeriod: String?
         /// Tomorrow ISO when the alert fires on a future day; omit for today.
         public let deepLinkDate: String?
-        /// Dining meal close for "Open until …" body copy.
+        /// Dining / campus window close for "Open until …" body copy.
         public let closesAtMinutes: Int?
-        /// Campus continuous hours for the fire day.
+        /// Campus continuous hours for the fire day (fallback when no close).
         public let hoursSpan: String?
 
         public init(
@@ -91,18 +103,22 @@ public enum OpeningAlertPlanner {
         }
     }
 
-    /// Stable notification id — dining includes the canonical meal pill so
-    /// multiple same-day openings don't overwrite each other.
+    /// Stable notification id — dining includes the canonical meal pill; campus
+    /// includes the window start so morning + afternoon reopens both stay pending.
     public static func alertIdentifier(
         placeID: String,
         dateISO: String,
-        mealPeriod: String?
+        mealPeriod: String?,
+        windowStartMinutes: Int? = nil
     ) -> String {
         let meal = mealPeriod?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if meal.isEmpty {
-            return "open:\(placeID):\(dateISO)"
+        if !meal.isEmpty {
+            return "open:\(placeID):\(dateISO):\(MealPeriodPill.canonical(meal))"
         }
-        return "open:\(placeID):\(dateISO):\(MealPeriodPill.canonical(meal))"
+        if let start = windowStartMinutes {
+            return "open:\(placeID):\(dateISO):\(start)"
+        }
+        return "open:\(placeID):\(dateISO)"
     }
 
     /// Alerts for every watched place that opens later today **or** tomorrow
@@ -134,11 +150,13 @@ public enum OpeningAlertPlanner {
             let dateISO = PacificTime.todayISO(now: fireDate)
             // Keep live meal names (Brunch / Limited Dinner) for notification
             // titles; OpeningAlerts canonicalizes only the Eat deep-link pill.
+            let windowStart = candidate.mealPeriod == nil ? candidate.windowStartMinutes : nil
             return PlannedAlert(
                 identifier: alertIdentifier(
                     placeID: candidate.id,
                     dateISO: dateISO,
-                    mealPeriod: candidate.mealPeriod
+                    mealPeriod: candidate.mealPeriod,
+                    windowStartMinutes: windowStart
                 ),
                 placeID: candidate.id,
                 placeName: candidate.name,

@@ -38,7 +38,7 @@ struct OpeningAlertPlannerTests {
         let plans = OpeningAlertPlanner.plan(
             candidates: candidates, watchedIDs: ["campus:starbucks"], now: sevenAM
         )
-        #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16")
+        #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16:480")
     }
 
     @Test func fireDateLandsOnTheOpeningMinuteInIrvine() {
@@ -205,7 +205,7 @@ struct OpeningAlertPlannerTests {
             now: twoPM
         )
         let plan = try! #require(plans.first)
-        #expect(plan.identifier == "open:campus:starbucks:2026-07-17")
+        #expect(plan.identifier == "open:campus:starbucks:2026-07-17:450")
         #expect(PacificTime.nowMinutes(now: plan.fireDate) == 7 * 60 + 30)
     }
 
@@ -219,7 +219,7 @@ struct OpeningAlertPlannerTests {
             now: sevenAM
         )
         // OpeningAlerts pre-arms today + tomorrow; planner emits both, today first.
-        #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16")
+        #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16:480")
         #expect(plans.count == 2)
         #expect(plans[0].fireDate < plans[1].fireDate)
     }
@@ -246,13 +246,52 @@ struct OpeningAlertPlannerTests {
             now: sevenAM
         )
         #expect(plans.map(\.identifier) == [
-            "open:campus:starbucks:2026-07-16",
-            "open:campus:starbucks:2026-07-17",
+            "open:campus:starbucks:2026-07-16:480",
+            "open:campus:starbucks:2026-07-17:540",
         ])
         #expect(plans[0].hoursSpan == "8:00 AM – 11:00 PM")
         #expect(plans[1].hoursSpan == "9:00 AM – 10:00 PM")
         #expect(PacificTime.nowMinutes(now: plans[0].fireDate) == 8 * 60)
         #expect(PacificTime.nowMinutes(now: plans[1].fireDate) == 9 * 60)
+    }
+
+    @Test func campusSplitWindowsGetDistinctIdsAndCloses() {
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "campus:zot-n-go",
+                    name: "Zot n Go",
+                    opensAtMinutes: 7 * 60 + 30,
+                    dayOffset: 0,
+                    closesAtMinutes: 11 * 60,
+                    windowStartMinutes: 7 * 60 + 30
+                ),
+                .init(
+                    id: "campus:zot-n-go",
+                    name: "Zot n Go",
+                    opensAtMinutes: 16 * 60 + 30,
+                    dayOffset: 0,
+                    closesAtMinutes: 21 * 60,
+                    windowStartMinutes: 16 * 60 + 30
+                ),
+                .init(
+                    id: "campus:zot-n-go",
+                    name: "Zot n Go",
+                    opensAtMinutes: 7 * 60 + 30,
+                    dayOffset: 1,
+                    closesAtMinutes: 11 * 60,
+                    windowStartMinutes: 7 * 60 + 30
+                ),
+            ],
+            watchedIDs: ["campus:zot-n-go"],
+            now: sevenAM
+        )
+        #expect(plans.map(\.identifier) == [
+            "open:campus:zot-n-go:2026-07-16:450",
+            "open:campus:zot-n-go:2026-07-16:990",
+            "open:campus:zot-n-go:2026-07-17:450",
+        ])
+        #expect(plans.map(\.closesAtMinutes) == [11 * 60, 21 * 60, 11 * 60])
     }
 
     @Test func earliestOpeningPicksBreakfast() {

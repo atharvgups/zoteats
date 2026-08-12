@@ -7,8 +7,9 @@ import ZotEatsKit
 // today's opening times whenever fresh hours arrive (foreground + background
 // refresh). Dining pre-arms every remaining meal today (Breakfast + Lunch +
 // Dinner) plus tomorrow's full meal chain so a missed BG overnight can't drop
-// Lunch; campus pre-arms today's next open and tomorrow morning the same way.
-// No servers — iOS fires them even if the app stays closed.
+// Lunch; campus pre-arms every remaining today window (split schedules) plus
+// tomorrow's full window chain — dining parity. No servers — iOS fires them
+// even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -88,26 +89,30 @@ enum OpeningAlerts {
 
         for place in (try? await CampusService().places()) ?? [] {
             let id = "campus:\(place.id)"
-            // Pre-arm today's next open (or same-day reopen) and tomorrow —
-            // dining parity so a missed BG after open can't drop the morning ping.
-            if let todayOpen = place.opensAtMinutes {
+            // Pre-arm every remaining today window (morning + afternoon reopen)
+            // and tomorrow's full chain — dining multi-meal parity so a missed
+            // BG after the morning open can't drop the afternoon ping.
+            for window in place.upcomingWindows {
                 candidates.append(.init(
                     id: id,
                     name: place.name,
-                    opensAtMinutes: todayOpen,
+                    opensAtMinutes: window.startMinutes,
                     dayOffset: 0,
-                    hoursSpan: place.todayHours
+                    closesAtMinutes: window.endMinutes,
+                    windowStartMinutes: window.startMinutes
                 ))
             }
-            if let tomorrowOpen = place.opensTomorrowAtMinutes {
+            for window in place.tomorrowOpenWindows {
                 candidates.append(.init(
                     id: id,
                     name: place.name,
-                    opensAtMinutes: tomorrowOpen,
+                    opensAtMinutes: window.startMinutes,
                     dayOffset: 1,
-                    hoursSpan: place.tomorrowHours
+                    closesAtMinutes: window.endMinutes,
+                    windowStartMinutes: window.startMinutes
                 ))
-            } else if place.opensAtMinutes == nil {
+            }
+            if place.upcomingWindows.isEmpty, place.tomorrowOpenWindows.isEmpty {
                 candidates.append(.init(
                     id: id,
                     name: place.name,
@@ -125,11 +130,12 @@ enum OpeningAlerts {
             } else {
                 content.title = "\(alert.placeName) just opened"
             }
-            if alert.placeID.hasPrefix("dining:") {
-                content.body = OpeningAlertCopy.body(openUntilMinutes: alert.closesAtMinutes)
-            } else {
-                content.body = OpeningAlertCopy.body(hoursSpan: alert.hoursSpan)
-            }
+            // Dining meal close and campus per-window close both prefer
+            // "Open until …"; hoursSpan is the continuous-day fallback.
+            content.body = OpeningAlertCopy.body(
+                openUntilMinutes: alert.closesAtMinutes,
+                hoursSpan: alert.hoursSpan
+            )
             content.sound = .default
             let link: AnteatsDeepLink = {
                 if alert.placeID.hasPrefix("campus:") {

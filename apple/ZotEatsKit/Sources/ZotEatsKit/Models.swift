@@ -318,6 +318,17 @@ public struct DiningMenu: Codable, Sendable, Equatable {
     }
 }
 
+/// Timed campus hours window (Irvine minutes since midnight).
+public struct CampusHoursWindow: Codable, Sendable, Equatable {
+    public let startMinutes: Int
+    public let endMinutes: Int
+
+    public init(startMinutes: Int, endMinutes: Int) {
+        self.startMinutes = startMinutes
+        self.endMinutes = endMinutes
+    }
+}
+
 /// A campus retail dining spot (Starbucks, Panda Express, Zot N Go, ...).
 public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     /// Stable url key from the dining hub, e.g. "starbucks-at-student-center".
@@ -343,6 +354,11 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     /// Human-readable window(s) for tomorrow — Opening Alerts overnight body
     /// ("Open 7:30 AM – 4:00 PM") when today's span would be wrong or empty.
     public let tomorrowHours: String?
+    /// Every remaining today open window still ahead (split schedules) — Opening
+    /// Alerts pre-arms each so afternoon reopens don't wait on a BG refresh.
+    public let upcomingWindows: [CampusHoursWindow]
+    /// Tomorrow's full open-window chain for overnight Opening Alerts.
+    public let tomorrowOpenWindows: [CampusHoursWindow]
 
     public init(
         id: String,
@@ -354,7 +370,9 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         opensAtMinutes: Int? = nil,
         closesAtMinutes: Int? = nil,
         opensTomorrowAtMinutes: Int? = nil,
-        tomorrowHours: String? = nil
+        tomorrowHours: String? = nil,
+        upcomingWindows: [CampusHoursWindow] = [],
+        tomorrowOpenWindows: [CampusHoursWindow] = []
     ) {
         self.id = id
         self.name = name
@@ -366,6 +384,8 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.closesAtMinutes = closesAtMinutes
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
         self.tomorrowHours = tomorrowHours
+        self.upcomingWindows = upcomingWindows
+        self.tomorrowOpenWindows = tomorrowOpenWindows
     }
 
     /// Brand prefix for grouping multi-location chains:

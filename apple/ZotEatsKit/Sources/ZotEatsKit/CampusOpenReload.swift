@@ -13,10 +13,19 @@ public enum CampusOpenReload {
             if let minutes = place.closesAtMinutes {
                 dates.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
             }
-            if let minutes = place.opensAtMinutes {
+            // Every remaining today window (not only the soonest) so split
+            // morning/afternoon schedules don't wait on a chained reload.
+            for window in place.upcomingWindows {
+                dates.append(UCITime.date(forMinutes: window.startMinutes, nowMinutes: nowMinutes, now: now))
+                dates.append(UCITime.date(forMinutes: window.endMinutes, nowMinutes: nowMinutes, now: now))
+            }
+            if place.upcomingWindows.isEmpty, let minutes = place.opensAtMinutes {
                 dates.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
             }
-            if let minutes = place.opensTomorrowAtMinutes {
+            for window in place.tomorrowOpenWindows {
+                dates.append(UCITime.date(forMinutes: window.startMinutes, nowMinutes: nowMinutes, now: now))
+            }
+            if place.tomorrowOpenWindows.isEmpty, let minutes = place.opensTomorrowAtMinutes {
                 dates.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
             }
         }
