@@ -59,4 +59,29 @@ struct DiningStatusDeepLinkTests {
         #expect(dest.date == tomorrow)
         #expect(dest.date != nil)
     }
+
+    @Test func afterHoursTomorrowCanonicalIgnoresTodaysWeekendPills() {
+        // Saturday Brunch+Dinner overnight; tomorrow opens with Lunch.
+        let dest = DiningStatusDeepLink.destination(
+            for: .closedForToday,
+            availablePeriods: ["Brunch", "Dinner"],
+            opensTomorrowAtMinutes: 11 * 60,
+            opensTomorrowPeriod: "Lunch",
+            now: evening
+        )
+        #expect(dest.period == "Lunch")
+        #expect(dest.date != nil)
+    }
+
+    @Test func afterHoursTomorrowBrunchMapsToBreakfastPill() {
+        let dest = DiningStatusDeepLink.destination(
+            for: .closedForToday,
+            availablePeriods: ["Breakfast", "Lunch", "Dinner"],
+            opensTomorrowAtMinutes: 10 * 60,
+            opensTomorrowPeriod: "Brunch",
+            now: evening
+        )
+        #expect(dest.period == "Breakfast")
+        #expect(dest.date != nil)
+    }
 }

@@ -53,4 +53,15 @@ struct DiningMenuIdleActionTests {
             ) == .emptyNoMenu
         )
     }
+
+    @Test func browseDayPeriodsPendingKeepsSkeleton() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: nil,
+                selectedPeriod: nil,
+                browseDayPeriodsPending: true
+            ) == .loading
+        )
+    }
 }

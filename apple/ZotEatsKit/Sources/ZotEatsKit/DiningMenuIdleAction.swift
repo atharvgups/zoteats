@@ -10,9 +10,12 @@ public enum DiningMenuIdleAction: Equatable, Sendable {
     public static func resolve(
         locationsLoaded: Bool,
         availablePeriods: [String]?,
-        selectedPeriod: String?
+        selectedPeriod: String?,
+        browseDayPeriodsPending: Bool = false
     ) -> DiningMenuIdleAction {
         guard locationsLoaded else { return .loading }
+        // Future-day board still fetching that day's periods — keep skeletons.
+        if browseDayPeriodsPending { return .loading }
         let periods = availablePeriods ?? []
         let primary = DiningService.primaryPeriods(from: periods)
         if periods.isEmpty || primary.isEmpty || selectedPeriod == nil {

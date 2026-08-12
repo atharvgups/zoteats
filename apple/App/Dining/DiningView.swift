@@ -37,6 +37,28 @@ struct DiningView: View {
         return visible.isEmpty ? Array(candidates.prefix(1)) : visible
     }
 
+    /// Timed windows for the board in view — tomorrow's schedule when browsing ahead.
+    private var boardTimedPeriods: [MealPeriodWindow]? {
+        guard let date = selectedDate else { return selectedLocation?.periods }
+        return store.dayPeriodsState(hall: selectedHall, dateISO: date).value
+    }
+
+    /// Period names for pills / snap on the board in view.
+    private var boardAvailablePeriods: [String]? {
+        guard selectedDate != nil else { return selectedLocation?.availablePeriods }
+        return boardTimedPeriods?.map(\.name)
+    }
+
+    /// True while a future DayStrip day hasn't finished loading its periods.
+    private var browseDayPeriodsPending: Bool {
+        guard let date = selectedDate else { return false }
+        return store.dayPeriodsState(hall: selectedHall, dateISO: date).value == nil
+    }
+
+    private var browsePeriodsTaskID: String {
+        "\(selectedHall)|\(selectedDate ?? "today")"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -72,6 +94,12 @@ struct DiningView: View {
                 considerAutoMealActivity()
                 applyScreenshotLaunchArgsIfNeeded()
                 openPendingDishIfPossible()
+            }
+            .task(id: browsePeriodsTaskID) {
+                guard let date = selectedDate else { return }
+                await store.loadDayPeriods(hall: selectedHall, dateISO: date)
+                syncPeriodSelection()
+                applyPendingDeepLinkIfNeeded()
             }
             .onChange(of: store.locations.value) {
                 syncPeriodSelection()
@@ -204,8 +232,8 @@ struct DiningView: View {
             }
         case .loaded:
             // Breakfast / Lunch / Dinner only — Brunch and All Day aren't useful pills.
-            if let location = selectedLocation {
-                let pills = DiningService.primaryPeriods(from: location.availablePeriods)
+            if let available = boardAvailablePeriods {
+                let pills = DiningService.primaryPeriods(from: available)
                 if !pills.isEmpty {
                     PillRow(
                         items: pills,
@@ -329,8 +357,9 @@ struct DiningView: View {
         case .idle, .loading:
             switch DiningMenuIdleAction.resolve(
                 locationsLoaded: store.locations.value != nil,
-                availablePeriods: selectedLocation?.availablePeriods,
-                selectedPeriod: selectedPeriod
+                availablePeriods: boardAvailablePeriods,
+                selectedPeriod: selectedPeriod,
+                browseDayPeriodsPending: browseDayPeriodsPending
             ) {
             case .emptyNoMenu:
                 let afterHours = selectedDate == nil
@@ -679,15 +708,28 @@ struct DiningView: View {
             // Hall, period, or date taps re-resolve the pill. Bare `anteats://eat`
             // leaves selection alone. Date-only Menu Drop links need a future-day
             // Breakfast snap when today is after hours (pill was cleared).
-            if link.period != nil || link.hall != nil || link.date != nil,
-               let location = selectedLocation {
-                selectedPeriod = EatDeepLinkPeriod.resolve(
-                    requested: link.period,
-                    availablePeriods: location.availablePeriods,
-                    timedPeriods: location.periods,
-                    nowMinutes: UCITime.nowMinutes(),
-                    browsingFutureDay: selectedDate != nil
-                )
+            if link.period != nil || link.hall != nil || link.date != nil {
+                // Future-day links wait for that day's periods so weekend Brunch
+                // pills don't block weekday Lunch / Breakfast snaps.
+                if let date = selectedDate {
+                    guard let windows = store.dayPeriodsState(hall: selectedHall, dateISO: date).value
+                    else { return }
+                    selectedPeriod = EatDeepLinkPeriod.resolve(
+                        requested: link.period,
+                        availablePeriods: windows.map(\.name),
+                        timedPeriods: windows,
+                        nowMinutes: UCITime.nowMinutes(),
+                        browsingFutureDay: true
+                    )
+                } else if let location = selectedLocation {
+                    selectedPeriod = EatDeepLinkPeriod.resolve(
+                        requested: link.period,
+                        availablePeriods: location.availablePeriods,
+                        timedPeriods: location.periods,
+                        nowMinutes: UCITime.nowMinutes(),
+                        browsingFutureDay: false
+                    )
+                }
             }
             if let dish = link.dish {
                 pendingDishName = dish
@@ -740,11 +782,13 @@ struct DiningView: View {
     /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
     /// matching Today's Menu after-hours truth (no stale Dinner overnight).
     private func syncPeriodSelection() {
-        guard let location = selectedLocation else { return }
+        guard let available = boardAvailablePeriods,
+              let timed = boardTimedPeriods
+        else { return }
         selectedPeriod = EatPeriodSelection.snap(
             current: selectedPeriod,
-            availablePeriods: location.availablePeriods,
-            timedPeriods: location.periods,
+            availablePeriods: available,
+            timedPeriods: timed,
             nowMinutes: UCITime.nowMinutes(),
             browsingFutureDay: selectedDate != nil
         )

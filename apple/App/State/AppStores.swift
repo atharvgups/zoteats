@@ -33,6 +33,9 @@ final class DiningStore {
     private(set) var publishedDateRange: DiningService.PublishedDateRange?
     /// Keyed by "\(hallID)|\(period)|\(date ?? "today")".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
+    /// Future-day meal windows keyed by "\(hallID)|\(dateISO)" — Eat pills/snap
+    /// must not reuse today's Brunch schedule when browsing tomorrow.
+    private(set) var dayPeriods: [String: LoadState<[MealPeriodWindow]>] = [:]
     /// Irvine day `locations` were last loaded for — drives overnight rollover.
     private(set) var locationsDateISO: String?
     /// Bumps when live `"today"` menus are purged so Eat's `.task(id:)` refetches.
@@ -49,9 +52,20 @@ final class DiningStore {
             return false
         }
         menus = menus.filter { !DiningDayMath.isLiveTodayMenuKey($0.key) }
+        dayPeriods = [:]
         locationsDateISO = nil
         dayEpoch += 1
         return true
+    }
+
+    func dayPeriodsState(hall: String, dateISO: String) -> LoadState<[MealPeriodWindow]> {
+        dayPeriods["\(hall)|\(dateISO)"] ?? .idle
+    }
+
+    func loadDayPeriods(hall: String, dateISO: String) async {
+        let key = "\(hall)|\(dateISO)"
+        if dayPeriods[key]?.value == nil { dayPeriods[key] = .loading }
+        dayPeriods[key] = .loaded(await service.mealPeriods(for: hall, dateISO: dateISO))
     }
 
     func loadLocations() async {

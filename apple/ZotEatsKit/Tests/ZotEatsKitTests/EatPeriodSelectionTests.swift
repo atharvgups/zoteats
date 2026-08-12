@@ -77,6 +77,48 @@ struct EatPeriodSelectionTests {
         #expect(snapped == "Breakfast")
     }
 
+    @Test func futureDayUsesThatDaysPillsNotTodaysBrunch() {
+        // Weekend overnight → weekday Lunch board (today would have been Brunch/Dinner).
+        let weekday = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+            MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+        ]
+        let snapped = EatPeriodSelection.snap(
+            current: "Breakfast",
+            availablePeriods: weekday.map(\.name),
+            timedPeriods: weekday,
+            nowMinutes: 1300,
+            browsingFutureDay: true
+        )
+        #expect(snapped == "Breakfast")
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Dinner",
+                availablePeriods: ["Brunch", "Dinner"],
+                timedPeriods: [
+                    MealPeriodWindow(name: "Brunch", startMinutes: 600, endMinutes: 840),
+                    MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+                ],
+                nowMinutes: 1300,
+                browsingFutureDay: true
+            ) == "Dinner"
+        )
+        // Lunch appears once browse-day periods are the weekday board.
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Breakfast",
+                availablePeriods: weekday.map(\.name),
+                timedPeriods: weekday,
+                nowMinutes: 1300,
+                browsingFutureDay: true
+            ) == "Breakfast"
+        )
+        #expect(
+            DiningService.primaryPeriods(from: weekday.map(\.name)).contains("Lunch")
+        )
+    }
+
     @Test func stickyUpcomingPillSurvivesIntoEarlierMealWithoutDeeplink() {
         // Upcoming Dinner sticks through Lunch when the user only changes hall —
         // Dining Status should still send period= for an intentional meal jump.

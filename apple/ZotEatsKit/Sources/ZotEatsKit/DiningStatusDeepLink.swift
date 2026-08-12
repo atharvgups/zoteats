@@ -31,13 +31,9 @@ public enum DiningStatusDeepLink {
             guard opensTomorrowAtMinutes != nil else {
                 return Destination(period: nil)
             }
-            let pills = DiningService.primaryPeriods(from: availablePeriods)
-            let period: String?
-            if let meal = opensTomorrowPeriod {
-                period = MealPeriodPill.match(meal, in: pills) ?? meal
-            } else {
-                period = nil
-            }
+            // Tomorrow's meal is independent of today's pills (weekend Brunch
+            // must not gate weekday Breakfast / Lunch deep links).
+            let period = opensTomorrowPeriod.map { MealPeriodPill.canonical($0) }
             let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
             return Destination(period: period, date: tomorrow)
         case .unknown:
