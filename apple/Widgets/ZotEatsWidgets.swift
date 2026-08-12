@@ -1060,7 +1060,7 @@ struct CampusOpenView: View {
         .accessibilityLabel(
             CampusOpenAccessibilityLabel.label(
                 totalOpen: entry.totalOpen,
-                openPlaceNames: entry.openPlaces.map(\.name),
+                openPlaceNames: entry.openPlaces.map { $0.name },
                 nextOpenLine: entry.nextOpen?.line
             )
         )
@@ -1189,7 +1189,7 @@ struct ArcStatusView: View {
                             .monospacedDigit()
                     }
                     .gaugeStyle(.accessoryCircular)
-                    .accessibilityLabel(crowdingAccessibility(percent: percent))
+                    .accessibilityLabel(arcAccessibilityLabel)
                 } else {
                     VStack(spacing: 2) {
                         Image(systemName: "dumbbell.fill")
@@ -1197,7 +1197,7 @@ struct ArcStatusView: View {
                         Text(entry.isOpen ? "Open" : "Closed")
                             .font(.system(size: 10, weight: .bold))
                     }
-                    .accessibilityLabel(entry.isOpen ? "ARC open" : "ARC closed")
+                    .accessibilityLabel(arcAccessibilityLabel)
                 }
             case .accessoryRectangular:
                 HStack(spacing: 8) {
@@ -1213,10 +1213,7 @@ struct ArcStatusView: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .accessibilityLabel(
-                    entry.percent.map { crowdingAccessibility(percent: $0) + ", \(entry.hoursLine)" }
-                        ?? "ARC, \(entry.hoursLine)"
-                )
+                .accessibilityLabel(arcAccessibilityLabel)
             default:
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 4) {
@@ -1251,10 +1248,7 @@ struct ArcStatusView: View {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                 }
-                .accessibilityLabel(
-                    "ARC, \(entry.hoursLine)"
-                        + (entry.percent.map { ", \($0) percent full\(entry.isTypical ? ", typical estimate" : "")" } ?? "")
-                )
+                .accessibilityLabel(arcAccessibilityLabel)
             }
         }
         .containerBackground(for: .widget) {
@@ -1273,8 +1267,13 @@ struct ArcStatusView: View {
         return "\(percent)% · \(source) · \(entry.hoursLine)"
     }
 
-    private func crowdingAccessibility(percent: Int) -> String {
-        "ARC \(percent) percent full\(entry.isTypical ? ", typical estimate" : "")"
+    private var arcAccessibilityLabel: String {
+        ArcWidgetAccessibilityLabel.label(
+            isOpen: entry.isOpen,
+            hoursLine: entry.hoursLine,
+            percent: entry.percent,
+            isTypical: entry.isTypical
+        )
     }
 }
 
