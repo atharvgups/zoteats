@@ -34,7 +34,7 @@ public enum MealCountdownChrome {
     /// (next meal / tomorrow / last posted while awaiting). Never say
     /// "see what's next" when tap reopens the same meal or has nowhere to go.
     /// Beyond-tomorrow opens (Fri→Mon) name the weekday like Status
-    /// (`"Breakfast Monday"`), not a misleading `"Breakfast next"`.
+    /// (`"Brunch Monday"` / `"Breakfast Monday"`), not a misleading `"… next"`.
     public static func islandBottom(
         period: String,
         hasEnded: Bool,
@@ -76,6 +76,8 @@ public enum MealCountdownChrome {
 
         let nextPill = MealPeriodPill.canonical(nextRaw)
         let trackedPill = trackedMeal.isEmpty ? "" : MealPeriodPill.canonical(trackedMeal)
+        // Status / Eat chrome keep live API names (Brunch, Limited Dinner).
+        let nextLabel = MealPeriodDisplay.label(live: nextRaw, pill: nextPill)
 
         // Partial board: post-close keeps last posted meal (1.0.185) — Status parity.
         if !trackedPill.isEmpty,
@@ -88,14 +90,14 @@ public enum MealCountdownChrome {
         if !nextDate.isEmpty {
             let tomorrowISO = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
             if let tomorrowISO, nextDate == tomorrowISO {
-                return "\(endedPrefix) — \(nextPill) next"
+                return "\(endedPrefix) — \(nextLabel) next"
             }
             if let weekday = weekdayName(isoDate: nextDate) {
-                return "\(endedPrefix) — \(nextPill) \(weekday)"
+                return "\(endedPrefix) — \(nextLabel) \(weekday)"
             }
-            return "\(endedPrefix) — \(nextPill) next"
+            return "\(endedPrefix) — \(nextLabel) next"
         }
-        return "\(endedPrefix) — \(nextPill) is next"
+        return "\(endedPrefix) — \(nextLabel) is next"
     }
 
     /// Irvine weekday for a YYYY-MM-DD board date (Status `"Breakfast Monday"`).

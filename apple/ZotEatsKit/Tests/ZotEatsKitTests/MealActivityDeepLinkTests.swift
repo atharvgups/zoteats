@@ -48,6 +48,68 @@ struct MealActivityPostCloseTests {
         #expect(dest.date == nil)
     }
 
+    @Test("Post-close keeps live Brunch for tomorrow — Status parity")
+    func dinnerEndLinksTomorrowBrunchKeepsLiveName() {
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 1200,
+            timedPeriods: day,
+            opensTomorrowPeriod: "Brunch",
+            now: evening
+        )
+        #expect(dest.period == "Brunch")
+        #expect(dest.date == "2026-07-10")
+        let chrome = MealCountdownChrome.islandBottom(
+            period: "Dinner",
+            hasEnded: true,
+            postClosePeriod: dest.period,
+            postCloseDate: dest.date,
+            now: evening
+        )
+        #expect(chrome == "Dinner has ended — Brunch next")
+        // Eat deep link still uses the Breakfast pill.
+        let link = MealActivityDeepLink.link(
+            hallID: "anteatery",
+            period: "Dinner",
+            endsAt: evening,
+            postClosePeriod: dest.period,
+            postCloseDate: dest.date,
+            now: evening.addingTimeInterval(60)
+        )
+        #expect(link.period == "Breakfast")
+        #expect(link.date == "2026-07-10")
+    }
+
+    @Test("Post-close keeps Limited Dinner for same-day next")
+    func lunchEndLinksLimitedDinnerKeepsLiveName() {
+        let limited = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+            MealPeriodWindow(name: "Limited Dinner", startMinutes: 1020, endMinutes: 1140),
+        ]
+        let dest = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: 870,
+            timedPeriods: limited,
+            opensTomorrowPeriod: "Breakfast",
+            now: evening
+        )
+        #expect(dest.period == "Limited Dinner")
+        #expect(
+            MealCountdownChrome.lockStatus(
+                period: "Lunch",
+                hasEnded: true,
+                postClosePeriod: dest.period
+            ) == "Lunch has ended — Limited Dinner is next"
+        )
+        let link = MealActivityDeepLink.link(
+            hallID: "brandywine",
+            period: "Lunch",
+            endsAt: evening,
+            postClosePeriod: dest.period,
+            now: evening.addingTimeInterval(60)
+        )
+        #expect(link.period == "Dinner")
+    }
+
     @Test func noNextAndNoTomorrowIsHallOnly() {
         let dest = MealActivityPostClose.destination(
             currentPeriodEndMinutes: 1200,
@@ -405,6 +467,20 @@ struct MealCountdownChromeTests {
         )
         #expect(island == "Dinner has ended — Breakfast Monday")
         #expect(lock == island)
+    }
+
+    @Test("Fri→Mon linger keeps live Brunch like Status")
+    func islandBottomBeyondTomorrowKeepsBrunch() {
+        let fridayNight = ISO8601DateFormatter().date(from: "2026-07-11T05:00:00Z")!
+        #expect(
+            MealCountdownChrome.islandBottom(
+                period: "Dinner",
+                hasEnded: true,
+                postClosePeriod: "Brunch",
+                postCloseDate: "2026-07-13",
+                now: fridayNight
+            ) == "Dinner has ended — Brunch Monday"
+        )
     }
 
     @Test func islandBottomHallOnlyDropsSeeWhatsNext() {

@@ -33,7 +33,9 @@ public enum MealActivityPostClose {
                 return (window.name, start)
             })
             .min(by: { $0.start < $1.start }) {
-            return Destination(period: MealPeriodPill.canonical(next.name))
+            // Keep live API names (Brunch / Limited Dinner) for Lock/Island —
+            // Eat deep links still canonicalize in MealActivityDeepLink.
+            return Destination(period: next.name)
         }
 
         // Breakfast-only (or Lunch without Dinner) boards often still publish
@@ -51,7 +53,7 @@ public enum MealActivityPostClose {
                 .filter({ ($0.endMinutes ?? Int.min) <= currentPeriodEndMinutes })
                 .max(by: { $0.endMinutes! < $1.endMinutes! })
             {
-                return Destination(period: MealPeriodPill.canonical(lastEnded.name))
+                return Destination(period: lastEnded.name)
             }
             return Destination(period: nil)
         }
@@ -61,7 +63,7 @@ public enum MealActivityPostClose {
         if !tomorrowMeal.isEmpty {
             let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
             return Destination(
-                period: MealPeriodPill.canonical(tomorrowMeal),
+                period: tomorrowMeal,
                 date: tomorrow
             )
         }
@@ -74,7 +76,7 @@ public enum MealActivityPostClose {
                     TodaysMenuEmptyCopy.nextOpenISO(dayOffset: offset, now: now)
                 }
             return Destination(
-                period: MealPeriodPill.canonical(nextMeal),
+                period: nextMeal,
                 date: iso
             )
         }
