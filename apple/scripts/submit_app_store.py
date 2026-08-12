@@ -291,9 +291,8 @@ def ensure_version_copyright(token: str, version_id: str, meta: dict) -> None:
         ok_codes={200, 204, 409, 422},
     )
     if result.get("errors") and not result.get("data"):
-        warn(f"Could not set copyright: {json.dumps(result)[:400]}")
-    else:
-        info(f"Set version copyright={copyright_text!r}.")
+        die(f"Could not set copyright: {json.dumps(result)[:800]}")
+    info(f"Set version copyright={copyright_text!r}.")
 
 
 def ensure_content_rights(token: str, app_id: str) -> None:
@@ -314,9 +313,8 @@ def ensure_content_rights(token: str, app_id: str) -> None:
         ok_codes={200, 204, 409, 422},
     )
     if result.get("errors") and not result.get("data"):
-        warn(f"Could not set contentRightsDeclaration: {json.dumps(result)[:400]}")
-    else:
-        info("Set contentRightsDeclaration=DOES_NOT_USE_THIRD_PARTY_CONTENT.")
+        die(f"Could not set contentRightsDeclaration: {json.dumps(result)[:800]}")
+    info("Set contentRightsDeclaration=DOES_NOT_USE_THIRD_PARTY_CONTENT.")
 
 
 def ensure_version_localization(token: str, version_id: str, meta: dict) -> str:
@@ -836,46 +834,62 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         }
     )
     existing = api("GET", f"/v1/reviewSubmissions?{q}", token).get("data") or []
+    reusable_id: str | None = None
     for sub in existing:
         state = (sub.get("attributes") or {}).get("state")
         info(f"Existing reviewSubmission state={state}")
         if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
             info(f"Already in review (state={state}). Nothing to do.")
             return
-        if state in {"READY_FOR_REVIEW", "UNRESOLVED_ISSUES"}:
-            # Cancel stale drafts so we can create a clean submission with the version attached.
-            api(
-                "PATCH",
-                f"/v1/reviewSubmissions/{sub['id']}",
-                token,
-                {
-                    "data": {
-                        "type": "reviewSubmissions",
-                        "id": sub["id"],
-                        "attributes": {"canceled": True},
-                    }
-                },
-                ok_codes={200, 204, 409, 422},
-            )
-            info(f"Canceled stale review submission {sub['id']} (was {state}).")
+        if state in {"READY_FOR_REVIEW", "UNRESOLVED_ISSUES"} and reusable_id is None:
+            # Prefer reuse — ASC often refuses cancel ("not cancellable") and then
+            # blocks create with CONCURRENT_REVIEW_SUBMISSION_LIMIT_EXCEEDED.
+            reusable_id = sub["id"]
 
-    created = api(
-        "POST",
-        "/v1/reviewSubmissions",
-        token,
-        {
-            "data": {
-                "type": "reviewSubmissions",
-                "attributes": {"platform": "IOS"},
-                "relationships": {
-                    "app": {"data": {"type": "apps", "id": app_id}}
-                },
-            }
-        },
-    )
-    submission_id = (created.get("data") or {}).get("id")
-    if not submission_id:
-        die(f"Could not create review submission: {json.dumps(created)[:800]}")
+    submission_id = reusable_id
+    if submission_id:
+        info(f"Reusing open review submission {submission_id}.")
+    else:
+        created = api(
+            "POST",
+            "/v1/reviewSubmissions",
+            token,
+            {
+                "data": {
+                    "type": "reviewSubmissions",
+                    "attributes": {"platform": "IOS"},
+                    "relationships": {
+                        "app": {"data": {"type": "apps", "id": app_id}}
+                    },
+                }
+            },
+            ok_codes={200, 201, 409, 422},
+        )
+        submission_id = (created.get("data") or {}).get("id")
+        if not submission_id:
+            # Last resort: pick any non-terminal submission ASC still holds.
+            for sub in existing:
+                state = (sub.get("attributes") or {}).get("state")
+                if state not in {
+                    "COMPLETE",
+                    "COMPLETED",
+                    "CANCELED",
+                    "CANCELLED",
+                    None,
+                }:
+                    submission_id = sub["id"]
+                    info(
+                        f"Create blocked; falling back to existing submission "
+                        f"{submission_id} (state={state})."
+                    )
+                    break
+        if not submission_id:
+            die(
+                "Could not create or reuse a review submission. In App Store Connect "
+                "→ App Review, cancel leftover draft submissions, publish App Privacy "
+                "(Data Not Collected), set Pricing to Free, then re-run. "
+                f"Detail: {json.dumps(created)[:1500]}"
+            )
 
     item = api(
         "POST",
@@ -899,7 +913,7 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     if item.get("errors") and not item.get("data") and not item.get("already_exists"):
         die(
             "Could not add appStoreVersion to review submission (often incomplete "
-            "Age Rating / Pricing / App Privacy). "
+            "App Privacy / Pricing). "
             f"Detail: {json.dumps(item)[:2500]}"
         )
 
@@ -913,8 +927,7 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     if not items:
         die(
             "Review submission has zero items after attach — ASC will reject submit. "
-            "Usually App Privacy (publish Data Not Collected), Pricing (Free), "
-            "copyright, or content rights is incomplete. "
+            "Usually App Privacy (publish Data Not Collected) or Pricing (Free) is incomplete. "
             f"Attach attempt: {json.dumps(item)[:2000]}"
         )
 
@@ -946,8 +959,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         detail = exc.read().decode("utf-8", "replace")
         die(
             "ASC rejected submitted=true. In App Store Connect complete: "
-            "Pricing (Free), App Privacy (Data Not Collected), Age Rating (if still open), "
-            "and a Review contact phone. Then re-run. "
+            "Pricing (Free), App Privacy (Data Not Collected — Publish), "
+            "and clear any stuck App Review drafts. Then re-run. "
             f"HTTP {exc.code}: {detail[:1200]}"
         )
 
@@ -960,8 +973,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         return
     die(
         "Review submission is not with App Review yet "
-        f"(state={state!r}). Finish Pricing (Free) + App Privacy in App Store Connect, "
-        "set GitHub secret REVIEW_CONTACT_PHONE if asked, then re-run appstore-* . "
+        f"(state={state!r}). Finish Pricing (Free) + App Privacy (Publish) in "
+        "App Store Connect, then re-run appstore-* . "
         f"Raw: {json.dumps(confirmed)[:800]}"
     )
 
