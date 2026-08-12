@@ -375,22 +375,38 @@ struct DiningView: View {
                 browseDayPeriodsPending: browseDayPeriodsPending
             ) {
             case .emptyNoMenu:
-                let afterHours = selectedDate == nil
-                    && selectedLocation?.openState(nowMinutes: UCITime.nowMinutes()) == .closedForToday
                 let location = selectedLocation
+                let emptyKind = DiningMenuIdleEmptyKind.resolve(
+                    browsingToday: selectedDate == nil,
+                    openState: location.map { $0.openState(nowMinutes: UCITime.nowMinutes()) }
+                )
+                let awaiting = emptyKind == .awaitingMoreMeals
+                let afterHours = emptyKind == .afterHours
                 EmptyStateView(
-                    icon: "moon.zzz",
-                    title: afterHours ? "Dinner's done" : "No menu yet",
-                    message: afterHours
-                        ? TodaysMenuEmptyCopy.eatAfterHoursMessage(
-                            hallName: location?.name ?? "This hall",
-                            opensTomorrowPeriod: location?.opensTomorrowPeriod,
-                            opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
-                            opensNextPeriod: location?.opensNextPeriod,
-                            opensNextAtMinutes: location?.opensNextAtMinutes,
-                            opensNextWeekday: location?.opensNextWeekday
-                        )
-                        : "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall.",
+                    icon: awaiting ? "clock.arrow.circlepath" : "moon.zzz",
+                    title: TodaysMenuEmptyCopy.eatIdleEmptyTitle(
+                        awaitingMoreMeals: awaiting,
+                        afterHours: afterHours
+                    ),
+                    message: {
+                        switch emptyKind {
+                        case .awaitingMoreMeals:
+                            return TodaysMenuEmptyCopy.eatAwaitingMoreMealsMessage(
+                                hallName: location?.name ?? "This hall"
+                            )
+                        case .afterHours:
+                            return TodaysMenuEmptyCopy.eatAfterHoursMessage(
+                                hallName: location?.name ?? "This hall",
+                                opensTomorrowPeriod: location?.opensTomorrowPeriod,
+                                opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                                opensNextPeriod: location?.opensNextPeriod,
+                                opensNextAtMinutes: location?.opensNextAtMinutes,
+                                opensNextWeekday: location?.opensNextWeekday
+                            )
+                        case .noMenuPosted:
+                            return "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
+                        }
+                    }(),
                     actionTitle: afterHours
                         ? TodaysMenuEmptyCopy.afterHoursActionTitle(
                             opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,

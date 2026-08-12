@@ -64,4 +64,37 @@ struct DiningMenuIdleActionTests {
             ) == .loading
         )
     }
+
+    @Test func emptyKindHonorsPartialBoardOverNoMenuPosted() {
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: .awaitingMoreMeals
+            ) == .awaitingMoreMeals
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: .closedForToday
+            ) == .afterHours
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: .open(period: "Lunch", closesAt: 900)
+            ) == .noMenuPosted
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: false,
+                openState: .awaitingMoreMeals
+            ) == .noMenuPosted
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: nil
+            ) == .noMenuPosted
+        )
+    }
 }

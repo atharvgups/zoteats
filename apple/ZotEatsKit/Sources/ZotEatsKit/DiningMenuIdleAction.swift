@@ -24,3 +24,26 @@ public enum DiningMenuIdleAction: Equatable, Sendable {
         return .loading
     }
 }
+
+/// Why Eat's `.emptyNoMenu` idle is empty — so copy matches hall chrome / widgets
+/// (partial boards await later meals; after hours jump to next open).
+public enum DiningMenuIdleEmptyKind: Equatable, Sendable {
+    case awaitingMoreMeals
+    case afterHours
+    case noMenuPosted
+
+    public static func resolve(
+        browsingToday: Bool,
+        openState: HallOpenState?
+    ) -> DiningMenuIdleEmptyKind {
+        guard browsingToday, let openState else { return .noMenuPosted }
+        switch openState {
+        case .awaitingMoreMeals:
+            return .awaitingMoreMeals
+        case .closedForToday:
+            return .afterHours
+        case .open, .openingLater, .unknown:
+            return .noMenuPosted
+        }
+    }
+}

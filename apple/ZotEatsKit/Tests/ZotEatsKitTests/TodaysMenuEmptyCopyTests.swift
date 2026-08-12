@@ -110,6 +110,35 @@ struct TodaysMenuEmptyCopyTests {
         )
     }
 
+    @Test func eatIdleEmptyHonorsAwaitingMoreMeals() {
+        #expect(
+            TodaysMenuEmptyCopy.eatIdleEmptyTitle(
+                awaitingMoreMeals: true,
+                afterHours: false
+            ) == "More meals coming"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatIdleEmptyTitle(
+                awaitingMoreMeals: false,
+                afterHours: true
+            ) == "Dinner's done"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatIdleEmptyTitle(
+                awaitingMoreMeals: false,
+                afterHours: false
+            ) == "No menu yet"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatAwaitingMoreMealsMessage(hallName: "The Anteatery")
+                == "The Anteatery already posted earlier meals — Lunch or Dinner often lands later. Pull to refresh."
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatAwaitingMoreMealsMessage(hallName: "  ")
+                == "This hall already posted earlier meals — Lunch or Dinner often lands later. Pull to refresh."
+        )
+    }
+
     @Test func tomorrowISOIsDayAfterToday() {
         let now = ISO8601DateFormatter().date(from: "2026-07-10T05:00:00Z")! // Thu 10 PM PDT
         #expect(TodaysMenuEmptyCopy.tomorrowISO(now: now) == "2026-07-10")

@@ -64,6 +64,23 @@ public enum TodaysMenuEmptyCopy {
         }
     }
 
+    /// Eat tab empty title when the selected hall has no selectable meal pill.
+    public static func eatIdleEmptyTitle(
+        awaitingMoreMeals: Bool,
+        afterHours: Bool
+    ) -> String {
+        if awaitingMoreMeals { return "More meals coming" }
+        if afterHours { return "Dinner's done" }
+        return "No menu yet"
+    }
+
+    /// Eat tab empty message for a partial board (Breakfast/Lunch posted; later meals pending).
+    public static func eatAwaitingMoreMealsMessage(hallName: String) -> String {
+        let hall = hallName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = hall.isEmpty ? "This hall" : hall
+        return "\(name) already posted earlier meals — Lunch or Dinner often lands later. Pull to refresh."
+    }
+
     /// Eat tab after-hours empty message — hall + next meal/time when known.
     public static func eatAfterHoursMessage(
         hallName: String,
