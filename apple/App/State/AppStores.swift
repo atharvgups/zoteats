@@ -65,21 +65,25 @@ final class DiningStore {
     func loadDayPeriods(hall: String, dateISO: String, forceRefresh: Bool = false) async {
         let key = "\(hall)|\(dateISO)"
         if dayPeriods[key]?.value == nil { dayPeriods[key] = .loading }
-        dayPeriods[key] = .loaded(
-            await service.mealPeriods(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
-        )
+        let next = await service.mealPeriods(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+        if dayPeriods[key]?.value != next {
+            dayPeriods[key] = .loaded(next)
+        }
     }
 
     func loadLocations(forceRefresh: Bool = false) async {
         if locations.value == nil { locations = .loading }
         async let range = service.publishedDateRange(forceRefresh: forceRefresh)
         let result = await service.locations(forceRefresh: forceRefresh)
-        publishedDateRange = await range
+        let nextRange = await range
+        if publishedDateRange != nextRange {
+            publishedDateRange = nextRange
+        }
         locationsDateISO = UCITime.todayISO()
         // The service degrades per-hall; treat "no data at all" as an error state.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")
-        } else {
+        } else if locations.value != result {
             locations = .loaded(result)
         }
     }
@@ -92,14 +96,16 @@ final class DiningStore {
         let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
-            menus[key] = .loaded(
-                try await service.menu(
-                    for: hall,
-                    period: period,
-                    date: date,
-                    forceRefresh: forceRefresh
-                )
+            let next = try await service.menu(
+                for: hall,
+                period: period,
+                date: date,
+                forceRefresh: forceRefresh
             )
+            // Boundary / pull reloads often return the same board — skip churn.
+            if menus[key]?.value != next {
+                menus[key] = .loaded(next)
+            }
         } catch {
             menus[key] = .failed(error.localizedDescription)
         }
@@ -157,7 +163,10 @@ final class CampusStore {
     func loadMenu(for placeID: String) async {
         if menus[placeID]?.value == nil { menus[placeID] = .loading }
         do {
-            menus[placeID] = .loaded(try await service.menu(for: placeID))
+            let next = try await service.menu(for: placeID)
+            if menus[placeID]?.value != next {
+                menus[placeID] = .loaded(next)
+            }
         } catch {
             menus[placeID] = .failed(error.localizedDescription)
         }
@@ -188,13 +197,18 @@ final class BusynessStore {
         async let hoursTask = libraryHoursService.today()
         do {
             let next = try await facilitiesTask
-            if facilities.value != next {
+            // Waitz stamps a fresh updatedAt every poll — compare occupancy only.
+            let prior = facilities.value
+            let unchanged = prior.map {
+                BusynessSnapshot.equalsIgnoringFetchTime($0, next)
+            } ?? false
+            if !unchanged {
                 facilities = .loaded(next)
             }
         } catch {
             facilities = .failed(error.localizedDescription)
         }
-        if let hours = try? await hoursTask {
+        if let hours = try? await hoursTask, hours != libraryHours {
             libraryHours = hours
         }
     }
