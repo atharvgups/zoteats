@@ -130,7 +130,9 @@ struct MealCountdownActivity: Widget {
                     Text(
                         MealCountdownChrome.islandBottom(
                             period: context.attributes.period,
-                            hasEnded: ended
+                            hasEnded: ended,
+                            postClosePeriod: context.state.postClosePeriod,
+                            postCloseDate: context.state.postCloseDate
                         )
                     )
                         .font(.system(size: 12))

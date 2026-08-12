@@ -238,8 +238,50 @@ struct MealCountdownChromeTests {
                 .contains("wrapping up")
         )
         #expect(
-            MealCountdownChrome.islandBottom(period: "Lunch", hasEnded: true)
-                .contains("has ended")
+            MealCountdownChrome.islandBottom(
+                period: "Lunch",
+                hasEnded: true,
+                postClosePeriod: "Dinner"
+            ) == "Lunch has ended — Dinner is next"
+        )
+    }
+
+    @Test func islandBottomAwaitingSamePeriodMatchesStatus() {
+        #expect(
+            MealCountdownChrome.islandBottom(
+                period: "Breakfast",
+                hasEnded: true,
+                postClosePeriod: "Breakfast"
+            ) == "Breakfast has ended — more meals post later"
+        )
+        #expect(
+            MealCountdownChrome.islandBottom(
+                period: "Lunch",
+                hasEnded: true,
+                postClosePeriod: "Lunch"
+            ) == "Lunch has ended — more meals post later"
+        )
+    }
+
+    @Test func islandBottomTomorrowNamesMealNotSeeWhatsNext() {
+        #expect(
+            MealCountdownChrome.islandBottom(
+                period: "Dinner",
+                hasEnded: true,
+                postClosePeriod: "Breakfast",
+                postCloseDate: "2026-07-10"
+            ) == "Dinner has ended — Breakfast next"
+        )
+    }
+
+    @Test func islandBottomHallOnlyDropsSeeWhatsNext() {
+        #expect(
+            MealCountdownChrome.islandBottom(period: "Dinner", hasEnded: true)
+                == "Dinner has ended"
+        )
+        #expect(
+            MealCountdownChrome.islandBottom(period: "", hasEnded: true)
+                == "This meal has ended"
         )
     }
 
