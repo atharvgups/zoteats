@@ -73,10 +73,11 @@ struct ZotEatsApp: App {
                     await FavoriteAlerts.runCheck()
                     await MenuDropAlerts.runCheck()
                     await OpeningAlerts.refreshSchedules()
+                    await MealActivityAutoStartRunner.run()
                     WidgetReloader.reloadAll()
                 }
             case .background:
-                FavoriteAlerts.scheduleNextRefresh()
+                Task { await FavoriteAlerts.scheduleNextRefresh() }
             default:
                 break
             }
@@ -85,6 +86,7 @@ struct ZotEatsApp: App {
             await FavoriteAlerts.runCheck()
             await MenuDropAlerts.runCheck()
             await OpeningAlerts.refreshSchedules()
+            await MealActivityAutoStartRunner.run()
             WidgetReloader.reloadAll()
             await FavoriteAlerts.scheduleNextRefresh()
         }

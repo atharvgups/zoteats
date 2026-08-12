@@ -89,4 +89,43 @@ struct FavoriteAlertRefreshTests {
         #expect(earliest >= eleven.addingTimeInterval(60 * 60))
         #expect(earliest == FavoriteAlertRefresh.preferredBeginDate(now: eleven))
     }
+
+    @Test func wrapUpAimBeatsFixedDinnerAim() {
+        // Monday noon — Lunch wrap-up at 825 (1:45 PM) is sooner than 4:15 dinner aim.
+        let noon = ISO8601DateFormatter().date(from: "2026-07-13T19:00:00Z")!
+        let wrapUp = 870 - 45
+        let preferred = FavoriteAlertRefresh.preferredBeginDate(
+            now: noon,
+            extraAimMinutes: [wrapUp]
+        )
+        let expected = UCITime.date(
+            forMinutes: wrapUp,
+            nowMinutes: UCITime.nowMinutes(now: noon),
+            now: noon
+        )
+        #expect(preferred == expected)
+    }
+
+    @Test func wrapUpEarliestBeginSkipsOneHourFloor() {
+        // Monday 1:00 PM — Lunch wrap-up at 1:45 is preferred; must not push to 2:00.
+        let onePM = ISO8601DateFormatter().date(from: "2026-07-13T20:00:00Z")!
+        let wrapUp = 870 - 45
+        let earliest = FavoriteAlertRefresh.earliestBeginDate(
+            now: onePM,
+            extraAimMinutes: [wrapUp]
+        )
+        let expected = UCITime.date(
+            forMinutes: wrapUp,
+            nowMinutes: UCITime.nowMinutes(now: onePM),
+            now: onePM
+        )
+        #expect(earliest == expected)
+        #expect(earliest < onePM.addingTimeInterval(60 * 60))
+    }
+
+    @Test func allowImmediateSchedulesAboutOneMinuteOut() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let earliest = FavoriteAlertRefresh.earliestBeginDate(now: now, allowImmediate: true)
+        #expect(earliest == now.addingTimeInterval(60))
+    }
 }

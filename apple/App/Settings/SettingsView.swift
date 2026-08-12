@@ -131,7 +131,7 @@ struct SettingsView: View {
                     if granted {
                         await FavoriteAlerts.runCheck()
                         await OpeningAlerts.refreshSchedules()
-                        FavoriteAlerts.scheduleNextRefresh()
+                        await FavoriteAlerts.scheduleNextRefresh()
                         WidgetReloader.reloadAll()
                     } else {
                         alertsEnabled = false
@@ -161,7 +161,7 @@ struct SettingsView: View {
                     MenuDropAlerts.isEnabled = granted
                     if granted {
                         await MenuDropAlerts.runCheck()
-                        FavoriteAlerts.scheduleNextRefresh()
+                        await FavoriteAlerts.scheduleNextRefresh()
                         WidgetReloader.reloadAll()
                     } else {
                         menuDropEnabled = false
