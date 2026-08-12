@@ -522,23 +522,24 @@ struct CampusMenuSheet: View {
 
                 let filtered = filteredStations(stations)
                 if filtered.isEmpty {
-                    EmptyStateView(
-                        icon: "line.3.horizontal.decrease.circle",
-                        title: "Nothing matches those filters",
-                        message: "Clear Filters to see the full menu again."
-                    )
-                    Button {
-                        prefs.clearMenuFilters()
-                        Haptics.selection()
-                    } label: {
-                        Text("Clear filters")
-                            .font(ZotFont.pill.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.primary.opacity(0.05), in: Capsule())
+                    // Same Eat Filters prefs as Dining — reuse honest empty copy (no search on Campus menus).
+                    if let copy = EatFilterEmptyCopy.resolve(
+                        hasSearch: false,
+                        hasMenuFilters: prefs.hasActiveMenuFilters
+                    ) {
+                        EmptyStateView(
+                            icon: "ant",
+                            title: copy.title,
+                            message: copy.message,
+                            actionTitle: copy.actionTitle,
+                            retry: {
+                                prefs.clearMenuFilters()
+                                Haptics.selection()
+                            }
+                        )
+                    } else {
+                        noMenuNote
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 20)
                 } else {
                     ForEach(filtered) { station in
                         VStack(alignment: .leading, spacing: 8) {

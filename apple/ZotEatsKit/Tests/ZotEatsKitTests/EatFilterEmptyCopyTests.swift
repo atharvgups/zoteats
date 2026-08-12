@@ -22,6 +22,15 @@ struct EatFilterEmptyCopyTests {
         #expect(copy?.action == .clearFilters)
     }
 
+    @Test("Campus menu sheets reuse filters-only resolve (no search)")
+    func campusMenuSheetContract() {
+        let copy = EatFilterEmptyCopy.resolve(hasSearch: false, hasMenuFilters: true)
+        #expect(copy != nil)
+        #expect(copy?.action == .clearFilters)
+        #expect(copy?.message.contains("Eat Filters") == true)
+        #expect(EatFilterEmptyCopy.resolve(hasSearch: false, hasMenuFilters: false) == nil)
+    }
+
     @Test("Search plus filters offers clear both")
     func both() {
         let copy = EatFilterEmptyCopy.resolve(hasSearch: true, hasMenuFilters: true)

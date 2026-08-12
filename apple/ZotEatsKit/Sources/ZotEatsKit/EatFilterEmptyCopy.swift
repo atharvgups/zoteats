@@ -1,6 +1,7 @@
 import Foundation
 
-/// Honest empty copy when Eat's loaded menu is wiped by search and/or Eat Filters.
+/// Honest empty copy when a loaded menu is wiped by search and/or Eat Filters.
+/// Eat uses all three branches; Campus menu sheets call `hasSearch: false` (filters only).
 public enum EatFilterEmptyCopy {
     public enum Action: Equatable, Sendable {
         case clearSearch
