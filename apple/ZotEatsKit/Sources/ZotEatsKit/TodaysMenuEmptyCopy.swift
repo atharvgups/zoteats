@@ -48,9 +48,11 @@ public enum TodaysMenuEmptyCopy {
         }
         switch surface {
         case .glance:
-            return "See you at breakfast"
+            // Match Status / widgets: no invented overnight breakfast when
+            // neither tomorrow nor a later next-open is known.
+            return "Closed for today"
         case .home:
-            return "Dinner's done — breakfast posts overnight"
+            return "Dinner's done — closed for today"
         }
     }
 
@@ -110,7 +112,7 @@ public enum TodaysMenuEmptyCopy {
             let time = UCITime.format(minutes: open)
             return "\(name) is closed for tonight. \(meal) \(weekday) · \(time)."
         }
-        return "\(name) is closed for tonight. Breakfast posts overnight — or pick the next day in the day strip."
+        return "\(name) is closed for tonight."
     }
 
     /// Tomorrow's Irvine ISO for Eat "See tomorrow" CTA / deep links.
@@ -127,11 +129,29 @@ public enum TodaysMenuEmptyCopy {
             .isoDate
     }
 
-    /// Eat after-hours empty CTA — "See tomorrow" or "See Monday" to match the jump.
+    /// Day-strip ISO for Eat after-hours CTA — only when a real next open is known.
+    public static func afterHoursJumpISO(
+        opensTomorrowAtMinutes: Int?,
+        opensNextDateISO: String?,
+        opensNextDayOffset: Int?,
+        now: Date = Date()
+    ) -> String? {
+        if opensTomorrowAtMinutes != nil {
+            return tomorrowISO(now: now)
+        }
+        if let iso = opensNextDateISO?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !iso.isEmpty {
+            return iso
+        }
+        return opensNextDayOffset.flatMap { nextOpenISO(dayOffset: $0, now: now) }
+    }
+
+    /// Eat after-hours empty CTA — "See tomorrow" / "See Monday" only when that jump exists.
+    /// Nil means refresh (no invented day-strip jump).
     public static func afterHoursActionTitle(
         opensTomorrowAtMinutes: Int?,
         opensNextWeekday: String?
-    ) -> String {
+    ) -> String? {
         if opensTomorrowAtMinutes != nil {
             return "See tomorrow"
         }
@@ -139,7 +159,7 @@ public enum TodaysMenuEmptyCopy {
            !weekday.isEmpty {
             return "See \(weekday)"
         }
-        return "See tomorrow"
+        return nil
     }
 
     public static func reason(

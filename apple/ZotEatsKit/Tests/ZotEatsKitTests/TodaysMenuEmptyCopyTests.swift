@@ -27,14 +27,14 @@ struct TodaysMenuEmptyCopyTests {
                 opensTomorrowPeriod: nil,
                 opensTomorrowAtMinutes: nil,
                 surface: .glance
-            ) == "See you at breakfast"
+            ) == "Closed for today"
         )
         #expect(
             TodaysMenuEmptyCopy.afterHours(
                 opensTomorrowPeriod: nil,
                 opensTomorrowAtMinutes: nil,
                 surface: .home
-            ) == "Dinner's done — breakfast posts overnight"
+            ) == "Dinner's done — closed for today"
         )
     }
 
@@ -58,7 +58,7 @@ struct TodaysMenuEmptyCopyTests {
                 hallName: "Brandywine",
                 opensTomorrowPeriod: nil,
                 opensTomorrowAtMinutes: nil
-            ) == "Brandywine is closed for tonight. Breakfast posts overnight — or pick the next day in the day strip."
+            ) == "Brandywine is closed for tonight."
         )
     }
 
@@ -161,7 +161,35 @@ struct TodaysMenuEmptyCopyTests {
             TodaysMenuEmptyCopy.afterHoursActionTitle(
                 opensTomorrowAtMinutes: nil,
                 opensNextWeekday: nil
-            ) == "See tomorrow"
+            ) == nil
+        )
+    }
+
+    @Test func afterHoursJumpISORequiresKnownOpen() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-10T05:00:00Z")! // Thu 10 PM PDT
+        #expect(
+            TodaysMenuEmptyCopy.afterHoursJumpISO(
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                opensNextDateISO: nil,
+                opensNextDayOffset: nil,
+                now: now
+            ) == "2026-07-10"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.afterHoursJumpISO(
+                opensTomorrowAtMinutes: nil,
+                opensNextDateISO: "2026-07-13",
+                opensNextDayOffset: 3,
+                now: now
+            ) == "2026-07-13"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.afterHoursJumpISO(
+                opensTomorrowAtMinutes: nil,
+                opensNextDateISO: nil,
+                opensNextDayOffset: nil,
+                now: now
+            ) == nil
         )
     }
 }

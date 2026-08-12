@@ -51,7 +51,7 @@ struct TodaysMenuAccessibilityLabelTests {
                 filtersEmptiedMenu: false,
                 dishLimit: 4,
                 surface: .glance
-            ) == "The Anteatery. See you at breakfast"
+            ) == "The Anteatery. Closed for today"
         )
         #expect(
             TodaysMenuAccessibilityLabel.label(
@@ -61,7 +61,7 @@ struct TodaysMenuAccessibilityLabelTests {
                 filtersEmptiedMenu: false,
                 dishLimit: 4,
                 surface: .home
-            ) == "The Anteatery. Dinner's done — breakfast posts overnight"
+            ) == "The Anteatery. Dinner's done — closed for today"
         )
     }
 

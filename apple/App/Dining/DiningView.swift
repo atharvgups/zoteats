@@ -407,29 +407,24 @@ struct DiningView: View {
                             return "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
                         }
                     }(),
-                    actionTitle: afterHours
-                        ? TodaysMenuEmptyCopy.afterHoursActionTitle(
-                            opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
-                            opensNextWeekday: location?.opensNextWeekday
-                        )
-                        : "Try Again"
-                ) {
-                    if afterHours {
-                        let jump = location?.opensTomorrowAtMinutes != nil
-                            ? TodaysMenuEmptyCopy.tomorrowISO()
-                            : (location?.opensNextDateISO
-                                ?? location?.opensNextDayOffset.flatMap {
-                                    TodaysMenuEmptyCopy.nextOpenISO(dayOffset: $0)
-                                })
-                        if let jump {
-                            selectedDate = jump
-                            Haptics.selection()
-                        } else if let tomorrow = TodaysMenuEmptyCopy.tomorrowISO() {
-                            selectedDate = tomorrow
-                            Haptics.selection()
-                        } else {
-                            Task { await refresh() }
+                    actionTitle: {
+                        if afterHours {
+                            return TodaysMenuEmptyCopy.afterHoursActionTitle(
+                                opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                                opensNextWeekday: location?.opensNextWeekday
+                            ) ?? "Try Again"
                         }
+                        return "Try Again"
+                    }()
+                ) {
+                    if afterHours,
+                       let jump = TodaysMenuEmptyCopy.afterHoursJumpISO(
+                           opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                           opensNextDateISO: location?.opensNextDateISO,
+                           opensNextDayOffset: location?.opensNextDayOffset
+                       ) {
+                        selectedDate = jump
+                        Haptics.selection()
                     } else {
                         Task { await refresh() }
                     }
