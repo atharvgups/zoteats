@@ -28,4 +28,20 @@ struct GymBoundaryRefreshTests {
         #expect(fire > morning)
         #expect(fire <= morning.addingTimeInterval(15 * 60))
     }
+
+    @Test func includesIrvineMidnightEvenAfterClose() {
+        // Thu 10:30 PM PDT — ARC already closed; tomorrow open is hours away.
+        let afterClose = ISO8601DateFormatter().date(from: "2026-07-09T05:30:00Z")!
+        let boundaries = GymBoundaryRefresh.boundaries(now: afterClose)
+        #expect(boundaries.contains(UCITime.nextIrvineMidnight(now: afterClose)))
+    }
+
+    @Test func midnightBeatsCapWhenNear() {
+        // ~10 minutes before Irvine midnight — StandBy must flip “Opens tomorrow”.
+        let beforeMidnight = ISO8601DateFormatter().date(from: "2026-07-10T06:50:00Z")! // Thu 11:50 PM PDT
+        let midnight = UCITime.nextIrvineMidnight(now: beforeMidnight)
+        let fire = GymBoundaryRefresh.nextFire(now: beforeMidnight)
+        #expect(fire == midnight.addingTimeInterval(2))
+        #expect(fire < beforeMidnight.addingTimeInterval(GymBoundaryRefresh.maxInterval))
+    }
 }

@@ -1285,13 +1285,7 @@ struct ArcStatusProvider: TimelineProvider {
         let deliver = UncheckedSendableBox(completion)
         Task {
             let entry = await fetchEntry()
-            let now = Date()
-            let boundary = GymService.nextScheduleBoundary(now: now)
-            let reload = WidgetRefreshMath.nextReload(
-                now: now,
-                boundaries: boundary.map { [$0] } ?? [],
-                maxInterval: 15 * 60
-            )
+            let reload = GymBoundaryRefresh.nextFire(now: .now)
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
     }
