@@ -37,8 +37,8 @@ struct PlateSheet: View {
                 if plate.isEmpty {
                     EmptyStateView(
                         icon: "fork.knife.circle",
-                        title: "Nothing on your plate yet",
-                        message: "Tap the + on any dish to start today's tally."
+                        title: PlateEmptyCopy.title,
+                        message: PlateEmptyCopy.message
                     )
                 } else {
                     VStack(spacing: 8) {

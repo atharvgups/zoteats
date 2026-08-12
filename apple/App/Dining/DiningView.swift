@@ -1423,9 +1423,9 @@ private struct DishRowCard: View {
 
     private func plateButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
+            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle.fill")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(isOnPlate ? Color.uciBlue : Color.secondary)
+                .foregroundStyle(isOnPlate ? Color.uciBlue : Color.uciBlue.opacity(0.85))
                 .symbolEffect(.bounce, value: isOnPlate)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 30, height: 30)

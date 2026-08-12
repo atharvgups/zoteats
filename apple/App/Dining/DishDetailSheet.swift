@@ -168,14 +168,13 @@ struct DishDetailSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                isFavorite ? AnyShapeStyle(Color.pink.opacity(0.15)) : AnyShapeStyle(Color.uciBlue),
+                isFavorite ? Color.pink.opacity(0.15) : Color.primary.opacity(0.05),
                 in: Capsule()
             )
-            .foregroundStyle(isFavorite ? Color.pink : Color.white)
+            .foregroundStyle(isFavorite ? Color.pink : .primary)
             .symbolEffect(.bounce, value: isFavorite)
         }
         .buttonStyle(.plain)
-        .padding(.top, 2)
         .accessibilityLabel(
             isFavorite ? "Remove \(dish.name) from favorites" : "Add \(dish.name) to favorites"
         )
@@ -186,25 +185,28 @@ struct DishDetailSheet: View {
             withAnimation(.snappy(duration: 0.25)) {
                 plate.toggle(dish)
             }
+            Haptics.soft()
         } label: {
             Label(
                 isOnPlate ? "On your plate" : "Add to My Plate",
-                systemImage: isOnPlate ? "checkmark.circle.fill" : "plus.circle"
+                systemImage: isOnPlate ? "checkmark.circle.fill" : "plus.circle.fill"
             )
             .font(ZotFont.pill.weight(.semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                isOnPlate ? Color.uciBlue.opacity(0.12) : Color.primary.opacity(0.05),
+                isOnPlate ? AnyShapeStyle(Color.uciBlue.opacity(0.15)) : AnyShapeStyle(Color.uciBlue),
                 in: Capsule()
             )
-            .foregroundStyle(isOnPlate ? Color.uciBlue : .primary)
+            .foregroundStyle(isOnPlate ? Color.uciBlue : Color.white)
             .symbolEffect(.bounce, value: isOnPlate)
         }
         .buttonStyle(.plain)
+        .padding(.top, 2)
         .accessibilityLabel(
             isOnPlate ? "Remove \(dish.name) from my plate" : "Add \(dish.name) to my plate"
         )
+        .accessibilityIdentifier("dish-add-to-plate")
     }
 
     private var closeButton: some View {
