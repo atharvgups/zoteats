@@ -500,8 +500,11 @@ struct BusynessZoneRowView: View {
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            zone.percent.map { "\(zone.fullName), \($0) percent full" }
-                ?? "\(zone.fullName), no occupancy data"
+            StudyZoneAccessibilityLabel.label(
+                fullName: zone.fullName,
+                percent: zone.percent,
+                levelLabel: zone.level.label
+            )
         )
     }
 }
