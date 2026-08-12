@@ -72,6 +72,17 @@ struct TodaysMenuPeriodPickTests {
         #expect(!choice.isAwaitingMoreMeals)
     }
 
+    @Test func emptyTimedBoardAfterEveningIsAfterHours() {
+        let choice = TodaysMenuPeriodPick.choose(
+            timedPeriods: [],
+            availablePeriods: [],
+            nowMinutes: DiningBoardPublish.eveningConfidenceMinutes
+        )
+        #expect(choice.period.isEmpty)
+        #expect(choice.isAfterHours)
+        #expect(!choice.isAwaitingMoreMeals)
+    }
+
     @Test func brunchMapsToBreakfastPillKeepsLiveName() {
         let brunch = [
             MealPeriodWindow(name: "Brunch", startMinutes: 600, endMinutes: 840),

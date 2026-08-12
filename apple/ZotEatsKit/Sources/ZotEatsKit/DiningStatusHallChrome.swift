@@ -79,8 +79,11 @@ public enum DiningStatusHallChrome {
             }
             return Resolved(statusText: "Closed for today", countdownEnd: nil, countdownKind: nil)
         case .unknown:
+            // Ignore todayHours — echoing it beside unknown state reintroduces lies
+            // (DiningLocationHoursLine parity).
+            _ = todayHours
             return Resolved(
-                statusText: todayHours ?? "Hours unavailable",
+                statusText: "Hours unavailable",
                 countdownEnd: nil,
                 countdownKind: nil
             )

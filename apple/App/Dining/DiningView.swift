@@ -1163,8 +1163,9 @@ private struct HallCard: View {
                             .foregroundStyle(statusLine.tint)
                             .lineLimit(2)
                             .minimumScaleFactor(0.75)
-                    } else if let hours = location.todayHours {
-                        Text(hours)
+                    } else {
+                        // Mid-day unpublished (`.unknown`) — never echo stale todayHours.
+                        Text(location.hoursLine())
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)

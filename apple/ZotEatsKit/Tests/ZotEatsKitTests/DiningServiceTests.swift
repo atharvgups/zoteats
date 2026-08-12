@@ -272,6 +272,46 @@ struct HallOpenStateTests {
         #expect(hall(periods: []).openState(nowMinutes: 700) == .unknown)
     }
 
+    @Test func emptyBoardAfterEveningConfidenceIsClosedForToday() {
+        let empty = DiningLocation(
+            id: "anteatery", name: "The Anteatery", area: "Mesa Court",
+            openNow: false, todayHours: nil,
+            availablePeriods: [], periods: [],
+            hoursApproximate: false,
+            opensTomorrowAtMinutes: nil,
+            opensTomorrowPeriod: nil,
+            opensNextAtMinutes: 7 * 60 + 15,
+            opensNextDayOffset: 3,
+            opensNextWeekday: "Monday",
+            opensNextPeriod: "Breakfast",
+            opensNextDateISO: "2026-07-13"
+        )
+        #expect(empty.openState(nowMinutes: 20 * 60) == .closedForToday)
+        #expect(
+            DiningLocationHoursLine.resolve(
+                state: empty.openState(nowMinutes: 20 * 60),
+                todayHours: "7:15 AM – 8:00 PM",
+                opensTomorrowAtMinutes: empty.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: empty.opensTomorrowPeriod,
+                opensNextAtMinutes: empty.opensNextAtMinutes,
+                opensNextWeekday: empty.opensNextWeekday,
+                opensNextPeriod: empty.opensNextPeriod
+            ) == "Breakfast Monday · 7:15 AM"
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: empty.openState(nowMinutes: 20 * 60)
+            ) == .afterHours
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: hall(periods: []).openState(nowMinutes: 700)
+            ) == .noMenuPosted
+        )
+    }
+
     @Test func countdownFormatting() {
         #expect(UCITime.countdown(from: 700, to: 745) == "45m")
         #expect(UCITime.countdown(from: 700, to: 770) == "1h 10m")

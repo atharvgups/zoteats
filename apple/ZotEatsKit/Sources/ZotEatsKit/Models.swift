@@ -169,7 +169,15 @@ public enum HallOpenState: Sendable, Equatable {
 
 public extension DiningLocation {
     func openState(nowMinutes: Int) -> HallOpenState {
-        guard !periods.isEmpty else { return .unknown }
+        guard !periods.isEmpty else {
+            // Unpublished / empty board: mid-day stays unknown ("No menu yet").
+            // After evening confidence, treat as closed-for-today so Status / Eat /
+            // widgets can surface tomorrow / Monday next-open chrome + deep links.
+            if nowMinutes >= DiningBoardPublish.eveningConfidenceMinutes {
+                return .closedForToday
+            }
+            return .unknown
+        }
 
         if let current = periods.first(where: { period in
             guard let start = period.startMinutes, let end = period.endMinutes else { return false }

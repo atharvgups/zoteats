@@ -78,4 +78,36 @@ struct DiningStatusHallChromeTests {
         #expect(resolved.countdownEnd == nil)
         #expect(resolved.countdownKind == nil)
     }
+
+    @Test func unknownNeverEchoesTodayHours() {
+        let resolved = DiningStatusHallChrome.resolve(
+            state: .unknown,
+            todayHours: "7:15 AM – 8:00 PM",
+            opensTomorrowAtMinutes: 7 * 60 + 15,
+            opensTomorrowPeriod: "Breakfast",
+            nowMinutes: 12 * 60,
+            now: now
+        )
+        #expect(resolved.statusText == "Hours unavailable")
+        #expect(resolved.countdownEnd == nil)
+        #expect(resolved.countdownKind == nil)
+    }
+
+    @Test func emptyEveningClosedShowsNextOpenWeekday() {
+        let friday = ISO8601DateFormatter().date(from: "2026-07-11T03:00:00Z")! // Fri 8 PM PDT
+        let resolved = DiningStatusHallChrome.resolve(
+            state: .closedForToday,
+            todayHours: nil,
+            opensTomorrowAtMinutes: nil,
+            opensTomorrowPeriod: nil,
+            nowMinutes: UCITime.nowMinutes(now: friday),
+            now: friday,
+            opensNextAtMinutes: 7 * 60 + 15,
+            opensNextDayOffset: 3,
+            opensNextWeekday: "Monday",
+            opensNextPeriod: "Breakfast"
+        )
+        #expect(resolved.statusText == "Breakfast Monday")
+        #expect(resolved.countdownKind == .opens)
+    }
 }

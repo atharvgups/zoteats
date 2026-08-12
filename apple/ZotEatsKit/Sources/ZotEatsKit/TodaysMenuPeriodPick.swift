@@ -71,12 +71,18 @@ public enum TodaysMenuPeriodPick {
             periods: timedPeriods,
             nowMinutes: nowMinutes
         )
+        // Empty timed board mid-day stays not-after-hours (Menu not posted yet).
+        // After evening confidence — including empty/unpublished boards — treat
+        // as after-hours so widgets can show tomorrow / Monday next-open copy.
+        let afterHours = !awaiting && (
+            !timed.isEmpty || nowMinutes >= DiningBoardPublish.eveningConfidenceMinutes
+        )
         return Choice(
             period: "",
             livePeriodName: "",
             endsAtMinutes: nil,
             upcomingStartMinutes: nil,
-            isAfterHours: !timed.isEmpty && !awaiting,
+            isAfterHours: afterHours,
             isAwaitingMoreMeals: awaiting
         )
     }
