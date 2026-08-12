@@ -60,9 +60,18 @@ struct MealCountdownActivity: Widget {
                 }
                 Spacer()
                 if ended {
-                    Text("Done")
+                    Text(
+                        MealCountdownChrome.compactTrailing(
+                            period: context.attributes.period,
+                            hasEnded: true,
+                            postClosePeriod: context.state.postClosePeriod,
+                            postCloseDate: context.state.postCloseDate
+                        )
+                    )
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(activityGold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 } else {
                     Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
                         .font(.system(size: 28, weight: .bold))
@@ -114,9 +123,18 @@ struct MealCountdownActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if ended {
-                        Text("Done")
+                        Text(
+                            MealCountdownChrome.compactTrailing(
+                                period: context.attributes.period,
+                                hasEnded: true,
+                                postClosePeriod: context.state.postClosePeriod,
+                                postCloseDate: context.state.postCloseDate
+                            )
+                        )
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(activityGold)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                             .accessibilityHidden(true)
                     } else {
                         Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)

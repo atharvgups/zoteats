@@ -100,8 +100,9 @@ public enum MealCountdownChrome {
         return "\(endedPrefix) — \(nextLabel) is next"
     }
 
-    /// Compact Island trailing after close — short destination hint, not bare
-    /// `"Done"` while the tap deep-links to Brunch / Monday / later meals.
+    /// Post-close trailing chrome (Lock Screen, expanded Island, compact
+    /// Island) — short destination hint, not bare `"Done"` while the tap
+    /// deep-links to Brunch / Monday / later meals.
     /// Returns `"Done"` when there is no post-close destination.
     public static func compactTrailing(
         period: String,
