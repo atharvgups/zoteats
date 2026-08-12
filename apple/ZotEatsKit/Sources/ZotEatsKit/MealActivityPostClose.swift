@@ -38,11 +38,21 @@ public enum MealActivityPostClose {
 
         // Breakfast-only (or Lunch without Dinner) boards often still publish
         // later — don't bake tomorrow into the Island while Status says
-        // "More meals post later". Evaluate as of meal end.
+        // "More meals post later". Deep-link the last posted meal (Eat /
+        // Status / Today's Menu parity) instead of a hall-only wipe.
         if DiningBoardPublish.awaitingLaterMeals(
             periods: timedPeriods,
             nowMinutes: currentPeriodEndMinutes
         ) {
+            let timed = timedPeriods.filter {
+                $0.startMinutes != nil && $0.endMinutes != nil
+            }
+            if let lastEnded = timed
+                .filter({ ($0.endMinutes ?? Int.min) <= currentPeriodEndMinutes })
+                .max(by: { $0.endMinutes! < $1.endMinutes! })
+            {
+                return Destination(period: MealPeriodPill.canonical(lastEnded.name))
+            }
             return Destination(period: nil)
         }
 

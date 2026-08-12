@@ -59,7 +59,7 @@ struct MealActivityPostCloseTests {
         #expect(dest.date == nil)
     }
 
-    @Test func breakfastOnlyBoardDoesNotJumpToTomorrow() {
+    @Test func breakfastOnlyBoardKeepsLastPostedNotTomorrow() {
         let partial = [
             MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
         ]
@@ -70,11 +70,11 @@ struct MealActivityPostCloseTests {
             opensTomorrowPeriod: "Breakfast",
             now: midday
         )
-        #expect(dest.period == nil)
+        #expect(dest.period == "Breakfast")
         #expect(dest.date == nil)
     }
 
-    @Test func lunchWithoutDinnerDoesNotJumpToTomorrow() {
+    @Test func lunchWithoutDinnerKeepsLastPostedLunch() {
         let partial = [
             MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
             MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
@@ -85,7 +85,7 @@ struct MealActivityPostCloseTests {
             opensTomorrowPeriod: "Breakfast",
             now: evening
         )
-        #expect(dest.period == nil)
+        #expect(dest.period == "Lunch")
         #expect(dest.date == nil)
     }
 
@@ -102,7 +102,7 @@ struct MealActivityPostCloseTests {
             opensTomorrowPeriod: "Breakfast",
             now: midday
         )
-        #expect(postClose.period == nil)
+        #expect(postClose.period == "Breakfast")
         let stash = MealActivityPostClose.contentOpensTomorrowPeriod(
             postClose: postClose,
             hallOpensTomorrowPeriod: "Breakfast"
@@ -118,7 +118,7 @@ struct MealActivityPostCloseTests {
             now: afterClose
         )
         #expect(link.hall == "anteatery")
-        #expect(link.period == nil)
+        #expect(link.period == "Breakfast")
         #expect(link.date == nil)
     }
 

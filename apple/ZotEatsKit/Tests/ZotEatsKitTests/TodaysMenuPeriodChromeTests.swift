@@ -39,4 +39,32 @@ struct TodaysMenuPeriodChromeTests {
         #expect(resolved.kind == nil)
         #expect(resolved.countdownEnd == nil)
     }
+
+    @Test func awaitingMoreMealsHasNoCountdownUsesStatusCaption() {
+        let resolved = TodaysMenuPeriodChrome.resolve(
+            endsAtMinutes: nil,
+            upcomingStartMinutes: nil,
+            nowMinutes: nowMinutes,
+            now: now,
+            awaitingMoreMeals: true
+        )
+        #expect(resolved.kind == .awaitingMoreMeals)
+        #expect(resolved.countdownEnd == nil)
+        #expect(
+            TodaysMenuPeriodChrome.awaitingCaption
+                == TodaysMenuEmptyCopy.awaitingMoreMeals(surface: .glance)
+        )
+        #expect(TodaysMenuPeriodChrome.awaitingCaptionCompact == "more later")
+    }
+
+    @Test func liveOpenBeatsAwaitingFlag() {
+        let resolved = TodaysMenuPeriodChrome.resolve(
+            endsAtMinutes: 870,
+            upcomingStartMinutes: nil,
+            nowMinutes: nowMinutes,
+            now: now,
+            awaitingMoreMeals: true
+        )
+        #expect(resolved.kind == .closes)
+    }
 }

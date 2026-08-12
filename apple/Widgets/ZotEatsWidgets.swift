@@ -774,7 +774,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         let chrome = TodaysMenuPeriodChrome.resolve(
             endsAtMinutes: choice.endsAtMinutes,
             upcomingStartMinutes: choice.upcomingStartMinutes,
-            nowMinutes: nowMinutes
+            nowMinutes: nowMinutes,
+            awaitingMoreMeals: choice.isAwaitingMoreMeals
         )
         let periodEndsAt = chrome.kind == .closes ? chrome.countdownEnd : nil
         let periodOpensAt = chrome.kind == .opens ? chrome.countdownEnd : nil
@@ -955,6 +956,10 @@ struct TodaysMenuView: View {
         let period = entry.period.isEmpty ? "Menu" : entry.period
         let hall = entry.hallName
             .replacingOccurrences(of: "The ", with: "")
+        if entry.awaitingMoreMeals, !entry.period.isEmpty {
+            // Status parity — don't read like a live open meal beside last-posted dishes.
+            return "\(period) · \(TodaysMenuPeriodChrome.awaitingCaptionCompact) · \(hall)"
+        }
         if entry.periodOpensAt != nil {
             return "\(period) up next · \(hall)"
         }
@@ -975,7 +980,13 @@ struct TodaysMenuView: View {
                     HStack(spacing: 5) {
                         Text(entry.period)
                             .font(.system(size: 10, weight: .bold))
-                        if let end = entry.periodEndsAt, end > Date() {
+                        if entry.awaitingMoreMeals {
+                            Text("· \(TodaysMenuPeriodChrome.awaitingCaptionCompact)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.75))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        } else if let end = entry.periodEndsAt, end > Date() {
                             Text(timerInterval: Date.now...end, countsDown: true)
                                 .font(.system(size: 10, weight: .bold))
                                 .monospacedDigit()
@@ -994,6 +1005,15 @@ struct TodaysMenuView: View {
                     .padding(.vertical, 2)
                     .background(.white.opacity(0.16), in: Capsule())
                     .foregroundStyle(.white)
+                } else if entry.awaitingMoreMeals {
+                    Text(TodaysMenuPeriodChrome.awaitingCaption)
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.16), in: Capsule())
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
             .foregroundStyle(gold)
