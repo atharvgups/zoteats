@@ -560,15 +560,13 @@ struct CampusMenuSheet: View {
 
     /// Same Filters chip language as Eat — shared prefs, not a local single-select.
     private var filtersChip: some View {
-        let dietCount = prefs.dietFilters.count
-        let allergenCount = prefs.allergenAvoids.count
-        let total = dietCount + allergenCount
-        let label: String = {
-            if total == 0 { return "Filters" }
-            if total == 1, dietCount == 1 { return prefs.dietFilters.first! }
-            if total == 1, allergenCount == 1 { return "No \(prefs.allergenAvoids.first!)" }
-            return "Filters · \(total)"
-        }()
+        let diets = prefs.dietFilters.sorted()
+        let allergens = prefs.allergenAvoids.sorted()
+        let label = MenuFiltersChipAccessibility.title(
+            dietFilters: diets,
+            allergenAvoids: allergens
+        )
+        let active = prefs.hasActiveMenuFilters
         return Button {
             showDietFilters = true
         } label: {
@@ -581,14 +579,19 @@ struct CampusMenuSheet: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                total > 0 ? Color.uciBlue.opacity(0.12) : Color.primary.opacity(0.05),
+                active ? Color.uciBlue.opacity(0.12) : Color.primary.opacity(0.05),
                 in: Capsule()
             )
-            .foregroundStyle(total > 0 ? Color.uciBlue : .primary)
+            .foregroundStyle(active ? Color.uciBlue : .primary)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("campus-diet-filter-chip")
-        .accessibilityLabel(total == 0 ? "Filters" : "Filters, \(total) active")
+        .accessibilityLabel(
+            MenuFiltersChipAccessibility.accessibilityLabel(
+                dietFilters: diets,
+                allergenAvoids: allergens
+            )
+        )
     }
 
     private var noMenuNote: some View {

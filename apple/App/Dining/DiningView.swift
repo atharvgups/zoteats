@@ -234,16 +234,13 @@ struct DiningView: View {
 
     /// Compact chip summarizing dietary + allergen filters; opens the picker sheet.
     private var filterChip: some View {
-        let dietCount = prefs.dietFilters.count
-        let allergenCount = prefs.allergenAvoids.count
-        let total = dietCount + allergenCount
-        let label: String = {
-            if total == 0 { return "Filters" }
-            if total == 1, dietCount == 1 { return prefs.dietFilters.first! }
-            if total == 1, allergenCount == 1 { return "No \(prefs.allergenAvoids.first!)" }
-            return "\(total) filters"
-        }()
-        let active = total > 0
+        let diets = prefs.dietFilters.sorted()
+        let allergens = prefs.allergenAvoids.sorted()
+        let label = MenuFiltersChipAccessibility.title(
+            dietFilters: diets,
+            allergenAvoids: allergens
+        )
+        let active = prefs.hasActiveMenuFilters
         return Button {
             showDietFilters = true
             Haptics.selection()
@@ -272,9 +269,10 @@ struct DiningView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("diet-filter-chip")
         .accessibilityLabel(
-            active
-                ? "Menu filters: \(label)"
-                : "Menu filters"
+            MenuFiltersChipAccessibility.accessibilityLabel(
+                dietFilters: diets,
+                allergenAvoids: allergens
+            )
         )
     }
 
