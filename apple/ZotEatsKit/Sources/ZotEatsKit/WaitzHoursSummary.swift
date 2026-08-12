@@ -64,6 +64,25 @@ public enum WaitzHoursSummary {
         return "Open until \(UCITime.format(minutes: close))"
     }
 
+    /// Reconcile Waitz `isOpen` with hour chrome. Closed-until and displayable
+    /// ranges beat a stale feed flag (ARC often stays `isOpen: true` after close).
+    /// `"open"` / nil / unparseable hours still trust `feedIsOpen`.
+    public static func isEffectivelyOpen(
+        feedIsOpen: Bool,
+        hoursSummary: String?,
+        nowMinutes: Int
+    ) -> Bool {
+        if closedUntilMinutes(hoursSummary) != nil {
+            return false
+        }
+        if let bounds = rangeBounds(hoursSummary) {
+            // `12am` parses as 0 — treat as end-of-day midnight (1440).
+            let close = bounds.close == 0 ? 24 * 60 : bounds.close
+            return nowMinutes >= bounds.open && nowMinutes < close
+        }
+        return feedIsOpen
+    }
+
     /// `8:00am`, `8:00 AM`, `12pm`, `10:00 PM` → minutes since midnight.
     static func parseClock(_ raw: String) -> Int? {
         let cleaned = raw

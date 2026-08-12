@@ -82,7 +82,16 @@ public struct GymService: Sendable {
         let waitzClose = usingLiveRange ? WaitzHoursSummary.closeMinutes(liveHours) : nil
         let waitzOpen = usingLiveRange ? WaitzHoursSummary.openMinutes(liveHours) : nil
 
-        let openNow = liveOpen ?? scheduleOpenNow
+        let openNow: Bool = {
+            if let liveOpen {
+                return WaitzHoursSummary.isEffectivelyOpen(
+                    feedIsOpen: liveOpen,
+                    hoursSummary: liveHours,
+                    nowMinutes: minutes
+                )
+            }
+            return scheduleOpenNow
+        }()
         let weekHours = GymWeekHours.resolve(
             weekday: weekday,
             todayHours: todayHours,

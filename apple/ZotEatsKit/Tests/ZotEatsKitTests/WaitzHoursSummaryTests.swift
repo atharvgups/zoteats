@@ -46,4 +46,73 @@ struct WaitzHoursSummaryTests {
         #expect(WaitzHoursSummary.closeMinutes("6:00am-11:00pm") == 23 * 60)
         #expect(WaitzHoursSummary.closeMinutes("6am - 12am") == 0)
     }
+
+    @Test("Closed-until beats stale feed isOpen")
+    func effectivelyOpenClosedUntil() {
+        #expect(
+            !WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: true,
+                hoursSummary: "Closed until 8:00am",
+                nowMinutes: 6 * 60
+            )
+        )
+    }
+
+    @Test("Displayable range beats stale feed after close")
+    func effectivelyOpenPastClose() {
+        #expect(
+            !WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: true,
+                hoursSummary: "6:00am-12:00pm",
+                nowMinutes: 14 * 60
+            )
+        )
+    }
+
+    @Test("Displayable range stays open inside window")
+    func effectivelyOpenInRange() {
+        #expect(
+            WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: false,
+                hoursSummary: "6:00am-10:00pm",
+                nowMinutes: 12 * 60
+            )
+        )
+    }
+
+    @Test("Midnight close treats 12am as end of day")
+    func effectivelyOpenMidnightClose() {
+        #expect(
+            WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: true,
+                hoursSummary: "6am - 12am",
+                nowMinutes: 22 * 60
+            )
+        )
+        #expect(
+            !WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: true,
+                hoursSummary: "6am - 12am",
+                nowMinutes: 0
+            )
+        )
+    }
+
+    @Test("Bare open or nil hours trusts feed flag")
+    func effectivelyOpenTrustsFeedWhenNoClock() {
+        #expect(
+            WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: true,
+                hoursSummary: "open",
+                nowMinutes: 14 * 60
+            )
+        )
+        #expect(
+            !WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: false,
+                hoursSummary: nil,
+                nowMinutes: 14 * 60
+            )
+        )
+    }
 }
