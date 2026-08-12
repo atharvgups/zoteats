@@ -1,4 +1,5 @@
 import SwiftUI
+import ZotEatsKit
 
 /// User-selectable appearance: follow the system (auto dark at night), or force light/dark.
 enum AppearanceSetting: String, CaseIterable, Identifiable {
