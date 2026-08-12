@@ -8,8 +8,9 @@ import ZotEatsKit
 // refresh). Dining pre-arms every remaining meal today (Breakfast + Lunch +
 // Dinner) plus tomorrow's full meal chain so a missed BG overnight can't drop
 // Lunch; campus pre-arms every remaining today window (split schedules) plus
-// tomorrow's full window chain — dining parity. No servers — iOS fires them
-// even if the app stays closed.
+// tomorrow's full window chain — dining parity. Late publish / BG within a
+// short grace still fires a one-shot "just opened" (skipping already-delivered
+// ids). No servers — iOS fires them even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -45,6 +46,14 @@ enum OpeningAlerts {
             .filter { $0.hasPrefix(identifierPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: pending)
 
+        // Catch-up "just opened" uses the same ids as on-time opens — skip any
+        // already delivered today so foreground/BG refreshes don't re-spam.
+        let deliveredIDs = Set(
+            await center.deliveredNotifications()
+                .map(\.request.identifier)
+                .filter { $0.hasPrefix(identifierPrefix) }
+        )
+
         let watched = watchedIDs
         guard !watched.isEmpty else { return }
 
@@ -58,6 +67,20 @@ enum OpeningAlerts {
             let id = "dining:\(hall.id)"
             // Pre-arm every meal still ahead today (per-meal notification ids).
             for meal in OpeningAlertPlanner.followingMeals(
+                periods: hall.periods, nowMinutes: nowMinutes
+            ) {
+                candidates.append(.init(
+                    id: id,
+                    name: hall.name,
+                    opensAtMinutes: meal.startMinutes,
+                    dayOffset: 0,
+                    mealPeriod: meal.periodName,
+                    closesAtMinutes: meal.endMinutes
+                ))
+            }
+            // Late Lunch/Dinner publish or BG: still ping once while serving
+            // and within catch-up grace of the open minute.
+            for meal in OpeningAlertPlanner.recentlyOpenedMeals(
                 periods: hall.periods, nowMinutes: nowMinutes
             ) {
                 candidates.append(.init(
@@ -120,6 +143,21 @@ enum OpeningAlerts {
                     windowStartMinutes: window.startMinutes
                 ))
             }
+            // Late BG while already open — same catch-up grace as dining meals.
+            if let start = place.currentOpenStartMinutes,
+               let end = place.closesAtMinutes,
+               nowMinutes - start <= OpeningAlertPlanner.openCatchUpGraceMinutes,
+               nowMinutes < end {
+                candidates.append(.init(
+                    id: id,
+                    name: place.name,
+                    opensAtMinutes: start,
+                    dayOffset: 0,
+                    closesAtMinutes: end,
+                    hoursSpan: place.todayHours,
+                    windowStartMinutes: start
+                ))
+            }
             for window in place.tomorrowOpenWindows {
                 candidates.append(.init(
                     id: id,
@@ -157,6 +195,7 @@ enum OpeningAlerts {
         }
 
         for alert in OpeningAlertPlanner.plan(candidates: candidates, watchedIDs: watched) {
+            if deliveredIDs.contains(alert.identifier) { continue }
             let content = UNMutableNotificationContent()
             if let meal = alert.mealPeriod {
                 let display = MealPeriodDisplay.label(live: meal)

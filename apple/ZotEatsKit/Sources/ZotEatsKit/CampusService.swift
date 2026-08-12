@@ -175,6 +175,7 @@ public struct CampusService: Sendable {
                 hasMenu: row.hasMenu,
                 opensAtMinutes: status.opensAtMinutes,
                 closesAtMinutes: status.closesAtMinutes,
+                currentOpenStartMinutes: status.currentOpenStartMinutes,
                 opensTomorrowAtMinutes: status.opensTomorrowAtMinutes,
                 tomorrowHours: status.tomorrowHours,
                 upcomingWindows: Self.followingOpenings(

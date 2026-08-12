@@ -11,6 +11,8 @@ public enum CampusPlaceStatus {
         public let tomorrowHours: String?
         public let opensAtMinutes: Int?
         public let closesAtMinutes: Int?
+        /// Start of the window covering now (Opening Alerts late-BG catch-up).
+        public let currentOpenStartMinutes: Int?
         public let opensTomorrowAtMinutes: Int?
         /// Schedule was resolved from the feed (including explicit "off").
         public let hoursKnown: Bool
@@ -21,6 +23,7 @@ public enum CampusPlaceStatus {
             tomorrowHours: String? = nil,
             opensAtMinutes: Int?,
             closesAtMinutes: Int?,
+            currentOpenStartMinutes: Int? = nil,
             opensTomorrowAtMinutes: Int?,
             hoursKnown: Bool = true
         ) {
@@ -29,6 +32,7 @@ public enum CampusPlaceStatus {
             self.tomorrowHours = tomorrowHours
             self.opensAtMinutes = opensAtMinutes
             self.closesAtMinutes = closesAtMinutes
+            self.currentOpenStartMinutes = currentOpenStartMinutes
             self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
             self.hoursKnown = hoursKnown
         }
@@ -41,12 +45,11 @@ public enum CampusPlaceStatus {
         todayScheduleResolved: Bool = true
     ) -> Snapshot {
         let openNow = todayWindows.contains { $0.contains(minute: nowMinutes) }
+        let currentTimed = todayWindows.first(where: {
+            $0.contains(minute: nowMinutes) && !$0.isAllDay
+        })
         let closesAt: Int? = {
-            guard openNow else { return nil }
-            // End of the window covering now (skip all-day — no useful boundary).
-            guard let current = todayWindows.first(where: { $0.contains(minute: nowMinutes) }),
-                  !current.isAllDay
-            else { return nil }
+            guard let current = currentTimed else { return nil }
             // Midnight-crossing windows: treat end as next-day minutes for dating.
             return current.end % (24 * 60) == 0 && current.end >= 24 * 60
                 ? 24 * 60
@@ -61,6 +64,7 @@ public enum CampusPlaceStatus {
                 nowMinutes: nowMinutes
             ),
             closesAtMinutes: closesAt,
+            currentOpenStartMinutes: currentTimed.map(\.start),
             opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min(),
             hoursKnown: todayScheduleResolved || !tomorrowWindows.isEmpty
         )

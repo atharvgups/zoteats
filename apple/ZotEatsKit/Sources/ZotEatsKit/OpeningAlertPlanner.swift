@@ -121,8 +121,14 @@ public enum OpeningAlertPlanner {
         return "open:\(placeID):\(dateISO)"
     }
 
+    /// How long after a meal/window open we still fire a one-shot catch-up
+    /// when BG / board publish landed late (missed the exact open minute).
+    public static let openCatchUpGraceMinutes = 20
+
     /// Alerts for every watched place that opens later today **or** tomorrow
     /// (remaining meals while already open, or morning after today's windows end).
+    /// Today candidates whose open already passed only schedule when still
+    /// within `openCatchUpGraceMinutes` of open and before close (late BG).
     public static func plan(
         candidates: [Candidate],
         watchedIDs: Set<String>,
@@ -138,8 +144,14 @@ public enum OpeningAlertPlanner {
             else { return nil }
 
             if candidate.dayOffset == 0 {
-                // Still today — only schedule openings that haven't started yet.
-                guard opensAt > nowMinutes else { return nil }
+                if opensAt <= nowMinutes {
+                    // Catch-up: open already started — only while still serving
+                    // and within grace of the open minute (late publish / BG).
+                    guard let closesAt = candidate.closesAtMinutes,
+                          nowMinutes < closesAt,
+                          nowMinutes - opensAt <= openCatchUpGraceMinutes
+                    else { return nil }
+                }
             }
 
             guard let day = calendar.date(byAdding: .day, value: candidate.dayOffset, to: startOfToday)
@@ -202,6 +214,35 @@ public enum OpeningAlertPlanner {
         nowMinutes: Int
     ) -> [MealOpening] {
         allTimedMeals(periods: periods).filter { $0.startMinutes > nowMinutes }
+    }
+
+    /// Meals already open but still inside the catch-up grace window — late
+    /// Lunch/Dinner publish or BG can still deliver "just opened" once.
+    public static func recentlyOpenedMeals(
+        periods: [MealPeriodWindow],
+        nowMinutes: Int,
+        graceMinutes: Int = openCatchUpGraceMinutes
+    ) -> [MealOpening] {
+        allTimedMeals(periods: periods).filter { meal in
+            guard meal.startMinutes <= nowMinutes else { return false }
+            guard nowMinutes - meal.startMinutes <= graceMinutes else { return false }
+            guard let end = meal.endMinutes, nowMinutes < end else { return false }
+            return true
+        }
+    }
+
+    /// Campus open windows already started but still within catch-up grace.
+    public static func recentlyOpenedWindows(
+        windows: [CampusHoursWindow],
+        nowMinutes: Int,
+        graceMinutes: Int = openCatchUpGraceMinutes
+    ) -> [CampusHoursWindow] {
+        windows.filter { window in
+            guard window.startMinutes <= nowMinutes else { return false }
+            guard nowMinutes - window.startMinutes <= graceMinutes else { return false }
+            guard nowMinutes < window.endMinutes else { return false }
+            return true
+        }
     }
 
     /// Every timed meal on a day of periods (Breakfast + Lunch + Dinner), sorted

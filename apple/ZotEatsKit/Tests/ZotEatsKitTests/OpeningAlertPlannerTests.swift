@@ -61,6 +61,93 @@ struct OpeningAlertPlannerTests {
         #expect(plans.isEmpty)
     }
 
+    @Test func catchUpRecentlyOpenedDiningMealWithinGrace() {
+        // Lunch opened at 11:00; BG lands at 11:10 — still fire once.
+        let tenPastEleven = sevenAM.addingTimeInterval((4 * 60 + 10) * 60)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 11 * 60,
+                    mealPeriod: "Lunch",
+                    closesAtMinutes: 14 * 60 + 30
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: tenPastEleven
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-16:Lunch")
+        #expect(plan.mealPeriod == "Lunch")
+        #expect(plan.deepLinkDate == nil)
+    }
+
+    @Test func catchUpSkipsDiningMealPastGrace() {
+        let noon = sevenAM.addingTimeInterval(5 * 3600)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 11 * 60,
+                    mealPeriod: "Lunch",
+                    closesAtMinutes: 14 * 60 + 30
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: noon
+        )
+        #expect(plans.isEmpty)
+    }
+
+    @Test func catchUpCampusWindowWithinGrace() {
+        let tenPastEight = sevenAM.addingTimeInterval(70 * 60)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "campus:starbucks",
+                    name: "Starbucks",
+                    opensAtMinutes: 8 * 60,
+                    closesAtMinutes: 16 * 60,
+                    hoursSpan: "8:00 AM – 4:00 PM",
+                    windowStartMinutes: 8 * 60
+                ),
+            ],
+            watchedIDs: ["campus:starbucks"],
+            now: tenPastEight
+        )
+        #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16:480")
+    }
+
+    @Test func recentlyOpenedMealsFiltersGraceAndStillServing() {
+        let periods = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 7 * 60 + 15, endMinutes: 11 * 60),
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60 + 30),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 21 * 60),
+        ]
+        let justOpened = OpeningAlertPlanner.recentlyOpenedMeals(
+            periods: periods,
+            nowMinutes: 11 * 60 + 10
+        )
+        #expect(justOpened.map(\.periodName) == ["Lunch"])
+        #expect(
+            OpeningAlertPlanner.recentlyOpenedMeals(
+                periods: periods,
+                nowMinutes: 12 * 60
+            ).isEmpty
+        )
+        #expect(
+            OpeningAlertPlanner.recentlyOpenedWindows(
+                windows: [
+                    CampusHoursWindow(startMinutes: 8 * 60, endMinutes: 12 * 60),
+                    CampusHoursWindow(startMinutes: 14 * 60, endMinutes: 18 * 60),
+                ],
+                nowMinutes: 8 * 60 + 5
+            ).map(\.startMinutes) == [8 * 60]
+        )
+    }
+
     @Test func schedulesTomorrowWhenClosedForToday() {
         // 10 PM Pacific — nothing left today; tomorrow breakfast should still schedule.
         let tenPM = sevenAM.addingTimeInterval(15 * 3600)

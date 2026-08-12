@@ -13,6 +13,7 @@ struct CampusPlaceStatusTests {
         )
         #expect(status.openNow)
         #expect(status.closesAtMinutes == 16 * 60)
+        #expect(status.currentOpenStartMinutes == 7 * 60 + 30)
         #expect(status.opensAtMinutes == nil)
         #expect(status.opensTomorrowAtMinutes == 7 * 60 + 30)
         #expect(status.tomorrowHours?.contains("7:30 AM") == true)
@@ -58,7 +59,19 @@ struct CampusPlaceStatusTests {
         )
         #expect(status.openNow)
         #expect(status.closesAtMinutes == 11 * 60)
+        #expect(status.currentOpenStartMinutes == 7 * 60 + 30)
         #expect(status.opensAtMinutes == 16 * 60 + 30)
+    }
+
+    @Test func closedHasNoCurrentOpenStart() {
+        let today = [CampusService.TimeWindow(start: 7 * 60 + 30, end: 16 * 60)]
+        let status = CampusPlaceStatus.evaluate(
+            todayWindows: today,
+            tomorrowWindows: [],
+            nowMinutes: 17 * 60
+        )
+        #expect(!status.openNow)
+        #expect(status.currentOpenStartMinutes == nil)
     }
 }
 

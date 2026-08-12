@@ -381,6 +381,8 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     /// When open: end of the current window (Irvine minutes). Nil when closed,
     /// open 24h, or hours unknown — drives Campus widget reload boundaries.
     public let closesAtMinutes: Int?
+    /// When open: start of the current timed window — Opening Alerts catch-up.
+    public let currentOpenStartMinutes: Int?
     /// Tomorrow's earliest opening (Irvine), for evening opening-alert schedules
     /// after today's windows have passed. Nil when hours are unknown.
     public let opensTomorrowAtMinutes: Int?
@@ -415,6 +417,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         hasMenu: Bool = false,
         opensAtMinutes: Int? = nil,
         closesAtMinutes: Int? = nil,
+        currentOpenStartMinutes: Int? = nil,
         opensTomorrowAtMinutes: Int? = nil,
         tomorrowHours: String? = nil,
         upcomingWindows: [CampusHoursWindow] = [],
@@ -434,6 +437,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.hasMenu = hasMenu
         self.opensAtMinutes = opensAtMinutes
         self.closesAtMinutes = closesAtMinutes
+        self.currentOpenStartMinutes = currentOpenStartMinutes
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
         self.tomorrowHours = tomorrowHours
         self.upcomingWindows = upcomingWindows
