@@ -125,13 +125,23 @@ struct RootTabView: View {
     @State private var busynessStore = BusynessStore()
     @State private var preferences = Preferences()
     @State private var plate = PlateStore()
+    /// Bumps after each meal wrap-up tick so Auto meal countdown fires off Eat.
+    @State private var wrapUpEpoch = 0
+
+    private var wrapUpWatchID: String {
+        "\(wrapUpEpoch)|\(diningStore.dayEpoch)|\(diningStore.locations.value?.map(\.id).joined() ?? "")"
+    }
 
     var body: some View {
+        let _ = wrapUpEpoch
         tabs
             .liquidGlassTabBar()
             .environment(\.openSettings) { showSettings = true }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .task(id: wrapUpWatchID) {
+                await watchMealWrapUps()
             }
             .onAppear {
                 // Restore the persisted appearance once the window hierarchy exists.
@@ -154,7 +164,10 @@ struct RootTabView: View {
                     // Purge live "today" menus after Irvine midnight, then always
                     // recompute hall open state from cached meal windows (Campus parity).
                     diningStore.ensureCurrentDay()
-                    Task { await diningStore.loadLocations() }
+                    Task {
+                        await diningStore.loadLocations()
+                        wrapUpEpoch += 1
+                    }
                 }
             }
             .onOpenURL { url in
@@ -162,6 +175,20 @@ struct RootTabView: View {
                     applyDeepLink(link)
                 }
             }
+    }
+
+    /// Sleep until the next hall meal wrap-up (T−45), then auto-start Island
+    /// even when Eat is unloaded (Campus / Gym / Study).
+    private func watchMealWrapUps() async {
+        guard let locations = diningStore.locations.value, !locations.isEmpty else { return }
+        let fire = MealActivityWrapUpRefresh.nextFire(locations: locations)
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await MealActivityAutoStartRunner.run(service: DiningService())
+        wrapUpEpoch += 1
     }
 
     private func applyDeepLink(_ link: AnteatsDeepLink) {

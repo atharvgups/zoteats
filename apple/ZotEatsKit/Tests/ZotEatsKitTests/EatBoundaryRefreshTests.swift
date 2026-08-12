@@ -16,9 +16,6 @@ struct EatBoundaryRefreshTests {
         let nowMinutes = UCITime.nowMinutes(now: noon)
         let dates = EatBoundaryRefresh.boundaries(
             hallPeriods: [day],
-            selectedTimedPeriods: day,
-            selectedAvailablePeriods: day.map(\.name),
-            selectedPill: "Lunch",
             nowMinutes: nowMinutes,
             now: noon
         )
@@ -35,9 +32,6 @@ struct EatBoundaryRefreshTests {
         let nowMinutes = UCITime.nowMinutes(now: twoTwenty)
         let fire = EatBoundaryRefresh.nextFire(
             hallPeriods: [day],
-            selectedTimedPeriods: day,
-            selectedAvailablePeriods: day.map(\.name),
-            selectedPill: "Lunch",
             nowMinutes: nowMinutes,
             now: twoTwenty
         )
@@ -54,9 +48,6 @@ struct EatBoundaryRefreshTests {
         let nowMinutes = UCITime.nowMinutes(now: midBrunch)
         let dates = EatBoundaryRefresh.boundaries(
             hallPeriods: [brunchDay],
-            selectedTimedPeriods: brunchDay,
-            selectedAvailablePeriods: brunchDay.map(\.name),
-            selectedPill: "Breakfast",
             nowMinutes: nowMinutes,
             now: midBrunch
         )
@@ -64,37 +55,29 @@ struct EatBoundaryRefreshTests {
         #expect(dates.contains(UCITime.date(forMinutes: 795, nowMinutes: nowMinutes, now: midBrunch)))
     }
 
-    @Test func nilPillSkipsAutoStartBoundary() {
+    @Test func includesEveryHallsWrapUp() {
+        let anteatery = [
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        ]
+        let brandy = [
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 900),
+        ]
         let noon = ISO8601DateFormatter().date(from: "2026-07-09T19:00:00Z")!
         let nowMinutes = UCITime.nowMinutes(now: noon)
-        let withPill = EatBoundaryRefresh.boundaries(
-            hallPeriods: [day],
-            selectedTimedPeriods: day,
-            selectedAvailablePeriods: day.map(\.name),
-            selectedPill: "Lunch",
+        let dates = EatBoundaryRefresh.boundaries(
+            hallPeriods: [anteatery, brandy],
             nowMinutes: nowMinutes,
             now: noon
         )
-        let without = EatBoundaryRefresh.boundaries(
-            hallPeriods: [day],
-            selectedTimedPeriods: day,
-            selectedAvailablePeriods: day.map(\.name),
-            selectedPill: nil,
-            nowMinutes: nowMinutes,
-            now: noon
-        )
-        let autoAt = UCITime.date(forMinutes: 825, nowMinutes: nowMinutes, now: noon)
-        #expect(withPill.contains(autoAt))
-        #expect(!without.contains(autoAt))
+        // Anteatery wrap-up 825, Brandywine wrap-up 855 — both scheduled.
+        #expect(dates.contains(UCITime.date(forMinutes: 825, nowMinutes: nowMinutes, now: noon)))
+        #expect(dates.contains(UCITime.date(forMinutes: 855, nowMinutes: nowMinutes, now: noon)))
     }
 
     @Test func emptyHallsStillFireAtMidnightOrCap() {
         let noon = ISO8601DateFormatter().date(from: "2026-07-09T19:00:00Z")!
         let fire = EatBoundaryRefresh.nextFire(
             hallPeriods: [],
-            selectedTimedPeriods: [],
-            selectedAvailablePeriods: [],
-            selectedPill: nil,
             nowMinutes: UCITime.nowMinutes(now: noon),
             now: noon
         )
@@ -103,5 +86,34 @@ struct EatBoundaryRefreshTests {
         #expect(fire == min(midnight.addingTimeInterval(2), cap) || fire == midnight.addingTimeInterval(2) || fire == cap)
         // Midnight is later the same calendar day evening → beyond 15m cap.
         #expect(fire == cap)
+    }
+}
+
+@Suite("MealActivityWrapUpRefresh")
+struct MealActivityWrapUpRefreshTests {
+    @Test func prefersSoonestWrapUpOverCap() {
+        let locations = [
+            DiningLocation(
+                id: "anteatery",
+                name: "The Anteatery",
+                area: "UTC",
+                openNow: true,
+                todayHours: nil,
+                availablePeriods: ["Lunch"],
+                periods: [
+                    MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+                ],
+                hoursApproximate: false
+            ),
+        ]
+        // Monday 1:40 PM — wrap-up at 1:45 is 5m away.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T20:40:00Z")!
+        let fire = MealActivityWrapUpRefresh.nextFire(locations: locations, now: now)
+        let wrapUp = UCITime.date(
+            forMinutes: 825,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(fire == wrapUp.addingTimeInterval(2))
     }
 }

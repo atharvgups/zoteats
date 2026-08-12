@@ -11,13 +11,11 @@ public enum EatBoundaryRefresh {
     /// Cap between ticks when no meal boundary is near (matches Dining Status).
     public static let maxInterval: TimeInterval = 15 * 60
 
-    /// Open/close edges for every loaded hall, Irvine midnight, and the
-    /// selected meal's Live Activity auto-start (final 45 minutes).
+    /// Open/close edges for every loaded hall, Irvine midnight, and **every**
+    /// hall's Live Activity wrap-up (end − 45) — not only the selected pill —
+    /// so Anteatery selected still ticks when Brandywine enters T−45.
     public static func boundaries(
         hallPeriods: [[MealPeriodWindow]],
-        selectedTimedPeriods: [MealPeriodWindow],
-        selectedAvailablePeriods: [String],
-        selectedPill: String?,
         nowMinutes: Int,
         now: Date = Date()
     ) -> [Date] {
@@ -34,21 +32,15 @@ public enum EatBoundaryRefresh {
                     dates.append(
                         UCITime.date(forMinutes: end, nowMinutes: nowMinutes, now: now)
                     )
+                    if let start = window.startMinutes {
+                        let autoAt = end - MealTrackMath.autoStartWindowMinutes
+                        if autoAt > start {
+                            dates.append(
+                                UCITime.date(forMinutes: autoAt, nowMinutes: nowMinutes, now: now)
+                            )
+                        }
+                    }
                 }
-            }
-        }
-
-        if let pill = selectedPill,
-           let window = MealTrackWindow.resolve(
-            pill: pill,
-            timedPeriods: selectedTimedPeriods,
-            availablePeriods: selectedAvailablePeriods
-           ) {
-            let autoAt = window.endMinutes - MealTrackMath.autoStartWindowMinutes
-            if autoAt > window.startMinutes {
-                dates.append(
-                    UCITime.date(forMinutes: autoAt, nowMinutes: nowMinutes, now: now)
-                )
             }
         }
 
@@ -57,9 +49,6 @@ public enum EatBoundaryRefresh {
 
     public static func nextFire(
         hallPeriods: [[MealPeriodWindow]],
-        selectedTimedPeriods: [MealPeriodWindow],
-        selectedAvailablePeriods: [String],
-        selectedPill: String?,
         nowMinutes: Int,
         now: Date = Date(),
         maxInterval: TimeInterval = maxInterval
@@ -68,9 +57,6 @@ public enum EatBoundaryRefresh {
             now: now,
             boundaries: boundaries(
                 hallPeriods: hallPeriods,
-                selectedTimedPeriods: selectedTimedPeriods,
-                selectedAvailablePeriods: selectedAvailablePeriods,
-                selectedPill: selectedPill,
                 nowMinutes: nowMinutes,
                 now: now
             ),

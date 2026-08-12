@@ -660,16 +660,12 @@ struct DiningView: View {
         boundaryEpoch += 1
     }
 
-    /// Sleep until the next meal open/close / auto-start / midnight, then
+    /// Sleep until the next meal open/close / any-hall wrap-up / midnight, then
     /// refresh pills, menu, Live Activity, and hall chrome without leaving Eat.
     private func watchMealBoundaries() async {
         guard let locations = store.locations.value, !locations.isEmpty else { return }
-        let selected = locations.first { $0.id == selectedHall }
         let fire = EatBoundaryRefresh.nextFire(
             hallPeriods: locations.map(\.periods),
-            selectedTimedPeriods: selected?.periods ?? [],
-            selectedAvailablePeriods: selected?.availablePeriods ?? [],
-            selectedPill: selectedDate == nil ? selectedPeriod : nil,
             nowMinutes: UCITime.nowMinutes()
         )
         let delay = fire.timeIntervalSinceNow
@@ -697,35 +693,35 @@ struct DiningView: View {
 
     /// When a meal is in its last ~45 minutes, start the Dynamic Island countdown
     /// without requiring a tap (respects Settings → Auto meal countdown).
+    /// Picks the soonest-ending hall in wrap-up — not only the selected card —
+    /// so Anteatery selected still starts Brandywine when that Lunch ends first.
     private func considerAutoMealActivity() {
         // Tab unload / cold start drop in-memory trackedKey; reconcile first so
         // Tracking stays honest and we don't recreate a live Island timer.
         mealActivity.syncFromSystem()
         guard selectedDate == nil,
-              let location = selectedLocation,
-              let period = selectedPeriod,
-              let window = MealTrackWindow.resolve(
-                pill: period,
-                timedPeriods: location.periods,
-                availablePeriods: location.availablePeriods
+              let locations = store.locations.value,
+              let pick = MealActivityAutoStart.pick(
+                locations: locations,
+                nowMinutes: UCITime.nowMinutes(),
+                alreadyTracking: mealActivity.trackedKey != nil,
+                autoEnabled: MealActivityManager.autoStartEnabled
               )
         else { return }
-        // Use the live API name (Brunch / Limited Dinner) so the Island label
-        // and Tracking key match the Track meal button.
         let postClose = MealActivityPostClose.destination(
-            currentPeriodEndMinutes: window.endMinutes,
-            timedPeriods: location.periods,
-            opensTomorrowPeriod: location.opensTomorrowPeriod
+            currentPeriodEndMinutes: pick.endMinutes,
+            timedPeriods: pick.timedPeriods,
+            opensTomorrowPeriod: pick.opensTomorrowPeriod
         )
         mealActivity.autoStartIfNeeded(
-            hallName: location.name,
-            hallID: location.id,
-            period: window.livePeriodName,
-            startMinutes: window.startMinutes,
-            endMinutes: window.endMinutes,
+            hallName: pick.hallName,
+            hallID: pick.hallID,
+            period: pick.livePeriodName,
+            startMinutes: pick.startMinutes,
+            endMinutes: pick.endMinutes,
             postClosePeriod: postClose.period,
             postCloseDate: postClose.date,
-            opensTomorrowPeriod: location.opensTomorrowPeriod
+            opensTomorrowPeriod: pick.opensTomorrowPeriod
         )
     }
 
