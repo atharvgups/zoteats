@@ -20,8 +20,18 @@ struct PlateSheet: View {
                 .padding(.trailing, 44)
 
                 HStack(spacing: 12) {
-                    totalCard(value: "\(plate.totalCalories)", label: "Calories", tint: .orange)
-                    totalCard(value: "\(plate.totalProteinG)g", label: "Protein", tint: TagPalette.sage)
+                    totalCard(
+                        value: "\(plate.totalCalories)",
+                        label: "Calories",
+                        tint: .orange,
+                        announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
+                    )
+                    totalCard(
+                        value: "\(plate.totalProteinG)g",
+                        label: "Protein",
+                        tint: TagPalette.sage,
+                        announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
+                    )
                 }
 
                 if plate.isEmpty {
@@ -98,7 +108,7 @@ struct PlateSheet: View {
         .presentationDragIndicator(.visible)
     }
 
-    private func totalCard(value: String, label: String, tint: Color) -> some View {
+    private func totalCard(value: String, label: String, tint: Color, announce: Bool) -> some View {
         VStack(spacing: 3) {
             Text(value)
                 .font(.title2.weight(.bold))
@@ -111,6 +121,7 @@ struct PlateSheet: View {
         .padding(.vertical, 14)
         .zotCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): \(value)")
+        .accessibilityLabel(PlateTotalsAccessibility.label(name: label, value: value))
+        .accessibilityHidden(!announce)
     }
 }
