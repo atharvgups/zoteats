@@ -19,7 +19,9 @@ struct TodaysMenuHallPickTests {
     private func hall(
         id: String,
         name: String,
-        periods: [MealPeriodWindow]
+        periods: [MealPeriodWindow],
+        opensTomorrowAtMinutes: Int? = nil,
+        opensTomorrowPeriod: String? = nil
     ) -> DiningLocation {
         DiningLocation(
             id: id,
@@ -29,7 +31,9 @@ struct TodaysMenuHallPickTests {
             todayHours: nil,
             availablePeriods: periods.map(\.name),
             periods: periods,
-            hoursApproximate: true
+            hoursApproximate: true,
+            opensTomorrowAtMinutes: opensTomorrowAtMinutes,
+            opensTomorrowPeriod: opensTomorrowPeriod
         )
     }
 
@@ -61,11 +65,55 @@ struct TodaysMenuHallPickTests {
         #expect(pick?.id == "brandywine")
     }
 
-    @Test func afterHoursFallsBackToAPIFirst() {
+    @Test func afterHoursPicksSoonestTomorrowOpenNotAPIFirst() {
+        let anteatery = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: anteateryDay,
+            opensTomorrowAtMinutes: 7 * 60 + 15,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let brandywine = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: brandywineDay,
+            opensTomorrowAtMinutes: 7 * 60,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [anteatery, brandywine],
+            nowMinutes: 1300
+        )
+        #expect(pick?.id == "brandywine")
+    }
+
+    @Test func afterHoursWithoutTomorrowFallsBackToAPIFirst() {
         let anteatery = hall(id: "anteatery", name: "The Anteatery", periods: anteateryDay)
         let brandywine = hall(id: "brandywine", name: "Brandywine", periods: brandywineDay)
         let pick = TodaysMenuHallPick.auto(
             from: [anteatery, brandywine],
+            nowMinutes: 1300
+        )
+        #expect(pick?.id == "anteatery")
+    }
+
+    @Test func afterHoursEqualTomorrowOpenStableByID() {
+        let anteatery = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: anteateryDay,
+            opensTomorrowAtMinutes: 435,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let brandywine = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: brandywineDay,
+            opensTomorrowAtMinutes: 435,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [brandywine, anteatery],
             nowMinutes: 1300
         )
         #expect(pick?.id == "anteatery")

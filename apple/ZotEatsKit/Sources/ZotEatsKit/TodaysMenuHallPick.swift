@@ -1,8 +1,9 @@
 import Foundation
 
 /// Which dining hall Today's Menu Auto should show.
-/// Prefer a hall serving now; between meals, the soonest `openingLater`
-/// (not API-first, which pinned a closed commons and hid the next meal).
+/// Prefer a hall serving now; between meals, the soonest `openingLater`;
+/// after hours, the soonest `opensTomorrowAtMinutes` (not API-first, which
+/// pinned a later-opening commons for empty copy + tomorrow deep link).
 public enum TodaysMenuHallPick {
     public static func auto(
         from locations: [DiningLocation],
@@ -19,6 +20,19 @@ public enum TodaysMenuHallPick {
             return (hall, opensAt)
         }
         if let soonest = upcoming.min(by: { $0.opensAt < $1.opensAt }) {
+            return soonest.hall
+        }
+
+        let tomorrow = locations.compactMap { hall -> (hall: DiningLocation, opensAt: Int)? in
+            guard hall.openState(nowMinutes: nowMinutes) == .closedForToday,
+                  let opensAt = hall.opensTomorrowAtMinutes
+            else { return nil }
+            return (hall, opensAt)
+        }
+        if let soonest = tomorrow.min(by: { lhs, rhs in
+            if lhs.opensAt != rhs.opensAt { return lhs.opensAt < rhs.opensAt }
+            return lhs.hall.id < rhs.hall.id
+        }) {
             return soonest.hall
         }
 
