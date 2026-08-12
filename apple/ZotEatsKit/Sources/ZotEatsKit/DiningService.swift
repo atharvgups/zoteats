@@ -414,7 +414,8 @@ public struct DiningService: Sendable {
     /// Every dining commons the live API lists (a new hall shows up here
     /// automatically) with today's hours, open state, and served meal periods.
     /// Pass `forceRefresh` at publish probes / pull-to-refresh so a stale
-    /// empty or breakfast-only board is not reused for up to 20 minutes.
+    /// empty or breakfast-only board — and tomorrow / next-open metadata —
+    /// is not reused for up to 20 minutes.
     public func locations(forceRefresh: Bool = false) async -> [DiningLocation] {
         let dateISO = PacificTime.todayISO(now: now())
         let nowMinutes = PacificTime.nowMinutes(now: now())
@@ -474,7 +475,14 @@ public struct DiningService: Sendable {
         let calendar = PacificTime.calendar
         let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: now()) ?? now()
         let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
-        async let tomorrowWindows = mealPeriods(for: hall, dateISO: tomorrowISO)
+        // Force-refresh must also re-fetch tomorrow / next-open boards — otherwise
+        // pull-to-refresh can leave "Closed for today" / Monday chrome stuck on a
+        // cached empty next day while today's board updates.
+        async let tomorrowWindows = mealPeriods(
+            for: hall,
+            dateISO: tomorrowISO,
+            forceRefresh: forceRefresh
+        )
 
         do {
             let periods = Self.servedPeriods(
@@ -494,7 +502,8 @@ public struct DiningService: Sendable {
             let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
             let next = await nextOpenBeyondTomorrow(
                 hall: hall,
-                tomorrowMinutes: tomorrow.minutes
+                tomorrowMinutes: tomorrow.minutes,
+                forceRefresh: forceRefresh
             )
             return DiningLocation(
                 id: hall,
@@ -523,7 +532,8 @@ public struct DiningService: Sendable {
             let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
             let next = await nextOpenBeyondTomorrow(
                 hall: hall,
-                tomorrowMinutes: tomorrow.minutes
+                tomorrowMinutes: tomorrow.minutes,
+                forceRefresh: forceRefresh
             )
             return DiningLocation(
                 id: hall,
@@ -548,14 +558,17 @@ public struct DiningService: Sendable {
     /// When tomorrow is unpublished, scan further days inside `/dateRange`.
     private func nextOpenBeyondTomorrow(
         hall: String,
-        tomorrowMinutes: Int?
+        tomorrowMinutes: Int?,
+        forceRefresh: Bool = false
     ) async -> DiningNextOpen.Result? {
         guard tomorrowMinutes == nil else { return nil }
-        let latest = await publishedDateRange()?.latest
+        let latest = await publishedDateRange(forceRefresh: forceRefresh)?.latest
         return await DiningNextOpen.find(
             from: now(),
             latestISO: latest,
-            periodsForDay: { iso in await mealPeriods(for: hall, dateISO: iso) }
+            periodsForDay: { iso in
+                await mealPeriods(for: hall, dateISO: iso, forceRefresh: forceRefresh)
+            }
         )
     }
 

@@ -437,6 +437,33 @@ struct HallDirectoryTests {
         #expect(fresh.contains { $0.availablePeriods.contains("Lunch") })
         #expect(await http.todayHits() > hitsAfterEmpty)
     }
+
+    @Test("forceRefresh refreshes tomorrow opens-at when next-day board publishes")
+    func forceRefreshUpdatesOpensTomorrowMetadata() async {
+        // Thursday 9:00 PM Pacific — after Dinner; tomorrow is Friday 2026-07-10.
+        let evening = ISO8601DateFormatter().date(from: "2026-07-10T04:00:00Z")!
+        let todayISO = "2026-07-09"
+        let tomorrowISO = "2026-07-10"
+        let http = TomorrowPublishHTTP(todayISO: todayISO)
+        let cache = TTLCache()
+        let service = DiningService(http: http, cache: cache, now: { evening })
+
+        let before = await service.locations()
+        #expect(before.contains { !$0.availablePeriods.isEmpty })
+        #expect(before.allSatisfy { $0.opensTomorrowAtMinutes == nil })
+        let tomorrowHits = await http.hits(for: tomorrowISO)
+        #expect(tomorrowHits >= 1)
+
+        await http.publish(dateISO: tomorrowISO)
+        let soft = await service.locations()
+        #expect(soft.allSatisfy { $0.opensTomorrowAtMinutes == nil })
+        #expect(await http.hits(for: tomorrowISO) == tomorrowHits)
+
+        let fresh = await service.locations(forceRefresh: true)
+        #expect(fresh.contains { $0.opensTomorrowAtMinutes == 7 * 60 + 15 })
+        #expect(fresh.contains { $0.opensTomorrowPeriod == "Breakfast" })
+        #expect(await http.hits(for: tomorrowISO) > tomorrowHits)
+    }
 }
 
 @Suite("PacificTime")

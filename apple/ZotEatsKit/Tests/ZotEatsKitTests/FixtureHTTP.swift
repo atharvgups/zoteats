@@ -94,3 +94,49 @@ actor PublishProbeHTTP: HTTPFetching {
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }
 }
+
+/// Serves today's fixture board always; tomorrow (and later) stay empty until
+/// `publish(dateISO:)` so forceRefresh can prove next-open metadata updates.
+actor TomorrowPublishHTTP: HTTPFetching {
+    private let todayISO: String
+    private var publishedDates: Set<String> = []
+    private(set) var hitsByDate: [String: Int] = [:]
+
+    init(todayISO: String) {
+        self.todayISO = todayISO
+    }
+
+    func publish(dateISO: String) {
+        publishedDates.insert(dateISO)
+    }
+
+    func hits(for dateISO: String) -> Int {
+        hitsByDate[dateISO] ?? 0
+    }
+
+    func data(from url: URL) async throws -> Data {
+        let path = url.path
+        if path.hasSuffix("/restaurants") {
+            return try FixtureHTTP.load("restaurants")
+        }
+        if path.hasSuffix("/restaurantToday") {
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+            let hall = items?.first(where: { $0.name == "id" })?.value ?? "anteatery"
+            let date = items?.first(where: { $0.name == "date" })?.value ?? todayISO
+            hitsByDate[date, default: 0] += 1
+            if date == todayISO || publishedDates.contains(date) {
+                return try FixtureHTTP.load("restaurant_today")
+            }
+            return Data(
+                #"{"ok":true,"data":{"id":"\#(hall)","periods":{}}}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dishes/batch") {
+            return try FixtureHTTP.load("dishes_batch")
+        }
+        if path.hasSuffix("/dateRange") {
+            return try FixtureHTTP.load("date_range")
+        }
+        throw FixtureHTTP.UnexpectedRequest(url: url)
+    }
+}
