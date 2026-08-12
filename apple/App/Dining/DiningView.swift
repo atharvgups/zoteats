@@ -649,9 +649,21 @@ struct DiningView: View {
             if let hallID {
                 selectedHall = hallID
             }
-            if let date = link.date {
-                let today = UCITime.upcomingDays(count: 1).first?.isoDate
-                selectedDate = (date == today) ? nil : date
+            // Live same-day links omit date — force today so a stuck future
+            // DayStrip doesn't keep browsingFutureDay and wrong meal snap.
+            let forcesToday = link.hall != nil || link.period != nil || link.dish != nil
+            let todayISO = UCITime.upcomingDays(count: 1).first?.isoDate
+            switch EatDeepLinkBrowseDay.resolve(
+                linkDate: link.date,
+                todayISO: todayISO,
+                forcesTodayWhenDateOmitted: forcesToday
+            ) {
+            case .keep:
+                break
+            case .today:
+                selectedDate = nil
+            case .future(let iso):
+                selectedDate = iso
             }
             // Hall, period, or date taps re-resolve the pill. Bare `anteats://eat`
             // leaves selection alone. Date-only Menu Drop links need a future-day
