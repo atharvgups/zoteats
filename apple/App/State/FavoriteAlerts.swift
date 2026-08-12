@@ -44,8 +44,10 @@ enum FavoriteAlerts {
         let hallNames = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0.name) })
 
         var menus: [DiningMenu] = []
+        var hallPeriods: [String: (timed: [MealPeriodWindow], available: [String])] = [:]
         let nowMinutes = UCITime.nowMinutes()
         for location in locations {
+            hallPeriods[location.id] = (location.periods, location.availablePeriods)
             // Live/upcoming primary pills only — skip ended Breakfast after lunch
             // and all today leftovers after hours.
             for period in FavoriteAlertPeriods.eligible(
@@ -67,11 +69,25 @@ enum FavoriteAlerts {
             guard !notified.contains(key) else { continue }
             notified.insert(key)
 
+            let deepLinkPeriod = MealPeriodPill.canonical(match.period)
+            let hallWindows = hallPeriods[match.locationId]
+            let servingNow = hallWindows.map {
+                MealPillLiveness.isCurrentlyServing(
+                    pill: deepLinkPeriod,
+                    timedPeriods: $0.timed,
+                    availablePeriods: $0.available,
+                    nowMinutes: nowMinutes
+                )
+            } ?? false
+
             let content = UNMutableNotificationContent()
             content.title = "Zot! \(match.dishName) is on the menu"
-            content.body = "Being served at \(match.hallName) for \(match.period.lowercased()) today."
+            content.body = FavoriteAlertCopy.body(
+                hallName: match.hallName,
+                period: match.period,
+                servingNow: servingNow
+            )
             content.sound = .default
-            let deepLinkPeriod = MealPeriodPill.canonical(match.period)
             let link = AnteatsDeepLink.eat(
                 hall: match.locationId,
                 period: deepLinkPeriod,

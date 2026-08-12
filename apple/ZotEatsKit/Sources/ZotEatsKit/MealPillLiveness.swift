@@ -33,4 +33,35 @@ public enum MealPillLiveness {
         }
         return false
     }
+
+    /// True only while `now` is inside the meal's open window (not merely upcoming).
+    public static func isCurrentlyServing(
+        pill: String,
+        timedPeriods: [MealPeriodWindow],
+        availablePeriods: [String],
+        nowMinutes: Int
+    ) -> Bool {
+        let pills = DiningService.primaryPeriods(from: availablePeriods)
+        return isCurrentlyServing(
+            pill: pill,
+            timedPeriods: timedPeriods,
+            pills: pills,
+            nowMinutes: nowMinutes
+        )
+    }
+
+    public static func isCurrentlyServing(
+        pill: String,
+        timedPeriods: [MealPeriodWindow],
+        pills: [String],
+        nowMinutes: Int
+    ) -> Bool {
+        for window in timedPeriods {
+            guard let start = window.startMinutes, let end = window.endMinutes else { continue }
+            let windowPill = MealPeriodPill.match(window.name, in: pills) ?? window.name
+            guard windowPill.caseInsensitiveCompare(pill) == .orderedSame else { continue }
+            if nowMinutes >= start && nowMinutes < end { return true }
+        }
+        return false
+    }
 }
