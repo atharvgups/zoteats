@@ -65,7 +65,7 @@ struct MealCountdownActivity: Widget {
             .widgetURL(
                 AnteatsDeepLink.eat(
                     hall: context.attributes.hallID,
-                    period: context.attributes.period
+                    period: MealPeriodPill.canonical(context.attributes.period)
                 ).url
             )
         } dynamicIsland: { context in
@@ -119,7 +119,7 @@ struct MealCountdownActivity: Widget {
             .widgetURL(
                 AnteatsDeepLink.eat(
                     hall: context.attributes.hallID,
-                    period: context.attributes.period
+                    period: MealPeriodPill.canonical(context.attributes.period)
                 ).url
             )
         }

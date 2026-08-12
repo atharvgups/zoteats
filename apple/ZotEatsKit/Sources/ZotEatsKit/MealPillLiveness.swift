@@ -27,20 +27,10 @@ public enum MealPillLiveness {
     ) -> Bool {
         for window in timedPeriods {
             guard let end = window.endMinutes else { continue }
-            let windowPill = primaryPill(for: window.name, pills: pills)
+            let windowPill = MealPeriodPill.match(window.name, in: pills) ?? window.name
             guard windowPill.caseInsensitiveCompare(pill) == .orderedSame else { continue }
             if nowMinutes < end { return true }
         }
         return false
-    }
-
-    private static func primaryPill(for liveName: String, pills: [String]) -> String {
-        let lower = liveName.lowercased()
-        if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
-            return "Breakfast"
-        }
-        if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
-        if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
-        return pills.first { liveName.caseInsensitiveCompare($0) == .orderedSame } ?? liveName
     }
 }

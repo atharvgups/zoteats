@@ -42,7 +42,7 @@ public enum TodaysMenuPeriodPick {
             nowMinutes >= $0.startMinutes! && nowMinutes < $0.endMinutes!
         }) {
             return Choice(
-                period: primaryPill(for: current.name, pills: pills),
+                period: MealPeriodPill.match(current.name, in: pills) ?? current.name,
                 livePeriodName: current.name,
                 endsAtMinutes: current.endMinutes,
                 upcomingStartMinutes: nil,
@@ -55,7 +55,7 @@ public enum TodaysMenuPeriodPick {
             .min(by: { $0.startMinutes! < $1.startMinutes! })
         {
             return Choice(
-                period: primaryPill(for: upcoming.name, pills: pills),
+                period: MealPeriodPill.match(upcoming.name, in: pills) ?? upcoming.name,
                 livePeriodName: upcoming.name,
                 endsAtMinutes: nil,
                 upcomingStartMinutes: upcoming.startMinutes,
@@ -70,15 +70,5 @@ public enum TodaysMenuPeriodPick {
             upcomingStartMinutes: nil,
             isAfterHours: !timed.isEmpty
         )
-    }
-
-    private static func primaryPill(for liveName: String, pills: [String]) -> String {
-        let lower = liveName.lowercased()
-        if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
-            return "Breakfast"
-        }
-        if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
-        if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
-        return pills.first ?? liveName
     }
 }

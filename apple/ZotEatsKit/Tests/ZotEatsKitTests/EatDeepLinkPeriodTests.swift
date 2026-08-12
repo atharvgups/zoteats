@@ -89,6 +89,40 @@ struct EatDeepLinkPeriodTests {
         )
     }
 
+    @Test("Brunch request maps to Breakfast pill while live")
+    func brunchMapsToBreakfast() {
+        let brunchDay = [
+            MealPeriodWindow(name: "Brunch", startMinutes: 600, endMinutes: 840),
+            MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+        ]
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Brunch",
+                availablePeriods: ["Brunch", "Dinner"],
+                timedPeriods: brunchDay,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Breakfast"
+        )
+    }
+
+    @Test("Limited Dinner request maps to Dinner pill while live")
+    func limitedDinnerMapsToDinner() {
+        let limited = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Limited Dinner", startMinutes: 1020, endMinutes: 1140),
+        ]
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Limited Dinner",
+                availablePeriods: ["Breakfast", "Limited Dinner"],
+                timedPeriods: limited,
+                nowMinutes: 1050,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+    }
+
     @Test("Nil request picks live meal")
     func nilPicksLive() {
         #expect(

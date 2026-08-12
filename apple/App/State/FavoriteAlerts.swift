@@ -45,7 +45,8 @@ enum FavoriteAlerts {
 
         var menus: [DiningMenu] = []
         for location in locations {
-            for period in location.availablePeriods {
+            // Primary pills only — menu(for:) resolves Brunch / Limited Dinner.
+            for period in DiningService.primaryPeriods(from: location.availablePeriods) {
                 if let menu = try? await service.menu(for: location.id, period: period) {
                     menus.append(menu)
                 }
@@ -64,16 +65,17 @@ enum FavoriteAlerts {
             content.title = "Zot! \(match.dishName) is on the menu"
             content.body = "Being served at \(match.hallName) for \(match.period.lowercased()) today."
             content.sound = .default
+            let deepLinkPeriod = MealPeriodPill.canonical(match.period)
             let link = AnteatsDeepLink.eat(
                 hall: match.locationId,
-                period: match.period,
+                period: deepLinkPeriod,
                 dish: match.dishName
             )
             content.userInfo = [
                 "deeplink": link.url.absoluteString,
                 "hallID": match.locationId,
                 "hall": match.hallName,
-                "period": match.period,
+                "period": deepLinkPeriod,
                 "dish": match.dishName,
             ]
             try? await UNUserNotificationCenter.current().add(

@@ -17,7 +17,7 @@ public enum EatDeepLinkPeriod {
         guard !pills.isEmpty else { return nil }
 
         if browsingFutureDay {
-            if let requested, let match = Self.matchPill(requested, in: pills) {
+            if let requested, let match = MealPeriodPill.match(requested, in: pills) {
                 return match
             }
             return pills.first
@@ -33,7 +33,7 @@ public enum EatDeepLinkPeriod {
         }
 
         if let requested,
-           let pill = Self.matchPill(requested, in: pills),
+           let pill = MealPeriodPill.match(requested, in: pills),
            MealPillLiveness.isLiveOrUpcoming(
             pill: pill,
             timedPeriods: timedPeriods,
@@ -44,9 +44,5 @@ public enum EatDeepLinkPeriod {
         }
 
         return choice.period.isEmpty ? nil : choice.period
-    }
-
-    private static func matchPill(_ requested: String, in pills: [String]) -> String? {
-        pills.first { $0.caseInsensitiveCompare(requested) == .orderedSame }
     }
 }

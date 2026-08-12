@@ -25,10 +25,7 @@ public enum DiningStatusDeepLink {
         switch state {
         case .open(let period, _), .openingLater(let period, _):
             return Destination(
-                period: primaryPill(
-                    for: period,
-                    pills: DiningService.primaryPeriods(from: availablePeriods)
-                )
+                period: MealPeriodPill.match(period, in: DiningService.primaryPeriods(from: availablePeriods))
             )
         case .closedForToday:
             guard opensTomorrowAtMinutes != nil else {
@@ -37,7 +34,7 @@ public enum DiningStatusDeepLink {
             let pills = DiningService.primaryPeriods(from: availablePeriods)
             let period: String?
             if let meal = opensTomorrowPeriod {
-                period = primaryPill(for: meal, pills: pills) ?? meal
+                period = MealPeriodPill.match(meal, in: pills) ?? meal
             } else {
                 period = nil
             }
@@ -64,16 +61,5 @@ public enum DiningStatusDeepLink {
             opensTomorrowPeriod: opensTomorrowPeriod,
             now: now
         ).period
-    }
-
-    private static func primaryPill(for liveName: String, pills: [String]) -> String? {
-        let lower = liveName.lowercased()
-        if lower.contains("brunch") || lower.contains("breakfast"), pills.contains("Breakfast") {
-            return "Breakfast"
-        }
-        if lower.contains("lunch"), pills.contains("Lunch") { return "Lunch" }
-        if lower.contains("dinner"), pills.contains("Dinner") { return "Dinner" }
-        if pills.contains(liveName) { return liveName }
-        return pills.first
     }
 }
