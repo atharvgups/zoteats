@@ -1,15 +1,20 @@
 import Foundation
 
-/// WidgetKit reload for Dining Status — hall open/close countdowns plus,
-/// when the medium Quietest tip is "Libraries closed", the same morning open
-/// probes as the Quietest Library widget (Waitz has no parseable hours).
+/// WidgetKit reload for Dining Status — every hall's meal open/close (and
+/// tomorrow opens / Irvine midnight), matching Today's Menu honesty, plus
+/// Quietest morning probes when the medium tip is "Libraries closed".
 public enum DiningStatusReload {
     public static func boundaries(
+        locations: [DiningLocation],
+        nowMinutes: Int,
         now: Date = Date(),
-        countdownEnds: [Date],
         librariesClosed: Bool
     ) -> [Date] {
-        var dates = countdownEnds
+        var dates = TodaysMenuReload.boundaries(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now
+        )
         dates.append(contentsOf: QuietestLibraryReload.boundaries(
             now: now,
             anyLibraryOpen: !librariesClosed
@@ -18,16 +23,18 @@ public enum DiningStatusReload {
     }
 
     public static func nextReload(
+        locations: [DiningLocation],
+        nowMinutes: Int,
         now: Date = Date(),
-        countdownEnds: [Date],
         librariesClosed: Bool,
         maxInterval: TimeInterval = 20 * 60
     ) -> Date {
         WidgetRefreshMath.nextReload(
             now: now,
             boundaries: boundaries(
+                locations: locations,
+                nowMinutes: nowMinutes,
                 now: now,
-                countdownEnds: countdownEnds,
                 librariesClosed: librariesClosed
             ),
             maxInterval: maxInterval

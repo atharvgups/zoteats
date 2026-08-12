@@ -243,14 +243,15 @@ struct DiningStatusProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<DiningStatusEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let entry = await fetchEntry()
+            let (entry, locations) = await fetchEntryAndLocations()
             let librariesClosed: Bool = {
                 if case .librariesClosed = entry.quietest { return true }
                 return false
             }()
             let reload = DiningStatusReload.nextReload(
+                locations: locations,
+                nowMinutes: UCITime.nowMinutes(),
                 now: .now,
-                countdownEnds: entry.halls.compactMap(\.countdownEnd),
                 librariesClosed: librariesClosed
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
@@ -258,6 +259,10 @@ struct DiningStatusProvider: TimelineProvider {
     }
 
     private func fetchEntry() async -> DiningStatusEntry {
+        await fetchEntryAndLocations().entry
+    }
+
+    private func fetchEntryAndLocations() async -> (entry: DiningStatusEntry, locations: [DiningLocation]) {
         let locations = await DiningService().locations()
         let nowMinutes = UCITime.nowMinutes()
 
@@ -306,7 +311,10 @@ struct DiningStatusProvider: TimelineProvider {
             quietest = nil
         }
 
-        return DiningStatusEntry(date: .now, halls: halls, quietest: quietest)
+        return (
+            DiningStatusEntry(date: .now, halls: halls, quietest: quietest),
+            locations
+        )
     }
 }
 
