@@ -992,8 +992,7 @@ private struct HallCard: View {
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(.tertiary)
                         }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(occupancy.percent) percent occupancy, typical estimate")
+                        .accessibilityHidden(true)
                     }
                 }
             }
@@ -1017,7 +1016,12 @@ private struct HallCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "\(location.name), \(location.area), \(location.isServing(nowMinutes: UCITime.nowMinutes()) ? "open" : "closed")"
+            DiningHallCardAccessibilityLabel.label(
+                name: location.name,
+                isOpen: location.isServing(nowMinutes: UCITime.nowMinutes()),
+                statusLine: statusLine?.text,
+                occupancyPercent: occupancy?.percent
+            )
         )
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
