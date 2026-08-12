@@ -17,15 +17,15 @@ struct FavoriteAlertRefreshTests {
     }
 
     @Test func afterBreakfastAimsPreLunch() {
-        // Monday 7:00 AM Pacific.
+        // Monday 7:00 AM Pacific — early Lunch publish probe (before 11:00 open).
         let now = ISO8601DateFormatter().date(from: "2026-07-13T14:00:00Z")!
         let preferred = FavoriteAlertRefresh.preferredBeginDate(now: now)
-        let lunch = UCITime.date(
-            forMinutes: 11 * 60 + 15,
+        let lunchProbe = UCITime.date(
+            forMinutes: 10 * 60 + 30,
             nowMinutes: UCITime.nowMinutes(now: now),
             now: now
         )
-        #expect(preferred == lunch)
+        #expect(preferred == lunchProbe)
     }
 
     @Test func middayAimsPreDinner() {

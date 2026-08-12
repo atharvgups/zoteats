@@ -85,17 +85,42 @@ enum OpeningAlerts {
                     ))
                 }
             }
-            // Tomorrow empty — arm the next published day (Fri→Mon gaps).
+            // Tomorrow empty — arm the next published day's full meal chain
+            // (Fri→Mon gaps), matching tomorrow's Breakfast+Lunch+Dinner pre-arm.
             if hall.opensTomorrowAtMinutes == nil,
-               let offset = hall.opensNextDayOffset,
-               let minutes = hall.opensNextAtMinutes {
-                candidates.append(.init(
-                    id: id,
-                    name: hall.name,
-                    opensAtMinutes: minutes,
-                    dayOffset: offset,
-                    mealPeriod: hall.opensNextPeriod
-                ))
+               let offset = hall.opensNextDayOffset {
+                if let nextISO = hall.opensNextDateISO {
+                    let periods = await dining.mealPeriods(for: hall.id, dateISO: nextISO)
+                    let meals = OpeningAlertPlanner.allTimedMeals(periods: periods)
+                    if !meals.isEmpty {
+                        for meal in meals {
+                            candidates.append(.init(
+                                id: id,
+                                name: hall.name,
+                                opensAtMinutes: meal.startMinutes,
+                                dayOffset: offset,
+                                mealPeriod: meal.periodName,
+                                closesAtMinutes: meal.endMinutes
+                            ))
+                        }
+                    } else if let minutes = hall.opensNextAtMinutes {
+                        candidates.append(.init(
+                            id: id,
+                            name: hall.name,
+                            opensAtMinutes: minutes,
+                            dayOffset: offset,
+                            mealPeriod: hall.opensNextPeriod
+                        ))
+                    }
+                } else if let minutes = hall.opensNextAtMinutes {
+                    candidates.append(.init(
+                        id: id,
+                        name: hall.name,
+                        opensAtMinutes: minutes,
+                        dayOffset: offset,
+                        mealPeriod: hall.opensNextPeriod
+                    ))
+                }
             }
         }
 

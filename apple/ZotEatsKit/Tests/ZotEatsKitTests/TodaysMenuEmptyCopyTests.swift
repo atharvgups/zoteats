@@ -114,4 +114,25 @@ struct TodaysMenuEmptyCopyTests {
         let now = ISO8601DateFormatter().date(from: "2026-07-10T05:00:00Z")! // Thu 10 PM PDT
         #expect(TodaysMenuEmptyCopy.tomorrowISO(now: now) == "2026-07-10")
     }
+
+    @Test func afterHoursActionTitleMatchesJumpDay() {
+        #expect(
+            TodaysMenuEmptyCopy.afterHoursActionTitle(
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                opensNextWeekday: "Monday"
+            ) == "See tomorrow"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.afterHoursActionTitle(
+                opensTomorrowAtMinutes: nil,
+                opensNextWeekday: "Monday"
+            ) == "See Monday"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.afterHoursActionTitle(
+                opensTomorrowAtMinutes: nil,
+                opensNextWeekday: nil
+            ) == "See tomorrow"
+        )
+    }
 }

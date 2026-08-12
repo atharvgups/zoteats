@@ -391,7 +391,12 @@ struct DiningView: View {
                             opensNextWeekday: location?.opensNextWeekday
                         )
                         : "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall.",
-                    actionTitle: afterHours ? "See tomorrow" : "Try Again"
+                    actionTitle: afterHours
+                        ? TodaysMenuEmptyCopy.afterHoursActionTitle(
+                            opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                            opensNextWeekday: location?.opensNextWeekday
+                        )
+                        : "Try Again"
                 ) {
                     if afterHours {
                         let jump = location?.opensTomorrowAtMinutes != nil

@@ -68,6 +68,18 @@ struct DiningBoardPublishTests {
         #expect(probes.contains(evening))
     }
 
+    @Test func earlyLunchPublishProbeBeforeTypicalOpen() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:05:00Z")! // Mon 10:05 AM PDT
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let probes = DiningBoardPublish.futurePublishProbeDates(
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let earlyLunch = UCITime.date(forMinutes: 10 * 60 + 30, nowMinutes: nowMinutes, now: now)
+        #expect(probes.contains(earlyLunch))
+        #expect(probes.first == earlyLunch)
+    }
+
     @Test func futurePublishProbesEmptyAtEveningConfidence() {
         let now = ISO8601DateFormatter().date(from: "2026-07-14T03:00:00Z")! // Mon 8 PM PDT
         #expect(

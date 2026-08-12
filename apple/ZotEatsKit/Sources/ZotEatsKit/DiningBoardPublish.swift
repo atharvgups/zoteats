@@ -9,7 +9,9 @@ public enum DiningBoardPublish {
 
     /// Approximate Lunch / Dinner / evening menu-drop publishes — shared with
     /// `FavoriteAlertRefresh.aimMinutes` so widgets + Eat wake when boards grow.
+    /// 10:30 is early enough to arm Opening Alerts before a typical 11:00 Lunch.
     public static let publishProbeMinutes = [
+        10 * 60 + 30,
         11 * 60 + 15,
         16 * 60 + 15,
         eveningConfidenceMinutes,

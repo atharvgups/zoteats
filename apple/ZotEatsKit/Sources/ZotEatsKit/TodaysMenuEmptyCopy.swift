@@ -110,6 +110,21 @@ public enum TodaysMenuEmptyCopy {
             .isoDate
     }
 
+    /// Eat after-hours empty CTA — "See tomorrow" or "See Monday" to match the jump.
+    public static func afterHoursActionTitle(
+        opensTomorrowAtMinutes: Int?,
+        opensNextWeekday: String?
+    ) -> String {
+        if opensTomorrowAtMinutes != nil {
+            return "See tomorrow"
+        }
+        if let weekday = opensNextWeekday?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !weekday.isEmpty {
+            return "See \(weekday)"
+        }
+        return "See tomorrow"
+    }
+
     public static func reason(
         periodIsEmpty: Bool,
         filtersEmptiedMenu: Bool,
