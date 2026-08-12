@@ -713,9 +713,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         let periodOpensAt = chrome.kind == .opens ? chrome.countdownEnd : nil
 
         let reloadBoundaries = TodaysMenuReload.boundaries(
-            upcomingStartMinutes: choice.upcomingStartMinutes,
-            isAfterHours: choice.isAfterHours,
-            opensTomorrowAtMinutes: hall.opensTomorrowAtMinutes,
+            locations: locations,
             nowMinutes: nowMinutes
         )
 
