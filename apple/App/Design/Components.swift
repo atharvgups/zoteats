@@ -195,15 +195,8 @@ struct RushStrip: View {
             }
             .frame(height: 12)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilitySummary)
-    }
-
-    private var accessibilitySummary: String {
-        guard let peak = curve.enumerated().max(by: { $0.element < $1.element }), peak.element > 0 else {
-            return "No rush data for today"
-        }
-        return "Today's rush chart. Peak around \(peak.offset % 12 == 0 ? 12 : peak.offset % 12) \(peak.offset < 12 ? "AM" : "PM")"
+        // GymRushCard owns VoiceOver (typical + peak + now + summaries).
+        .accessibilityHidden(true)
     }
 }
 

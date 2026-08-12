@@ -191,6 +191,13 @@ struct GymRushCard: View {
     let curve: [Int]
     let status: GymStatus
 
+    private var highlightedHour: Int? {
+        GymRushHighlight.currentHour(
+            openNow: status.openNow,
+            nowMinutes: UCITime.nowMinutes()
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
@@ -201,10 +208,7 @@ struct GymRushCard: View {
             }
             RushStrip(
                 curve: curve,
-                currentHour: GymRushHighlight.currentHour(
-                    openNow: status.openNow,
-                    nowMinutes: UCITime.nowMinutes()
-                ) ?? -1
+                currentHour: highlightedHour ?? -1
             )
             if let busiest = status.busiestSummary {
                 Text([busiest, status.quietestSummary].compactMap(\.self).joined(separator: " · "))
@@ -215,6 +219,15 @@ struct GymRushCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            GymRushAccessibilityLabel.label(
+                curve: curve,
+                currentHour: highlightedHour,
+                busiestSummary: status.busiestSummary,
+                quietestSummary: status.quietestSummary
+            )
+        )
     }
 }
 
