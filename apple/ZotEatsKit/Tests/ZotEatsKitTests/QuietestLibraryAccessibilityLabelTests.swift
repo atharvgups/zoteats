@@ -97,4 +97,15 @@ struct QuietestLibraryAccessibilityLabelTests {
             ) == "\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)"
         )
     }
+
+    @Test("Closed prefers Waitz Opens at")
+    func closedOpensAt() {
+        #expect(
+            QuietestLibraryAccessibilityLabel.label(
+                name: QuietestLibraryGlance.closedTitle,
+                percent: nil,
+                reopenMinutes: 8 * 60
+            ) == "\(QuietestLibraryGlance.closedTitle). Opens at 8:00 AM"
+        )
+    }
 }

@@ -59,6 +59,21 @@ struct StudyFacilityAccessibilityLabelTests {
         )
     }
 
+    @Test("Closed prefers Waitz Opens at")
+    func closedOpensAt() {
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Langson Library",
+                isOpen: false,
+                percent: nil,
+                levelLabel: nil,
+                peopleCount: nil,
+                capacity: nil,
+                hoursSummary: "Closed until 8:00am"
+            ) == "Langson Library, closed, Opens at 8:00 AM"
+        )
+    }
+
     @Test("Closed ignores stale percent level and people")
     func closedIgnoresStale() {
         #expect(

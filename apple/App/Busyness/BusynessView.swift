@@ -157,7 +157,9 @@ struct BusynessView: View {
                 if let pick {
                     QuietestNowCard(pick: pick)
                 } else if QuietestLibraryGlance.shouldShowClosed(from: facilities) {
-                    QuietestClosedCard()
+                    QuietestClosedCard(
+                        reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
+                    )
                 }
                 let expandID = StudyFacilityExpand.targetID(
                     pendingFacilityID: StudyFacilityExpand.pendingFacilityID(from: pendingDeepLink),
@@ -263,6 +265,12 @@ struct QuietestNowCard: View {
 
 /// Honest overnight / closed hero — matches Quietest widget "Libraries closed".
 struct QuietestClosedCard: View {
+    var reopenMinutes: Int? = nil
+
+    private var detail: String {
+        StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "moon.zzz.fill")
@@ -279,7 +287,7 @@ struct QuietestClosedCard: View {
                 Text(QuietestLibraryGlance.closedTitle)
                     .font(ZotFont.cardTitle)
                     .foregroundStyle(.primary)
-                Text(QuietestLibraryGlance.closedDetail)
+                Text(detail)
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -294,7 +302,7 @@ struct QuietestClosedCard: View {
             in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)")
+        .accessibilityLabel("\(QuietestLibraryGlance.closedTitle). \(detail)")
     }
 }
 
@@ -388,7 +396,7 @@ struct BusynessFacilityCard: View {
                 if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
                     OccupancyBar(percent: facility.percent, level: facility.level)
                 } else {
-                    Text(StudyFacilityCrowding.closedDetail)
+                    Text(StudyIdleCopy.facilityClosedDetail(hoursSummary: facility.hoursSummary))
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -413,7 +421,8 @@ struct BusynessFacilityCard: View {
                     levelLabel: facility.level.label,
                     peopleCount: facility.count,
                     capacity: facility.capacity,
-                    updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt)
+                    updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt),
+                    hoursSummary: facility.hoursSummary
                 )
             )
 

@@ -37,8 +37,9 @@ public enum DiningStatusAccessibilityLabel {
         case .open(let name, let percent, _, let updatedAt):
             let updated = UpdatedAgoCopy.relative(from: updatedAt, now: now)
             return "Quietest: \(name), \(percent) percent full, Updated \(updated)"
-        case .librariesClosed:
-            return "\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)"
+        case .librariesClosed(let reopenMinutes):
+            let detail = StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+            return "\(QuietestLibraryGlance.closedTitle). \(detail)"
         }
     }
 }

@@ -7,22 +7,31 @@ public enum QuietestLibraryGlance {
 
     /// Lock Screen rectangular secondary line — busy % or overnight closed copy.
     /// Never "No live data" for the closed path (that reads like a fetch failure).
-    public static func widgetRectangularDetail(percent: Int?) -> String {
+    /// Prefer Waitz `Closed until …` Opens-at when reload already knows the reopen.
+    public static func widgetRectangularDetail(
+        percent: Int?,
+        reopenMinutes: Int? = nil
+    ) -> String {
         if let percent {
             return "\(percent)% full · quietest now"
         }
-        return closedDetail
+        return StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
     }
 
     /// Home small secondary line when there is no quietest % (libraries closed).
-    public static func widgetHomeSecondary(percent: Int?) -> String? {
-        percent == nil ? closedDetail : nil
+    public static func widgetHomeSecondary(
+        percent: Int?,
+        reopenMinutes: Int? = nil
+    ) -> String? {
+        percent == nil
+            ? StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+            : nil
     }
 
     /// Dining Status medium tip — open quietest floor or overnight closed copy.
     public enum DiningStatusTip: Equatable, Sendable {
         case open(name: String, percent: Int, facilityID: Int?, updatedAt: Date)
-        case librariesClosed
+        case librariesClosed(reopenMinutes: Int?)
     }
 
     /// Feed includes at least one Library facility (open or closed).
@@ -46,6 +55,9 @@ public enum QuietestLibraryGlance {
                 updatedAt: pick.updatedAt
             )
         }
-        return shouldShowClosed(from: facilities) ? .librariesClosed : nil
+        guard shouldShowClosed(from: facilities) else { return nil }
+        return .librariesClosed(
+            reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
+        )
     }
 }

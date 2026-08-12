@@ -76,8 +76,16 @@ struct DiningStatusAccessibilityLabelTests {
     @Test("Libraries closed tip includes Study detail")
     func quietestClosed() {
         #expect(
-            DiningStatusAccessibilityLabel.quietestTip(.librariesClosed)
+            DiningStatusAccessibilityLabel.quietestTip(.librariesClosed(reopenMinutes: nil))
                 == "\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)"
+        )
+    }
+
+    @Test("Libraries closed tip prefers Waitz Opens at")
+    func quietestClosedOpensAt() {
+        #expect(
+            DiningStatusAccessibilityLabel.quietestTip(.librariesClosed(reopenMinutes: 8 * 60))
+                == "\(QuietestLibraryGlance.closedTitle). Opens at 8:00 AM"
         )
     }
 }

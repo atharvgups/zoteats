@@ -89,7 +89,30 @@ struct QuietestLibraryGlanceTests {
             percent: 10,
             isOpen: false
         )
-        #expect(QuietestLibraryGlance.diningStatusTip(from: [closed]) == .librariesClosed)
+        #expect(
+            QuietestLibraryGlance.diningStatusTip(from: [closed])
+                == .librariesClosed(reopenMinutes: nil)
+        )
+    }
+
+    @Test func diningStatusTipLibrariesClosedWithWaitzReopen() {
+        let closed = BusynessPoint(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 10,
+            level: .notBusy,
+            isOpen: false,
+            hoursSummary: "Closed until 8:00am",
+            updatedAt: Date(),
+            subLocations: nil
+        )
+        #expect(
+            QuietestLibraryGlance.diningStatusTip(from: [closed])
+                == .librariesClosed(reopenMinutes: 8 * 60)
+        )
     }
 
     @Test func widgetRectangularDetailOpen() {
@@ -113,5 +136,20 @@ struct QuietestLibraryGlanceTests {
                 != "No live data"
         )
         #expect(QuietestLibraryGlance.widgetHomeSecondary(percent: 12) == nil)
+    }
+
+    @Test func widgetClosedSecondaryPrefersWaitzOpensAt() {
+        #expect(
+            QuietestLibraryGlance.widgetRectangularDetail(
+                percent: nil,
+                reopenMinutes: 8 * 60
+            ) == "Opens at 8:00 AM"
+        )
+        #expect(
+            QuietestLibraryGlance.widgetHomeSecondary(
+                percent: nil,
+                reopenMinutes: 8 * 60
+            ) == "Opens at 8:00 AM"
+        )
     }
 }

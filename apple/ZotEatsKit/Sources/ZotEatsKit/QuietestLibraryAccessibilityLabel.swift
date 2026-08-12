@@ -8,12 +8,14 @@ public enum QuietestLibraryAccessibilityLabel {
         name: String,
         percent: Int?,
         includeQuietestQualifier: Bool = false,
-        updatedRelative: String? = nil
+        updatedRelative: String? = nil,
+        reopenMinutes: Int? = nil
     ) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let percent else {
             let title = trimmed.isEmpty ? QuietestLibraryGlance.closedTitle : trimmed
-            return "\(title). \(QuietestLibraryGlance.closedDetail)"
+            let detail = StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+            return "\(title). \(detail)"
         }
         var parts: [String] = [
             trimmed.isEmpty ? "Library" : trimmed,

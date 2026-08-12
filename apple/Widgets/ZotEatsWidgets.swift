@@ -245,7 +245,7 @@ struct DiningStatusProvider: TimelineProvider {
         Task {
             let (entry, locations, libraryReopenMinutes) = await fetchEntryAndLocations()
             let librariesClosed: Bool = {
-                if case .librariesClosed = entry.quietest { return true }
+                if case .librariesClosed(_) = entry.quietest { return true }
                 return false
             }()
             let quietestTipOpen: Bool = {
@@ -420,7 +420,7 @@ struct DiningStatusView: View {
                         }
                     }
                     .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
-                case .librariesClosed:
+                case .librariesClosed(let reopenMinutes):
                     Link(destination: AnteatsDeepLink.study().url) {
                         HStack(spacing: 5) {
                             Image(systemName: "moon.zzz.fill")
@@ -431,6 +431,13 @@ struct DiningStatusView: View {
                                 .foregroundStyle(.white.opacity(0.9))
                                 .lineLimit(1)
                             Spacer(minLength: 0)
+                            if let reopenMinutes {
+                                Text(StudyIdleCopy.opensAtLine(minutes: reopenMinutes))
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(gold.opacity(0.9))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
                         }
                     }
                     .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
@@ -1492,13 +1499,23 @@ struct QuietestLibraryEntry: TimelineEntry {
     let facilityID: Int?
     /// Waitz snapshot for open picks (VoiceOver Updated freshness).
     let updatedAt: Date?
+    /// Waitz Closed-until reopen (Irvine minutes) when libraries are shut.
+    let reopenMinutes: Int?
 
-    init(date: Date, name: String, percent: Int?, facilityID: Int? = nil, updatedAt: Date? = nil) {
+    init(
+        date: Date,
+        name: String,
+        percent: Int?,
+        facilityID: Int? = nil,
+        updatedAt: Date? = nil,
+        reopenMinutes: Int? = nil
+    ) {
         self.date = date
         self.name = name
         self.percent = percent
         self.facilityID = facilityID
         self.updatedAt = updatedAt
+        self.reopenMinutes = reopenMinutes
     }
 }
 
@@ -1551,7 +1568,8 @@ struct QuietestLibraryProvider: TimelineProvider {
         return QuietestLibraryEntry(
             date: .now,
             name: QuietestLibraryGlance.closedTitle,
-            percent: nil
+            percent: nil,
+            reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
         )
     }
 }
@@ -1602,7 +1620,10 @@ struct QuietestLibraryView: View {
                         Text(entry.name)
                             .font(.system(size: 13, weight: .semibold))
                             .lineLimit(1)
-                        Text(QuietestLibraryGlance.widgetRectangularDetail(percent: entry.percent))
+                        Text(QuietestLibraryGlance.widgetRectangularDetail(
+                            percent: entry.percent,
+                            reopenMinutes: entry.reopenMinutes
+                        ))
                             .font(.system(size: 11))
                             .opacity(0.8)
                             .lineLimit(2)
@@ -1638,7 +1659,9 @@ struct QuietestLibraryView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.white.opacity(0.75))
                     } else {
-                        Text(QuietestLibraryGlance.closedDetail)
+                        Text(
+                            StudyIdleCopy.quietestClosedDetail(reopenMinutes: entry.reopenMinutes)
+                        )
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.75))
                             .lineLimit(3)
@@ -1667,7 +1690,8 @@ struct QuietestLibraryView: View {
             name: entry.name,
             percent: entry.percent,
             includeQuietestQualifier: includeQuietestQualifier,
-            updatedRelative: updatedRelative
+            updatedRelative: updatedRelative,
+            reopenMinutes: entry.reopenMinutes
         )
     }
 }
