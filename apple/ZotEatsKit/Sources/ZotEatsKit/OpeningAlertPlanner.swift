@@ -30,6 +30,9 @@ public enum OpeningAlertPlanner {
         public let mealPeriod: String?
         /// Dining meal close (minutes since midnight); campus omits.
         public let closesAtMinutes: Int?
+        /// Campus continuous hours for that fire day ("7:30 AM – 4:00 PM").
+        /// Carried per candidate so today + tomorrow don't clobber one map slot.
+        public let hoursSpan: String?
 
         public init(
             id: String,
@@ -37,7 +40,8 @@ public enum OpeningAlertPlanner {
             opensAtMinutes: Int?,
             dayOffset: Int = 0,
             mealPeriod: String? = nil,
-            closesAtMinutes: Int? = nil
+            closesAtMinutes: Int? = nil,
+            hoursSpan: String? = nil
         ) {
             self.id = id
             self.name = name
@@ -45,6 +49,7 @@ public enum OpeningAlertPlanner {
             self.dayOffset = max(0, dayOffset)
             self.mealPeriod = mealPeriod
             self.closesAtMinutes = closesAtMinutes
+            self.hoursSpan = hoursSpan
         }
     }
 
@@ -62,6 +67,8 @@ public enum OpeningAlertPlanner {
         public let deepLinkDate: String?
         /// Dining meal close for "Open until …" body copy.
         public let closesAtMinutes: Int?
+        /// Campus continuous hours for the fire day.
+        public let hoursSpan: String?
 
         public init(
             identifier: String,
@@ -70,7 +77,8 @@ public enum OpeningAlertPlanner {
             fireDate: Date,
             mealPeriod: String? = nil,
             deepLinkDate: String? = nil,
-            closesAtMinutes: Int? = nil
+            closesAtMinutes: Int? = nil,
+            hoursSpan: String? = nil
         ) {
             self.identifier = identifier
             self.placeID = placeID
@@ -79,6 +87,7 @@ public enum OpeningAlertPlanner {
             self.mealPeriod = mealPeriod
             self.deepLinkDate = deepLinkDate
             self.closesAtMinutes = closesAtMinutes
+            self.hoursSpan = hoursSpan
         }
     }
 
@@ -136,7 +145,8 @@ public enum OpeningAlertPlanner {
                 fireDate: fireDate,
                 mealPeriod: candidate.mealPeriod,
                 deepLinkDate: candidate.dayOffset >= 1 ? dateISO : nil,
-                closesAtMinutes: candidate.closesAtMinutes
+                closesAtMinutes: candidate.closesAtMinutes,
+                hoursSpan: candidate.hoursSpan
             )
         }
         .sorted { $0.fireDate < $1.fireDate }

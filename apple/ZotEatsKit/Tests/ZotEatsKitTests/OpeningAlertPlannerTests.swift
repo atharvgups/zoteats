@@ -187,11 +187,41 @@ struct OpeningAlertPlannerTests {
             watchedIDs: ["campus:starbucks"],
             now: sevenAM
         )
-        // Both would match the same place id — planner emits one alert per candidate.
-        // Callers should only pass one; if both slip through, today fires first.
+        // OpeningAlerts pre-arms today + tomorrow; planner emits both, today first.
         #expect(plans.first?.identifier == "open:campus:starbucks:2026-07-16")
         #expect(plans.count == 2)
         #expect(plans[0].fireDate < plans[1].fireDate)
+    }
+
+    @Test func campusTodayAndTomorrowCarryDistinctHoursSpans() {
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "campus:starbucks",
+                    name: "Starbucks",
+                    opensAtMinutes: 8 * 60,
+                    dayOffset: 0,
+                    hoursSpan: "8:00 AM – 11:00 PM"
+                ),
+                .init(
+                    id: "campus:starbucks",
+                    name: "Starbucks",
+                    opensAtMinutes: 9 * 60,
+                    dayOffset: 1,
+                    hoursSpan: "9:00 AM – 10:00 PM"
+                ),
+            ],
+            watchedIDs: ["campus:starbucks"],
+            now: sevenAM
+        )
+        #expect(plans.map(\.identifier) == [
+            "open:campus:starbucks:2026-07-16",
+            "open:campus:starbucks:2026-07-17",
+        ])
+        #expect(plans[0].hoursSpan == "8:00 AM – 11:00 PM")
+        #expect(plans[1].hoursSpan == "9:00 AM – 10:00 PM")
+        #expect(PacificTime.nowMinutes(now: plans[0].fireDate) == 8 * 60)
+        #expect(PacificTime.nowMinutes(now: plans[1].fireDate) == 9 * 60)
     }
 
     @Test func earliestOpeningPicksBreakfast() {

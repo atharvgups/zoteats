@@ -7,7 +7,7 @@ import ZotEatsKit
 // today's opening times whenever fresh hours arrive (foreground + background
 // refresh). Dining pre-arms every remaining meal today (Breakfast + Lunch +
 // Dinner) plus tomorrow's first open so a missed BG refresh can't drop Lunch;
-// campus still schedules a later same-day reopen or tomorrow morning. No
+// campus pre-arms today's next open and tomorrow morning the same way. No
 // servers — iOS fires them even if the app stays closed.
 
 @MainActor
@@ -48,8 +48,6 @@ enum OpeningAlerts {
         guard !watched.isEmpty else { return }
 
         var candidates: [OpeningAlertPlanner.Candidate] = []
-        /// Campus continuous hours only — dining bodies use meal close times.
-        var campusHoursByID: [String: String] = [:]
 
         let dining = DiningService()
         let nowMinutes = UCITime.nowMinutes()
@@ -89,21 +87,32 @@ enum OpeningAlerts {
 
         for place in (try? await CampusService().places()) ?? [] {
             let id = "campus:\(place.id)"
+            // Pre-arm today's next open (or same-day reopen) and tomorrow —
+            // dining parity so a missed BG after open can't drop the morning ping.
             if let todayOpen = place.opensAtMinutes {
-                // Includes later same-day reopens while currently open.
                 candidates.append(.init(
-                    id: id, name: place.name, opensAtMinutes: todayOpen, dayOffset: 0
+                    id: id,
+                    name: place.name,
+                    opensAtMinutes: todayOpen,
+                    dayOffset: 0,
+                    hoursSpan: place.todayHours
                 ))
-                if let hours = place.todayHours { campusHoursByID[id] = hours }
-            } else if let tomorrowOpen = place.opensTomorrowAtMinutes {
-                // Open now or done for today — still schedule tomorrow morning.
+            }
+            if let tomorrowOpen = place.opensTomorrowAtMinutes {
                 candidates.append(.init(
-                    id: id, name: place.name, opensAtMinutes: tomorrowOpen, dayOffset: 1
+                    id: id,
+                    name: place.name,
+                    opensAtMinutes: tomorrowOpen,
+                    dayOffset: 1,
+                    hoursSpan: place.tomorrowHours
                 ))
-                if let hours = place.tomorrowHours { campusHoursByID[id] = hours }
-            } else {
-                candidates.append(.init(id: id, name: place.name, opensAtMinutes: nil))
-                if let hours = place.todayHours { campusHoursByID[id] = hours }
+            } else if place.opensAtMinutes == nil {
+                candidates.append(.init(
+                    id: id,
+                    name: place.name,
+                    opensAtMinutes: nil,
+                    hoursSpan: place.todayHours
+                ))
             }
         }
 
@@ -118,7 +127,7 @@ enum OpeningAlerts {
             if alert.placeID.hasPrefix("dining:") {
                 content.body = OpeningAlertCopy.body(openUntilMinutes: alert.closesAtMinutes)
             } else {
-                content.body = OpeningAlertCopy.body(hoursSpan: campusHoursByID[alert.placeID])
+                content.body = OpeningAlertCopy.body(hoursSpan: alert.hoursSpan)
             }
             content.sound = .default
             let link: AnteatsDeepLink = {
