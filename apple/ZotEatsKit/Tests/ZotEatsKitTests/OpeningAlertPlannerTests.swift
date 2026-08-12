@@ -70,14 +70,15 @@ struct OpeningAlertPlannerTests {
                     id: "dining:anteatery",
                     name: "The Anteatery",
                     opensAtMinutes: 7 * 60 + 15,
-                    dayOffset: 1
+                    dayOffset: 1,
+                    mealPeriod: "Breakfast"
                 ),
             ],
             watchedIDs: ["dining:anteatery"],
             now: tenPM
         )
         let plan = try! #require(plans.first)
-        #expect(plan.identifier == "open:dining:anteatery:2026-07-17")
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-17:Breakfast")
         #expect(PacificTime.todayISO(now: plan.fireDate) == "2026-07-17")
         #expect(PacificTime.nowMinutes(now: plan.fireDate) == 7 * 60 + 15)
     }
@@ -91,15 +92,70 @@ struct OpeningAlertPlannerTests {
                     id: "dining:anteatery",
                     name: "The Anteatery",
                     opensAtMinutes: 16 * 60 + 30,
-                    dayOffset: 0
+                    dayOffset: 0,
+                    mealPeriod: "Dinner"
                 ),
             ],
             watchedIDs: ["dining:anteatery"],
             now: noon
         )
         let plan = try! #require(plans.first)
-        #expect(plan.identifier == "open:dining:anteatery:2026-07-16")
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-16:Dinner")
         #expect(PacificTime.nowMinutes(now: plan.fireDate) == 16 * 60 + 30)
+    }
+
+    @Test func plansEveryRemainingDiningMealWithDistinctIds() {
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 7 * 60 + 15,
+                    mealPeriod: "Breakfast",
+                    closesAtMinutes: 11 * 60
+                ),
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 11 * 60,
+                    mealPeriod: "Lunch",
+                    closesAtMinutes: 14 * 60 + 30
+                ),
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 16 * 60 + 30,
+                    mealPeriod: "Dinner",
+                    closesAtMinutes: 21 * 60
+                ),
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 7 * 60 + 15,
+                    dayOffset: 1,
+                    mealPeriod: "Breakfast",
+                    closesAtMinutes: 11 * 60
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: sevenAM
+        )
+        #expect(plans.map(\.identifier) == [
+            "open:dining:anteatery:2026-07-16:Breakfast",
+            "open:dining:anteatery:2026-07-16:Lunch",
+            "open:dining:anteatery:2026-07-16:Dinner",
+            "open:dining:anteatery:2026-07-17:Breakfast",
+        ])
+    }
+
+    @Test func limitedDinnerCanonicalizesInIdentifier() {
+        #expect(
+            OpeningAlertPlanner.alertIdentifier(
+                placeID: "dining:brandywine",
+                dateISO: "2026-07-16",
+                mealPeriod: "Limited Dinner"
+            ) == "open:dining:brandywine:2026-07-16:Dinner"
+        )
     }
 
     @Test func schedulesTomorrowWhileCampusIsStillOpen() {
@@ -171,6 +227,7 @@ struct OpeningAlertPlannerTests {
         #expect(plan.mealPeriod == "Breakfast")
         #expect(plan.closesAtMinutes == 11 * 60)
         #expect(plan.deepLinkDate == "2026-07-17")
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-17:Breakfast")
     }
 
     @Test func diningTodayCarriesMealPillWithoutDate() {
@@ -194,6 +251,7 @@ struct OpeningAlertPlannerTests {
         #expect(MealPeriodPill.canonical(plan.mealPeriod!) == "Dinner")
         #expect(plan.closesAtMinutes == 19 * 60)
         #expect(plan.deepLinkDate == nil)
+        #expect(plan.identifier == "open:dining:anteatery:2026-07-16:Dinner")
     }
 }
 
@@ -219,6 +277,14 @@ struct DiningNextOpeningTests {
         #expect(meal?.startMinutes == 16 * 60 + 30)
         #expect(meal?.endMinutes == 21 * 60)
         #expect(meal?.periodName == "Dinner")
+    }
+
+    @Test func followingMealsReturnsEveryRemainingMeal() {
+        let morning = OpeningAlertPlanner.followingMeals(periods: periods, nowMinutes: 6 * 60)
+        #expect(morning.map(\.periodName) == ["Breakfast", "Lunch", "Dinner"])
+        let duringLunch = OpeningAlertPlanner.followingMeals(periods: periods, nowMinutes: 12 * 60)
+        #expect(duringLunch.map(\.periodName) == ["Dinner"])
+        #expect(OpeningAlertPlanner.followingMeals(periods: periods, nowMinutes: 22 * 60).isEmpty)
     }
 
     @Test func followingOpeningMatchesNextOpeningWhenClosed() {

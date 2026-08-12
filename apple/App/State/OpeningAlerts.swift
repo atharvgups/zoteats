@@ -5,10 +5,10 @@ import ZotEatsKit
 // Opening alerts: "tell me the moment this spot opens." The user picks dining
 // halls and campus venues in Settings; we schedule local notifications at
 // today's opening times whenever fresh hours arrive (foreground + background
-// refresh). Watching during lunch still schedules dinner; watching while a
-// café is open still schedules a later same-day reopen (split hours) or
-// tomorrow morning. After the last window of the day, we schedule tomorrow's
-// first open. No servers — iOS fires them even if the app stays closed.
+// refresh). Dining pre-arms every remaining meal today (Breakfast + Lunch +
+// Dinner) plus tomorrow's first open so a missed BG refresh can't drop Lunch;
+// campus still schedules a later same-day reopen or tomorrow morning. No
+// servers — iOS fires them even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -57,9 +57,8 @@ enum OpeningAlerts {
 
         for hall in await dining.locations() {
             let id = "dining:\(hall.id)"
-            // Prefer the next meal still ahead today (including dinner while
-            // lunch is open). Only fall through to tomorrow after the last meal.
-            if let meal = OpeningAlertPlanner.followingMeal(
+            // Pre-arm every meal still ahead today (per-meal notification ids).
+            for meal in OpeningAlertPlanner.followingMeals(
                 periods: hall.periods, nowMinutes: nowMinutes
             ) {
                 candidates.append(.init(
@@ -70,7 +69,10 @@ enum OpeningAlerts {
                     mealPeriod: meal.periodName,
                     closesAtMinutes: meal.endMinutes
                 ))
-            } else if let tomorrowISO {
+            }
+            // Also arm tomorrow's first open while Lunch/Dinner is still ahead —
+            // same honesty as campus overnight watches.
+            if let tomorrowISO {
                 let periods = await dining.mealPeriods(for: hall.id, dateISO: tomorrowISO)
                 if let meal = OpeningAlertPlanner.earliestMeal(periods: periods) {
                     candidates.append(.init(

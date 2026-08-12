@@ -49,8 +49,9 @@ public enum OpeningAlertPlanner {
     }
 
     public struct PlannedAlert: Sendable, Equatable {
-        /// "open:<placeID>:<dateISO>" — stable per place per fire-day, so
-        /// rescheduling replaces rather than duplicates.
+        /// Campus: `open:<placeID>:<dateISO>`.
+        /// Dining: `open:<placeID>:<dateISO>:<canonicalPill>` so Breakfast /
+        /// Lunch / Dinner can all stay pending the same day.
         public let identifier: String
         public let placeID: String
         public let placeName: String
@@ -81,8 +82,22 @@ public enum OpeningAlertPlanner {
         }
     }
 
+    /// Stable notification id — dining includes the canonical meal pill so
+    /// multiple same-day openings don't overwrite each other.
+    public static func alertIdentifier(
+        placeID: String,
+        dateISO: String,
+        mealPeriod: String?
+    ) -> String {
+        let meal = mealPeriod?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if meal.isEmpty {
+            return "open:\(placeID):\(dateISO)"
+        }
+        return "open:\(placeID):\(dateISO):\(MealPeriodPill.canonical(meal))"
+    }
+
     /// Alerts for every watched place that opens later today **or** tomorrow
-    /// (next meal while already open, or morning after today's windows end).
+    /// (remaining meals while already open, or morning after today's windows end).
     public static func plan(
         candidates: [Candidate],
         watchedIDs: Set<String>,
@@ -111,7 +126,11 @@ public enum OpeningAlertPlanner {
             // Keep live meal names (Brunch / Limited Dinner) for notification
             // titles; OpeningAlerts canonicalizes only the Eat deep-link pill.
             return PlannedAlert(
-                identifier: "open:\(candidate.id):\(dateISO)",
+                identifier: alertIdentifier(
+                    placeID: candidate.id,
+                    dateISO: dateISO,
+                    mealPeriod: candidate.mealPeriod
+                ),
                 placeID: candidate.id,
                 placeName: candidate.name,
                 fireDate: fireDate,
@@ -144,6 +163,16 @@ public enum OpeningAlertPlanner {
         periods: [MealPeriodWindow],
         nowMinutes: Int
     ) -> MealOpening? {
+        followingMeals(periods: periods, nowMinutes: nowMinutes).first
+    }
+
+    /// Every timed meal still ahead today (Breakfast + Lunch + Dinner), sorted
+    /// by start — so Opening Alerts can pre-arm the full chain without waiting
+    /// on a post-Breakfast BG refresh that often lands after Lunch opens.
+    public static func followingMeals(
+        periods: [MealPeriodWindow],
+        nowMinutes: Int
+    ) -> [MealOpening] {
         periods
             .compactMap { period -> MealOpening? in
                 guard let start = period.startMinutes, start > nowMinutes else { return nil }
@@ -153,7 +182,7 @@ public enum OpeningAlertPlanner {
                     periodName: period.name
                 )
             }
-            .min { $0.startMinutes < $1.startMinutes }
+            .sorted { $0.startMinutes < $1.startMinutes }
     }
 
     /// Earliest meal start on a day of periods (e.g. tomorrow's breakfast).
