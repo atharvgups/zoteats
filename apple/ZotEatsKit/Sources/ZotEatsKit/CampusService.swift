@@ -183,7 +183,14 @@ public struct CampusService: Sendable {
                 ).map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
                 tomorrowOpenWindows: Self.allOpenings(windows: row.tomorrowWindows)
                     .map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
-                hoursKnown: status.hoursKnown
+            hoursKnown: status.hoursKnown || row.laterOpen != nil,
+                opensNextAtMinutes: row.laterOpen.flatMap { $0.windows.map(\.start).min() },
+                opensNextDayOffset: row.laterOpen?.dayOffset,
+                opensNextWeekday: row.laterOpen?.weekday,
+                nextOpenHours: row.laterOpen?.hours,
+                nextOpenWindows: (row.laterOpen?.windows ?? []).map {
+                    CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end)
+                }
             )
         }
     }
@@ -221,6 +228,18 @@ public struct CampusService: Sendable {
                     todayISO: tomorrowISO,
                     weekday: tomorrowWeekday
                 )
+                let laterOpen: LaterOpen? = {
+                    guard tomorrow.windows.isEmpty,
+                          let next = Self.nextOpenDay(schedules: schedules, from: currentDate),
+                          next.dayOffset >= 2
+                    else { return nil }
+                    return LaterOpen(
+                        dayOffset: next.dayOffset,
+                        weekday: next.weekday,
+                        windows: next.windows,
+                        hours: next.hours
+                    )
+                }()
                 return PlaceSchedule(
                     id: key,
                     name: name,
@@ -228,7 +247,8 @@ public struct CampusService: Sendable {
                     hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
                     todayWindows: today.windows,
                     tomorrowWindows: tomorrow.windows,
-                    todayScheduleResolved: today.resolved
+                    todayScheduleResolved: today.resolved,
+                    laterOpen: laterOpen
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -300,12 +320,45 @@ public struct CampusService: Sendable {
         let todayWindows: [TimeWindow]
         let tomorrowWindows: [TimeWindow]
         let todayScheduleResolved: Bool
+        /// First open day within the next week when tomorrow is off (Fri→Mon).
+        let laterOpen: LaterOpen?
+    }
+
+    /// Next calendar open after tomorrow (dayOffset ≥ 2).
+    struct LaterOpen: Sendable {
+        let dayOffset: Int
+        let weekday: String
+        let windows: [TimeWindow]
+        let hours: String?
     }
 
     /// Resolve today's open windows: dated special schedule wins over standard;
     /// within a schedule, union the windows of all meal periods.
     static func todayWindows(schedules: [RawSchedule], todayISO: String, weekday: String) -> [TimeWindow] {
         dayWindows(schedules: schedules, todayISO: todayISO, weekday: weekday).windows
+    }
+
+    /// First day with open windows in `1...maxDays` from `from` (1 = tomorrow).
+    static func nextOpenDay(
+        schedules: [RawSchedule],
+        from date: Date,
+        maxDays: Int = 7
+    ) -> (dayOffset: Int, weekday: String, windows: [TimeWindow], hours: String?)? {
+        let calendar = PacificTime.calendar
+        for offset in 1...maxDays {
+            let day = calendar.date(byAdding: .day, value: offset, to: date) ?? date
+            let iso = PacificTime.todayISO(now: day)
+            let weekday = PacificTime.weekdayName(now: day)
+            let result = dayWindows(schedules: schedules, todayISO: iso, weekday: weekday)
+            guard result.resolved, !result.windows.isEmpty else { continue }
+            return (
+                dayOffset: offset,
+                weekday: weekday,
+                windows: result.windows,
+                hours: format(windows: result.windows)
+            )
+        }
+        return nil
     }
 
     /// Same as `todayWindows`, plus whether an active schedule was found

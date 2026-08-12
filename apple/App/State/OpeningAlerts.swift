@@ -109,15 +109,31 @@ enum OpeningAlerts {
                     opensAtMinutes: window.startMinutes,
                     dayOffset: 1,
                     closesAtMinutes: window.endMinutes,
-                    windowStartMinutes: window.startMinutes
+                    windowStartMinutes: window.startMinutes,
+                    hoursSpan: place.tomorrowHours
                 ))
             }
-            if place.upcomingWindows.isEmpty, place.tomorrowOpenWindows.isEmpty {
+            if let offset = place.opensNextDayOffset {
+                for window in place.nextOpenWindows {
+                    candidates.append(.init(
+                        id: id,
+                        name: place.name,
+                        opensAtMinutes: window.startMinutes,
+                        dayOffset: offset,
+                        closesAtMinutes: window.endMinutes,
+                        windowStartMinutes: window.startMinutes,
+                        hoursSpan: place.nextOpenHours
+                    ))
+                }
+            }
+            if place.upcomingWindows.isEmpty,
+               place.tomorrowOpenWindows.isEmpty,
+               place.nextOpenWindows.isEmpty {
                 candidates.append(.init(
                     id: id,
                     name: place.name,
                     opensAtMinutes: nil,
-                    hoursSpan: place.todayHours
+                    hoursSpan: place.nextOpenHours ?? place.tomorrowHours ?? place.todayHours
                 ))
             }
         }

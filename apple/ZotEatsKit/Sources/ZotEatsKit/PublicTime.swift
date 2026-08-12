@@ -33,6 +33,16 @@ public enum UCITime {
         return calendar.date(byAdding: .minute, value: minutes + dayOffset * 24 * 60, to: startOfDay) ?? now
     }
 
+    /// Wall-clock `Date` on a future Irvine calendar day (`dayOffset` days from
+    /// today) at `target` minutes since midnight — Campus Fri→Mon next-open.
+    public static func date(forMinutes target: Int, dayOffset: Int, now: Date = Date()) -> Date {
+        let calendar = PacificTime.calendar
+        let startOfDay = calendar.startOfDay(for: now)
+        let day = calendar.date(byAdding: .day, value: max(0, dayOffset), to: startOfDay) ?? now
+        let minutes = ((target % (24 * 60)) + (24 * 60)) % (24 * 60)
+        return calendar.date(byAdding: .minute, value: minutes, to: day) ?? now
+    }
+
     /// Hour of day in Irvine (0-23), for greetings.
     public static func hour(now: Date = Date()) -> Int {
         PacificTime.nowMinutes(now: now) / 60

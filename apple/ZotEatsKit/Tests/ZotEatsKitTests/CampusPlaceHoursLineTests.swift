@@ -42,6 +42,21 @@ struct CampusPlaceHoursLineTests {
         )
     }
 
+    @Test("Later weekday open names the day")
+    func opensLaterWeekday() {
+        #expect(
+            CampusPlaceHoursLine.resolve(
+                openNow: false,
+                todayHours: "7:30 AM – 4:00 PM",
+                opensAtMinutes: nil,
+                closesAtMinutes: nil,
+                opensTomorrowAtMinutes: nil,
+                opensNextAtMinutes: 7 * 60 + 30,
+                opensNextWeekday: "Monday"
+            ) == "Opens Monday at 7:30 AM"
+        )
+    }
+
     @Test("Open uses closesAtMinutes")
     func openUntil() {
         #expect(

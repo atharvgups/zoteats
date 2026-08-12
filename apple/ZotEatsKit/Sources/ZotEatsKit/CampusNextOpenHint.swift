@@ -8,17 +8,21 @@ public enum CampusNextOpenHint {
         public let placeName: String
         public let opensAtMinutes: Int
         public let isTomorrow: Bool
+        /// Weekday name when the open is beyond tomorrow ("Monday").
+        public let weekday: String?
 
         public init(
             placeID: String,
             placeName: String,
             opensAtMinutes: Int,
-            isTomorrow: Bool
+            isTomorrow: Bool,
+            weekday: String? = nil
         ) {
             self.placeID = placeID
             self.placeName = placeName
             self.opensAtMinutes = opensAtMinutes
             self.isTomorrow = isTomorrow
+            self.weekday = weekday
         }
 
         /// Short display name without location suffix ("Starbucks @ …" → "Starbucks").
@@ -35,6 +39,9 @@ public enum CampusNextOpenHint {
 
         public var line: String {
             let time = UCITime.format(minutes: opensAtMinutes)
+            if let weekday, !weekday.isEmpty {
+                return "\(shortName) opens \(weekday) at \(time)"
+            }
             if isTomorrow {
                 return "\(shortName) opens tomorrow at \(time)"
             }
@@ -42,16 +49,21 @@ public enum CampusNextOpenHint {
         }
     }
 
-    /// Prefer today's next open; else tomorrow's earliest. Skips open venues.
+    /// Prefer today's next open; else tomorrow; else the soonest later weekday.
     public static func best(from places: [CampusPlace]) -> Hint? {
         var todayCandidates: [(place: CampusPlace, minutes: Int)] = []
         var tomorrowCandidates: [(place: CampusPlace, minutes: Int)] = []
+        var laterCandidates: [(place: CampusPlace, minutes: Int, weekday: String, offset: Int)] = []
 
         for place in places where !place.openNow {
             if let minutes = place.opensAtMinutes {
                 todayCandidates.append((place, minutes))
             } else if let minutes = place.opensTomorrowAtMinutes {
                 tomorrowCandidates.append((place, minutes))
+            } else if let minutes = place.opensNextAtMinutes,
+                      let weekday = place.opensNextWeekday,
+                      let offset = place.opensNextDayOffset {
+                laterCandidates.append((place, minutes, weekday, offset))
             }
         }
 
@@ -69,6 +81,19 @@ public enum CampusNextOpenHint {
                 placeName: pick.place.name,
                 opensAtMinutes: pick.minutes,
                 isTomorrow: true
+            )
+        }
+        if let pick = laterCandidates.min(by: { lhs, rhs in
+            if lhs.offset != rhs.offset { return lhs.offset < rhs.offset }
+            if lhs.minutes != rhs.minutes { return lhs.minutes < rhs.minutes }
+            return lhs.place.name.localizedCaseInsensitiveCompare(rhs.place.name) == .orderedAscending
+        }) {
+            return Hint(
+                placeID: pick.place.id,
+                placeName: pick.place.name,
+                opensAtMinutes: pick.minutes,
+                isTomorrow: false,
+                weekday: pick.weekday
             )
         }
         return nil

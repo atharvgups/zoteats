@@ -362,6 +362,16 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     /// True when today's (or tomorrow's) schedule resolved from the feed —
     /// including explicit weekend "off". False when hours are missing/unparseable.
     public let hoursKnown: Bool
+    /// Earliest open on the next open day beyond tomorrow (Fri→Mon).
+    public let opensNextAtMinutes: Int?
+    /// Calendar days from today for `opensNextAtMinutes` (typically 2…7).
+    public let opensNextDayOffset: Int?
+    /// Weekday name for that later open ("Monday").
+    public let opensNextWeekday: String?
+    /// Formatted hours for the later open day.
+    public let nextOpenHours: String?
+    /// Full window chain on the later open day — Opening Alerts pre-arm.
+    public let nextOpenWindows: [CampusHoursWindow]
 
     public init(
         id: String,
@@ -376,7 +386,12 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         tomorrowHours: String? = nil,
         upcomingWindows: [CampusHoursWindow] = [],
         tomorrowOpenWindows: [CampusHoursWindow] = [],
-        hoursKnown: Bool = true
+        hoursKnown: Bool = true,
+        opensNextAtMinutes: Int? = nil,
+        opensNextDayOffset: Int? = nil,
+        opensNextWeekday: String? = nil,
+        nextOpenHours: String? = nil,
+        nextOpenWindows: [CampusHoursWindow] = []
     ) {
         self.id = id
         self.name = name
@@ -391,6 +406,11 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.upcomingWindows = upcomingWindows
         self.tomorrowOpenWindows = tomorrowOpenWindows
         self.hoursKnown = hoursKnown
+        self.opensNextAtMinutes = opensNextAtMinutes
+        self.opensNextDayOffset = opensNextDayOffset
+        self.opensNextWeekday = opensNextWeekday
+        self.nextOpenHours = nextOpenHours
+        self.nextOpenWindows = nextOpenWindows
     }
 
     /// Brand prefix for grouping multi-location chains:

@@ -9,7 +9,10 @@ struct CampusNextOpenHintTests {
         name: String,
         openNow: Bool = false,
         opensAt: Int? = nil,
-        opensTomorrow: Int? = nil
+        opensTomorrow: Int? = nil,
+        opensNext: Int? = nil,
+        nextWeekday: String? = nil,
+        nextOffset: Int? = nil
     ) -> CampusPlace {
         CampusPlace(
             id: id,
@@ -18,7 +21,10 @@ struct CampusNextOpenHintTests {
             openNow: openNow,
             todayHours: openNow ? "Open" : nil,
             opensAtMinutes: opensAt,
-            opensTomorrowAtMinutes: opensTomorrow
+            opensTomorrowAtMinutes: opensTomorrow,
+            opensNextAtMinutes: opensNext,
+            opensNextDayOffset: nextOffset,
+            opensNextWeekday: nextWeekday
         )
     }
 
@@ -75,5 +81,27 @@ struct CampusNextOpenHintTests {
         ])
         #expect(hint?.placeID == "today")
         #expect(hint?.isTomorrow == false)
+    }
+
+    @Test func laterWeekdayWhenWeekendOff() {
+        let hint = CampusNextOpenHint.best(from: [
+            place(
+                id: "a",
+                name: "Starbucks @ Student Center",
+                opensNext: 7 * 60 + 30,
+                nextWeekday: "Monday",
+                nextOffset: 3
+            ),
+            place(
+                id: "b",
+                name: "Zot N Go",
+                opensNext: 8 * 60,
+                nextWeekday: "Monday",
+                nextOffset: 3
+            ),
+        ])
+        #expect(hint?.placeID == "a")
+        #expect(hint?.weekday == "Monday")
+        #expect(hint?.line == "Starbucks opens Monday at 7:30 AM")
     }
 }

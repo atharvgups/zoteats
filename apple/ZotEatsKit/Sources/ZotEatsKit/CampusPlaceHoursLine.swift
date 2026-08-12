@@ -1,7 +1,8 @@
 import Foundation
 
 /// Honest Campus place hours chrome — "Opens at …" / "Opens tomorrow at …"
-/// / "Open until …" instead of a raw today's window next to a Closed pill.
+/// / "Opens Monday at …" / "Open until …" instead of a raw today's window
+/// next to a Closed pill.
 public enum CampusPlaceHoursLine {
     public static func resolve(
         openNow: Bool,
@@ -9,9 +10,11 @@ public enum CampusPlaceHoursLine {
         opensAtMinutes: Int?,
         closesAtMinutes: Int?,
         opensTomorrowAtMinutes: Int?,
-        /// True when today's (or tomorrow's) schedule was resolved from the feed —
+        /// True when today's (or a later) schedule was resolved from the feed —
         /// distinguishes weekend "off" from a missing/unparseable schedule.
-        hoursKnown: Bool = true
+        hoursKnown: Bool = true,
+        opensNextAtMinutes: Int? = nil,
+        opensNextWeekday: String? = nil
     ) -> String {
         if openNow {
             if let close = closesAtMinutes {
@@ -34,6 +37,9 @@ public enum CampusPlaceHoursLine {
         }
         if let open = opensTomorrowAtMinutes {
             return "Opens tomorrow at \(UCITime.format(minutes: open))"
+        }
+        if let open = opensNextAtMinutes, let weekday = opensNextWeekday, !weekday.isEmpty {
+            return "Opens \(weekday) at \(UCITime.format(minutes: open))"
         }
         // Never echo a past todayHours window beside a Closed pill (Fri after
         // close → Sat off used to show "7:30 AM – 4:00 PM").
@@ -73,7 +79,9 @@ public extension CampusPlace {
             opensAtMinutes: opensAtMinutes,
             closesAtMinutes: closesAtMinutes,
             opensTomorrowAtMinutes: opensTomorrowAtMinutes,
-            hoursKnown: hoursKnown
+            hoursKnown: hoursKnown,
+            opensNextAtMinutes: opensNextAtMinutes,
+            opensNextWeekday: opensNextWeekday
         )
     }
 }

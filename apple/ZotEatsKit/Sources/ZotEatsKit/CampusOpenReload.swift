@@ -1,7 +1,8 @@
 import Foundation
 
 /// Reload boundaries for the Campus Open Now widget — open/close / tomorrow
-/// open, plus Irvine midnight so overnight glances don't wait on the 20m cap.
+/// / later weekday open, plus Irvine midnight so overnight glances don't wait
+/// on the 20m cap.
 public enum CampusOpenReload {
     public static func boundaries(
         places: [CampusPlace],
@@ -27,6 +28,15 @@ public enum CampusOpenReload {
             }
             if place.tomorrowOpenWindows.isEmpty, let minutes = place.opensTomorrowAtMinutes {
                 dates.append(UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now))
+            }
+            if let offset = place.opensNextDayOffset {
+                for window in place.nextOpenWindows {
+                    dates.append(UCITime.date(forMinutes: window.startMinutes, dayOffset: offset, now: now))
+                    dates.append(UCITime.date(forMinutes: window.endMinutes, dayOffset: offset, now: now))
+                }
+                if place.nextOpenWindows.isEmpty, let minutes = place.opensNextAtMinutes {
+                    dates.append(UCITime.date(forMinutes: minutes, dayOffset: offset, now: now))
+                }
             }
         }
         return dates

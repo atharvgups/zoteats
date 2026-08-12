@@ -79,8 +79,8 @@ struct CampusServiceTests {
         #expect(starbucks?.hoursLine == "Opens tomorrow at 7:30 AM")
     }
 
-    @Test func fridayAfterCloseDoesNotEchoPastWindow() async throws {
-        // Friday 2026-07-10, 4:30 PM Pacific — Starbucks closed; Saturday is off.
+    @Test func fridayAfterCloseNamesMondayOpen() async throws {
+        // Friday 2026-07-10, 4:30 PM Pacific — Starbucks closed; Saturday/Sunday off.
         let fridayAfternoon = ISO8601DateFormatter().date(from: "2026-07-10T23:30:00Z")!
         let service = CampusService(http: FixtureHTTP(), now: { fridayAfternoon })
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
@@ -88,9 +88,12 @@ struct CampusServiceTests {
         #expect(starbucks?.todayHours?.contains("7:30 AM") == true)
         #expect(starbucks?.opensAtMinutes == nil)
         #expect(starbucks?.opensTomorrowAtMinutes == nil) // Sat off
+        #expect(starbucks?.opensNextWeekday == "Monday")
+        #expect(starbucks?.opensNextDayOffset == 3)
+        #expect(starbucks?.opensNextAtMinutes == 7 * 60 + 30)
         #expect(starbucks?.hoursKnown == true)
-        #expect(starbucks?.hoursLine == "Closed today")
-        #expect(starbucks?.hoursLine != starbucks?.todayHours)
+        #expect(starbucks?.hoursLine == "Opens Monday at 7:30 AM")
+        #expect(!starbucks!.nextOpenWindows.isEmpty)
     }
 
     @Test func openingHoursRuleParsing() {

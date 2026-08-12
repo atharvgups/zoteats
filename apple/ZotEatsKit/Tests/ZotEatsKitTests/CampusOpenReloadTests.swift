@@ -104,4 +104,25 @@ struct CampusOpenReloadTests {
         )
         #expect(boundaries.contains(afternoon))
     }
+
+    @Test func laterWeekdayOpenBoundaryIncluded() {
+        // Friday 5 PM PDT — Sat/Sun closed; Monday 7:30 AM must be in the set.
+        let now = ISO8601DateFormatter().date(from: "2026-07-11T00:00:00Z")! // Fri 5 PM PDT
+        let place = CampusPlace(
+            id: "starbucks",
+            name: "Starbucks",
+            category: "Coffee & Cafés",
+            openNow: false,
+            todayHours: nil,
+            opensNextAtMinutes: 7 * 60 + 30,
+            opensNextDayOffset: 3,
+            opensNextWeekday: "Monday",
+            nextOpenWindows: [
+                CampusHoursWindow(startMinutes: 7 * 60 + 30, endMinutes: 16 * 60),
+            ]
+        )
+        let boundaries = CampusOpenReload.boundaries(places: [place], now: now)
+        let mondayOpen = UCITime.date(forMinutes: 7 * 60 + 30, dayOffset: 3, now: now)
+        #expect(boundaries.contains(mondayOpen))
+    }
 }
