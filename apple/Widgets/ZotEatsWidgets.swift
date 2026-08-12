@@ -532,6 +532,10 @@ struct TodaysMenuEntry: TimelineEntry {
     let reloadBoundaries: [Date]
     /// Menu had dishes but Eat Filters removed every one.
     let filtersEmptiedMenu: Bool
+    /// Eat deep-link period (may target tomorrow after hours).
+    let deepLinkPeriod: String?
+    /// Tomorrow ISO when after-hours glance deep-links into next day's board.
+    let deepLinkDate: String?
 
     init(
         date: Date,
@@ -542,7 +546,9 @@ struct TodaysMenuEntry: TimelineEntry {
         favorited: Set<String>,
         periodEndsAt: Date?,
         reloadBoundaries: [Date] = [],
-        filtersEmptiedMenu: Bool = false
+        filtersEmptiedMenu: Bool = false,
+        deepLinkPeriod: String? = nil,
+        deepLinkDate: String? = nil
     ) {
         self.date = date
         self.hallName = hallName
@@ -553,13 +559,17 @@ struct TodaysMenuEntry: TimelineEntry {
         self.periodEndsAt = periodEndsAt
         self.reloadBoundaries = reloadBoundaries
         self.filtersEmptiedMenu = filtersEmptiedMenu
+        self.deepLinkPeriod = deepLinkPeriod
+        self.deepLinkDate = deepLinkDate
     }
 
-    /// Opens Eat on the hall + meal this glance is showing.
+    /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
     var deepLinkURL: URL {
-        AnteatsDeepLink.eat(
+        let periodParam = deepLinkPeriod ?? (period.isEmpty ? nil : period)
+        return AnteatsDeepLink.eat(
             hall: hallID,
-            period: period.isEmpty ? nil : period
+            period: periodParam,
+            date: deepLinkDate
         ).url
     }
 }
@@ -636,10 +646,25 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             UCITime.date(forMinutes: $0, nowMinutes: nowMinutes)
         }
 
-        // Reload at next meal start and Irvine midnight (no overnight stale Dinner).
-        var reloadBoundaries: [Date] = [UCITime.nextIrvineMidnight()]
-        if let start = choice.upcomingStartMinutes {
-            reloadBoundaries.append(UCITime.date(forMinutes: start, nowMinutes: nowMinutes))
+        let reloadBoundaries = TodaysMenuReload.boundaries(
+            upcomingStartMinutes: choice.upcomingStartMinutes,
+            isAfterHours: choice.isAfterHours,
+            opensTomorrowAtMinutes: hall.opensTomorrowAtMinutes,
+            nowMinutes: nowMinutes
+        )
+
+        let link: DiningStatusDeepLink.Destination
+        if choice.isAfterHours {
+            link = DiningStatusDeepLink.destination(
+                for: .closedForToday,
+                availablePeriods: hall.availablePeriods,
+                opensTomorrowAtMinutes: hall.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: hall.opensTomorrowPeriod
+            )
+        } else {
+            link = DiningStatusDeepLink.Destination(
+                period: period.isEmpty ? nil : period
+            )
         }
 
         return TodaysMenuEntry(
@@ -651,7 +676,9 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             favorited: favorited,
             periodEndsAt: periodEndsAt,
             reloadBoundaries: reloadBoundaries,
-            filtersEmptiedMenu: filtersEmptiedMenu
+            filtersEmptiedMenu: filtersEmptiedMenu,
+            deepLinkPeriod: link.period,
+            deepLinkDate: link.date
         )
     }
 }
