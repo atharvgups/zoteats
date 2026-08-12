@@ -272,6 +272,53 @@ def attach_build(token: str, version_id: str, build_id: str) -> None:
         info(f"Attached build {build_id} to version {version_id}.")
 
 
+def ensure_version_copyright(token: str, version_id: str, meta: dict) -> None:
+    copyright_text = (meta.get("copyright") or "").strip()
+    if not copyright_text:
+        warn("metadata.json missing copyright — ASC will reject first submit.")
+        return
+    result = api(
+        "PATCH",
+        f"/v1/appStoreVersions/{version_id}",
+        token,
+        {
+            "data": {
+                "type": "appStoreVersions",
+                "id": version_id,
+                "attributes": {"copyright": copyright_text},
+            }
+        },
+        ok_codes={200, 204, 409, 422},
+    )
+    if result.get("errors") and not result.get("data"):
+        warn(f"Could not set copyright: {json.dumps(result)[:400]}")
+    else:
+        info(f"Set version copyright={copyright_text!r}.")
+
+
+def ensure_content_rights(token: str, app_id: str) -> None:
+    """First-submit ASC requires contentRightsDeclaration on the app."""
+    result = api(
+        "PATCH",
+        f"/v1/apps/{app_id}",
+        token,
+        {
+            "data": {
+                "type": "apps",
+                "id": app_id,
+                "attributes": {
+                    "contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"
+                },
+            }
+        },
+        ok_codes={200, 204, 409, 422},
+    )
+    if result.get("errors") and not result.get("data"):
+        warn(f"Could not set contentRightsDeclaration: {json.dumps(result)[:400]}")
+    else:
+        info("Set contentRightsDeclaration=DOES_NOT_USE_THIRD_PARTY_CONTENT.")
+
+
 def ensure_version_localization(token: str, version_id: str, meta: dict) -> str:
     locale = meta.get("locale", "en-US")
     q = urllib.parse.urlencode({"limit": "10"})
