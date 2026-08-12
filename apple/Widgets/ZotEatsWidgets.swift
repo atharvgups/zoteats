@@ -1057,7 +1057,13 @@ struct CampusOpenView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.totalOpen) campus spots open")
+        .accessibilityLabel(
+            CampusOpenAccessibilityLabel.label(
+                totalOpen: entry.totalOpen,
+                openPlaceNames: entry.openPlaces.map(\.name),
+                nextOpenLine: entry.nextOpen?.line
+            )
+        )
     }
 }
 
