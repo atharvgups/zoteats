@@ -1,102 +1,121 @@
 <div align="center">
 
-# ZotEats 🐜
+# ZotEats
 
-**UCI dining, campus food, gym, and study spots — in one native iOS app.**
+**Native iOS for UCI campus life** — dining menus, campus food spots, ARC rush, and live library busyness.
 
-*Menus with nutrition and dietary filters · live library busyness · rush-hour intelligence · built by an Anteater, for Anteaters.*
+*Built by an Anteater ([Atharv Gupta](https://github.com/atharvgups)), for Anteaters. Unofficial — not affiliated with UC Irvine.*
 
 [![iOS CI](https://github.com/atharvgups/zoteats/actions/workflows/ios.yml/badge.svg)](https://github.com/atharvgups/zoteats/actions/workflows/ios.yml)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
-![iOS 17+](https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&logoColor=white)
+![iOS 18+](https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&logoColor=white)
 ![Status](https://img.shields.io/badge/status-beta-blue)
 
-<img src="docs/screenshots/demo.gif" alt="ZotEats demo" width="300" />
+<img src="docs/screenshots/demo.gif" alt="ZotEats demo" width="280" />
 
 </div>
 
 ---
 
-## What it does
+## Features
 
 <p align="center">
-  <img src="docs/screenshots/eat_light.png" width="24%" alt="Eat tab" />
-  <img src="docs/screenshots/campus.png" width="24%" alt="Campus tab" />
-  <img src="docs/screenshots/gym.png" width="24%" alt="Gym tab" />
-  <img src="docs/screenshots/study.png" width="24%" alt="Study tab" />
+  <img src="docs/screenshots/eat_light.png" width="24%" alt="Eat" />
+  <img src="docs/screenshots/campus.png" width="24%" alt="Campus" />
+  <img src="docs/screenshots/gym.png" width="24%" alt="Gym" />
+  <img src="docs/screenshots/study.png" width="24%" alt="Study" />
 </p>
 
-- **Eat** — live menus for The Anteatery & Brandywine with calories, allergens, and Vegan / Vegetarian / Halal / Kosher / Gluten-Free filtering. Countdowns like "Dinner starts in 16m", browse tomorrow's menu, and the app opens on whichever meal is happening right now.
-- **Campus** — every campus food spot (Starbucks, Panda Express, Subway, Zot N Go, the food courts) with real hours and open/closed. Filter by category or "open now"; chains collapse into one expandable row; menus where venues publish them.
-- **Gym** — busyness-first ARC view: how packed it is now, today's rush curve, and when it's usually quietest. Hours tucked away where they belong.
-- **Study** — live library occupancy from UCI's Occuspace sensors, floor by floor, with a "quietest right now" pick.
+| Tab | What you get |
+|---|---|
+| **Eat** | Live menus for The Anteatery & Brandywine — calories, allergens, Vegan / Vegetarian / Halal / Kosher / Gluten-Free filters. Opens on the meal happening now; browse upcoming days; search dishes; heart favorites. |
+| **Campus** | Starbucks, Panda, Subway, Zot N Go, food courts, and more — hours, open/closed, category + “open now” filters. Chains group into one row; menus when venues publish them. |
+| **Gym** | ARC first: how packed it is, today’s rush curve, when it’s usually quietest. Hours stay secondary. |
+| **Study** | Live library occupancy (Occuspace via Waitz), area-by-area where reported, plus a “quietest right now” pick. |
 
-**Plus:** full dark mode (follow the system or force it), a home-screen widget, favorites that surface when your dish is being served, dish detail sheets with nutrition, and a few hidden Zots for the curious. 🐜🐜🐜
+**Also shipped**
+
+- Favorite-dish **alerts** — local notification when something you’ve hearted is on today’s menu
+- **Live Activity** / Dynamic Island countdown for the meal you’re in (“Dinner ends in…”)
+- Home-screen **widget** — hall open state + quietest library (medium)
+- Dish detail sheets with nutrition · system / light / dark appearance · a few hidden Zots 🐜
 
 <p align="center">
-  <img src="docs/screenshots/campus_menu.png" width="24%" alt="Menu sheet" />
+  <img src="docs/screenshots/campus_menu.png" width="24%" alt="Campus menu" />
   <img src="docs/screenshots/eat_dark.png" width="24%" alt="Dark mode" />
   <img src="docs/screenshots/settings.png" width="24%" alt="Settings" />
 </p>
 
-## Data sources
+No accounts. No ads. No tracking. Preferences stay on device.
 
-All data is live from public, community-maintained UCI sources. No accounts, no ads, no tracking — preferences never leave your device.
+---
+
+## Data
 
 | What | Source |
 |---|---|
-| Dining hall menus, hours, nutrition | [Anteater API](https://anteaterapi.com) (`/v2/rest/dining`) — the maintained UCI data API |
+| Dining hall menus, hours, nutrition | [Anteater API](https://anteaterapi.com) |
 | Campus restaurant hours & menus | UCI Dining hub (`uci.mydininghub.com`) public backend |
-| Library busyness | UCI's [Occuspace pilot](https://www.lib.uci.edu/library-space-usage-pilot) via the public Waitz feed |
-| ARC hours | Maintained schedule, verified against [campusrec.uci.edu](https://www.campusrec.uci.edu/arc/hours.html) |
+| Library busyness | [Occuspace pilot](https://www.lib.uci.edu/library-space-usage-pilot) via [Waitz](https://waitz.io/irvine) |
+| ARC hours | Maintained schedule, checked against [campusrec.uci.edu](https://www.campusrec.uci.edu/arc/hours.html) |
 
-Where no sensors exist (dining halls, the ARC), busyness shows **typical patterns** — clearly tagged `TYPICAL` — derived from real meal windows and known rush patterns. Live sensor data automatically takes over anywhere coverage appears.
+Where sensors don’t exist (dining halls, ARC), busyness is a **typical** pattern — tagged `TYPICAL` in-app. Live Waitz data takes over when a facility is covered.
 
-## Architecture
+---
+
+## Stack
+
+- **SwiftUI** app (iOS 18+), bundle id `com.atharvgupta.zoteats`
+- **Swift 6** · `@Observable` stores · WidgetKit + ActivityKit · no third-party packages
+- **`ZotEatsKit`** — shared Swift package (models, dining / campus / gym / busyness services, caching, typical-busyness engine). Fixture tests run on Linux and macOS.
+- **XcodeGen** — `.xcodeproj` is generated, not committed
+- CI builds on macOS, screenshots every screen, records a demo video on `[demo]` commits; TestFlight uploads on `testflight-*` tags
 
 ```
 apple/
-├── ZotEatsKit/     Swift package: models, API services, caching,
-│                   typical-busyness engine — 46 tests, runs on Linux + macOS
-├── App/            SwiftUI app (iOS 17+): Eat / Campus / Gym / Study
-│                   + a Notion-inspired design system
-├── UITests/        Scripted demo tour, recorded on video by CI
-└── project.yml     XcodeGen spec (the Xcode project is generated, not committed)
+├── App/            SwiftUI tabs: Eat · Campus · Gym · Study
+├── Widgets/        Home-screen widget + meal Live Activity
+├── ZotEatsKit/     Data layer + tests
+├── UITests/        Scripted demo tour (CI video)
+├── AppStore/       Listing draft + privacy policy
+└── project.yml     XcodeGen spec
 ```
 
-- **Swift 6** with strict concurrency, `@Observable` stores, no external dependencies.
-- **CI** builds the app on macOS runners, captures light + dark screenshots of every screen, and records a full demo video on `[demo]` commits. Package tests run on every push.
-- **TestFlight** releases ship by pushing a `testflight-x.y.z` tag.
-- The repo root also contains the original [Glaze](https://glazeapp.com) desktop prototype this project grew out of.
+The repo root still holds the earlier [Glaze](https://glazeapp.com) desktop prototype this project grew out of.
 
-## Development
+---
+
+## Build & run
+
+**Requirements:** macOS, Xcode (iOS 18 SDK), [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```bash
-# Data layer tests (works on Linux and macOS)
+# Data-layer tests (Linux or macOS)
 swift test --package-path apple/ZotEatsKit
 
-# Include live-API smoke tests
+# Optional live-API smoke tests
 ZOTEATS_LIVE_TESTS=1 swift test --package-path apple/ZotEatsKit
 
-# Generate the Xcode project (macOS)
+# Generate project and open in Xcode
 brew install xcodegen
 xcodegen generate --spec apple/project.yml --project apple/
 open apple/ZotEats.xcodeproj
 ```
 
-## Status
+Run the **ZotEats** scheme on a simulator or device. Set your Apple Development Team in the project if you need device signing (`DEVELOPMENT_TEAM` in `apple/project.yml`).
 
-**Beta** — build from source (commands above) or watch for TestFlight tags (`testflight-x.y.z`). Unofficial student project; not affiliated with UC Irvine.
+More detail: [`apple/README.md`](apple/README.md).
 
-### Shipped
+---
 
-Home-screen widget · favorites when your dish is served · browse tomorrow's menus · dark mode · dietary filters
+## TestFlight
 
-### Next
+Beta builds upload when you push a tag like `testflight-1.0.0` (or via manual workflow dispatch). See [`.github/workflows/testflight.yml`](.github/workflows/testflight.yml). Watch the repo / TestFlight for invites — still beta.
 
-- Favorite-dish notifications ("chicken tikka is at Brandywine today")
-- Real dining-hall and ARC busyness the moment campus sensors exist
+---
 
-## Disclaimer
+## Status & disclaimer
 
-Data comes from public endpoints that may change without notice. Zot responsibly.
+**Beta.** Unofficial student project — not affiliated with, endorsed by, or sponsored by UC Irvine, UCI Dining, or Campus Recreation. Public endpoints can change; always verify critical hours on official UCI channels.
+
+Zot responsibly.
