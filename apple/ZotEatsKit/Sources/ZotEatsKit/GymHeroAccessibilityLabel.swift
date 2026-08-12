@@ -1,8 +1,11 @@
 import Foundation
 
 /// VoiceOver for the in-app Gym hero — one announcement with open/closed,
-/// crowding, hours, and live Updated freshness (parity with Study facility).
+/// crowding, hours honesty, and live Updated freshness (parity with Study facility).
 public enum GymHeroAccessibilityLabel {
+    /// Matches the sighted GymApproximateHoursFootnote cue (short for VO).
+    public static let approximateHoursCue = "schedule may be approximate"
+
     public static func label(
         isOpen: Bool,
         hoursLine: String,
@@ -11,7 +14,8 @@ public enum GymHeroAccessibilityLabel {
         isTypical: Bool,
         peopleCount: Int?,
         idleMessage: String?,
-        updatedRelative: String? = nil
+        updatedRelative: String? = nil,
+        hoursApproximate: Bool = false
     ) -> String {
         let hours = hoursLine.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = ["ARC", "Anteater Recreation Center"]
@@ -41,6 +45,9 @@ public enum GymHeroAccessibilityLabel {
 
         if !hours.isEmpty {
             parts.append(hours)
+            if hoursApproximate {
+                parts.append(approximateHoursCue)
+            }
         }
 
         if let updated = updatedRelative?.trimmingCharacters(in: .whitespacesAndNewlines),

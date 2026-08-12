@@ -126,4 +126,53 @@ struct GymHeroAccessibilityLabelTests {
             ) == "ARC, Anteater Recreation Center, open, 42 percent full, Busy, live, Open until 12:00 AM"
         )
     }
+
+    @Test("Approximate hours cue follows hoursLine")
+    func approximateHours() {
+        #expect(
+            GymHeroAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: nil,
+                levelLabel: nil,
+                isTypical: false,
+                peopleCount: nil,
+                idleMessage: "No busyness estimate right now",
+                hoursApproximate: true
+            ) == "ARC, Anteater Recreation Center, open, No busyness estimate right now, Open until 12:00 AM, schedule may be approximate"
+        )
+    }
+
+    @Test("Approximate cue omitted when hoursLine blank")
+    func approximateWithoutHours() {
+        #expect(
+            GymHeroAccessibilityLabel.label(
+                isOpen: false,
+                hoursLine: "  ",
+                percent: nil,
+                levelLabel: nil,
+                isTypical: false,
+                peopleCount: nil,
+                idleMessage: nil,
+                hoursApproximate: true
+            ) == "ARC, Anteater Recreation Center, closed"
+        )
+    }
+
+    @Test("Approximate cue comes before Updated freshness")
+    func approximateBeforeUpdated() {
+        #expect(
+            GymHeroAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                levelLabel: "Busy",
+                isTypical: false,
+                peopleCount: nil,
+                idleMessage: nil,
+                updatedRelative: "just now",
+                hoursApproximate: true
+            ) == "ARC, Anteater Recreation Center, open, 42 percent full, Busy, live, Open until 12:00 AM, schedule may be approximate, Updated just now"
+        )
+    }
 }

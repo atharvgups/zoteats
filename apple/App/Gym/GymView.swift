@@ -188,7 +188,8 @@ struct GymBusynessHero: View {
             isTypical: crowding?.isTypical ?? false,
             peopleCount: crowding != nil ? point?.count : nil,
             idleMessage: crowding == nil ? idleMessage : nil,
-            updatedRelative: updatedRelative
+            updatedRelative: updatedRelative,
+            hoursApproximate: status.hoursApproximate
         )
     }
 }
