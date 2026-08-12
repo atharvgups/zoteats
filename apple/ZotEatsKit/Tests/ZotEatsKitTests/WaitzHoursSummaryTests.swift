@@ -69,10 +69,17 @@ struct WaitzHoursSummaryTests {
         )
     }
 
-    @Test("Displayable range stays open inside window")
+    @Test("Displayable range stays open inside window when feed says open")
     func effectivelyOpenInRange() {
         #expect(
             WaitzHoursSummary.isEffectivelyOpen(
+                feedIsOpen: true,
+                hoursSummary: "6:00am-10:00pm",
+                nowMinutes: 12 * 60
+            )
+        )
+        #expect(
+            !WaitzHoursSummary.isEffectivelyOpen(
                 feedIsOpen: false,
                 hoursSummary: "6:00am-10:00pm",
                 nowMinutes: 12 * 60

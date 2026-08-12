@@ -89,6 +89,42 @@ struct QuietestLibraryPickTests {
         #expect(QuietestLibraryPick.best(from: [closed]) == nil)
     }
 
+    @Test("Closed-until stale isOpen is not quietest")
+    func closedUntilStaleOpenExcluded() {
+        let stale = BusynessPoint(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 5,
+            level: .notBusy,
+            isOpen: true,
+            hoursSummary: "Closed until 8:00am",
+            updatedAt: Date(),
+            subLocations: nil
+        )
+        #expect(QuietestLibraryPick.best(from: [stale], nowMinutes: 6 * 60) == nil)
+    }
+
+    @Test("Past-range stale isOpen is not quietest")
+    func pastRangeStaleOpenExcluded() {
+        let stale = BusynessPoint(
+            id: 2,
+            name: "Langson Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 8,
+            level: .notBusy,
+            isOpen: true,
+            hoursSummary: "8:00am-12:00pm",
+            updatedAt: Date(),
+            subLocations: nil
+        )
+        #expect(QuietestLibraryPick.best(from: [stale], nowMinutes: 14 * 60) == nil)
+    }
+
     @Test func pickCarriesWinningZoneUpdatedAt() {
         let zoneStamp = Date(timeIntervalSince1970: 1_720_000_000)
         let science = point(

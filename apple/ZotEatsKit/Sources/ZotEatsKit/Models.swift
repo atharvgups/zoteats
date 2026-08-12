@@ -518,6 +518,15 @@ public struct BusynessPoint: Codable, Sendable, Identifiable, Equatable {
         self.subLocations = subLocations
         self.source = source
     }
+
+    /// Waitz `isOpen` reconciled with Closed-until / hour ranges (same as ARC).
+    public func isEffectivelyOpen(nowMinutes: Int) -> Bool {
+        WaitzHoursSummary.isEffectivelyOpen(
+            feedIsOpen: isOpen,
+            hoursSummary: hoursSummary,
+            nowMinutes: nowMinutes
+        )
+    }
 }
 
 public struct DayHours: Codable, Sendable, Identifiable, Equatable {

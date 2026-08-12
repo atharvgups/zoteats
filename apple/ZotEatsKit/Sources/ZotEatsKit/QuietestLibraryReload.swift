@@ -20,12 +20,18 @@ public enum QuietestLibraryReload {
             .sorted()
     }
 
-    /// Distinct close minutes from parseable Waitz ranges on open libraries.
-    public static func closeMinutes(from facilities: [BusynessPoint]) -> [Int] {
+    /// Distinct close minutes from parseable Waitz ranges on effectively open
+    /// libraries (Closed-until / past-range stale `isOpen` excluded).
+    public static func closeMinutes(
+        from facilities: [BusynessPoint],
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> [Int] {
         let libraries = facilities.filter { $0.category == "Library" }
         let pool = libraries.isEmpty ? facilities : libraries
         return Set(
-            pool.filter(\.isOpen).compactMap { WaitzHoursSummary.closeMinutes($0.hoursSummary) }
+            pool
+                .filter { $0.isEffectivelyOpen(nowMinutes: nowMinutes) }
+                .compactMap { WaitzHoursSummary.closeMinutes($0.hoursSummary) }
         ).sorted()
     }
 

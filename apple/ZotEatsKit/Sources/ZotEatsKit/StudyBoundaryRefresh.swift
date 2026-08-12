@@ -5,21 +5,29 @@ import Foundation
 /// the Quietest hero, crowding, and Status pills flip while the Study tab stays open.
 public enum StudyBoundaryRefresh {
     /// Matches Quietest widget: library pool when present, else whole feed.
-    public static func anyLibraryOpen(from facilities: [BusynessPoint]) -> Bool {
+    /// Honors Waitz Closed-until / ranges over a stale `isOpen` flag.
+    public static func anyLibraryOpen(
+        from facilities: [BusynessPoint],
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> Bool {
         let libraries = facilities.filter { $0.category == "Library" }
         let pool = libraries.isEmpty ? facilities : libraries
-        return pool.contains(where: \.isOpen)
+        return pool.contains { $0.isEffectivelyOpen(nowMinutes: nowMinutes) }
     }
 
     public static func nextFire(
         now: Date = Date(),
         facilities: [BusynessPoint]
     ) -> Date {
-        QuietestLibraryReload.nextReload(
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        return QuietestLibraryReload.nextReload(
             now: now,
-            anyLibraryOpen: anyLibraryOpen(from: facilities),
+            anyLibraryOpen: anyLibraryOpen(from: facilities, nowMinutes: nowMinutes),
             reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities),
-            closeMinutes: QuietestLibraryReload.closeMinutes(from: facilities)
+            closeMinutes: QuietestLibraryReload.closeMinutes(
+                from: facilities,
+                nowMinutes: nowMinutes
+            )
         )
     }
 }

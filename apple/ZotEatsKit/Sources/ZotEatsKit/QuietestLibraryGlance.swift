@@ -48,14 +48,20 @@ public enum QuietestLibraryGlance {
     }
 
     /// Show the closed hero when libraries exist but none are open/reporting.
-    public static func shouldShowClosed(from facilities: [BusynessPoint]) -> Bool {
-        QuietestLibraryPick.best(from: facilities) == nil
+    public static func shouldShowClosed(
+        from facilities: [BusynessPoint],
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> Bool {
+        QuietestLibraryPick.best(from: facilities, nowMinutes: nowMinutes) == nil
             && hasLibraryFacilities(facilities)
     }
 
     /// Tip for the Dining Halls medium footer. Nil when the feed has no libraries.
-    public static func diningStatusTip(from facilities: [BusynessPoint]) -> DiningStatusTip? {
-        if let pick = QuietestLibraryPick.best(from: facilities) {
+    public static func diningStatusTip(
+        from facilities: [BusynessPoint],
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> DiningStatusTip? {
+        if let pick = QuietestLibraryPick.best(from: facilities, nowMinutes: nowMinutes) {
             return .open(
                 name: pick.title,
                 percent: pick.percent,
@@ -63,7 +69,7 @@ public enum QuietestLibraryGlance {
                 updatedAt: pick.updatedAt
             )
         }
-        guard shouldShowClosed(from: facilities) else { return nil }
+        guard shouldShowClosed(from: facilities, nowMinutes: nowMinutes) else { return nil }
         return .librariesClosed(
             reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
         )

@@ -79,4 +79,30 @@ struct StudyBoundaryRefreshTests {
         let facilities = [point(id: 2, category: "Recreation", isOpen: true)]
         #expect(StudyBoundaryRefresh.anyLibraryOpen(from: facilities))
     }
+
+    @Test("Closed-until stale isOpen is not anyLibraryOpen")
+    func closedUntilStaleOpenIsClosed() {
+        let facilities = [
+            point(
+                id: 1,
+                category: "Library",
+                isOpen: true,
+                hoursSummary: "Closed until 8:00am"
+            ),
+        ]
+        #expect(!StudyBoundaryRefresh.anyLibraryOpen(from: facilities, nowMinutes: 6 * 60))
+    }
+
+    @Test("Past-range stale isOpen is not anyLibraryOpen")
+    func pastRangeStaleOpenIsClosed() {
+        let facilities = [
+            point(
+                id: 1,
+                category: "Library",
+                isOpen: true,
+                hoursSummary: "8:00am-12:00pm"
+            ),
+        ]
+        #expect(!StudyBoundaryRefresh.anyLibraryOpen(from: facilities, nowMinutes: 14 * 60))
+    }
 }

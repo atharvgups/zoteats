@@ -21,12 +21,16 @@ public struct QuietestLibraryPick: Equatable, Sendable {
     /// Quietest open library floor/zone. Prefers `category == "Library"`;
     /// falls back to all facilities only when no libraries are in the feed.
     /// Returns `nil` when nothing open reports a percent.
-    public static func best(from facilities: [BusynessPoint]) -> QuietestLibraryPick? {
+    /// Uses Waitz hour chrome (Closed-until / ranges), not raw `isOpen`.
+    public static func best(
+        from facilities: [BusynessPoint],
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> QuietestLibraryPick? {
         let libraries = facilities.filter { $0.category == "Library" }
         let pool = libraries.isEmpty ? facilities : libraries
 
         var candidates: [QuietestLibraryPick] = []
-        for facility in pool where facility.isOpen {
+        for facility in pool where facility.isEffectivelyOpen(nowMinutes: nowMinutes) {
             let short = shortLibraryName(facility.name)
             let floors = BusynessFloorGrouping.floors(from: facility.subLocations)
             let openByID = Dictionary(
@@ -75,7 +79,7 @@ public struct QuietestLibraryPick: Equatable, Sendable {
 
         // No floor zones reported — quietest open facility in the pool.
         return pool
-            .filter { $0.isOpen && $0.percent != nil }
+            .filter { $0.isEffectivelyOpen(nowMinutes: nowMinutes) && $0.percent != nil }
             .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
             .map {
                 .init(

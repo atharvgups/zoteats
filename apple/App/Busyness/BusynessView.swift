@@ -186,11 +186,14 @@ struct BusynessView: View {
     /// open-first then by percent descending (nil percent last).
     private func groups(from facilities: [BusynessPoint])
         -> [(category: String, facilities: [BusynessPoint])] {
-        Self.categoryOrder.compactMap { category in
+        let nowMinutes = UCITime.nowMinutes()
+        return Self.categoryOrder.compactMap { category in
             let members = facilities
                 .filter { $0.category == category }
                 .sorted { lhs, rhs in
-                    if lhs.isOpen != rhs.isOpen { return lhs.isOpen }
+                    let lhsOpen = lhs.isEffectivelyOpen(nowMinutes: nowMinutes)
+                    let rhsOpen = rhs.isEffectivelyOpen(nowMinutes: nowMinutes)
+                    if lhsOpen != rhsOpen { return lhsOpen }
                     switch (lhs.percent, rhs.percent) {
                     case (let l?, let r?): return l > r
                     case (.some, .none): return true
@@ -354,6 +357,10 @@ struct BusynessFacilityCard: View {
 
     private var hasFloors: Bool { !floors.isEmpty }
 
+    private var effectivelyOpen: Bool {
+        facility.isEffectivelyOpen(nowMinutes: UCITime.nowMinutes())
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 10) {
@@ -362,11 +369,11 @@ struct BusynessFacilityCard: View {
                         .font(ZotFont.cardTitle)
                         .lineLimit(2)
                     Spacer(minLength: 8)
-                    StatusPill(isOpen: facility.isOpen)
+                    StatusPill(isOpen: effectivelyOpen)
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
                        let percent = facility.percent {
                         Text("\(percent)%")
                             .font(.system(size: 28, weight: .bold))
@@ -375,7 +382,7 @@ struct BusynessFacilityCard: View {
                         Text(facility.level.label)
                             .font(ZotFont.pill)
                             .foregroundStyle(facility.level.color)
-                    } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+                    } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
                         Text("—")
                             .font(.system(size: 28, weight: .bold))
                             .foregroundStyle(.secondary)
@@ -393,7 +400,7 @@ struct BusynessFacilityCard: View {
                     Spacer()
                 }
 
-                if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+                if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
                     OccupancyBar(percent: facility.percent, level: facility.level)
                     if let openLine = StudyIdleCopy.facilityOpenDetail(
                         hoursSummary: facility.hoursSummary
@@ -409,7 +416,7 @@ struct BusynessFacilityCard: View {
                 }
 
                 HStack {
-                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
                        let count = facility.count, let capacity = facility.capacity {
                         Text("\(count) / \(capacity) people")
                             .font(ZotFont.caption)
@@ -423,7 +430,7 @@ struct BusynessFacilityCard: View {
             .accessibilityLabel(
                 StudyFacilityAccessibilityLabel.label(
                     name: facility.name,
-                    isOpen: facility.isOpen,
+                    isOpen: effectivelyOpen,
                     percent: facility.percent,
                     levelLabel: facility.level.label,
                     peopleCount: facility.count,
@@ -434,7 +441,7 @@ struct BusynessFacilityCard: View {
             )
 
             // Floor % goes stale overnight — only expand while the building is open.
-            if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+            if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
                 expandToggle
                 if isExpanded {
                     floorsList
@@ -457,7 +464,7 @@ struct BusynessFacilityCard: View {
     private func expandIfRequested() {
         guard initiallyExpanded,
               hasFloors,
-              StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+              StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
               !isExpanded
         else { return }
         withAnimation(.snappy(duration: 0.3)) {

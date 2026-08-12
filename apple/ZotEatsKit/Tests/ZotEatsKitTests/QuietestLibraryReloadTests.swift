@@ -168,7 +168,25 @@ struct QuietestLibraryReloadTests {
             updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
             subLocations: nil
         )
-        #expect(QuietestLibraryReload.closeMinutes(from: [open, closed]) == [22 * 60])
-        #expect(QuietestLibraryReload.closeMinutes(from: [closed]) == [])
+        #expect(QuietestLibraryReload.closeMinutes(from: [open, closed], nowMinutes: 12 * 60) == [22 * 60])
+        #expect(QuietestLibraryReload.closeMinutes(from: [closed], nowMinutes: 12 * 60) == [])
+    }
+
+    @Test("Closed-until stale isOpen excluded from closeMinutes")
+    func closeMinutesExcludesClosedUntilStaleOpen() {
+        let stale = BusynessPoint(
+            id: 1,
+            name: "Langson Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 12,
+            level: .notBusy,
+            isOpen: true,
+            hoursSummary: "Closed until 8:00am",
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            subLocations: nil
+        )
+        #expect(QuietestLibraryReload.closeMinutes(from: [stale], nowMinutes: 6 * 60) == [])
     }
 }

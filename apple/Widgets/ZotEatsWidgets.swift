@@ -1644,14 +1644,19 @@ struct QuietestLibraryProvider: TimelineProvider {
         Task {
             let facilities = (try? await BusynessService().all()) ?? []
             let entry = Self.entry(from: facilities)
-            let libraries = facilities.filter { $0.category == "Library" }
-            let pool = libraries.isEmpty ? facilities : libraries
-            let anyOpen = pool.contains(where: \.isOpen)
+            let nowMinutes = UCITime.nowMinutes()
+            let anyOpen = StudyBoundaryRefresh.anyLibraryOpen(
+                from: facilities,
+                nowMinutes: nowMinutes
+            )
             let reload = QuietestLibraryReload.nextReload(
                 now: .now,
                 anyLibraryOpen: anyOpen,
                 reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities),
-                closeMinutes: QuietestLibraryReload.closeMinutes(from: facilities)
+                closeMinutes: QuietestLibraryReload.closeMinutes(
+                    from: facilities,
+                    nowMinutes: nowMinutes
+                )
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }

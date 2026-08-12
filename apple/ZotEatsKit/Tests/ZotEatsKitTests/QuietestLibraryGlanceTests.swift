@@ -115,6 +115,28 @@ struct QuietestLibraryGlanceTests {
         )
     }
 
+    @Test("Stale Closed-until isOpen shows libraries closed tip")
+    func diningStatusTipStaleClosedUntil() {
+        let stale = BusynessPoint(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            count: nil,
+            capacity: nil,
+            percent: 5,
+            level: .notBusy,
+            isOpen: true,
+            hoursSummary: "Closed until 8:00am",
+            updatedAt: Date(),
+            subLocations: nil
+        )
+        #expect(QuietestLibraryGlance.shouldShowClosed(from: [stale], nowMinutes: 6 * 60))
+        #expect(
+            QuietestLibraryGlance.diningStatusTip(from: [stale], nowMinutes: 6 * 60)
+                == .librariesClosed(reopenMinutes: 8 * 60)
+        )
+    }
+
     @Test func widgetRectangularDetailOpen() {
         #expect(
             QuietestLibraryGlance.widgetRectangularDetail(percent: 8)
