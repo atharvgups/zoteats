@@ -136,6 +136,22 @@ struct OpeningAlertPlannerTests {
                     mealPeriod: "Breakfast",
                     closesAtMinutes: 11 * 60
                 ),
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 11 * 60,
+                    dayOffset: 1,
+                    mealPeriod: "Lunch",
+                    closesAtMinutes: 14 * 60 + 30
+                ),
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 16 * 60 + 30,
+                    dayOffset: 1,
+                    mealPeriod: "Dinner",
+                    closesAtMinutes: 21 * 60
+                ),
             ],
             watchedIDs: ["dining:anteatery"],
             now: sevenAM
@@ -145,7 +161,22 @@ struct OpeningAlertPlannerTests {
             "open:dining:anteatery:2026-07-16:Lunch",
             "open:dining:anteatery:2026-07-16:Dinner",
             "open:dining:anteatery:2026-07-17:Breakfast",
+            "open:dining:anteatery:2026-07-17:Lunch",
+            "open:dining:anteatery:2026-07-17:Dinner",
         ])
+    }
+
+    @Test func allTimedMealsReturnsEveryMealOnTheDay() {
+        let periods = [
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60 + 30),
+            MealPeriodWindow(name: "Breakfast", startMinutes: 7 * 60 + 15, endMinutes: 11 * 60),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 21 * 60),
+            MealPeriodWindow(name: "All Day", startMinutes: nil, endMinutes: nil),
+        ]
+        let meals = OpeningAlertPlanner.allTimedMeals(periods: periods)
+        #expect(meals.map(\.periodName) == ["Breakfast", "Lunch", "Dinner"])
+        #expect(meals.map(\.startMinutes) == [7 * 60 + 15, 11 * 60, 16 * 60 + 30])
+        #expect(OpeningAlertPlanner.earliestMeal(periods: periods)?.periodName == "Breakfast")
     }
 
     @Test func limitedDinnerCanonicalizesInIdentifier() {

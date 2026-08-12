@@ -6,9 +6,9 @@ import ZotEatsKit
 // halls and campus venues in Settings; we schedule local notifications at
 // today's opening times whenever fresh hours arrive (foreground + background
 // refresh). Dining pre-arms every remaining meal today (Breakfast + Lunch +
-// Dinner) plus tomorrow's first open so a missed BG refresh can't drop Lunch;
-// campus pre-arms today's next open and tomorrow morning the same way. No
-// servers — iOS fires them even if the app stays closed.
+// Dinner) plus tomorrow's full meal chain so a missed BG overnight can't drop
+// Lunch; campus pre-arms today's next open and tomorrow morning the same way.
+// No servers — iOS fires them even if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -68,11 +68,12 @@ enum OpeningAlerts {
                     closesAtMinutes: meal.endMinutes
                 ))
             }
-            // Also arm tomorrow's first open while Lunch/Dinner is still ahead —
-            // same honesty as campus overnight watches.
+            // Pre-arm tomorrow's full meal chain overnight — Breakfast alone
+            // still leaves Lunch/Dinner dependent on a morning BG that often
+            // lands after they open.
             if let tomorrowISO {
                 let periods = await dining.mealPeriods(for: hall.id, dateISO: tomorrowISO)
-                if let meal = OpeningAlertPlanner.earliestMeal(periods: periods) {
+                for meal in OpeningAlertPlanner.allTimedMeals(periods: periods) {
                     candidates.append(.init(
                         id: id,
                         name: hall.name,

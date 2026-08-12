@@ -183,9 +183,16 @@ public enum OpeningAlertPlanner {
         periods: [MealPeriodWindow],
         nowMinutes: Int
     ) -> [MealOpening] {
+        allTimedMeals(periods: periods).filter { $0.startMinutes > nowMinutes }
+    }
+
+    /// Every timed meal on a day of periods (Breakfast + Lunch + Dinner), sorted
+    /// by start — used to pre-arm tomorrow's full chain overnight so Lunch /
+    /// Dinner don't depend on a morning BG that may land after they open.
+    public static func allTimedMeals(periods: [MealPeriodWindow]) -> [MealOpening] {
         periods
             .compactMap { period -> MealOpening? in
-                guard let start = period.startMinutes, start > nowMinutes else { return nil }
+                guard let start = period.startMinutes else { return nil }
                 return MealOpening(
                     startMinutes: start,
                     endMinutes: period.endMinutes,
@@ -202,15 +209,6 @@ public enum OpeningAlertPlanner {
 
     /// Same as `earliestOpening`, plus the live meal name and close for copy.
     public static func earliestMeal(periods: [MealPeriodWindow]) -> MealOpening? {
-        periods
-            .compactMap { period -> MealOpening? in
-                guard let start = period.startMinutes else { return nil }
-                return MealOpening(
-                    startMinutes: start,
-                    endMinutes: period.endMinutes,
-                    periodName: period.name
-                )
-            }
-            .min { $0.startMinutes < $1.startMinutes }
+        allTimedMeals(periods: periods).first
     }
 }
