@@ -18,12 +18,15 @@ enum MenuDropAlerts {
         set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
     }
 
-    /// Remembers unpublished future days; notifies once when `/dateRange` covers them.
+    /// Remembers unpublished upcoming days (including today after midnight
+    /// rollover); notifies once when `/dateRange` covers them.
     static func runCheck(service: DiningService = DiningService()) async {
         guard isEnabled else { return }
         guard let range = await service.publishedDateRange() else { return }
 
-        let days = Array(UCITime.upcomingDays(count: 5).dropFirst()) // future only
+        // Include today so an overnight publish of what was “tomorrow” still
+        // pings — future-only watch sets prune that ISO with no notification.
+        let days = UCITime.upcomingDays(count: 5)
         guard !days.isEmpty else { return }
 
         let isoDates = days.map(\.isoDate)

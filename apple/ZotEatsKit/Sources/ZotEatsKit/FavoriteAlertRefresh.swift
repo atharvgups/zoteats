@@ -4,11 +4,16 @@ import Foundation
 /// Menu Drop / Opening Alerts / widget reload pipeline hooked to the same id).
 ///
 /// iOS only grants one pending request per identifier — after a morning fire
-/// we must aim again before lunch and dinner, or Dinner / Limited Dinner hearts
-/// only land on foreground.
+/// we must aim again before lunch, dinner, and evening menu publishes, or
+/// Dinner hearts / overnight Menu Drops only land on foreground.
 public enum FavoriteAlertRefresh {
-    /// Pacific minutes: breakfast lead, pre-lunch, pre-dinner / Limited Dinner.
-    public static let aimMinutes = [6 * 60 + 45, 11 * 60 + 15, 16 * 60 + 15]
+    /// Pacific minutes: breakfast lead, pre-lunch, pre-dinner, evening menu drop.
+    public static let aimMinutes = [
+        6 * 60 + 45,
+        11 * 60 + 15,
+        16 * 60 + 15,
+        20 * 60,
+    ]
 
     /// Skip an aim that is already inside this lead window (iOS delay + fetch).
     public static let minimumLead: TimeInterval = 30 * 60

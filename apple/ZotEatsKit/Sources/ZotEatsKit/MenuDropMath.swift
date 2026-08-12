@@ -1,7 +1,11 @@
 import Foundation
 
-/// Pure helpers for menu-drop detection — which future days sit outside the
+/// Pure helpers for menu-drop detection — which upcoming days sit outside the
 /// published `/dateRange` window (and which ones just entered it).
+///
+/// Watch set must include **today**: a day seeded as unpublished “tomorrow”
+/// often publishes overnight, and by the next BG check that ISO is Irvine
+/// today — excluding it silently drops the ping.
 public enum MenuDropMath {
     /// Days still waiting on UCI to publish (ISO date outside [earliest, latest]).
     public static func unpublishedDays(
@@ -13,7 +17,8 @@ public enum MenuDropMath {
     }
 
     /// Previously unpublished days that are now inside the published window,
-    /// excluding any already notified.
+    /// excluding any already notified. `nowPublished` should include today
+    /// when that ISO is in `/dateRange` (overnight rollover recovery).
     public static func newlyDroppedDays(
         previouslyUnpublished: Set<String>,
         nowPublished: Set<String>,

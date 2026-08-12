@@ -40,9 +40,21 @@ struct FavoriteAlertRefreshTests {
         #expect(preferred == dinner)
     }
 
-    @Test func afterDinnerAimsTomorrowBreakfast() {
-        // Monday 5:00 PM Pacific — past 4:15 dinner aim.
+    @Test func afterDinnerAimsEveningMenuDrop() {
+        // Monday 5:00 PM Pacific — past 4:15 dinner aim → 8:00 PM menu-drop slot.
         let now = ISO8601DateFormatter().date(from: "2026-07-14T00:00:00Z")!
+        let preferred = FavoriteAlertRefresh.preferredBeginDate(now: now)
+        let evening = UCITime.date(
+            forMinutes: 20 * 60,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(preferred == evening)
+    }
+
+    @Test func afterEveningAimsTomorrowBreakfast() {
+        // Monday 8:30 PM Pacific — past 8:00 evening aim.
+        let now = ISO8601DateFormatter().date(from: "2026-07-14T03:30:00Z")!
         let preferred = FavoriteAlertRefresh.preferredBeginDate(now: now)
         let tomorrowBreakfast = UCITime.date(
             forMinutes: 6 * 60 + 45,

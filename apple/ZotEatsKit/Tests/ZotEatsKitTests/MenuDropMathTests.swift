@@ -34,4 +34,27 @@ struct MenuDropMathTests {
         )
         #expect(fresh.isEmpty)
     }
+
+    @Test func overnightPublishStillNotifiesWhenDayBecomesToday() {
+        // Seeded as unpublished tomorrow; after midnight that ISO is today and
+        // now inside /dateRange — must still fire once.
+        let pending: Set = ["2026-08-13", "2026-08-15"]
+        let nowPublished: Set = ["2026-08-13", "2026-08-14"] // today + tomorrow
+        let fresh = MenuDropMath.newlyDroppedDays(
+            previouslyUnpublished: pending,
+            nowPublished: nowPublished,
+            alreadyNotified: []
+        )
+        #expect(fresh == Set(["2026-08-13"]))
+    }
+
+    @Test func alreadyNotifiedTodayDoesNotSpam() {
+        let pending: Set = ["2026-08-13"]
+        let fresh = MenuDropMath.newlyDroppedDays(
+            previouslyUnpublished: pending,
+            nowPublished: ["2026-08-13"],
+            alreadyNotified: ["2026-08-13"]
+        )
+        #expect(fresh.isEmpty)
+    }
 }
