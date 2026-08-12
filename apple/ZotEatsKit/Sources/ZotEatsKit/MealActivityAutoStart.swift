@@ -90,4 +90,17 @@ public enum MealActivityAutoStart {
         }
         return aims.sorted()
     }
+
+    /// Pacific minutes when each timed meal opens — Favorite Alerts BG aims so
+    /// Brunch / early Dinner hearts don't wait on fixed 11:15 / 16:15 walls.
+    public static func mealOpenAimMinutes(locations: [DiningLocation]) -> [Int] {
+        var aims = Set<Int>()
+        for location in locations {
+            for period in location.periods {
+                guard let start = period.startMinutes else { continue }
+                aims.insert(start)
+            }
+        }
+        return aims.sorted()
+    }
 }

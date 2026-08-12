@@ -121,4 +121,18 @@ struct MealActivityAutoStartTests {
         #expect(aims.contains(870 - 45))
         #expect(aims.contains(1200 - 45))
     }
+
+    @Test func mealOpenAimMinutesAreStartTimes() {
+        let brunchWeekend = [
+            MealPeriodWindow(name: "Brunch", startMinutes: 10 * 60, endMinutes: 14 * 60),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60, endMinutes: 20 * 60),
+        ]
+        let aims = MealActivityAutoStart.mealOpenAimMinutes(
+            locations: [
+                hall(id: "anteatery", name: "The Anteatery", periods: weekday),
+                hall(id: "brandywine", name: "Brandywine", periods: brunchWeekend),
+            ]
+        )
+        #expect(aims == [435, 600, 660, 960, 990])
+    }
 }

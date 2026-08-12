@@ -5,11 +5,13 @@ import Foundation
 /// pipeline hooked to the same id).
 ///
 /// iOS only grants one pending request per identifier — after a morning fire
-/// we must aim again before lunch, dinner, evening menu publishes, and meal
-/// wrap-up (T−45) windows, or Dinner hearts / Island auto-start only land on
-/// Eat-tab foreground.
+/// we must aim again before lunch, dinner, evening menu publishes, meal open
+/// times, and meal wrap-up (T−45) windows, or Dinner hearts / Island auto-start
+/// only land on Eat-tab foreground.
 public enum FavoriteAlertRefresh {
-    /// Pacific minutes: breakfast lead, pre-lunch, pre-dinner, evening menu drop.
+    /// Pacific minutes: breakfast lead, approximate pre-lunch / pre-dinner,
+    /// evening menu drop. Live meal opens (and wrap-ups) arrive via
+    /// `extraAimMinutes` so Brunch / hall-specific Dinner beat these walls.
     public static let aimMinutes = [
         6 * 60 + 45,
         11 * 60 + 15,
@@ -20,13 +22,15 @@ public enum FavoriteAlertRefresh {
     /// Skip a fixed aim that is already inside this lead window (iOS delay + fetch).
     public static let minimumLead: TimeInterval = 30 * 60
 
-    /// Wrap-up (meal end − 45) aims use a short lead so T−45 isn't skipped.
+    /// Live meal-open and wrap-up (meal end − 45) aims use a short lead so the
+    /// open / T−45 minute isn't skipped.
     public static let wrapUpMinimumLead: TimeInterval = 2 * 60
 
     /// BGAppRefresh floor for fixed aims — matches historical scheduleNextRefresh.
     public static let minimumInterval: TimeInterval = 60 * 60
 
-    /// Soonest fixed or wrap-up aim still outside its lead, else tomorrow breakfast.
+    /// Soonest fixed or live (open / wrap-up) aim still outside its lead, else
+    /// tomorrow breakfast.
     public static func preferredBeginDate(
         now: Date = Date(),
         minimumLead: TimeInterval = minimumLead,
@@ -42,10 +46,10 @@ public enum FavoriteAlertRefresh {
             if aim > fixedThreshold { candidates.append(aim) }
         }
 
-        let wrapThreshold = now.addingTimeInterval(wrapUpMinimumLead)
+        let liveThreshold = now.addingTimeInterval(wrapUpMinimumLead)
         for minutes in Set(extraAimMinutes) where minutes >= nowMinutes {
             let aim = UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now)
-            if aim > wrapThreshold { candidates.append(aim) }
+            if aim > liveThreshold { candidates.append(aim) }
         }
 
         if let soonest = candidates.min() { return soonest }
@@ -56,8 +60,9 @@ public enum FavoriteAlertRefresh {
         )
     }
 
-    /// Preferred begin floored at `now + minimumInterval`, except wrap-up aims
-    /// and `allowImmediate` (already inside a T−45 window) which only need ~1m.
+    /// Preferred begin floored at `now + minimumInterval`, except live open /
+    /// wrap-up aims and `allowImmediate` (already inside a T−45 window) which
+    /// only need ~1m.
     public static func earliestBeginDate(
         now: Date = Date(),
         minimumLead: TimeInterval = minimumLead,
@@ -74,12 +79,12 @@ public enum FavoriteAlertRefresh {
             extraAimMinutes: extraAimMinutes
         )
         let nowMinutes = UCITime.nowMinutes(now: now)
-        let isWrapUp = extraAimMinutes.contains { minutes in
+        let isLiveAim = extraAimMinutes.contains { minutes in
             guard minutes >= nowMinutes else { return false }
             let aim = UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now)
             return abs(aim.timeIntervalSince(preferred)) < 1
         }
-        if isWrapUp {
+        if isLiveAim {
             return max(preferred, now.addingTimeInterval(60))
         }
         return max(preferred, now.addingTimeInterval(minimumInterval))

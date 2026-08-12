@@ -126,11 +126,13 @@ enum FavoriteAlerts {
     }
 
     /// Asks iOS for the next opportunistic background check, aiming near
-    /// breakfast / lunch / dinner / evening menu drop, plus meal wrap-up
-    /// (T−45) so Live Activity auto-start can fire off the Eat tab.
+    /// breakfast / lunch / dinner / evening menu drop, plus live meal opens
+    /// and meal wrap-up (T−45) so Favorite Alerts and Live Activity auto-start
+    /// can fire without waiting on Eat-tab foreground.
     static func scheduleNextRefresh(service: DiningService = DiningService()) async {
         let locations = await service.locations()
         let wrapUps = MealActivityAutoStart.wrapUpAimMinutes(locations: locations)
+        let mealOpens = MealActivityAutoStart.mealOpenAimMinutes(locations: locations)
         let inWindow = MealActivityAutoStart.pick(
             locations: locations,
             nowMinutes: UCITime.nowMinutes(),
@@ -139,7 +141,7 @@ enum FavoriteAlerts {
         ) != nil
         let request = BGAppRefreshTaskRequest(identifier: refreshTaskID)
         request.earliestBeginDate = FavoriteAlertRefresh.earliestBeginDate(
-            extraAimMinutes: wrapUps,
+            extraAimMinutes: wrapUps + mealOpens,
             allowImmediate: inWindow && MealActivityManager.autoStartEnabled
         )
         try? BGTaskScheduler.shared.submit(request)

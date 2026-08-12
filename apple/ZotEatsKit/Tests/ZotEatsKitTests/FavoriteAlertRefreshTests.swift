@@ -128,4 +128,53 @@ struct FavoriteAlertRefreshTests {
         let earliest = FavoriteAlertRefresh.earliestBeginDate(now: now, allowImmediate: true)
         #expect(earliest == now.addingTimeInterval(60))
     }
+
+    @Test func brunchOpenAimBeatsFixedPreLunch() {
+        // Monday 8:00 AM — live Brunch at 10:00 beats fixed 11:15.
+        let eight = ISO8601DateFormatter().date(from: "2026-07-13T15:00:00Z")!
+        let brunchOpen = 10 * 60
+        let preferred = FavoriteAlertRefresh.preferredBeginDate(
+            now: eight,
+            extraAimMinutes: [brunchOpen]
+        )
+        let expected = UCITime.date(
+            forMinutes: brunchOpen,
+            nowMinutes: UCITime.nowMinutes(now: eight),
+            now: eight
+        )
+        #expect(preferred == expected)
+    }
+
+    @Test func lunchOpenAimBeatsLateFixedPreLunch() {
+        // Monday 10:00 AM — live Lunch at 11:00 beats fixed 11:15 (which is after open).
+        let ten = ISO8601DateFormatter().date(from: "2026-07-13T17:00:00Z")!
+        let lunchOpen = 11 * 60
+        let preferred = FavoriteAlertRefresh.preferredBeginDate(
+            now: ten,
+            extraAimMinutes: [lunchOpen]
+        )
+        let expected = UCITime.date(
+            forMinutes: lunchOpen,
+            nowMinutes: UCITime.nowMinutes(now: ten),
+            now: ten
+        )
+        #expect(preferred == expected)
+    }
+
+    @Test func earlyDinnerOpenAimSkipsOneHourFloor() {
+        // Monday 3:30 PM — Brandywine Dinner at 4:00 must not push to 4:30.
+        let halfPastThree = ISO8601DateFormatter().date(from: "2026-07-13T22:30:00Z")!
+        let dinnerOpen = 16 * 60
+        let earliest = FavoriteAlertRefresh.earliestBeginDate(
+            now: halfPastThree,
+            extraAimMinutes: [dinnerOpen]
+        )
+        let expected = UCITime.date(
+            forMinutes: dinnerOpen,
+            nowMinutes: UCITime.nowMinutes(now: halfPastThree),
+            now: halfPastThree
+        )
+        #expect(earliest == expected)
+        #expect(earliest < halfPastThree.addingTimeInterval(60 * 60))
+    }
 }
