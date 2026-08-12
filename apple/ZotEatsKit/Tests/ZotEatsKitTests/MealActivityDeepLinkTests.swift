@@ -358,13 +358,31 @@ struct MealCountdownChromeTests {
     }
 
     @Test func islandBottomTomorrowNamesMealNotSeeWhatsNext() {
+        // Thursday 9:00 PM Pacific — tomorrow is Friday 2026-07-10.
+        let thursdayEvening = ISO8601DateFormatter().date(from: "2026-07-10T04:00:00Z")!
         #expect(
             MealCountdownChrome.islandBottom(
                 period: "Dinner",
                 hasEnded: true,
                 postClosePeriod: "Breakfast",
-                postCloseDate: "2026-07-10"
+                postCloseDate: "2026-07-10",
+                now: thursdayEvening
             ) == "Dinner has ended — Breakfast next"
+        )
+    }
+
+    @Test("Fri→Mon Island linger names weekday like Status")
+    func islandBottomBeyondTomorrowNamesWeekday() {
+        // Friday 10:00 PM Pacific — Monday board is beyond tomorrow.
+        let fridayNight = ISO8601DateFormatter().date(from: "2026-07-11T05:00:00Z")!
+        #expect(
+            MealCountdownChrome.islandBottom(
+                period: "Dinner",
+                hasEnded: true,
+                postClosePeriod: "Breakfast",
+                postCloseDate: "2026-07-13",
+                now: fridayNight
+            ) == "Dinner has ended — Breakfast Monday"
         )
     }
 

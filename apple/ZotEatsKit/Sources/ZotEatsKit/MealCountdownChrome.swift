@@ -18,11 +18,14 @@ public enum MealCountdownChrome {
     /// Expanded Island bottom line — after close, match the post-close deep link
     /// (next meal / tomorrow / last posted while awaiting). Never say
     /// "see what's next" when tap reopens the same meal or has nowhere to go.
+    /// Beyond-tomorrow opens (Fri→Mon) name the weekday like Status
+    /// (`"Breakfast Monday"`), not a misleading `"Breakfast next"`.
     public static func islandBottom(
         period: String,
         hasEnded: Bool,
         postClosePeriod: String? = nil,
-        postCloseDate: String? = nil
+        postCloseDate: String? = nil,
+        now: Date = Date()
     ) -> String {
         let meal = period.trimmingCharacters(in: .whitespacesAndNewlines)
         if !hasEnded {
@@ -51,8 +54,25 @@ public enum MealCountdownChrome {
         }
 
         if !nextDate.isEmpty {
+            let tomorrowISO = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+            if let tomorrowISO, nextDate == tomorrowISO {
+                return "\(endedPrefix) — \(nextPill) next"
+            }
+            if let weekday = weekdayName(isoDate: nextDate) {
+                return "\(endedPrefix) — \(nextPill) \(weekday)"
+            }
             return "\(endedPrefix) — \(nextPill) next"
         }
         return "\(endedPrefix) — \(nextPill) is next"
+    }
+
+    /// Irvine weekday for a YYYY-MM-DD board date (Status `"Breakfast Monday"`).
+    private static func weekdayName(isoDate: String) -> String? {
+        let formatter = DateFormatter()
+        formatter.timeZone = PacificTime.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: isoDate) else { return nil }
+        return PacificTime.weekdayName(now: date)
     }
 }
