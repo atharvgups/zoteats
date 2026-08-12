@@ -750,6 +750,9 @@ def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
             "messagingAndChat": False,
             "parentalControls": False,
             "ageAssurance": False,
+            # ASC 2025+ capabilities — required on PATCH or review attach fails.
+            "advertising": False,
+            "userGeneratedContent": False,
         }
     )
     result = api(
@@ -766,9 +769,13 @@ def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
         ok_codes={200, 204, 409, 422},
     )
     if result.get("errors") and not result.get("data"):
-        warn(f"Age rating PATCH incomplete: {json.dumps(result)[:500]}")
-    else:
-        info("Updated age rating declaration (all content descriptors NONE).")
+        die(
+            "Age rating PATCH incomplete — ASC will reject App Review attach. "
+            "In App Store Connect → App Information → Age Ratings, answer all "
+            "capability questions (Advertising / UGC / Messaging = No for Anteats), "
+            f"or fix the submit script attributes. Detail: {json.dumps(result)[:2000]}"
+        )
+    info("Updated age rating declaration (all content descriptors NONE).")
 
 
 
@@ -843,7 +850,11 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         ok_codes={200, 201, 409, 422},
     )
     if item.get("errors") and not item.get("data") and not item.get("already_exists"):
-        die(f"Could not add appStoreVersion to review submission: {json.dumps(item)[:1000]}")
+        die(
+            "Could not add appStoreVersion to review submission (often incomplete "
+            "Age Rating / Pricing / App Privacy). "
+            f"Detail: {json.dumps(item)[:2500]}"
+        )
 
     items = api(
         "GET",
@@ -855,7 +866,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     if not items:
         die(
             "Review submission has zero items after attach — ASC will reject submit. "
-            "Confirm the version has a build, screenshots, and is PREPARE_FOR_SUBMISSION."
+            "Usually Age Rating (Advertising), Pricing (Free), or App Privacy is incomplete. "
+            f"Attach attempt: {json.dumps(item)[:2000]}"
         )
 
     # Do not treat 409 as success here — we need the real error body.
