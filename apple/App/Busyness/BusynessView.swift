@@ -215,7 +215,12 @@ struct QuietestNowCard: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Quietest library right now: \(pick.title), \(pick.percent) percent full"
+            QuietestLibraryAccessibilityLabel.label(
+                name: pick.title,
+                percent: pick.percent,
+                includeQuietestQualifier: true,
+                updatedRelative: UpdatedAgoCopy.relative(from: pick.updatedAt)
+            )
         )
     }
 }

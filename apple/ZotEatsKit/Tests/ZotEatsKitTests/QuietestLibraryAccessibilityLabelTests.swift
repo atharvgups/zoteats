@@ -52,4 +52,49 @@ struct QuietestLibraryAccessibilityLabelTests {
                 == "\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)"
         )
     }
+
+    @Test("Open appends Updated freshness")
+    func openUpdated() {
+        #expect(
+            QuietestLibraryAccessibilityLabel.label(
+                name: "Langson · 4th Floor",
+                percent: 8,
+                updatedRelative: "just now"
+            ) == "Langson · 4th Floor, 8 percent full, Updated just now"
+        )
+    }
+
+    @Test("Rectangular qualifier then Updated")
+    func qualifierThenUpdated() {
+        #expect(
+            QuietestLibraryAccessibilityLabel.label(
+                name: "Langson · 4th Floor",
+                percent: 8,
+                includeQuietestQualifier: true,
+                updatedRelative: "5 min. ago"
+            ) == "Langson · 4th Floor, 8 percent full, quietest library right now, Updated 5 min. ago"
+        )
+    }
+
+    @Test("Blank updatedRelative is omitted")
+    func blankUpdatedOmitted() {
+        #expect(
+            QuietestLibraryAccessibilityLabel.label(
+                name: "Langson · 4th Floor",
+                percent: 8,
+                updatedRelative: "  "
+            ) == "Langson · 4th Floor, 8 percent full"
+        )
+    }
+
+    @Test("Closed ignores Updated relative")
+    func closedIgnoresUpdated() {
+        #expect(
+            QuietestLibraryAccessibilityLabel.label(
+                name: QuietestLibraryGlance.closedTitle,
+                percent: nil,
+                updatedRelative: "just now"
+            ) == "\(QuietestLibraryGlance.closedTitle). \(QuietestLibraryGlance.closedDetail)"
+        )
+    }
 }

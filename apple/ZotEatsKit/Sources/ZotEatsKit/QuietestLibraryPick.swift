@@ -8,11 +8,14 @@ public struct QuietestLibraryPick: Equatable, Sendable {
     public let percent: Int
     /// Parent facility Waitz id when known (for expanding that card on Study).
     public let facilityID: Int?
+    /// Waitz snapshot time for the winning facility/zone (Updated freshness).
+    public let updatedAt: Date
 
-    public init(title: String, percent: Int, facilityID: Int? = nil) {
+    public init(title: String, percent: Int, facilityID: Int? = nil, updatedAt: Date = Date()) {
         self.title = title
         self.percent = percent
         self.facilityID = facilityID
+        self.updatedAt = updatedAt
     }
 
     /// Quietest open library floor/zone. Prefers `category == "Library"`;
@@ -29,6 +32,9 @@ public struct QuietestLibraryPick: Equatable, Sendable {
             let openByID = Dictionary(
                 uniqueKeysWithValues: (facility.subLocations ?? []).map { ($0.id, $0.isOpen) }
             )
+            let updatedByID = Dictionary(
+                uniqueKeysWithValues: (facility.subLocations ?? []).map { ($0.id, $0.updatedAt) }
+            )
 
             if !floors.isEmpty {
                 for floor in floors {
@@ -41,11 +47,25 @@ public struct QuietestLibraryPick: Equatable, Sendable {
                         } else {
                             title = "\(short) · \(floor.floorLabel) · \(zone.displayName)"
                         }
-                        candidates.append(.init(title: title, percent: percent, facilityID: facility.id))
+                        candidates.append(
+                            .init(
+                                title: title,
+                                percent: percent,
+                                facilityID: facility.id,
+                                updatedAt: updatedByID[zone.id] ?? facility.updatedAt
+                            )
+                        )
                     }
                 }
             } else if let percent = facility.percent {
-                candidates.append(.init(title: facility.name, percent: percent, facilityID: facility.id))
+                candidates.append(
+                    .init(
+                        title: facility.name,
+                        percent: percent,
+                        facilityID: facility.id,
+                        updatedAt: facility.updatedAt
+                    )
+                )
             }
         }
 
@@ -57,7 +77,14 @@ public struct QuietestLibraryPick: Equatable, Sendable {
         return pool
             .filter { $0.isOpen && $0.percent != nil }
             .min { ($0.percent ?? 101) < ($1.percent ?? 101) }
-            .map { .init(title: $0.name, percent: $0.percent ?? 0, facilityID: $0.id) }
+            .map {
+                .init(
+                    title: $0.name,
+                    percent: $0.percent ?? 0,
+                    facilityID: $0.id,
+                    updatedAt: $0.updatedAt
+                )
+            }
     }
 
     /// "Langson Library" → "Langson"; "Science Library" → "Sci Lib".

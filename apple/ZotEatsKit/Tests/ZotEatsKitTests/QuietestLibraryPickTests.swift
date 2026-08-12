@@ -10,6 +10,7 @@ struct QuietestLibraryPickTests {
         category: String,
         percent: Int?,
         isOpen: Bool = true,
+        updatedAt: Date = Date(),
         subs: [BusynessPoint]? = nil
     ) -> BusynessPoint {
         BusynessPoint(
@@ -22,7 +23,7 @@ struct QuietestLibraryPickTests {
             level: BusynessService.level(forPercent: percent),
             isOpen: isOpen,
             hoursSummary: nil,
-            updatedAt: Date(),
+            updatedAt: updatedAt,
             subLocations: subs
         )
     }
@@ -86,6 +87,37 @@ struct QuietestLibraryPickTests {
     @Test func allLibrariesClosedReturnsNil() {
         let closed = point(id: 2, name: "Science Library", category: "Library", percent: 10, isOpen: false)
         #expect(QuietestLibraryPick.best(from: [closed]) == nil)
+    }
+
+    @Test func pickCarriesWinningZoneUpdatedAt() {
+        let zoneStamp = Date(timeIntervalSince1970: 1_720_000_000)
+        let science = point(
+            id: 2,
+            name: "Science Library",
+            category: "Library",
+            percent: 40,
+            updatedAt: zoneStamp.addingTimeInterval(-3600),
+            subs: [
+                point(
+                    id: 21,
+                    name: "5th Floor - Open Seating",
+                    category: "Library",
+                    percent: 12,
+                    updatedAt: zoneStamp
+                ),
+                point(
+                    id: 22,
+                    name: "Lobby",
+                    category: "Library",
+                    percent: 1,
+                    updatedAt: zoneStamp.addingTimeInterval(-10)
+                ),
+            ]
+        )
+        // Lobby is dropped by floor grouping; 5th Floor Open Seating wins at 12%.
+        let pick = QuietestLibraryPick.best(from: [science])
+        #expect(pick?.percent == 12)
+        #expect(pick?.updatedAt == zoneStamp)
     }
 
     @Test func fixtureLibrariesPickAScienceOrLangsonFloor() async throws {

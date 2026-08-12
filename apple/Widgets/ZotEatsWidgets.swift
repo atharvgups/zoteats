@@ -1337,12 +1337,15 @@ struct QuietestLibraryEntry: TimelineEntry {
     let name: String
     let percent: Int?
     let facilityID: Int?
+    /// Waitz snapshot for open picks (VoiceOver Updated freshness).
+    let updatedAt: Date?
 
-    init(date: Date, name: String, percent: Int?, facilityID: Int? = nil) {
+    init(date: Date, name: String, percent: Int?, facilityID: Int? = nil, updatedAt: Date? = nil) {
         self.date = date
         self.name = name
         self.percent = percent
         self.facilityID = facilityID
+        self.updatedAt = updatedAt
     }
 }
 
@@ -1388,7 +1391,8 @@ struct QuietestLibraryProvider: TimelineProvider {
                 date: .now,
                 name: pick.title,
                 percent: pick.percent,
-                facilityID: pick.facilityID
+                facilityID: pick.facilityID,
+                updatedAt: pick.updatedAt
             )
         }
         return QuietestLibraryEntry(
@@ -1502,10 +1506,15 @@ struct QuietestLibraryView: View {
     }
 
     private func quietestAccessibilityLabel(includeQuietestQualifier: Bool) -> String {
-        QuietestLibraryAccessibilityLabel.label(
+        let updatedRelative: String? = {
+            guard entry.percent != nil, let updatedAt = entry.updatedAt else { return nil }
+            return UpdatedAgoCopy.relative(from: updatedAt)
+        }()
+        return QuietestLibraryAccessibilityLabel.label(
             name: entry.name,
             percent: entry.percent,
-            includeQuietestQualifier: includeQuietestQualifier
+            includeQuietestQualifier: includeQuietestQualifier,
+            updatedRelative: updatedRelative
         )
     }
 }
