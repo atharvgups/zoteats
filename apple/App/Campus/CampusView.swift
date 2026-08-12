@@ -6,28 +6,23 @@ import ZotEatsKit
 // tapping a place with a published menu opens it with the same dietary
 // filtering as Eat. Brand-app-only venues (most national chains) show hours
 // plus a note, since they don't publish menus anywhere public.
+//
+// IA (Atharv): distinct Favorites shelf; favorited places are removed from the
+// main list (no double cards). Twisted Root sorts first among remaining
+// non-favorited Campus rows (owner vegan preference).
 
 struct CampusView: View {
     let store: CampusStore
     let prefs: Preferences
     @Binding var pendingDeepLink: AnteatsDeepLink?
     @State private var selectedPlace: CampusPlace?
-    /// Nil = all categories.
-    @State private var categoryFilter: String?
+    @State private var typeFilter: CampusTypeFilter = .all
     /// Everything shows by default; the chip narrows to open places on demand.
     @State private var openOnly = false
     /// Bumps after each open/close tick so pills / Open-now filter re-render.
     @State private var boundaryEpoch = 0
     @Environment(\.openSettings) private var openSettings
     @Environment(\.scenePhase) private var scenePhase
-
-    private static let categoryOrder = ["Coffee & Cafés", "Food Courts", "Markets", "Restaurants & Pubs"]
-    private static let categoryShortNames = [
-        "Coffee & Cafés": "Coffee",
-        "Food Courts": "Food Courts",
-        "Markets": "Markets",
-        "Restaurants & Pubs": "Pubs",
-    ]
 
     private var boundaryWatchID: String {
         "\(boundaryEpoch)|\(store.places.value?.map(\.id).joined() ?? "")"
@@ -122,30 +117,28 @@ struct CampusView: View {
                 return
             }
             openOnly = false
-            categoryFilter = nil
+            typeFilter = .all
             selectedPlace = place
             pendingDeepLink = nil
         }
     }
 
-    /// One row of controls replaces the old endless stacked sections:
-    /// category pills narrow the list, "Open now" hides what you can't use.
+    /// Open now + compact type chips (All / Coffee / Food / Markets).
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 openNowChip
                 Divider()
                     .frame(height: 22)
-                ForEach(Self.categoryOrder, id: \.self) { category in
-                    let isSelected = categoryFilter == category
-                    let short = Self.categoryShortNames[category] ?? category
+                ForEach(CampusTypeFilter.allCases, id: \.self) { filter in
+                    let isSelected = typeFilter == filter
                     Button {
                         withAnimation(.snappy(duration: 0.25)) {
-                            categoryFilter = isSelected ? nil : category
+                            typeFilter = filter
                         }
                         Haptics.selection()
                     } label: {
-                        Text(short)
+                        Text(filter.title)
                             .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
                             .padding(.horizontal, 13)
                             .padding(.vertical, 7)
@@ -162,9 +155,13 @@ struct CampusView: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(short)
+                    .accessibilityLabel(filter.title)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
-                    .accessibilityHint(isSelected ? "Clears category filter" : "Filters to \(short)")
+                    .accessibilityHint(
+                        filter == .all
+                            ? "Shows all campus types"
+                            : (isSelected ? "Already filtering to \(filter.title)" : "Filters to \(filter.title)")
+                    )
                 }
             }
             .padding(.horizontal, 20)
@@ -231,61 +228,38 @@ struct CampusView: View {
             )
             .zotCard()
         case .loaded(let places):
-            let brands = filteredBrands(from: places)
-            if brands.isEmpty {
-                let short = categoryFilter.flatMap { Self.categoryShortNames[$0] ?? $0 }
-                switch CampusListEmptyAction.resolve(
-                    hasCategoryFilter: categoryFilter != nil,
-                    openOnly: openOnly
-                ) {
-                case .clearCategory:
-                    let inCategory = CampusCategoryEmptyCopy.places(
-                        inCategory: categoryFilter,
-                        from: places
-                    )
-                    let hint = openOnly ? CampusNextOpenHint.best(from: inCategory) : nil
-                    EmptyStateView(
-                        icon: openOnly ? "moon.zzz" : "line.3.horizontal.decrease.circle",
-                        title: openOnly
-                            ? "Nothing's open in \(short ?? "this category")"
-                            : "Nothing in \(short ?? "this category")",
-                        message: CampusCategoryEmptyCopy.message(openOnly: openOnly, hint: hint),
-                        actionTitle: "Clear category",
-                        retry: {
-                            withAnimation(.snappy(duration: 0.25)) { categoryFilter = nil }
-                            Haptics.selection()
-                        }
-                    )
-                    .zotCard()
-                    .accessibilityIdentifier("campus-clear-category")
-                case .showClosed:
-                    let hint = CampusNextOpenHint.best(from: places)
-                    EmptyStateView(
-                        icon: "moon.zzz",
-                        title: "Nothing's open right now",
-                        message: hint?.line
-                            ?? "Every campus spot is closed at the moment.",
-                        actionTitle: "Show closed spots",
-                        retry: { withAnimation(.snappy(duration: 0.25)) { openOnly = false } }
-                    )
-                    .zotCard()
-                case .none:
-                    EmptyStateView(
-                        icon: "cup.and.saucer",
-                        title: "Nothing to show",
-                        message: "No campus dining locations are listed right now."
-                    )
-                    .zotCard()
-                }
+            let filtered = filteredPlaces(from: places)
+            let partition = CampusPlaceSort.partition(
+                places: filtered,
+                favoriteIDs: prefs.favoriteCampusPlaceIDs
+            )
+            let brands = CampusPlaceSort.brandGroups(from: partition.main)
+
+            if partition.favorites.isEmpty && brands.isEmpty {
+                emptyState(for: places)
             } else {
+                if !partition.favorites.isEmpty {
+                    favoritesShelf(partition.favorites)
+                }
+
                 ForEach(brands, id: \.brand) { entry in
                     if entry.places.count == 1 {
-                        CampusPlaceRow(place: entry.places[0], showBrandOnly: false) {
+                        CampusPlaceRow(
+                            place: entry.places[0],
+                            showBrandOnly: false,
+                            isFavorite: prefs.isCampusFavorite(entry.places[0].id),
+                            onToggleFavorite: { prefs.toggleCampusFavorite(entry.places[0].id) }
+                        ) {
                             selectedPlace = entry.places[0]
                             Haptics.selection()
                         }
                     } else {
-                        CampusBrandGroupRow(brand: entry.brand, places: entry.places) { place in
+                        CampusBrandGroupRow(
+                            brand: entry.brand,
+                            places: entry.places,
+                            favoriteIDs: prefs.favoriteCampusPlaceIDs,
+                            onToggleFavorite: { prefs.toggleCampusFavorite($0) }
+                        ) { place in
                             selectedPlace = place
                             Haptics.selection()
                         }
@@ -295,39 +269,135 @@ struct CampusView: View {
         }
     }
 
-    /// One flat brand-grouped list driven by the filter bar: category pills
-    /// replace section headers, open places sort first, chains stay collapsed
-    /// into expandable brand rows.
-    private func filteredBrands(
-        from places: [CampusPlace]
-    ) -> [(brand: String, places: [CampusPlace])] {
-        var filtered = places
-        if let categoryFilter {
-            filtered = filtered.filter { $0.category == categoryFilter }
+    @ViewBuilder
+    private func emptyState(for places: [CampusPlace]) -> some View {
+        let short = typeFilter == .all ? nil : typeFilter.title
+        switch CampusListEmptyAction.resolve(
+            hasCategoryFilter: typeFilter != .all,
+            openOnly: openOnly
+        ) {
+        case .clearCategory:
+            let inFilter = CampusCategoryEmptyCopy.places(matching: typeFilter, from: places)
+            let hint = openOnly ? CampusNextOpenHint.best(from: inFilter) : nil
+            EmptyStateView(
+                icon: openOnly ? "moon.zzz" : "line.3.horizontal.decrease.circle",
+                title: openOnly
+                    ? "Nothing's open in \(short ?? "this filter")"
+                    : "Nothing in \(short ?? "this filter")",
+                message: CampusCategoryEmptyCopy.message(openOnly: openOnly, hint: hint),
+                actionTitle: "Clear filter",
+                retry: {
+                    withAnimation(.snappy(duration: 0.25)) { typeFilter = .all }
+                    Haptics.selection()
+                }
+            )
+            .zotCard()
+            .accessibilityIdentifier("campus-clear-category")
+        case .showClosed:
+            let hint = CampusNextOpenHint.best(from: places)
+            EmptyStateView(
+                icon: "moon.zzz",
+                title: "Nothing's open right now",
+                message: hint?.line
+                    ?? "Every campus spot is closed at the moment.",
+                actionTitle: "Show closed spots",
+                retry: { withAnimation(.snappy(duration: 0.25)) { openOnly = false } }
+            )
+            .zotCard()
+        case .none:
+            EmptyStateView(
+                icon: "cup.and.saucer",
+                title: "Nothing to show",
+                message: "No campus dining locations are listed right now."
+            )
+            .zotCard()
         }
+    }
+
+    private func favoritesShelf(_ favorites: [CampusPlace]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Favorites")
+                .font(ZotFont.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+
+            VStack(spacing: 6) {
+                ForEach(favorites) { place in
+                    CampusFavoriteShelfRow(
+                        place: place,
+                        onToggleFavorite: { prefs.toggleCampusFavorite(place.id) }
+                    ) {
+                        selectedPlace = place
+                        Haptics.selection()
+                    }
+                }
+            }
+        }
+        .padding(.bottom, 4)
+        .animation(.snappy(duration: 0.25), value: prefs.favoriteCampusPlaceIDs)
+    }
+
+    private func filteredPlaces(from places: [CampusPlace]) -> [CampusPlace] {
+        var filtered = places.filter { typeFilter.matches(category: $0.category) }
         if openOnly {
             filtered = filtered.filter(\.openNow)
         }
+        return filtered
+    }
+}
 
-        var order: [String] = []
-        var byBrand: [String: [CampusPlace]] = [:]
-        for place in filtered {
-            if byBrand[place.brand] == nil { order.append(place.brand) }
-            byBrand[place.brand, default: []].append(place)
+// MARK: - Compact Favorites shelf
+
+private struct CampusFavoriteShelfRow: View {
+    let place: CampusPlace
+    let onToggleFavorite: () -> Void
+    let onOpen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: onOpen) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(place.name)
+                                .font(ZotFont.caption.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            if place.hasMenu {
+                                TagChip(text: "Menu", color: .uciBlue)
+                            }
+                        }
+                        Text(place.hoursLine)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    StatusPill(isOpen: place.openNow)
+                    if place.hasMenu {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onToggleFavorite) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.uciBlue)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove from Favorites")
         }
-        return order
-            .map { brand in
-                (brand: brand, places: byBrand[brand]!.sorted { lhs, rhs in
-                    if lhs.openNow != rhs.openNow { return lhs.openNow }
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                })
-            }
-            .sorted { lhs, rhs in
-                let lhsOpen = lhs.places.contains(where: \.openNow)
-                let rhsOpen = rhs.places.contains(where: \.openNow)
-                if lhsOpen != rhsOpen { return lhsOpen }
-                return lhs.brand.localizedCaseInsensitiveCompare(rhs.brand) == .orderedAscending
-            }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .zotCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("campus-favorite-\(place.id)")
     }
 }
 
@@ -336,6 +406,8 @@ struct CampusView: View {
 private struct CampusBrandGroupRow: View {
     let brand: String
     let places: [CampusPlace]
+    let favoriteIDs: Set<String>
+    let onToggleFavorite: (String) -> Void
     let onOpen: (CampusPlace) -> Void
 
     @State private var isExpanded = false
@@ -382,43 +454,61 @@ private struct CampusBrandGroupRow: View {
             if isExpanded {
                 VStack(spacing: 6) {
                     ForEach(places) { place in
-                        Button {
-                            onOpen(place)
-                        } label: {
-                            HStack(spacing: 10) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(place.locationDetail ?? place.name)
-                                        .font(ZotFont.caption.weight(.semibold))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-                                    Text(place.hoursLine)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                        HStack(spacing: 8) {
+                            Button {
+                                onOpen(place)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(place.locationDetail ?? place.name)
+                                            .font(ZotFont.caption.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Text(place.hoursLine)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer(minLength: 6)
+                                    StatusPill(isOpen: place.openNow)
+                                    if place.hasMenu {
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
                                 }
-                                Spacer(minLength: 6)
-                                StatusPill(isOpen: place.openNow)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(
+                                    Color.primary.opacity(0.04),
+                                    in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                                )
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(
-                                Color.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                CampusPlaceAccessibilityLabel.nested(
+                                    brand: brand,
+                                    locationDetail: place.locationDetail ?? place.name,
+                                    openNow: place.openNow,
+                                    hoursLine: place.hoursLine
+                                )
+                            )
+                            .accessibilityHint(place.hasMenu ? "Shows menu and details" : "Shows details")
+
+                            Button {
+                                onToggleFavorite(place.id)
+                            } label: {
+                                Image(systemName: favoriteIDs.contains(place.id) ? "heart.fill" : "heart")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(favoriteIDs.contains(place.id) ? Color.uciBlue : .tertiary)
+                                    .frame(width: 28, height: 28)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                favoriteIDs.contains(place.id) ? "Remove from Favorites" : "Add to Favorites"
                             )
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            CampusPlaceAccessibilityLabel.nested(
-                                brand: brand,
-                                locationDetail: place.locationDetail ?? place.name,
-                                openNow: place.openNow,
-                                hoursLine: place.hoursLine
-                            )
-                        )
-                        .accessibilityHint("Shows details")
                     }
                 }
                 .padding(.horizontal, 10)
@@ -435,40 +525,59 @@ private struct CampusBrandGroupRow: View {
 private struct CampusPlaceRow: View {
     let place: CampusPlace
     var showBrandOnly = true
+    let isFavorite: Bool
+    let onToggleFavorite: () -> Void
     let onOpen: () -> Void
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(showBrandOnly ? place.brand : place.name)
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        if place.hasMenu {
-                            TagChip(text: "Menu", color: .uciBlue)
+        HStack(spacing: 8) {
+            Button(action: onOpen) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(showBrandOnly ? place.brand : place.name)
+                                .font(ZotFont.body.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                            if place.hasMenu {
+                                TagChip(text: "Menu", color: .uciBlue)
+                            }
                         }
+                        Text(place.hoursLine)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                    Text(place.hoursLine)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    StatusPill(isOpen: place.openNow)
+                    if place.hasMenu {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-                Spacer(minLength: 8)
-                StatusPill(isOpen: place.openNow)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+
+            Button(action: onToggleFavorite) {
+                Image(systemName: isFavorite ? "heart.fill" : "heart")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isFavorite ? Color.uciBlue : .tertiary)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
+            .padding(.trailing, 8)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("campus-place-\(place.id)")
         .zotCard()
+        .accessibilityIdentifier("campus-place-\(place.id)")
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(
             CampusPlaceAccessibilityLabel.place(
                 name: place.name,
@@ -477,7 +586,7 @@ private struct CampusPlaceRow: View {
                 hasMenu: place.hasMenu
             )
         )
-        .accessibilityHint("Shows menu and details")
+        .accessibilityHint(place.hasMenu ? "Shows menu and details" : "Shows details")
     }
 }
 
@@ -490,6 +599,7 @@ struct CampusMenuSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showDietFilters = false
+    @State private var allDayExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -533,64 +643,110 @@ struct CampusMenuSheet: View {
             DietFilterSheet(prefs: prefs)
         }
         .task {
+            // Honest empty for brand-app-only venues — don't fetch a menu we know is absent.
+            guard place.hasMenu else { return }
             await store.loadMenu(for: place.id)
         }
     }
 
     @ViewBuilder
     private var menuContent: some View {
-        switch store.menuState(for: place.id) {
-        case .idle, .loading:
-            VStack(spacing: 12) {
-                ForEach(0..<3, id: \.self) { _ in
-                    SkeletonCard(height: 72)
-                }
-            }
-            .padding(.horizontal, 20)
-        case .failed:
-            noMenuNote
-        case .loaded(let stations):
-            if stations.isEmpty {
-                noMenuNote
-            } else {
-                filtersChip
-                    .padding(.horizontal, 20)
-
-                let filtered = filteredStations(stations)
-                if filtered.isEmpty {
-                    // Same Eat Filters prefs as Dining — reuse honest empty copy (no search on Campus menus).
-                    if let copy = EatFilterEmptyCopy.resolve(
-                        hasSearch: false,
-                        hasMenuFilters: prefs.hasActiveMenuFilters
-                    ) {
-                        EmptyStateView(
-                            icon: "ant",
-                            title: copy.title,
-                            message: copy.message,
-                            actionTitle: copy.actionTitle,
-                            retry: {
-                                prefs.clearMenuFilters()
-                                Haptics.selection()
-                            }
-                        )
-                    } else {
-                        noMenuNote
+        if !place.hasMenu {
+            noMenuNote(published: false)
+        } else {
+            switch store.menuState(for: place.id) {
+            case .idle, .loading:
+                VStack(spacing: 12) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        SkeletonCard(height: 72)
                     }
+                }
+                .padding(.horizontal, 20)
+            case .failed:
+                noMenuNote(published: true)
+            case .loaded(let stations):
+                if stations.isEmpty {
+                    noMenuNote(published: true)
                 } else {
-                    ForEach(filtered) { station in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(station.name)
-                                .font(ZotFont.sectionTitle)
-                                .accessibilityAddTraits(.isHeader)
-                            ForEach(station.items) { item in
-                                CampusMenuItemRow(item: item)
-                            }
-                        }
+                    filtersChip
                         .padding(.horizontal, 20)
+
+                    let filtered = filteredStations(stations)
+                    if filtered.isEmpty {
+                        // Same Eat Filters prefs as Dining — reuse honest empty copy (no search on Campus menus).
+                        if let copy = EatFilterEmptyCopy.resolve(
+                            hasSearch: false,
+                            hasMenuFilters: prefs.hasActiveMenuFilters
+                        ) {
+                            EmptyStateView(
+                                icon: "ant",
+                                title: copy.title,
+                                message: copy.message,
+                                actionTitle: copy.actionTitle,
+                                retry: {
+                                    prefs.clearMenuFilters()
+                                    Haptics.selection()
+                                }
+                            )
+                        } else {
+                            noMenuNote(published: true)
+                        }
+                    } else {
+                        ForEach(filtered) { station in
+                            stationBlock(station)
+                        }
                     }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func stationBlock(_ station: MenuStation) -> some View {
+        let isAllDay = CampusMenuNormalize.isAvailableAllDay(station.name)
+        VStack(alignment: .leading, spacing: 8) {
+            if isAllDay {
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        allDayExpanded.toggle()
+                    }
+                    Haptics.selection()
+                } label: {
+                    HStack {
+                        Text(station.name)
+                            .font(ZotFont.sectionTitle)
+                        Spacer()
+                        Text("\(station.items.count)")
+                            .font(ZotFont.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(allDayExpanded ? 180 : 0))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(station.name), \(station.items.count) items")
+                .accessibilityHint(allDayExpanded ? "Hides items" : "Shows items")
+                .accessibilityAddTraits(.isHeader)
+
+                if allDayExpanded {
+                    ForEach(station.items) { item in
+                        CampusMenuItemRow(item: item)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            } else {
+                Text(station.name)
+                    .font(ZotFont.sectionTitle)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(station.items) { item in
+                    CampusMenuItemRow(item: item)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
     }
 
     /// Same Filters chip language as Eat — shared prefs, not a local single-select.
@@ -629,14 +785,18 @@ struct CampusMenuSheet: View {
         )
     }
 
-    private var noMenuNote: some View {
+    private func noMenuNote(published: Bool) -> some View {
         VStack(spacing: 8) {
             Image(systemName: "menucard")
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("No published menu")
+            Text(published ? "Menu not posted" : "No published menu")
                 .font(ZotFont.sectionTitle)
-            Text("\(place.name) doesn't post its menu here — check the brand's own app for ordering.")
+            Text(
+                published
+                    ? "\(place.name) usually posts a menu here, but nothing is listed for today yet."
+                    : "\(place.name) doesn't post its menu here — check the brand's own app for ordering."
+            )
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

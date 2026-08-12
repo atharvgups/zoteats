@@ -6,6 +6,7 @@ import Foundation
 public enum SharedDefaults {
     public static let appGroupID = "group.com.atharvgupta.zoteats"
     public static let favoritesKey = "zoteats.favoriteDishNames"
+    public static let campusFavoritePlaceIDsKey = "zoteats.favoriteCampusPlaceIDs"
     public static let dietFiltersKey = "zoteats.dietFilters"
     public static let allergenAvoidsKey = "zoteats.allergenAvoids"
 
@@ -23,6 +24,17 @@ public enum SharedDefaults {
         suite.set(names, forKey: favoritesKey)
         // Keep standard in sync for older code paths / migration.
         UserDefaults.standard.set(names, forKey: favoritesKey)
+    }
+
+    public static func favoriteCampusPlaceIDs() -> [String] {
+        suite.stringArray(forKey: campusFavoritePlaceIDsKey)
+            ?? UserDefaults.standard.stringArray(forKey: campusFavoritePlaceIDsKey)
+            ?? []
+    }
+
+    public static func setFavoriteCampusPlaceIDs(_ ids: [String]) {
+        suite.set(ids, forKey: campusFavoritePlaceIDsKey)
+        UserDefaults.standard.set(ids, forKey: campusFavoritePlaceIDsKey)
     }
 
     public static func dietFilters() -> [String] {

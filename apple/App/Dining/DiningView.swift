@@ -687,10 +687,14 @@ struct DiningView: View {
     private func filteredStations(_ menu: DiningMenu) -> [MenuStation] {
         // Twisted Root must stay visible under Vegan/Vegetarian even when the
         // Anteater API leaves every diet flag false (common).
-        DiningService.withStationDietOverrides(menu).stations.compactMap { station in
+        // Owner vegan preference: float Twisted Root to the top of the station list.
+        let stations = DiningService.withStationDietOverrides(menu).stations.compactMap { station in
             let items = station.items.filter(matches)
             return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
         }
+        let twisted = stations.filter { DiningService.isTwistedRoot(stationName: $0.name) }
+        let rest = stations.filter { !DiningService.isTwistedRoot(stationName: $0.name) }
+        return twisted + rest
     }
 
     /// Favorited dishes being served right now, deduplicated by name.

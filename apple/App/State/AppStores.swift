@@ -196,6 +196,14 @@ final class Preferences {
         }
     }
 
+    /// Hearted Campus retail place IDs — distinct Favorites shelf; deduped from
+    /// the main Campus list (Atharv IA: never double a favorited place as a full card).
+    var favoriteCampusPlaceIDs: Set<String> {
+        didSet {
+            SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+        }
+    }
+
     /// Active dietary filter tags (AND). Empty = show everything.
     /// Mirrored into the App Group so Today's Menu honors Eat Filters.
     var dietFilters: Set<String> {
@@ -231,6 +239,7 @@ final class Preferences {
 
     init() {
         favoriteDishNames = Set(SharedDefaults.favoriteDishNames())
+        favoriteCampusPlaceIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
         let storedDiets = SharedDefaults.dietFilters()
         if !storedDiets.isEmpty {
             dietFilters = Set(storedDiets)
@@ -244,6 +253,7 @@ final class Preferences {
         // Init assignments skip didSet — mirror into the App Group for widgets.
         SharedDefaults.setDietFilters(Array(dietFilters).sorted())
         SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
+        SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
     }
 
     func clearMenuFilters() {
@@ -283,5 +293,18 @@ final class Preferences {
 
     func isFavorite(_ dishName: String) -> Bool {
         favoriteDishNames.contains(dishName)
+    }
+
+    func toggleCampusFavorite(_ placeID: String) {
+        if favoriteCampusPlaceIDs.contains(placeID) {
+            favoriteCampusPlaceIDs.remove(placeID)
+        } else {
+            favoriteCampusPlaceIDs.insert(placeID)
+        }
+        Haptics.soft()
+    }
+
+    func isCampusFavorite(_ placeID: String) -> Bool {
+        favoriteCampusPlaceIDs.contains(placeID)
     }
 }
