@@ -44,7 +44,7 @@ final class DiningStore {
 
     /// Purge stale live menus after Irvine midnight. Returns true when a refetch is needed.
     @discardableResult
-    func ensureCurrentDay(todayISO: String = PacificTime.todayISO()) -> Bool {
+    func ensureCurrentDay(todayISO: String = UCITime.todayISO()) -> Bool {
         guard DiningDayMath.shouldRollover(loadedDateISO: locationsDateISO, todayISO: todayISO) else {
             return false
         }
@@ -59,7 +59,7 @@ final class DiningStore {
         async let range = service.publishedDateRange()
         let result = await service.locations()
         publishedDateRange = await range
-        locationsDateISO = PacificTime.todayISO()
+        locationsDateISO = UCITime.todayISO()
         // The service degrades per-hall; treat "no data at all" as an error state.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")

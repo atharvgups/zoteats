@@ -462,8 +462,8 @@ struct DiningStatusView: View {
 /// Dynamic hall picker — Auto + whatever `/restaurants` returns (third commons
 /// appears without shipping a new AppEnum case).
 struct DiningHallEntity: AppEntity, Equatable {
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Dining Hall")
-    static var defaultQuery = DiningHallEntityQuery()
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Dining Hall")
+    static let defaultQuery = DiningHallEntityQuery()
 
     /// `"auto"` or a live Anteater API hall id (`anteatery`, `brandywine`, …).
     var id: String
@@ -737,8 +737,8 @@ struct TodaysMenuWidget: Widget {
 
 /// Clears App Group Eat Filters from the Home Screen when Today’s Menu is wiped empty.
 struct ClearEatFiltersIntent: AppIntent {
-    static var title: LocalizedStringResource = "Clear Eat Filters"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Clear Eat Filters"
+    static let description = IntentDescription(
         "Clear dietary and allergen filters so Today's Menu shows the full board."
     )
 
@@ -1255,7 +1255,7 @@ struct ArcStatusProvider: TimelineProvider {
     private func fetchEntry() async -> ArcStatusEntry {
         let status = await GymService().status()
         let nowMinutes = UCITime.nowMinutes()
-        let weekday = PacificTime.weekdayName()
+        let weekday = UCITime.weekdayName()
         let hoursLine = ArcIdleCopy.hoursLine(
             openNow: status.openNow,
             todayHours: status.todayHours,

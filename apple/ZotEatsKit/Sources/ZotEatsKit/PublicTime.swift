@@ -38,6 +38,16 @@ public enum UCITime {
         PacificTime.nowMinutes(now: now) / 60
     }
 
+    /// Weekday name in Irvine, e.g. "Monday".
+    public static func weekdayName(now: Date = Date()) -> String {
+        PacificTime.weekdayName(now: now)
+    }
+
+    /// Today's date in Irvine as YYYY-MM-DD.
+    public static func todayISO(now: Date = Date()) -> String {
+        PacificTime.todayISO(now: now)
+    }
+
     /// The next `count` days starting today (Irvine calendar), as
     /// (isoDate: "2026-07-15", label: "Today" / "Thu 16" / ...).
     public static func upcomingDays(count: Int, now: Date = Date()) -> [(isoDate: String, label: String)] {

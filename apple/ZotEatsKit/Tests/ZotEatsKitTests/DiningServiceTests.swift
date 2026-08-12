@@ -344,3 +344,14 @@ struct PacificTimeTests {
         #expect(PacificTime.weekdayName(now: lateUTC) == "Thursday")
     }
 }
+
+@Suite("UCITime — public Pacific facade")
+struct UCITimePublicFacadeTests {
+    @Test func weekdayAndTodayMatchPacific() {
+        let lateUTC = ISO8601DateFormatter().date(from: "2026-07-10T03:00:00Z")!
+        #expect(UCITime.todayISO(now: lateUTC) == PacificTime.todayISO(now: lateUTC))
+        #expect(UCITime.weekdayName(now: lateUTC) == PacificTime.weekdayName(now: lateUTC))
+        #expect(UCITime.todayISO(now: lateUTC) == "2026-07-09")
+        #expect(UCITime.weekdayName(now: lateUTC) == "Thursday")
+    }
+}
