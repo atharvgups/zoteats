@@ -659,12 +659,20 @@ private struct CampusMenuItemRow: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
                 .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
-                .accessibilityLabel("\(calories) calories")
             }
         }
         .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            DishRowAccessibility.label(
+                dishName: item.name,
+                calories: item.calories,
+                dietaryTags: item.dietaryTags,
+                allergens: item.allergens
+            )
+        )
     }
 }
 

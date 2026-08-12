@@ -1126,6 +1126,14 @@ private struct DishRowCard: View {
             RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
                 .strokeBorder(Color.uciGold.opacity(isFavorite ? 0.65 : 0), lineWidth: 1.5)
         )
+        .accessibilityLabel(
+            DishRowAccessibility.label(
+                dishName: item.name,
+                calories: item.calories,
+                dietaryTags: item.dietaryTags,
+                allergens: item.allergens
+            )
+        )
         .accessibilityHint("Shows dish details")
     }
 
