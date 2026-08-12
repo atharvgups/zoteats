@@ -1111,6 +1111,8 @@ struct ArcStatusEntry: TimelineEntry {
     let isTypical: Bool
     /// True when hours come from the maintained schedule (Waitz hours missing).
     let hoursApproximate: Bool
+    /// Waitz snapshot time for live crowding VoiceOver freshness (nil when typical / none).
+    let liveUpdatedAt: Date?
 
     init(
         date: Date,
@@ -1118,7 +1120,8 @@ struct ArcStatusEntry: TimelineEntry {
         hoursLine: String,
         percent: Int?,
         isTypical: Bool = false,
-        hoursApproximate: Bool = false
+        hoursApproximate: Bool = false,
+        liveUpdatedAt: Date? = nil
     ) {
         self.date = date
         self.isOpen = isOpen
@@ -1126,6 +1129,7 @@ struct ArcStatusEntry: TimelineEntry {
         self.percent = percent
         self.isTypical = isTypical
         self.hoursApproximate = hoursApproximate
+        self.liveUpdatedAt = liveUpdatedAt
     }
 }
 
@@ -1171,13 +1175,19 @@ struct ArcStatusProvider: TimelineProvider {
             opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
         )
         let crowding = ArcWidgetGlance.crowding(from: status)
+        let isTypical = crowding?.isTypical ?? false
+        let liveUpdatedAt: Date? = {
+            guard crowding != nil, !isTypical else { return nil }
+            return status.busyness?.updatedAt
+        }()
         return ArcStatusEntry(
             date: .now,
             isOpen: status.openNow,
             hoursLine: hoursLine,
             percent: crowding?.percent,
-            isTypical: crowding?.isTypical ?? false,
-            hoursApproximate: status.hoursApproximate
+            isTypical: isTypical,
+            hoursApproximate: status.hoursApproximate,
+            liveUpdatedAt: liveUpdatedAt
         )
     }
 }
@@ -1301,12 +1311,14 @@ struct ArcStatusView: View {
     }
 
     private var arcAccessibilityLabel: String {
-        ArcWidgetAccessibilityLabel.label(
+        let updatedRelative = entry.liveUpdatedAt.map { UpdatedAgoCopy.relative(from: $0) }
+        return ArcWidgetAccessibilityLabel.label(
             isOpen: entry.isOpen,
             hoursLine: entry.hoursLine,
             percent: entry.percent,
             isTypical: entry.isTypical,
-            hoursApproximate: entry.hoursApproximate
+            hoursApproximate: entry.hoursApproximate,
+            updatedRelative: updatedRelative
         )
     }
 }

@@ -3,13 +3,15 @@ import Foundation
 /// VoiceOver for the ARC Gym widget — closed must say closed *and* the
 /// next-open hoursLine (circular used to drop hours; rectangular/small dropped closed).
 /// When Waitz hours are missing, append the same approximate-schedule cue as Gym hero.
+/// Live crowding can append Updated freshness (Gym hero / Study parity).
 public enum ArcWidgetAccessibilityLabel {
     public static func label(
         isOpen: Bool,
         hoursLine: String,
         percent: Int?,
         isTypical: Bool,
-        hoursApproximate: Bool = false
+        hoursApproximate: Bool = false,
+        updatedRelative: String? = nil
     ) -> String {
         let hours = hoursLine.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = ["ARC"]
@@ -31,6 +33,11 @@ public enum ArcWidgetAccessibilityLabel {
             if hoursApproximate {
                 parts.append(GymHeroAccessibilityLabel.approximateHoursCue)
             }
+        }
+
+        if let updated = updatedRelative?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !updated.isEmpty {
+            parts.append("Updated \(updated)")
         }
 
         return parts.joined(separator: ", ")

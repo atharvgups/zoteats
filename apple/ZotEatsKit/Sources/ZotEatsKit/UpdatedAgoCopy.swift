@@ -1,6 +1,6 @@
 import Foundation
 
-/// Shared "Updated …" relative copy for Study/Gym captions and VoiceOver.
+/// Shared "Updated …" relative copy for Study/Gym captions, ARC widget VoiceOver.
 /// Portable across Apple + Linux (no RelativeDateTimeFormatter).
 public enum UpdatedAgoCopy {
     public static func relative(from date: Date, now: Date = Date()) -> String {

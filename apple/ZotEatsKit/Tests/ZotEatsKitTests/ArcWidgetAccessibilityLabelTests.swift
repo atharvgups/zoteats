@@ -101,4 +101,57 @@ struct ArcWidgetAccessibilityLabelTests {
             ) == "ARC, closed"
         )
     }
+
+    @Test("Live open appends Updated freshness")
+    func liveUpdated() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                isTypical: false,
+                updatedRelative: "just now"
+            ) == "ARC, open, 42 percent full, live, Open until 12:00 AM, Updated just now"
+        )
+    }
+
+    @Test("Live approximate then Updated")
+    func approximateThenUpdated() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                isTypical: false,
+                hoursApproximate: true,
+                updatedRelative: "just now"
+            ) == "ARC, open, 42 percent full, live, Open until 12:00 AM, schedule may be approximate, Updated just now"
+        )
+    }
+
+    @Test("Typical omits Updated when not wired")
+    func typicalNoUpdated() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 55,
+                isTypical: true,
+                updatedRelative: nil
+            ) == "ARC, open, 55 percent full, typical estimate, Open until 12:00 AM"
+        )
+    }
+
+    @Test("Blank updatedRelative is omitted")
+    func blankUpdatedOmitted() {
+        #expect(
+            ArcWidgetAccessibilityLabel.label(
+                isOpen: true,
+                hoursLine: "Open until 12:00 AM",
+                percent: 42,
+                isTypical: false,
+                updatedRelative: "  "
+            ) == "ARC, open, 42 percent full, live, Open until 12:00 AM"
+        )
+    }
 }
