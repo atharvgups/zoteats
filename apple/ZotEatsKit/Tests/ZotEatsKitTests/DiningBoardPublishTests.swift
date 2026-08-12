@@ -52,4 +52,29 @@ struct DiningBoardPublishTests {
             !DiningBoardPublish.awaitingLaterMeals(periods: fullDay, nowMinutes: 15 * 60)
         )
     }
+
+    @Test func futurePublishProbesSkipPastSlots() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:05:00Z")! // Mon 11:05 AM PDT
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let probes = DiningBoardPublish.futurePublishProbeDates(
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let lunch = UCITime.date(forMinutes: 11 * 60 + 15, nowMinutes: nowMinutes, now: now)
+        let dinner = UCITime.date(forMinutes: 16 * 60 + 15, nowMinutes: nowMinutes, now: now)
+        let evening = UCITime.date(forMinutes: 20 * 60, nowMinutes: nowMinutes, now: now)
+        #expect(probes.contains(lunch))
+        #expect(probes.contains(dinner))
+        #expect(probes.contains(evening))
+    }
+
+    @Test func futurePublishProbesEmptyAtEveningConfidence() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-14T03:00:00Z")! // Mon 8 PM PDT
+        #expect(
+            DiningBoardPublish.futurePublishProbeDates(
+                nowMinutes: UCITime.nowMinutes(now: now),
+                now: now
+            ).isEmpty
+        )
+    }
 }

@@ -9,15 +9,11 @@ import Foundation
 /// times, and meal wrap-up (T−45) windows, or Dinner hearts / Island auto-start
 /// only land on Eat-tab foreground.
 public enum FavoriteAlertRefresh {
-    /// Pacific minutes: breakfast lead, approximate pre-lunch / pre-dinner,
-    /// evening menu drop. Live meal opens (and wrap-ups) arrive via
-    /// `extraAimMinutes` so Brunch / hall-specific Dinner beat these walls.
-    public static let aimMinutes = [
-        6 * 60 + 45,
-        11 * 60 + 15,
-        16 * 60 + 15,
-        20 * 60,
-    ]
+    /// Pacific minutes: breakfast lead, then Lunch / Dinner / evening menu-drop
+    /// probes shared with `DiningBoardPublish.publishProbeMinutes`. Live meal
+    /// opens (and wrap-ups) arrive via `extraAimMinutes` so Brunch / hall-
+    /// specific Dinner beat these walls.
+    public static let aimMinutes = [6 * 60 + 45] + DiningBoardPublish.publishProbeMinutes
 
     /// Skip a fixed aim that is already inside this lead window (iOS delay + fetch).
     public static let minimumLead: TimeInterval = 30 * 60

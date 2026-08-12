@@ -87,6 +87,26 @@ struct EatBoundaryRefreshTests {
         // Midnight is later the same calendar day evening → beyond 15m cap.
         #expect(fire == cap)
     }
+
+    @Test func awaitingBreakfastOnlyArmsLunchPublishProbe() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 11 * 60),
+        ]
+        // Mon 11:05 AM — 11:15 probe beats 15m cap.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:05:00Z")!
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let fire = EatBoundaryRefresh.nextFire(
+            hallPeriods: [partial],
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let lunchProbe = UCITime.date(
+            forMinutes: 11 * 60 + 15,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        #expect(fire == lunchProbe.addingTimeInterval(2))
+    }
 }
 
 @Suite("MealActivityWrapUpRefresh")

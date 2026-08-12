@@ -7,6 +7,14 @@ public enum DiningBoardPublish {
     /// Matches Favorite Alerts' evening menu-drop slot (8:00 PM Irvine).
     public static let eveningConfidenceMinutes = 20 * 60
 
+    /// Approximate Lunch / Dinner / evening menu-drop publishes — shared with
+    /// `FavoriteAlertRefresh.aimMinutes` so widgets + Eat wake when boards grow.
+    public static let publishProbeMinutes = [
+        11 * 60 + 15,
+        16 * 60 + 15,
+        eveningConfidenceMinutes,
+    ]
+
     /// True when every timed window has ended, Dinner isn't on the board yet,
     /// and it's still before evening confidence — more meals may still drop.
     public static func awaitingLaterMeals(
@@ -23,5 +31,17 @@ public enum DiningBoardPublish {
             MealPeriodPill.canonical($0.name) == "Dinner"
         }
         return !hasDinner
+    }
+
+    /// Future publish-probe wall clocks while still before evening confidence.
+    public static func futurePublishProbeDates(
+        nowMinutes: Int,
+        now: Date = Date()
+    ) -> [Date] {
+        guard nowMinutes < eveningConfidenceMinutes else { return [] }
+        return publishProbeMinutes.compactMap { minutes -> Date? in
+            guard minutes > nowMinutes else { return nil }
+            return UCITime.date(forMinutes: minutes, nowMinutes: nowMinutes, now: now)
+        }
     }
 }

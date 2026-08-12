@@ -157,4 +157,92 @@ struct TodaysMenuReloadTests {
         )
         #expect(reload == early.addingTimeInterval(2))
     }
+
+    @Test func awaitingBreakfastOnlyArmsLunchPublishProbe() {
+        // Mon 11:05 AM — Breakfast ended; Dinner not posted → wake at 11:15.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:05:00Z")!
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let locations = [
+            hall(
+                id: "anteatery",
+                name: "The Anteatery",
+                periods: [
+                    MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 11 * 60),
+                ]
+            ),
+        ]
+        let lunchProbe = UCITime.date(
+            forMinutes: 11 * 60 + 15,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let boundaries = TodaysMenuReload.boundaries(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        #expect(boundaries.contains(lunchProbe))
+        let reload = TodaysMenuReload.nextReload(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now,
+            maxInterval: 30 * 60
+        )
+        #expect(reload == lunchProbe.addingTimeInterval(2))
+    }
+
+    @Test func awaitingLunchOnlyArmsDinnerPublishProbe() {
+        // Mon 4:00 PM — Lunch done, no Dinner yet → 4:15 probe beats 30m cap.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T23:00:00Z")!
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let locations = [
+            hall(
+                id: "anteatery",
+                name: "The Anteatery",
+                periods: [
+                    MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+                    MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+                ]
+            ),
+        ]
+        let dinnerProbe = UCITime.date(
+            forMinutes: 16 * 60 + 15,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let reload = TodaysMenuReload.nextReload(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now,
+            maxInterval: 30 * 60
+        )
+        #expect(reload == dinnerProbe.addingTimeInterval(2))
+    }
+
+    @Test func fullBoardDoesNotArmPublishProbes() {
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:05:00Z")! // Mon 11:05
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let locations = [
+            hall(
+                id: "anteatery",
+                name: "The Anteatery",
+                periods: [
+                    MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+                    MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+                    MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+                ]
+            ),
+        ]
+        let lunchProbe = UCITime.date(
+            forMinutes: 11 * 60 + 15,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let boundaries = TodaysMenuReload.boundaries(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        #expect(!boundaries.contains(lunchProbe))
+    }
 }

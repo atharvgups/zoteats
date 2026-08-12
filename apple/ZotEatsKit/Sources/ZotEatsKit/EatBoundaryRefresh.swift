@@ -11,17 +11,25 @@ public enum EatBoundaryRefresh {
     /// Cap between ticks when no meal boundary is near (matches Dining Status).
     public static let maxInterval: TimeInterval = 15 * 60
 
-    /// Open/close edges for every loaded hall, Irvine midnight, and **every**
+    /// Open/close edges for every loaded hall, Irvine midnight, **every**
     /// hall's Live Activity wrap-up (end − 45) — not only the selected pill —
-    /// so Anteatery selected still ticks when Brandywine enters T−45.
+    /// so Anteatery selected still ticks when Brandywine enters T−45 — plus
+    /// Lunch/Dinner publish probes while a board is still awaiting more meals.
     public static func boundaries(
         hallPeriods: [[MealPeriodWindow]],
         nowMinutes: Int,
         now: Date = Date()
     ) -> [Date] {
         var dates: [Date] = [UCITime.nextIrvineMidnight(now: now)]
+        var awaitingPublish = false
 
         for periods in hallPeriods {
+            if DiningBoardPublish.awaitingLaterMeals(
+                periods: periods,
+                nowMinutes: nowMinutes
+            ) {
+                awaitingPublish = true
+            }
             for window in periods {
                 if let start = window.startMinutes {
                     dates.append(
@@ -42,6 +50,13 @@ public enum EatBoundaryRefresh {
                     }
                 }
             }
+        }
+
+        if awaitingPublish {
+            dates.append(contentsOf: DiningBoardPublish.futurePublishProbeDates(
+                nowMinutes: nowMinutes,
+                now: now
+            ))
         }
 
         return dates
