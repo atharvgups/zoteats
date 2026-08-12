@@ -110,6 +110,59 @@ struct TodaysMenuEmptyCopyTests {
         )
     }
 
+    @Test func emptyBoardWithoutAfterHoursIsNotPostedNotClosed() {
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .glance,
+                isAfterHours: false
+            ) == "Menu not posted yet"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .home,
+                isAfterHours: false
+            ) == "No menu posted right now — check back at the next meal"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                surface: .glance,
+                isAfterHours: false
+            ) == "Menu not posted yet"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                surface: .glance,
+                isAfterHours: true
+            ) == "Breakfast tomorrow · 7:15 AM"
+        )
+        #expect(
+            TodaysMenuEmptyCopy.reason(
+                periodIsEmpty: true,
+                filtersEmptiedMenu: false,
+                opensTomorrowPeriod: nil,
+                opensTomorrowAtMinutes: nil,
+                surface: .home,
+                isAfterHours: true
+            ) == "Dinner's done — closed for today"
+        )
+    }
+
     @Test func eatIdleEmptyHonorsAwaitingMoreMeals() {
         #expect(
             TodaysMenuEmptyCopy.eatIdleEmptyTitle(

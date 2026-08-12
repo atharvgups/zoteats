@@ -632,6 +632,8 @@ struct TodaysMenuEntry: TimelineEntry {
     let upcomingStartMinutes: Int?
     /// Partial board — Dinner may still drop; don't use after-hours empty copy.
     let awaitingMoreMeals: Bool
+    /// True only after today's published windows ended (not unpublished boards).
+    let isAfterHours: Bool
 
     init(
         date: Date,
@@ -652,7 +654,8 @@ struct TodaysMenuEntry: TimelineEntry {
         awaitingMoreMeals: Bool = false,
         opensNextAtMinutes: Int? = nil,
         opensNextWeekday: String? = nil,
-        opensNextPeriod: String? = nil
+        opensNextPeriod: String? = nil,
+        isAfterHours: Bool = false
     ) {
         self.date = date
         self.hallName = hallName
@@ -673,6 +676,7 @@ struct TodaysMenuEntry: TimelineEntry {
         self.opensNextAtMinutes = opensNextAtMinutes
         self.opensNextWeekday = opensNextWeekday
         self.opensNextPeriod = opensNextPeriod
+        self.isAfterHours = isAfterHours
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -811,7 +815,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             awaitingMoreMeals: choice.isAwaitingMoreMeals,
             opensNextAtMinutes: choice.isAfterHours ? hall.opensNextAtMinutes : nil,
             opensNextWeekday: choice.isAfterHours ? hall.opensNextWeekday : nil,
-            opensNextPeriod: choice.isAfterHours ? hall.opensNextPeriod : nil
+            opensNextPeriod: choice.isAfterHours ? hall.opensNextPeriod : nil,
+            isAfterHours: choice.isAfterHours
         )
     }
 }
@@ -908,7 +913,8 @@ struct TodaysMenuView: View {
                         awaitingMoreMeals: entry.awaitingMoreMeals,
                         opensNextPeriod: entry.opensNextPeriod,
                         opensNextAtMinutes: entry.opensNextAtMinutes,
-                        opensNextWeekday: entry.opensNextWeekday
+                        opensNextWeekday: entry.opensNextWeekday,
+                        isAfterHours: entry.isAfterHours
                     )
                 )
                     .font(.system(size: 12))
@@ -930,7 +936,8 @@ struct TodaysMenuView: View {
                 awaitingMoreMeals: entry.awaitingMoreMeals,
                 opensNextPeriod: entry.opensNextPeriod,
                 opensNextAtMinutes: entry.opensNextAtMinutes,
-                opensNextWeekday: entry.opensNextWeekday
+                opensNextWeekday: entry.opensNextWeekday,
+                isAfterHours: entry.isAfterHours
             )
         )
     }
@@ -1013,7 +1020,8 @@ struct TodaysMenuView: View {
                             awaitingMoreMeals: entry.awaitingMoreMeals,
                             opensNextPeriod: entry.opensNextPeriod,
                             opensNextAtMinutes: entry.opensNextAtMinutes,
-                            opensNextWeekday: entry.opensNextWeekday
+                            opensNextWeekday: entry.opensNextWeekday,
+                            isAfterHours: entry.isAfterHours
                         ) + "."
                     )
                     .font(.system(size: 12))
@@ -1061,7 +1069,8 @@ struct TodaysMenuView: View {
                 awaitingMoreMeals: entry.awaitingMoreMeals,
                 opensNextPeriod: entry.opensNextPeriod,
                 opensNextAtMinutes: entry.opensNextAtMinutes,
-                opensNextWeekday: entry.opensNextWeekday
+                opensNextWeekday: entry.opensNextWeekday,
+                isAfterHours: entry.isAfterHours
             )
         )
     }

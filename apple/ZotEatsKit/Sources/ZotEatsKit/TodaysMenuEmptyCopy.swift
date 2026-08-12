@@ -173,7 +173,8 @@ public enum TodaysMenuEmptyCopy {
         awaitingMoreMeals: Bool = false,
         opensNextPeriod: String? = nil,
         opensNextAtMinutes: Int? = nil,
-        opensNextWeekday: String? = nil
+        opensNextWeekday: String? = nil,
+        isAfterHours: Bool = false
     ) -> String {
         if filtersEmptiedMenu {
             return surface == .glance
@@ -184,6 +185,13 @@ public enum TodaysMenuEmptyCopy {
             return Self.awaitingMoreMeals(surface: surface)
         }
         if periodIsEmpty {
+            // Empty timed board (unpublished / 404) is not after-hours — Eat already
+            // says "No menu yet"; don't claim Dinner's done / Closed for today.
+            guard isAfterHours else {
+                return surface == .glance
+                    ? "Menu not posted yet"
+                    : "No menu posted right now — check back at the next meal"
+            }
             return afterHours(
                 opensTomorrowPeriod: opensTomorrowPeriod,
                 opensTomorrowAtMinutes: opensTomorrowAtMinutes,

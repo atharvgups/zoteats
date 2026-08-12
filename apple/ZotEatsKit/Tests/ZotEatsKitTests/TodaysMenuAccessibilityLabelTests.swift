@@ -50,7 +50,8 @@ struct TodaysMenuAccessibilityLabelTests {
                 dishes: [],
                 filtersEmptiedMenu: false,
                 dishLimit: 4,
-                surface: .glance
+                surface: .glance,
+                isAfterHours: true
             ) == "The Anteatery. Closed for today"
         )
         #expect(
@@ -60,7 +61,8 @@ struct TodaysMenuAccessibilityLabelTests {
                 dishes: [],
                 filtersEmptiedMenu: false,
                 dishLimit: 4,
-                surface: .home
+                surface: .home,
+                isAfterHours: true
             ) == "The Anteatery. Dinner's done — closed for today"
         )
     }
@@ -76,7 +78,8 @@ struct TodaysMenuAccessibilityLabelTests {
                 dishLimit: 4,
                 surface: .glance,
                 opensTomorrowPeriod: "Breakfast",
-                opensTomorrowAtMinutes: 7 * 60 + 15
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                isAfterHours: true
             ) == "The Anteatery. Breakfast tomorrow · 7:15 AM"
         )
         #expect(
@@ -88,8 +91,35 @@ struct TodaysMenuAccessibilityLabelTests {
                 dishLimit: 4,
                 surface: .home,
                 opensTomorrowPeriod: "Breakfast",
-                opensTomorrowAtMinutes: 7 * 60 + 15
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                isAfterHours: true
             ) == "The Anteatery. Dinner's done — Breakfast tomorrow · 7:15 AM"
+        )
+    }
+
+    @Test("Unpublished empty board is not closed for today")
+    func unpublishedEmptyBoard() {
+        #expect(
+            TodaysMenuAccessibilityLabel.label(
+                hallName: "The Anteatery",
+                period: "",
+                dishes: [],
+                filtersEmptiedMenu: false,
+                dishLimit: 4,
+                surface: .glance,
+                isAfterHours: false
+            ) == "The Anteatery. Menu not posted yet"
+        )
+        #expect(
+            TodaysMenuAccessibilityLabel.label(
+                hallName: "The Anteatery",
+                period: "",
+                dishes: [],
+                filtersEmptiedMenu: false,
+                dishLimit: 4,
+                surface: .home,
+                isAfterHours: false
+            ) == "The Anteatery. No menu posted right now — check back at the next meal"
         )
     }
 
