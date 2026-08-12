@@ -92,4 +92,22 @@ struct DiningStatusAccessibilityLabelTests {
             ) == "\(QuietestLibraryGlance.closedTitle). Opens at 8:00 AM"
         )
     }
+
+    @Test("Libraries closed tip Opens tomorrow when reopen is past")
+    func quietestClosedOpensTomorrow() {
+        // Monday 1:00 PM Pacific — 8 AM Closed-until is already past.
+        let afternoon = ISO8601DateFormatter().date(from: "2026-07-13T20:00:00Z")!
+        #expect(
+            DiningStatusAccessibilityLabel.quietestTip(
+                .librariesClosed(reopenMinutes: 8 * 60),
+                now: afternoon
+            ) == "\(QuietestLibraryGlance.closedTitle). Opens tomorrow at 8:00 AM"
+        )
+        #expect(
+            QuietestLibraryGlance.diningStatusClosedSecondary(
+                reopenMinutes: 8 * 60,
+                nowMinutes: 13 * 60
+            ) == "Opens tomorrow at 8:00 AM"
+        )
+    }
 }

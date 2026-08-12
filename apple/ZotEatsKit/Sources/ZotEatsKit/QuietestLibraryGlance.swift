@@ -74,4 +74,18 @@ public enum QuietestLibraryGlance {
             reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
         )
     }
+
+    /// Dining Status medium tip secondary when libraries are closed.
+    /// Nil when Waitz has no reopen — Quietest/Study `quietestClosedDetail`
+    /// (Opens at / Opens tomorrow), not bare `opensAtLine`.
+    public static func diningStatusClosedSecondary(
+        reopenMinutes: Int?,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> String? {
+        guard reopenMinutes != nil else { return nil }
+        return StudyIdleCopy.quietestClosedDetail(
+            reopenMinutes: reopenMinutes,
+            nowMinutes: nowMinutes
+        )
+    }
 }

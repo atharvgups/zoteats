@@ -451,8 +451,10 @@ struct DiningStatusView: View {
                                 .foregroundStyle(.white.opacity(0.9))
                                 .lineLimit(1)
                             Spacer(minLength: 0)
-                            if let reopenMinutes {
-                                Text(StudyIdleCopy.opensAtLine(minutes: reopenMinutes))
+                            if let line = QuietestLibraryGlance.diningStatusClosedSecondary(
+                                reopenMinutes: reopenMinutes
+                            ) {
+                                Text(line)
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(gold.opacity(0.9))
                                     .lineLimit(1)

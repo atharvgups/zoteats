@@ -137,6 +137,25 @@ struct QuietestLibraryGlanceTests {
         )
     }
 
+    @Test("Dining Status closed secondary Opens tomorrow when past")
+    func diningStatusClosedSecondaryPastReopen() {
+        #expect(
+            QuietestLibraryGlance.diningStatusClosedSecondary(
+                reopenMinutes: 8 * 60,
+                nowMinutes: 6 * 60
+            ) == "Opens at 8:00 AM"
+        )
+        #expect(
+            QuietestLibraryGlance.diningStatusClosedSecondary(
+                reopenMinutes: 8 * 60,
+                nowMinutes: 13 * 60
+            ) == "Opens tomorrow at 8:00 AM"
+        )
+        #expect(
+            QuietestLibraryGlance.diningStatusClosedSecondary(reopenMinutes: nil) == nil
+        )
+    }
+
     @Test func widgetRectangularDetailOpen() {
         #expect(
             QuietestLibraryGlance.widgetRectangularDetail(percent: 8)
