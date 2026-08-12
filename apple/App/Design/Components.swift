@@ -95,9 +95,10 @@ struct PillRow<Item: Hashable>: View {
         }
     }
 
+    @ViewBuilder
     private func pill(_ item: Item) -> some View {
         let isSelected = selection == item
-        return Button {
+        let button = Button {
             withAnimation(.snappy(duration: 0.25)) {
                 selection = (isSelected && allowsDeselect) ? nil : item
             }
@@ -122,6 +123,18 @@ struct PillRow<Item: Hashable>: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title(item))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+
+        if let hint = PillSelectionAccessibility.hint(
+            title: title(item),
+            isSelected: isSelected,
+            allowsDeselect: allowsDeselect
+        ) {
+            button.accessibilityHint(hint)
+        } else {
+            button
+        }
     }
 }
 

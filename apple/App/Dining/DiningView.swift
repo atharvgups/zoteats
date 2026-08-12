@@ -207,6 +207,7 @@ struct DiningView: View {
                         selection: $selectedPeriod,
                         fillsWidth: true
                     )
+                    .accessibilityElement(children: .contain)
                     .accessibilityLabel("Meal period")
                 }
             }

@@ -167,8 +167,9 @@ struct CampusView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(openOnly ? "Showing open spots only" : "Showing all spots")
-        .accessibilityHint("Toggles closed spots")
+        .accessibilityLabel(CampusOpenNowAccessibility.label(openOnly: openOnly))
+        .accessibilityAddTraits(openOnly ? .isSelected : [])
+        .accessibilityHint(CampusOpenNowAccessibility.hint(openOnly: openOnly))
     }
 
     private static var autoOpenPlaceID: String? {
