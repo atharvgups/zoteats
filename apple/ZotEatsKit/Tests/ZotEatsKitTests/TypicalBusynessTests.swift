@@ -73,10 +73,32 @@ struct TypicalArcTests {
         let saturday = TypicalBusyness.arcCurve(weekday: "Saturday")
         let thursday = TypicalBusyness.arcCurve(weekday: "Thursday")
         #expect(saturday.max()! < thursday.max()!)
-        // Saturday closes at 9 PM; opens 8 AM.
+        // Saturday closes at 8 PM; opens 8 AM.
         #expect(saturday[7] == 0)
         #expect(saturday[21] == 0)
         #expect(saturday[12] > 0)
+    }
+
+    @Test func waitzNoonCloseZerosEveningBars() {
+        let curve = TypicalBusyness.arcCurve(
+            weekday: "Monday",
+            openMinutes: 6 * 60,
+            closeMinutes: 12 * 60
+        )
+        #expect(curve[6] > 0)
+        #expect(curve[11] > 0)
+        #expect(curve[12] == 0)
+        #expect(curve[18] == 0)
+    }
+
+    @Test func pastWaitzReopenZerosWholeDay() {
+        let curve = TypicalBusyness.arcCurve(
+            weekday: "Monday",
+            openNow: false,
+            waitzReopenMinutes: 6 * 60,
+            nowMinutes: 13 * 60
+        )
+        #expect(curve.allSatisfy { $0 == 0 })
     }
 
     @Test func estimateAtPeakTimeIsBusy() {

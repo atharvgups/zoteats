@@ -89,14 +89,37 @@ public enum TypicalBusyness {
     // MARK: - ARC
 
     /// Estimate for the Anteater Recreation Center from the maintained weekly pattern.
-    public static func arc(now: Date = Date()) -> TypicalEstimate {
+    /// Optional Waitz open/close clamps the curve so holiday early closes don't
+    /// paint evening bars; past Closed-until zeros the rest of today.
+    public static func arc(
+        now: Date = Date(),
+        openMinutes: Int? = nil,
+        closeMinutes: Int? = nil,
+        openNow: Bool = true,
+        waitzReopenMinutes: Int? = nil
+    ) -> TypicalEstimate {
         let weekday = PacificTime.weekdayName(now: now)
-        let curve = arcCurve(weekday: weekday)
+        let nowMinutes = PacificTime.nowMinutes(now: now)
+        let curve = arcCurve(
+            weekday: weekday,
+            openMinutes: openMinutes,
+            closeMinutes: closeMinutes,
+            openNow: openNow,
+            waitzReopenMinutes: waitzReopenMinutes,
+            nowMinutes: nowMinutes
+        )
         return estimate(curve: curve, now: now)
     }
 
     /// Hour -> typical percent, clamped to the ARC's open hours for that day.
-    static func arcCurve(weekday: String) -> [Int] {
+    static func arcCurve(
+        weekday: String,
+        openMinutes: Int? = nil,
+        closeMinutes: Int? = nil,
+        openNow: Bool = true,
+        waitzReopenMinutes: Int? = nil,
+        nowMinutes: Int = 0
+    ) -> [Int] {
         let isWeekend = weekday == "Saturday" || weekday == "Sunday"
 
         // Maintained pattern (verify against lived experience each quarter):
@@ -115,7 +138,27 @@ public enum TypicalBusyness {
         let day = GymService.arcWeek.first { $0.day == weekday }
         var curve = [Int](repeating: 0, count: 24)
         guard let day else { return curve }
-        for hour in 0..<24 where hour >= day.open && hour < day.close {
+
+        // Holiday afternoon: Waitz Closed-until already past → no open hours left today.
+        if !openNow, let reopen = waitzReopenMinutes, nowMinutes >= reopen {
+            return curve
+        }
+
+        let openHour: Int = {
+            if let openMinutes { return openMinutes / 60 }
+            if !openNow, let reopen = waitzReopenMinutes, nowMinutes < reopen {
+                return reopen / 60
+            }
+            return day.open
+        }()
+        // Exclusive end hour: noon (12:00) → 12; 10:00 PM → 22; midnight → 24.
+        let exclusiveClose: Int = {
+            guard let closeMinutes else { return day.close }
+            if closeMinutes == 0 { return 24 }
+            return closeMinutes % 60 == 0 ? closeMinutes / 60 : (closeMinutes + 59) / 60
+        }()
+
+        for hour in 0..<24 where hour >= openHour && hour < exclusiveClose {
             curve[hour] = pattern[hour] ?? 0
         }
         return curve

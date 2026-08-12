@@ -356,6 +356,16 @@ struct GymHoursCard: View {
                             isToday ? "Today, \(day.day): \(day.hours)" : "\(day.day): \(day.hours)"
                         )
                     }
+                    if GymService.todayWeekHoursDifferFromSchedule(
+                        status.weekHours,
+                        weekday: Self.todayName()
+                    ) {
+                        Text("Today from Waitz · other days are the usual schedule")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 6)
+                            .padding(.horizontal, 10)
+                    }
                 }
                 .padding(.top, 6)
                 .transition(.opacity.combined(with: .move(edge: .top)))

@@ -31,11 +31,24 @@ public struct GymService: Sendable {
         ("Saturday", 8, 20),
     ]
 
-    static func formatHour(_ hour: Int) -> String {
+    public static func formatHour(_ hour: Int) -> String {
         let wrapped = hour % 24
         let period = wrapped < 12 ? "AM" : "PM"
         let display = wrapped % 12 == 0 ? 12 : wrapped % 12
         return "\(display):00 \(period)"
+    }
+
+    /// True when today’s week-card row differs from the maintained schedule
+    /// (Waitz live range or Closed-until chrome).
+    public static func todayWeekHoursDifferFromSchedule(
+        _ weekHours: [DayHours],
+        weekday: String
+    ) -> Bool {
+        guard let todayRow = weekHours.first(where: { $0.day == weekday }),
+              let scheduleDay = arcWeek.first(where: { $0.day == weekday })
+        else { return false }
+        let schedule = "\(formatHour(scheduleDay.open)) – \(formatHour(scheduleDay.close))"
+        return todayRow.hours != schedule
     }
 
     public func status() async -> GymStatus {
@@ -55,22 +68,40 @@ public struct GymService: Sendable {
         let today = Self.arcWeek.first { $0.day == weekday }
         let scheduleOpenNow = today.map { minutes >= $0.open * 60 && minutes < $0.close * 60 } ?? false
 
-        let weekHours = Self.arcWeek.map {
-            DayHours(day: $0.day, hours: "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))")
-        }
-
         let scheduleHours = today.map { "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))" }
         let waitzReopen = WaitzHoursSummary.closedUntilMinutes(liveHours)
         // Only parseable Waitz ranges are displayable hours — "open" and
         // "Closed until 8:00am" must not become "Open until open".
         let usingLiveRange = WaitzHoursSummary.isDisplayableHoursRange(liveHours)
-        let todayHours = usingLiveRange ? liveHours : scheduleHours
+        let todayHours: String? = {
+            if usingLiveRange {
+                return GymWeekHours.displayRange(liveHours) ?? liveHours
+            }
+            return scheduleHours
+        }()
         let waitzClose = usingLiveRange ? WaitzHoursSummary.closeMinutes(liveHours) : nil
+        let waitzOpen = usingLiveRange ? WaitzHoursSummary.openMinutes(liveHours) : nil
+
+        let openNow = liveOpen ?? scheduleOpenNow
+        let weekHours = GymWeekHours.resolve(
+            weekday: weekday,
+            todayHours: todayHours,
+            openNow: openNow,
+            usingLiveRange: usingLiveRange,
+            waitzReopenMinutes: waitzReopen,
+            nowMinutes: minutes
+        )
 
         // Live sensor data wins; otherwise fall back to the typical-pattern
-        // estimate, clearly flagged so the UI can label it.
-        let typical = TypicalBusyness.arc(now: currentDate)
-        let openNow = liveOpen ?? scheduleOpenNow
+        // estimate, clearly flagged so the UI can label it. Clamp the rush
+        // curve to Waitz open/close so holiday early closes don't paint evening bars.
+        let typical = TypicalBusyness.arc(
+            now: currentDate,
+            openMinutes: waitzOpen,
+            closeMinutes: waitzClose,
+            openNow: openNow,
+            waitzReopenMinutes: waitzReopen
+        )
         let typicalPoint: BusynessPoint? = typical.percentNow > 0 ? BusynessPoint(
             id: -100,
             name: "Anteater Recreation Center",
