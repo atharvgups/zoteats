@@ -99,4 +99,18 @@ struct DiningBoardPublishTests {
             ).isEmpty
         )
     }
+
+    @Test func emptyBoardConfidenceMatchesFirstLunchProbe() {
+        #expect(
+            DiningBoardPublish.emptyBoardConfidenceMinutes
+                == DiningBoardPublish.publishProbeMinutes[0]
+        )
+        #expect(!DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: 9 * 60))
+        #expect(
+            DiningBoardPublish.emptyBoardIsAfterHours(
+                nowMinutes: DiningBoardPublish.emptyBoardConfidenceMinutes
+            )
+        )
+        #expect(DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: 12 * 60))
+    }
 }

@@ -7,18 +7,31 @@ public enum DiningBoardPublish {
     /// Matches Favorite Alerts' evening menu-drop slot (8:00 PM Irvine).
     public static let eveningConfidenceMinutes = 20 * 60
 
+    /// Empty / unpublished boards (no timed windows) — after the first Lunch
+    /// publish probe, treat as closed-for-today so Status / Eat / widgets can
+    /// surface tomorrow / Monday next-open. Earlier than evening confidence
+    /// because empty boards are not awaiting Dinner; keep early morning as
+    /// "Menu not posted yet".
+    public static let emptyBoardConfidenceMinutes = 10 * 60 + 30
+
     /// Approximate Lunch / Dinner / evening menu-drop publishes — shared with
     /// `FavoriteAlertRefresh.aimMinutes` so widgets + Eat wake when boards grow.
     /// 10:30 / 10:50 bracket a typical 11:00 Lunch; 15:30 / 16:15 bracket Dinner
     /// so Opening Alerts can re-arm after publish and before open.
     public static let publishProbeMinutes = [
-        10 * 60 + 30,
+        emptyBoardConfidenceMinutes,
         10 * 60 + 50,
         11 * 60 + 15,
         15 * 60 + 30,
         16 * 60 + 15,
         eveningConfidenceMinutes,
     ]
+
+    /// True when an empty board is late enough that next-open chrome is honest
+    /// (weekend daytime See Monday), but early morning still says not posted.
+    public static func emptyBoardIsAfterHours(nowMinutes: Int) -> Bool {
+        nowMinutes >= emptyBoardConfidenceMinutes
+    }
 
     /// True when every timed window has ended, Dinner isn't on the board yet,
     /// and it's still before evening confidence — more meals may still drop.

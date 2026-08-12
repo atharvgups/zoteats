@@ -269,10 +269,11 @@ struct HallOpenStateTests {
     }
 
     @Test func noPeriodsMeansUnknown() {
-        #expect(hall(periods: []).openState(nowMinutes: 700) == .unknown)
+        // Before empty-board confidence (10:30) — still "Menu not posted yet".
+        #expect(hall(periods: []).openState(nowMinutes: 9 * 60) == .unknown)
     }
 
-    @Test func emptyBoardAfterEveningConfidenceIsClosedForToday() {
+    @Test func emptyBoardAfterLunchProbeIsClosedForToday() {
         let empty = DiningLocation(
             id: "anteatery", name: "The Anteatery", area: "Mesa Court",
             openNow: false, todayHours: nil,
@@ -286,10 +287,16 @@ struct HallOpenStateTests {
             opensNextPeriod: "Breakfast",
             opensNextDateISO: "2026-07-13"
         )
+        // Weekend daytime — See Monday without waiting until 8 PM.
+        #expect(
+            empty.openState(nowMinutes: DiningBoardPublish.emptyBoardConfidenceMinutes)
+                == .closedForToday
+        )
+        #expect(empty.openState(nowMinutes: 12 * 60) == .closedForToday)
         #expect(empty.openState(nowMinutes: 20 * 60) == .closedForToday)
         #expect(
             DiningLocationHoursLine.resolve(
-                state: empty.openState(nowMinutes: 20 * 60),
+                state: empty.openState(nowMinutes: 12 * 60),
                 todayHours: "7:15 AM – 8:00 PM",
                 opensTomorrowAtMinutes: empty.opensTomorrowAtMinutes,
                 opensTomorrowPeriod: empty.opensTomorrowPeriod,
@@ -301,13 +308,13 @@ struct HallOpenStateTests {
         #expect(
             DiningMenuIdleEmptyKind.resolve(
                 browsingToday: true,
-                openState: empty.openState(nowMinutes: 20 * 60)
+                openState: empty.openState(nowMinutes: 12 * 60)
             ) == .afterHours
         )
         #expect(
             DiningMenuIdleEmptyKind.resolve(
                 browsingToday: true,
-                openState: hall(periods: []).openState(nowMinutes: 700)
+                openState: hall(periods: []).openState(nowMinutes: 9 * 60)
             ) == .noMenuPosted
         )
     }
