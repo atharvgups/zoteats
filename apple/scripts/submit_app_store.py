@@ -823,6 +823,154 @@ def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
     info("Updated age rating declaration (all content descriptors NONE).")
 
 
+def ensure_app_privacy(token: str, app_id: str) -> None:
+    """Declare Data Not Collected and publish App Privacy answers.
+
+    ASC rejects review attach with APP_DATA_USAGES_REQUIRED until a published
+    privacy nutrition label exists. Anteats collects no data (see privacy-policy.md).
+    """
+    usages = api(
+        "GET",
+        f"/v1/apps/{app_id}/dataUsages?limit=50&include=dataProtection,category,purpose",
+        token,
+        ok_codes={200, 404},
+    )
+    rows = usages.get("data") or []
+
+    def protection_id(usage: dict) -> str | None:
+        rel = ((usage.get("relationships") or {}).get("dataProtection") or {}).get("data") or {}
+        return rel.get("id")
+
+    prior_count = len(rows)
+    has_not_collected = any(protection_id(u) == "DATA_NOT_COLLECTED" for u in rows)
+    if rows and not has_not_collected:
+        # Replace prior category answers with a clean "not collected" declaration.
+        for usage in rows:
+            uid = usage.get("id")
+            if not uid:
+                continue
+            api(
+                "DELETE",
+                f"/v1/appDataUsages/{uid}",
+                token,
+                ok_codes={200, 204, 404, 409, 422},
+            )
+        rows = []
+        has_not_collected = False
+        info(f"Cleared {prior_count} prior appDataUsages rows.")
+
+    if not has_not_collected:
+        created = api(
+            "POST",
+            "/v1/appDataUsages",
+            token,
+            {
+                "data": {
+                    "type": "appDataUsages",
+                    "relationships": {
+                        "app": {"data": {"type": "apps", "id": app_id}},
+                        "dataProtection": {
+                            "data": {
+                                "type": "appDataUsageDataProtections",
+                                "id": "DATA_NOT_COLLECTED",
+                            }
+                        },
+                    },
+                }
+            },
+            ok_codes={200, 201, 409, 422},
+        )
+        if created.get("errors") and not created.get("data"):
+            die(
+                "Could not declare App Privacy DATA_NOT_COLLECTED via API. "
+                "In App Store Connect → App Privacy, choose Data Not Collected and Publish. "
+                f"Detail: {json.dumps(created)[:1500]}"
+            )
+        info("Declared App Privacy: DATA_NOT_COLLECTED.")
+    else:
+        info("App Privacy already declares DATA_NOT_COLLECTED.")
+
+    state = api(
+        "GET",
+        f"/v1/apps/{app_id}/dataUsagePublishState",
+        token,
+        ok_codes={200, 404},
+    ).get("data")
+    if not state:
+        warn("No dataUsagePublishState — publish App Privacy once in ASC if submit still fails.")
+        return
+    if (state.get("attributes") or {}).get("published") is True:
+        info("App Privacy answers already published.")
+        return
+    published = api(
+        "PATCH",
+        f"/v1/appDataUsagesPublishState/{state['id']}",
+        token,
+        {
+            "data": {
+                "type": "appDataUsagesPublishState",
+                "id": state["id"],
+                "attributes": {"published": True},
+            }
+        },
+        ok_codes={200, 204, 409, 422},
+    )
+    if published.get("errors") and not published.get("data") and published.get("already_exists"):
+        # Some 409 bodies still succeed on a follow-up GET; verify.
+        again = api(
+            "GET",
+            f"/v1/apps/{app_id}/dataUsagePublishState",
+            token,
+            ok_codes={200, 404},
+        ).get("data")
+        if (again.get("attributes") or {}).get("published") is True:
+            info("App Privacy answers already published.")
+            return
+        die(
+            "Could not publish App Privacy answers via API. "
+            "In App Store Connect → App Privacy, tap Publish. "
+            f"Detail: {json.dumps(published)[:1500]}"
+        )
+    if published.get("errors") and not published.get("data"):
+        die(
+            "Could not publish App Privacy answers via API. "
+            "In App Store Connect → App Privacy, tap Publish. "
+            f"Detail: {json.dumps(published)[:1500]}"
+        )
+    info("Published App Privacy answers (Data Not Collected).")
+
+
+def wait_for_screenshot_processing(token: str, localization_id: str, timeout_s: int = 180) -> None:
+    """Avoid SCREENSHOT_UPLOADS_IN_PROGRESS on review attach."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        sets = api(
+            "GET",
+            f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets?limit=10",
+            token,
+            ok_codes={200, 404},
+        ).get("data") or []
+        pending = 0
+        for shot_set in sets:
+            shots = api(
+                "GET",
+                f"/v1/appScreenshotSets/{shot_set['id']}/appScreenshots?limit=50"
+                "&fields[appScreenshots]=assetDeliveryState,fileName",
+                token,
+                ok_codes={200, 404},
+            ).get("data") or []
+            for shot in shots:
+                state = ((shot.get("attributes") or {}).get("assetDeliveryState") or {}).get(
+                    "state"
+                )
+                if state in {None, "UPLOAD_COMPLETE", "PROCESSING", "AWAITING_UPLOAD"}:
+                    pending += 1
+        if pending == 0:
+            info("Screenshot assets ready for review.")
+            return
+        info(f"Waiting for {pending} screenshot(s) to finish processing…")
+        time.sleep(15)
+    warn("Timed out waiting for screenshot processing; continuing submit.")
 
 
 def submit_for_review(token: str, app_id: str, version_id: str) -> None:
@@ -886,8 +1034,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         if not submission_id:
             die(
                 "Could not create or reuse a review submission. In App Store Connect "
-                "→ App Review, cancel leftover draft submissions, publish App Privacy "
-                "(Data Not Collected), set Pricing to Free, then re-run. "
+                "→ App Review, cancel leftover draft submissions, and confirm App Privacy "
+                "is Published (Data Not Collected), then re-run. "
                 f"Detail: {json.dumps(created)[:1500]}"
             )
 
@@ -913,7 +1061,7 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     if item.get("errors") and not item.get("data") and not item.get("already_exists"):
         die(
             "Could not add appStoreVersion to review submission (often incomplete "
-            "App Privacy / Pricing). "
+            "App Privacy Publish). "
             f"Detail: {json.dumps(item)[:2500]}"
         )
 
@@ -927,7 +1075,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     if not items:
         die(
             "Review submission has zero items after attach — ASC will reject submit. "
-            "Usually App Privacy (publish Data Not Collected) or Pricing (Free) is incomplete. "
+            "Usually App Privacy is not Published (Data Not Collected), or screenshots "
+            "are still processing. "
             f"Attach attempt: {json.dumps(item)[:2000]}"
         )
 
@@ -959,8 +1108,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         detail = exc.read().decode("utf-8", "replace")
         die(
             "ASC rejected submitted=true. In App Store Connect complete: "
-            "Pricing (Free), App Privacy (Data Not Collected — Publish), "
-            "and clear any stuck App Review drafts. Then re-run. "
+            "App Privacy (Data Not Collected — Publish), and clear any stuck "
+            "App Review drafts. Then re-run. "
             f"HTTP {exc.code}: {detail[:1200]}"
         )
 
@@ -973,7 +1122,7 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         return
     die(
         "Review submission is not with App Review yet "
-        f"(state={state!r}). Finish Pricing (Free) + App Privacy (Publish) in "
+        f"(state={state!r}). Finish App Privacy (Publish Data Not Collected) in "
         "App Store Connect, then re-run appstore-* . "
         f"Raw: {json.dumps(confirmed)[:800]}"
     )
@@ -998,6 +1147,7 @@ def main() -> None:
     ensure_export_compliance(token, build_id)
     ensure_content_rights(token, app_id)
     ensure_version_copyright(token, version_id, meta)
+    ensure_app_privacy(token, app_id)
     ensure_app_info(token, app_id, meta)
     loc_id = ensure_version_localization(token, version_id, meta)
     ensure_review_detail(token, version_id, meta)
@@ -1008,6 +1158,7 @@ def main() -> None:
         raise
     except Exception as exc:  # noqa: BLE001 — best-effort screenshots
         warn(f"Screenshot upload failed ({exc}); continue and let ASC validate.")
+    wait_for_screenshot_processing(token, loc_id)
 
     if not SUBMIT:
         info("SUBMIT_FOR_REVIEW=false — listing prepared, not submitted.")
@@ -1016,7 +1167,7 @@ def main() -> None:
     submit_for_review(token, app_id, version_id)
     info(
         "Done. Watch App Store Connect → App Review. "
-        "If Apple asks for age rating / pricing / extra screenshot sizes, finish those once in the UI."
+        "If Apple still asks for App Privacy Publish or extra screenshot sizes, finish those once in the UI."
     )
 
 
