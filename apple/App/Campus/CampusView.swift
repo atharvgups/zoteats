@@ -500,7 +500,7 @@ private struct CampusBrandGroupRow: View {
                             } label: {
                                 Image(systemName: favoriteIDs.contains(place.id) ? "heart.fill" : "heart")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(favoriteIDs.contains(place.id) ? Color.uciBlue : .tertiary)
+                                    .foregroundStyle(favoriteIDs.contains(place.id) ? Color.uciBlue : Color.secondary.opacity(0.45))
                                     .frame(width: 28, height: 28)
                                     .contentShape(Rectangle())
                             }
