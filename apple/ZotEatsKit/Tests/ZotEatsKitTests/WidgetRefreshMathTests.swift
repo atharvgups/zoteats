@@ -51,14 +51,14 @@ struct WidgetRefreshMathTests {
         #expect(reload == now.addingTimeInterval(10 * 60))
     }
 
-    @Test func quietestClosedUsesLongCadence() {
+    @Test func quietestClosedUsesCampusLikeCadence() {
         let reload = WidgetRefreshMath.nextQuietestReload(now: now, anyLibraryOpen: false)
-        #expect(reload == now.addingTimeInterval(60 * 60))
+        #expect(reload == now.addingTimeInterval(20 * 60))
     }
 
-    @Test func quietestClosedMidnightBeatsHourCadence() {
-        // Thursday 2026-07-09, 11:30 PM Pacific — midnight is 30m away.
-        let late = ISO8601DateFormatter().date(from: "2026-07-10T06:30:00Z")!
+    @Test func quietestClosedMidnightBeatsClosedCadence() {
+        // Thursday 2026-07-09, 11:50 PM Pacific — midnight is 10m away.
+        let late = ISO8601DateFormatter().date(from: "2026-07-10T06:50:00Z")!
         let midnight = UCITime.nextIrvineMidnight(now: late)
         let reload = WidgetRefreshMath.nextQuietestReload(
             now: late,

@@ -1370,10 +1370,9 @@ struct QuietestLibraryProvider: TimelineProvider {
             let libraries = facilities.filter { $0.category == "Library" }
             let pool = libraries.isEmpty ? facilities : libraries
             let anyOpen = pool.contains(where: \.isOpen)
-            let reload = WidgetRefreshMath.nextQuietestReload(
+            let reload = QuietestLibraryReload.nextReload(
                 now: .now,
-                anyLibraryOpen: anyOpen,
-                boundaries: [UCITime.nextIrvineMidnight()]
+                anyLibraryOpen: anyOpen
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }

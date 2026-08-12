@@ -25,7 +25,8 @@ public enum WidgetRefreshMath {
 
     /// Quietest Library: Waitz rarely exposes parseable open/close times, so
     /// bias the cadence by occupancy usefulness — short while libraries are
-    /// open (percents move), long when everything is closed overnight.
+    /// open (percents move), Campus-like 20m when closed (paired with morning
+    /// open probes from `QuietestLibraryReload`).
     public static func nextQuietestReload(
         now: Date,
         anyLibraryOpen: Bool,
@@ -34,7 +35,7 @@ public enum WidgetRefreshMath {
         nextReload(
             now: now,
             boundaries: boundaries,
-            maxInterval: anyLibraryOpen ? 10 * 60 : 60 * 60
+            maxInterval: anyLibraryOpen ? 10 * 60 : 20 * 60
         )
     }
 }
