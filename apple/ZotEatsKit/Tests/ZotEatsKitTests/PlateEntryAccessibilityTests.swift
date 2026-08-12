@@ -42,4 +42,26 @@ struct PlateEntryAccessibilityTests {
                 == "Soup, 180 calories"
         )
     }
+
+    @Test("Protein joins calories in the label")
+    func withProtein() {
+        #expect(
+            PlateEntryAccessibility.label(
+                dishName: "Chicken Teriyaki",
+                calories: 420,
+                proteinG: 28
+            ) == "Chicken Teriyaki, 420 calories, 28 grams protein"
+        )
+    }
+
+    @Test("Protein alone still announces")
+    func proteinOnly() {
+        #expect(
+            PlateEntryAccessibility.label(
+                dishName: "Yogurt",
+                calories: nil,
+                proteinG: 12
+            ) == "Yogurt, 12 grams protein"
+        )
+    }
 }

@@ -6,6 +6,7 @@ import ZotEatsKit
 struct PlateSheet: View {
     let plate: PlateStore
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmClear = false
 
     var body: some View {
         ScrollView {
@@ -19,21 +20,6 @@ struct PlateSheet: View {
                 }
                 .padding(.trailing, 44)
 
-                HStack(spacing: 12) {
-                    totalCard(
-                        value: "\(plate.totalCalories)",
-                        label: "Calories",
-                        tint: .orange,
-                        announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
-                    )
-                    totalCard(
-                        value: "\(plate.totalProteinG)g",
-                        label: "Protein",
-                        tint: TagPalette.sage,
-                        announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
-                    )
-                }
-
                 if plate.isEmpty {
                     EmptyStateView(
                         icon: "fork.knife.circle",
@@ -41,6 +27,21 @@ struct PlateSheet: View {
                         message: PlateEmptyCopy.message
                     )
                 } else {
+                    HStack(spacing: 12) {
+                        totalCard(
+                            value: "\(plate.totalCalories)",
+                            label: "Calories",
+                            tint: .orange,
+                            announce: true
+                        )
+                        totalCard(
+                            value: "\(plate.totalProteinG)g",
+                            label: "Protein",
+                            tint: TagPalette.sage,
+                            announce: true
+                        )
+                    }
+
                     VStack(spacing: 8) {
                         ForEach(plate.entries) { entry in
                             HStack(spacing: 10) {
@@ -48,18 +49,15 @@ struct PlateSheet: View {
                                     Text(entry.dishName)
                                         .font(ZotFont.body.weight(.medium))
                                         .lineLimit(2)
-                                    Spacer()
-                                    if let calories = entry.calories {
-                                        Text("\(calories) cal")
-                                            .font(ZotFont.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
+                                    Spacer(minLength: 8)
+                                    macroCaption(entry)
                                 }
                                 .accessibilityElement(children: .ignore)
                                 .accessibilityLabel(
                                     PlateEntryAccessibility.label(
                                         dishName: entry.dishName,
-                                        calories: entry.calories
+                                        calories: entry.calories,
+                                        proteinG: entry.proteinG.map { Int($0.rounded()) }
                                     )
                                 )
 
@@ -83,10 +81,11 @@ struct PlateSheet: View {
                     }
 
                     Button {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            plate.clear()
+                        if plate.entries.count >= 2 {
+                            confirmClear = true
+                        } else {
+                            clearPlate()
                         }
-                        Haptics.selection()
                     } label: {
                         Text("Clear plate")
                             .font(ZotFont.pill.weight(.semibold))
@@ -97,6 +96,7 @@ struct PlateSheet: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 4)
+                    .accessibilityLabel("Clear plate")
                 }
             }
             .padding(20)
@@ -116,6 +116,39 @@ struct PlateSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .confirmationDialog(
+            "Clear everything on your plate?",
+            isPresented: $confirmClear,
+            titleVisibility: .visible
+        ) {
+            Button("Clear plate", role: .destructive) {
+                clearPlate()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes all \(plate.entries.count) dishes. This can't be undone.")
+        }
+    }
+
+    private func clearPlate() {
+        withAnimation(.snappy(duration: 0.25)) {
+            plate.clear()
+        }
+        Haptics.selection()
+    }
+
+    @ViewBuilder
+    private func macroCaption(_ entry: PlateEntry) -> some View {
+        let parts: [String] = [
+            entry.calories.map { "\($0) cal" },
+            entry.proteinG.map { "\(Int($0.rounded()))g" },
+        ].compactMap { $0 }
+        if !parts.isEmpty {
+            Text(parts.joined(separator: " · "))
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
     }
 
     private func totalCard(value: String, label: String, tint: Color, announce: Bool) -> some View {

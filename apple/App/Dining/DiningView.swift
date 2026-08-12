@@ -178,10 +178,17 @@ struct DiningView: View {
             .sheet(isPresented: $showPlate) {
                 PlateSheet(plate: plate)
             }
-            // Floating plate tally, only while today's plate has something on it.
+            // Plate access: full tally on today when filled; quiet chip otherwise;
+            // browse-ahead keeps today's plate visible without implying add works.
             .safeAreaInset(edge: .bottom) {
-                if !plate.isEmpty && selectedDate == nil {
-                    plateTallyBar
+                if selectedDate == nil {
+                    if plate.isEmpty {
+                        EmptyView()
+                    } else {
+                        plateTallyBar
+                    }
+                } else if !plate.isEmpty {
+                    browseAheadPlateBar
                 }
             }
         }
@@ -196,7 +203,7 @@ struct DiningView: View {
             HStack(spacing: 8) {
                 Image(systemName: "fork.knife.circle.fill")
                     .font(.system(size: 17, weight: .semibold))
-                Text("\(plate.entries.count) on your plate")
+                Text(PlateTallyCopy.barTitle(count: plate.entries.count))
                     .font(ZotFont.pill.weight(.semibold))
                 Spacer()
                 Text("\(plate.totalCalories) cal · \(plate.totalProteinG)g protein")
@@ -217,6 +224,37 @@ struct DiningView: View {
             "My plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein"
         )
         .accessibilityIdentifier("plate-tally-bar")
+    }
+
+    /// While browsing tomorrow+, keep today's plate one tap away.
+    private var browseAheadPlateBar: some View {
+        Button {
+            showPlate = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text(PlateTallyCopy.browseAheadTitle(count: plate.entries.count))
+                    .font(ZotFont.pill.weight(.semibold))
+                Spacer()
+                Text("View")
+                    .font(ZotFont.pill.weight(.semibold))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.uciBlue.opacity(0.12), in: Capsule())
+            .foregroundStyle(Color.uciBlue)
+            .overlay(Capsule().strokeBorder(Color.uciBlue.opacity(0.28), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityLabel(
+            "Today's plate: \(plate.entries.count) dishes. Opens My Plate."
+        )
+        .accessibilityIdentifier("plate-browse-ahead-bar")
     }
 
     // MARK: - Derived state
@@ -295,6 +333,11 @@ struct DiningView: View {
                 )
                 Spacer(minLength: 8)
                 HStack(spacing: 8) {
+                    // Empty plate: chip opens My Plate. Filled today uses the tally bar;
+                    // filled + browsing ahead uses the quiet "Today's plate" bar.
+                    if plate.isEmpty {
+                        myPlateChip
+                    }
                     filterChip
                     if prefs.hasActiveMenuFilters {
                         Button {
@@ -318,6 +361,36 @@ struct DiningView: View {
 
             menuContent
         }
+    }
+
+    /// Always-on when the floating tally isn't up — empty plate + browse-ahead.
+    private var myPlateChip: some View {
+        Button {
+            showPlate = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: plate.isEmpty ? "fork.knife.circle" : "fork.knife.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(PlateTallyCopy.chipTitle(count: plate.entries.count))
+                    .font(ZotFont.pill.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color.uciBlue.opacity(0.1), in: Capsule())
+            .foregroundStyle(Color.uciBlue)
+            .overlay(
+                Capsule().strokeBorder(Color.uciBlue.opacity(0.28), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("my-plate-chip")
+        .accessibilityLabel(
+            plate.isEmpty
+                ? "My Plate, empty"
+                : "My Plate, \(plate.entries.count) dishes"
+        )
     }
 
     /// Compact chip summarizing dietary + allergen filters; opens the picker sheet.

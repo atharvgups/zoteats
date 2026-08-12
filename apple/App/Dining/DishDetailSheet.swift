@@ -188,8 +188,8 @@ struct DishDetailSheet: View {
             Haptics.soft()
         } label: {
             Label(
-                isOnPlate ? "On your plate" : "Add to My Plate",
-                systemImage: isOnPlate ? "checkmark.circle.fill" : "plus.circle.fill"
+                isOnPlate ? "Remove from My Plate" : "Add to My Plate",
+                systemImage: isOnPlate ? "minus.circle.fill" : "plus.circle.fill"
             )
             .font(ZotFont.pill.weight(.semibold))
             .frame(maxWidth: .infinity)
