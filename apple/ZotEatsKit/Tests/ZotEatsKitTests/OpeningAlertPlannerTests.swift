@@ -145,6 +145,49 @@ struct OpeningAlertPlannerTests {
         ]
         #expect(OpeningAlertPlanner.earliestOpening(periods: periods) == 7 * 60 + 15)
         #expect(OpeningAlertPlanner.earliestOpening(periods: []) == nil)
+        let meal = OpeningAlertPlanner.earliestMeal(periods: periods)
+        #expect(meal?.startMinutes == 7 * 60 + 15)
+        #expect(meal?.periodName == "Breakfast")
+    }
+
+    @Test func diningTomorrowCarriesMealPillAndDeepLinkDate() {
+        let tenPM = sevenAM.addingTimeInterval(15 * 3600)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 7 * 60 + 15,
+                    dayOffset: 1,
+                    mealPeriod: "Breakfast"
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: tenPM
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.mealPeriod == "Breakfast")
+        #expect(plan.deepLinkDate == "2026-07-17")
+    }
+
+    @Test func diningTodayCarriesMealPillWithoutDate() {
+        let noon = sevenAM.addingTimeInterval(5 * 3600)
+        let plans = OpeningAlertPlanner.plan(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 16 * 60 + 30,
+                    dayOffset: 0,
+                    mealPeriod: "Limited Dinner"
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: noon
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.mealPeriod == "Dinner")
+        #expect(plan.deepLinkDate == nil)
     }
 }
 
@@ -166,6 +209,9 @@ struct DiningNextOpeningTests {
 
     @Test func followingOpeningDuringLunchPointsAtDinner() {
         #expect(OpeningAlertPlanner.followingOpening(periods: periods, nowMinutes: 12 * 60) == 16 * 60 + 30)
+        let meal = OpeningAlertPlanner.followingMeal(periods: periods, nowMinutes: 12 * 60)
+        #expect(meal?.startMinutes == 16 * 60 + 30)
+        #expect(meal?.periodName == "Dinner")
     }
 
     @Test func followingOpeningMatchesNextOpeningWhenClosed() {

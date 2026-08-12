@@ -58,18 +58,26 @@ enum OpeningAlerts {
             let id = "dining:\(hall.id)"
             // Prefer the next meal still ahead today (including dinner while
             // lunch is open). Only fall through to tomorrow after the last meal.
-            if let todayOpen = OpeningAlertPlanner.followingOpening(
+            if let meal = OpeningAlertPlanner.followingMeal(
                 periods: hall.periods, nowMinutes: nowMinutes
             ) {
                 candidates.append(.init(
-                    id: id, name: hall.name, opensAtMinutes: todayOpen, dayOffset: 0
+                    id: id,
+                    name: hall.name,
+                    opensAtMinutes: meal.startMinutes,
+                    dayOffset: 0,
+                    mealPeriod: meal.periodName
                 ))
                 if let hours = hall.todayHours { hoursByID[id] = hours }
             } else if let tomorrowISO {
                 let periods = await dining.mealPeriods(for: hall.id, dateISO: tomorrowISO)
-                if let open = OpeningAlertPlanner.earliestOpening(periods: periods) {
+                if let meal = OpeningAlertPlanner.earliestMeal(periods: periods) {
                     candidates.append(.init(
-                        id: id, name: hall.name, opensAtMinutes: open, dayOffset: 1
+                        id: id,
+                        name: hall.name,
+                        opensAtMinutes: meal.startMinutes,
+                        dayOffset: 1,
+                        mealPeriod: meal.periodName
                     ))
                     if let summary = Self.hoursSummary(periods: periods) {
                         hoursByID[id] = summary
@@ -100,7 +108,11 @@ enum OpeningAlerts {
 
         for alert in OpeningAlertPlanner.plan(candidates: candidates, watchedIDs: watched) {
             let content = UNMutableNotificationContent()
-            content.title = "\(alert.placeName) just opened"
+            if let meal = alert.mealPeriod {
+                content.title = "\(alert.placeName) · \(meal) just opened"
+            } else {
+                content.title = "\(alert.placeName) just opened"
+            }
             if let hours = hoursByID[alert.placeID] {
                 content.body = "Open \(hours). Head over when you're ready."
             } else {
@@ -112,7 +124,11 @@ enum OpeningAlerts {
                     return .campus(placeID: String(alert.placeID.dropFirst("campus:".count)))
                 }
                 if alert.placeID.hasPrefix("dining:") {
-                    return .eat(hall: String(alert.placeID.dropFirst("dining:".count)))
+                    return .eat(
+                        hall: String(alert.placeID.dropFirst("dining:".count)),
+                        period: alert.mealPeriod,
+                        date: alert.deepLinkDate
+                    )
                 }
                 return .eat()
             }()
