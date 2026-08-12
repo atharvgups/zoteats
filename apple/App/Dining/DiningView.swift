@@ -19,6 +19,8 @@ struct DiningView: View {
     @State private var selectedDish: MenuItem?
     @State private var showDietFilters = false
     @State private var showPlate = false
+    /// Eat meal boards: Available-all-day station stays collapsed until tapped.
+    @State private var allDayExpanded = false
     @State private var mealActivity = MealActivityManager()
     /// CI screenshot launch args (`-showDishDetail` / `-showPlate`) fire once.
     @State private var didApplyScreenshotArgs = false
@@ -125,6 +127,7 @@ struct DiningView: View {
                 // Do not clear pinnedDeepLinkPeriod here — deep-link apply also
                 // sets hall, and deferred onChange would wipe the meal pin and
                 // snap ended Lunch → Dinner. User hall taps clear the pin.
+                allDayExpanded = false
                 syncPeriodSelection()
                 considerAutoMealActivity()
             }
@@ -134,9 +137,11 @@ struct DiningView: View {
                 // land on "No menu yet" with selectedPeriod == nil.
                 // Same as hall: deep links force today / future ISO — don't clear
                 // the meal pin from this onChange.
+                allDayExpanded = false
                 syncPeriodSelection()
             }
             .onChange(of: selectedPeriod) { _, newPeriod in
+                allDayExpanded = false
                 if let pinned = pinnedDeepLinkPeriod, newPeriod != pinned {
                     pinnedDeepLinkPeriod = nil
                 }
@@ -289,7 +294,25 @@ struct DiningView: View {
                     )
                 )
                 Spacer(minLength: 8)
-                filterChip
+                HStack(spacing: 8) {
+                    filterChip
+                    if prefs.hasActiveMenuFilters {
+                        Button {
+                            prefs.clearMenuFilters()
+                            Haptics.selection()
+                        } label: {
+                            Text("Clear")
+                                .font(ZotFont.pill.weight(.semibold))
+                                .foregroundStyle(Color.uciBlue)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(Color.uciBlue.opacity(0.08), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("diet-filter-clear")
+                        .accessibilityLabel("Clear all filters")
+                    }
+                }
             }
             .padding(.horizontal, 20)
 
@@ -536,10 +559,55 @@ struct DiningView: View {
             }
 
             ForEach(stations) { station in
+                let isAllDay = CampusMenuNormalize.isAvailableAllDay(station.name)
                 VStack(alignment: .leading, spacing: 10) {
-                    sectionHeader(title: station.name, count: station.items.count)
-                    ForEach(station.items) { item in
-                        dishRow(item)
+                    if isAllDay {
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                allDayExpanded.toggle()
+                            }
+                            Haptics.selection()
+                        } label: {
+                            HStack(spacing: 9) {
+                                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                                    .fill(Color.uciGold)
+                                    .frame(width: 5, height: 21)
+                                Text(station.name)
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(.primary)
+                                Spacer(minLength: 8)
+                                Text("\(station.items.count)")
+                                    .font(ZotFont.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(.quaternary, in: Capsule())
+                                Image(systemName: "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .rotationEffect(.degrees(allDayExpanded ? 180 : 0))
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Available all day, \(station.items.count) items")
+                        .accessibilityHint(
+                            allDayExpanded
+                                ? "Hides all-day items"
+                                : "Shows all-day items"
+                        )
+
+                        if allDayExpanded {
+                            ForEach(station.items) { item in
+                                dishRow(item)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    } else {
+                        sectionHeader(title: station.name, count: station.items.count)
+                        ForEach(station.items) { item in
+                            dishRow(item)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)

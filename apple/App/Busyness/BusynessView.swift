@@ -313,29 +313,44 @@ struct QuietestClosedCard: View {
     }
 }
 
-/// Neat today hours for Langson + Science — LibCal clocks Waitz doesn't give.
+/// Soft today-hours strip for Langson + Science — LibCal clocks Waitz doesn't give.
+/// Matches Study glance chrome (not another stacked white card with Open pills).
 private struct LibraryHoursTodayCard: View {
     let hours: [LibraryBuildingHours]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Library hours")
-                .font(ZotFont.sectionTitle)
+            Text("Today’s hours")
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.4)
                 .accessibilityAddTraits(.isHeader)
 
-            VStack(spacing: 8) {
-                ForEach(hours) { building in
-                    HStack(spacing: 10) {
-                        Text(building.shortName)
-                            .font(ZotFont.body.weight(.semibold))
-                            .frame(width: 72, alignment: .leading)
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(Array(hours.enumerated()), id: \.element.id) { index, building in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.08))
+                            .frame(width: 1)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 12)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(building.shortName)
+                                .font(ZotFont.body.weight(.semibold))
+                            Text(building.isOpen ? "Open" : "Closed")
+                                .font(ZotFont.pill.weight(.semibold))
+                                .foregroundStyle(building.isOpen ? Color.openGreen : .secondary)
+                        }
                         Text(building.rendered)
                             .font(ZotFont.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                        Spacer(minLength: 6)
-                        StatusPill(isOpen: building.isOpen)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(
                         "\(building.shortName), \(building.isOpen ? "open" : "closed"), \(building.rendered)"
@@ -343,9 +358,13 @@ private struct LibraryHoursTodayCard: View {
                 }
             }
         }
-        .padding(14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
+        .background(
+            Color.primary.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+        )
     }
 }
 

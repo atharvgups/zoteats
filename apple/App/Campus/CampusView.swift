@@ -357,15 +357,10 @@ private struct CampusFavoriteShelfRow: View {
             Button(action: onOpen) {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 5) {
-                            Text(place.name)
-                                .font(ZotFont.caption.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            if place.hasMenu {
-                                TagChip(text: "Menu", color: .uciBlue)
-                            }
-                        }
+                        Text(place.name)
+                            .font(ZotFont.caption.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
                         Text(place.hoursLine)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
@@ -373,10 +368,10 @@ private struct CampusFavoriteShelfRow: View {
                     }
                     Spacer(minLength: 6)
                     StatusPill(isOpen: place.openNow)
-                    // Every place opens the details/menu sheet — chevron is honest.
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                    // Always surface Menu — tap opens the sheet (or honest empty).
+                    Text("Menu")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .foregroundStyle(Color.uciBlue)
                 }
                 .contentShape(Rectangle())
             }
@@ -386,7 +381,7 @@ private struct CampusFavoriteShelfRow: View {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.uciBlue)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -394,6 +389,7 @@ private struct CampusFavoriteShelfRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .opacity(place.openNow ? 1 : 0.72)
         .zotCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("campus-favorite-\(place.id)")
@@ -453,6 +449,7 @@ private struct CampusBrandGroupRow: View {
             if isExpanded {
                 VStack(spacing: 6) {
                     ForEach(places) { place in
+                        // One continuous nested bar: name / hours / status / heart.
                         HStack(spacing: 8) {
                             Button {
                                 onOpen(place)
@@ -470,16 +467,11 @@ private struct CampusBrandGroupRow: View {
                                     }
                                     Spacer(minLength: 6)
                                     StatusPill(isOpen: place.openNow)
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.tertiary)
+                                    Text("Menu")
+                                        .font(ZotFont.pill.weight(.semibold))
+                                        .foregroundStyle(Color.uciBlue)
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 9)
-                                .background(
-                                    Color.primary.opacity(0.04),
-                                    in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                                )
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(
@@ -491,22 +483,38 @@ private struct CampusBrandGroupRow: View {
                                     hasMenu: place.hasMenu
                                 )
                             )
-                            .accessibilityHint(place.hasMenu ? "Shows menu and details" : "Shows details")
+                            .accessibilityHint(
+                                place.hasMenu ? "Opens menu" : "Opens hours and details"
+                            )
 
                             Button {
                                 onToggleFavorite(place.id)
                             } label: {
                                 Image(systemName: favoriteIDs.contains(place.id) ? "heart.fill" : "heart")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(favoriteIDs.contains(place.id) ? Color.uciBlue : Color.secondary.opacity(0.45))
+                                    .foregroundStyle(
+                                        favoriteIDs.contains(place.id)
+                                            ? Color.uciBlue
+                                            : Color.secondary.opacity(0.45)
+                                    )
                                     .frame(width: 28, height: 28)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(
-                                favoriteIDs.contains(place.id) ? "Remove from Favorites" : "Add to Favorites"
+                                favoriteIDs.contains(place.id)
+                                    ? "Remove from Favorites"
+                                    : "Add to Favorites"
                             )
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        // Closed tint covers the whole nested bar, including the heart.
+                        .background(
+                            Color.primary.opacity(place.openNow ? 0.04 : 0.09),
+                            in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                        )
+                        .opacity(place.openNow ? 1 : 0.78)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -528,20 +536,17 @@ private struct CampusPlaceRow: View {
     let onOpen: () -> Void
 
     var body: some View {
+        // One continuous card: name / hours / status / Menu / heart share chrome.
+        // No disclosure chevron — only brand groups expand.
         HStack(spacing: 8) {
             Button(action: onOpen) {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(showBrandOnly ? place.brand : place.name)
-                                .font(ZotFont.body.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
-                            if place.hasMenu {
-                                TagChip(text: "Menu", color: .uciBlue)
-                            }
-                        }
+                        Text(showBrandOnly ? place.brand : place.name)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                         Text(place.hoursLine)
                             .font(ZotFont.caption)
                             .foregroundStyle(.secondary)
@@ -549,13 +554,10 @@ private struct CampusPlaceRow: View {
                     }
                     Spacer(minLength: 8)
                     StatusPill(isOpen: place.openNow)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                    Text("Menu")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .foregroundStyle(Color.uciBlue)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -564,13 +566,16 @@ private struct CampusPlaceRow: View {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(isFavorite ? Color.uciBlue : Color.secondary.opacity(0.45))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
-            .padding(.trailing, 8)
         }
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .padding(.vertical, 12)
+        .opacity(place.openNow ? 1 : 0.72)
         .zotCard()
         .accessibilityIdentifier("campus-place-\(place.id)")
         .accessibilityElement(children: .contain)
@@ -582,7 +587,7 @@ private struct CampusPlaceRow: View {
                 hasMenu: place.hasMenu
             )
         )
-        .accessibilityHint(place.hasMenu ? "Shows menu and details" : "Shows details")
+        .accessibilityHint(place.hasMenu ? "Opens menu" : "Opens hours and details")
     }
 }
 
@@ -660,8 +665,23 @@ struct CampusMenuSheet: View {
             if stations.isEmpty {
                 noMenuNote
             } else {
-                filtersChip
-                    .padding(.horizontal, 20)
+                HStack(spacing: 10) {
+                    filtersChip
+                    if prefs.hasActiveMenuFilters {
+                        Button {
+                            prefs.clearMenuFilters()
+                            Haptics.selection()
+                        } label: {
+                            Text("Clear")
+                                .font(ZotFont.pill.weight(.semibold))
+                                .foregroundStyle(Color.uciBlue)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear menu filters")
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 20)
 
                 let filtered = filteredStations(stations)
                 if filtered.isEmpty {
