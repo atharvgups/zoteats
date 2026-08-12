@@ -913,7 +913,8 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     if not items:
         die(
             "Review submission has zero items after attach — ASC will reject submit. "
-            "Usually Age Rating (Advertising), Pricing (Free), or App Privacy is incomplete. "
+            "Usually App Privacy (publish Data Not Collected), Pricing (Free), "
+            "copyright, or content rights is incomplete. "
             f"Attach attempt: {json.dumps(item)[:2000]}"
         )
 
@@ -982,6 +983,8 @@ def main() -> None:
     version_id = version["id"]
     attach_build(token, version_id, build_id)
     ensure_export_compliance(token, build_id)
+    ensure_content_rights(token, app_id)
+    ensure_version_copyright(token, version_id, meta)
     ensure_app_info(token, app_id, meta)
     loc_id = ensure_version_localization(token, version_id, meta)
     ensure_review_detail(token, version_id, meta)
