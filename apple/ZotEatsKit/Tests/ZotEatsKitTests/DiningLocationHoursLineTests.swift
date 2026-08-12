@@ -51,7 +51,7 @@ struct DiningLocationHoursLineTests {
         )
     }
 
-    @Test("Unknown falls back to todayHours")
+    @Test("Unknown falls back to Hours unavailable")
     func unknown() {
         #expect(
             DiningLocationHoursLine.resolve(
@@ -59,7 +59,15 @@ struct DiningLocationHoursLineTests {
                 todayHours: "Hours vary",
                 opensTomorrowAtMinutes: nil,
                 opensTomorrowPeriod: nil
-            ) == "Hours vary"
+            ) == "Hours unavailable"
+        )
+        #expect(
+            DiningLocationHoursLine.resolve(
+                state: .unknown,
+                todayHours: nil,
+                opensTomorrowAtMinutes: nil,
+                opensTomorrowPeriod: nil
+            ) == "Hours unavailable"
         )
     }
 

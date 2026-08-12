@@ -8,7 +8,10 @@ public enum CampusPlaceHoursLine {
         todayHours: String?,
         opensAtMinutes: Int?,
         closesAtMinutes: Int?,
-        opensTomorrowAtMinutes: Int?
+        opensTomorrowAtMinutes: Int?,
+        /// True when today's (or tomorrow's) schedule was resolved from the feed —
+        /// distinguishes weekend "off" from a missing/unparseable schedule.
+        hoursKnown: Bool = true
     ) -> String {
         if openNow {
             if let close = closesAtMinutes {
@@ -32,7 +35,12 @@ public enum CampusPlaceHoursLine {
         if let open = opensTomorrowAtMinutes {
             return "Opens tomorrow at \(UCITime.format(minutes: open))"
         }
-        return todayHours ?? "Closed today"
+        // Never echo a past todayHours window beside a Closed pill (Fri after
+        // close → Sat off used to show "7:30 AM – 4:00 PM").
+        if hoursKnown || todayHours != nil {
+            return "Closed today"
+        }
+        return "Hours unavailable"
     }
 
     /// Compact secondary line for Campus Open widget rows (open venues only).
@@ -64,7 +72,8 @@ public extension CampusPlace {
             todayHours: todayHours,
             opensAtMinutes: opensAtMinutes,
             closesAtMinutes: closesAtMinutes,
-            opensTomorrowAtMinutes: opensTomorrowAtMinutes
+            opensTomorrowAtMinutes: opensTomorrowAtMinutes,
+            hoursKnown: hoursKnown
         )
     }
 }

@@ -29,6 +29,19 @@ struct CampusPlaceHoursLineTests {
         )
     }
 
+    @Test("After close with no tomorrow open never echoes past window")
+    func afterCloseNoTomorrow() {
+        #expect(
+            CampusPlaceHoursLine.resolve(
+                openNow: false,
+                todayHours: "7:30 AM – 4:00 PM",
+                opensAtMinutes: nil,
+                closesAtMinutes: nil,
+                opensTomorrowAtMinutes: nil
+            ) == "Closed today"
+        )
+    }
+
     @Test("Open uses closesAtMinutes")
     func openUntil() {
         #expect(
@@ -55,7 +68,21 @@ struct CampusPlaceHoursLineTests {
         )
     }
 
-    @Test("Unknown closed stays Closed today")
+    @Test("Known closed with no hours stays Closed today")
+    func knownClosed() {
+        #expect(
+            CampusPlaceHoursLine.resolve(
+                openNow: false,
+                todayHours: nil,
+                opensAtMinutes: nil,
+                closesAtMinutes: nil,
+                opensTomorrowAtMinutes: nil,
+                hoursKnown: true
+            ) == "Closed today"
+        )
+    }
+
+    @Test("Unknown schedule says Hours unavailable")
     func unknownClosed() {
         #expect(
             CampusPlaceHoursLine.resolve(
@@ -63,8 +90,9 @@ struct CampusPlaceHoursLineTests {
                 todayHours: nil,
                 opensAtMinutes: nil,
                 closesAtMinutes: nil,
-                opensTomorrowAtMinutes: nil
-            ) == "Closed today"
+                opensTomorrowAtMinutes: nil,
+                hoursKnown: false
+            ) == "Hours unavailable"
         )
     }
 

@@ -21,7 +21,9 @@ public enum DiningLocationHoursLine {
             }
             return "Closed for today"
         case .unknown:
-            return todayHours ?? "Closed today"
+            // Ignore todayHours — echoing it beside unknown state reintroduces lies.
+            _ = todayHours
+            return "Hours unavailable"
         }
     }
 }

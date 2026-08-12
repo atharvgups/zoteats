@@ -359,6 +359,9 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
     public let upcomingWindows: [CampusHoursWindow]
     /// Tomorrow's full open-window chain for overnight Opening Alerts.
     public let tomorrowOpenWindows: [CampusHoursWindow]
+    /// True when today's (or tomorrow's) schedule resolved from the feed —
+    /// including explicit weekend "off". False when hours are missing/unparseable.
+    public let hoursKnown: Bool
 
     public init(
         id: String,
@@ -372,7 +375,8 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         opensTomorrowAtMinutes: Int? = nil,
         tomorrowHours: String? = nil,
         upcomingWindows: [CampusHoursWindow] = [],
-        tomorrowOpenWindows: [CampusHoursWindow] = []
+        tomorrowOpenWindows: [CampusHoursWindow] = [],
+        hoursKnown: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -386,6 +390,7 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         self.tomorrowHours = tomorrowHours
         self.upcomingWindows = upcomingWindows
         self.tomorrowOpenWindows = tomorrowOpenWindows
+        self.hoursKnown = hoursKnown
     }
 
     /// Brand prefix for grouping multi-location chains:

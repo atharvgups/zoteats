@@ -163,7 +163,8 @@ public struct CampusService: Sendable {
             let status = CampusPlaceStatus.evaluate(
                 todayWindows: row.todayWindows,
                 tomorrowWindows: row.tomorrowWindows,
-                nowMinutes: nowMinutes
+                nowMinutes: nowMinutes,
+                todayScheduleResolved: row.todayScheduleResolved
             )
             return CampusPlace(
                 id: row.id,
@@ -181,7 +182,8 @@ public struct CampusService: Sendable {
                     nowMinutes: nowMinutes
                 ).map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
                 tomorrowOpenWindows: Self.allOpenings(windows: row.tomorrowWindows)
-                    .map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) }
+                    .map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
+                hoursKnown: status.hoursKnown
             )
         }
     }
@@ -209,12 +211,12 @@ public struct CampusService: Sendable {
                 else { return nil }
 
                 let schedules = raw.aemAttributes?.hoursOfOperation?.schedule ?? []
-                let todayWindows = Self.todayWindows(
+                let today = Self.dayWindows(
                     schedules: schedules,
                     todayISO: todayISO,
                     weekday: weekday
                 )
-                let tomorrowWindows = Self.todayWindows(
+                let tomorrow = Self.dayWindows(
                     schedules: schedules,
                     todayISO: tomorrowISO,
                     weekday: tomorrowWeekday
@@ -224,8 +226,9 @@ public struct CampusService: Sendable {
                     name: name,
                     category: Self.categorize(name),
                     hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
-                    todayWindows: todayWindows,
-                    tomorrowWindows: tomorrowWindows
+                    todayWindows: today.windows,
+                    tomorrowWindows: tomorrow.windows,
+                    todayScheduleResolved: today.resolved
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -296,25 +299,36 @@ public struct CampusService: Sendable {
         let hasMenu: Bool
         let todayWindows: [TimeWindow]
         let tomorrowWindows: [TimeWindow]
+        let todayScheduleResolved: Bool
     }
 
     /// Resolve today's open windows: dated special schedule wins over standard;
     /// within a schedule, union the windows of all meal periods.
     static func todayWindows(schedules: [RawSchedule], todayISO: String, weekday: String) -> [TimeWindow] {
+        dayWindows(schedules: schedules, todayISO: todayISO, weekday: weekday).windows
+    }
+
+    /// Same as `todayWindows`, plus whether an active schedule was found
+    /// (empty windows + resolved = explicit "off"; unresolved = missing feed).
+    static func dayWindows(
+        schedules: [RawSchedule],
+        todayISO: String,
+        weekday: String
+    ) -> (windows: [TimeWindow], resolved: Bool) {
         let active = schedules.first { schedule in
             schedule.type == "special"
                 && (schedule.start_date ?? "9999") <= todayISO
                 && (schedule.end_date ?? "0000") >= todayISO
         } ?? schedules.first { $0.type == "standard" }
 
-        guard let active else { return [] }
+        guard let active else { return ([], false) }
         var windows: [TimeWindow] = []
         for period in active.meal_periods ?? [] {
             if let window = window(from: period.opening_hours, weekday: weekday), !windows.contains(window) {
                 windows.append(window)
             }
         }
-        return windows.sorted { $0.start < $1.start }
+        return (windows.sorted { $0.start < $1.start }, true)
     }
 
     /// Earliest window start still ahead of `nowMinutes` — including the next

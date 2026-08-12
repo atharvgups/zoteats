@@ -12,6 +12,8 @@ public enum CampusPlaceStatus {
         public let opensAtMinutes: Int?
         public let closesAtMinutes: Int?
         public let opensTomorrowAtMinutes: Int?
+        /// Schedule was resolved from the feed (including explicit "off").
+        public let hoursKnown: Bool
 
         public init(
             openNow: Bool,
@@ -19,7 +21,8 @@ public enum CampusPlaceStatus {
             tomorrowHours: String? = nil,
             opensAtMinutes: Int?,
             closesAtMinutes: Int?,
-            opensTomorrowAtMinutes: Int?
+            opensTomorrowAtMinutes: Int?,
+            hoursKnown: Bool = true
         ) {
             self.openNow = openNow
             self.todayHours = todayHours
@@ -27,13 +30,15 @@ public enum CampusPlaceStatus {
             self.opensAtMinutes = opensAtMinutes
             self.closesAtMinutes = closesAtMinutes
             self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
+            self.hoursKnown = hoursKnown
         }
     }
 
     public static func evaluate(
         todayWindows: [CampusService.TimeWindow],
         tomorrowWindows: [CampusService.TimeWindow],
-        nowMinutes: Int
+        nowMinutes: Int,
+        todayScheduleResolved: Bool = true
     ) -> Snapshot {
         let openNow = todayWindows.contains { $0.contains(minute: nowMinutes) }
         let closesAt: Int? = {
@@ -56,7 +61,8 @@ public enum CampusPlaceStatus {
                 nowMinutes: nowMinutes
             ),
             closesAtMinutes: closesAt,
-            opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min()
+            opensTomorrowAtMinutes: tomorrowWindows.map(\.start).min(),
+            hoursKnown: todayScheduleResolved || !tomorrowWindows.isEmpty
         )
     }
 }
