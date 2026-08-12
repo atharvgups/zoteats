@@ -80,6 +80,10 @@ targets:
     platform: iOS
     sources:
       - path: Widgets
+        excludes:
+          - PrivacyInfo.xcprivacy
+      - path: Widgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: ZotEatsKit
     info:
