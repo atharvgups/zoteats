@@ -186,7 +186,8 @@ struct OpeningAlertPlannerTests {
             now: noon
         )
         let plan = try! #require(plans.first)
-        #expect(plan.mealPeriod == "Dinner")
+        #expect(plan.mealPeriod == "Limited Dinner")
+        #expect(MealPeriodPill.canonical(plan.mealPeriod!) == "Dinner")
         #expect(plan.deepLinkDate == nil)
     }
 }

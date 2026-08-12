@@ -643,12 +643,18 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             availablePeriods: hall.availablePeriods,
             nowMinutes: nowMinutes
         )
-        let period = choice.period
+        // Menu fetch + Eat deep links use the primary pill; chrome shows the
+        // live API name (Brunch / Limited Dinner) like Dining Status / Island.
+        let pill = choice.period
+        let displayPeriod = MealPeriodDisplay.label(
+            live: choice.livePeriodName,
+            pill: choice.period
+        )
 
         var dishes: [String] = []
         var favorited: Set<String> = []
         var filtersEmptiedMenu = false
-        if !period.isEmpty, let menu = try? await service.menu(for: hall.id, period: period) {
+        if !pill.isEmpty, let menu = try? await service.menu(for: hall.id, period: pill) {
             let built = SharedDefaults.todaysMenuDishes(
                 stations: menu.stations,
                 dietFilters: Set(SharedDefaults.dietFilters()),
@@ -685,7 +691,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             )
         } else {
             link = DiningStatusDeepLink.Destination(
-                period: period.isEmpty ? nil : period
+                period: pill.isEmpty ? nil : pill
             )
         }
 
@@ -693,7 +699,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             date: .now,
             hallName: hall.name,
             hallID: hall.id,
-            period: period,
+            period: displayPeriod,
             dishes: dishes,
             favorited: favorited,
             periodEndsAt: periodEndsAt,

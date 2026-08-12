@@ -46,7 +46,7 @@ struct TodaysMenuPeriodPickTests {
         #expect(choice.isAfterHours)
     }
 
-    @Test func brunchMapsToBreakfastPill() {
+    @Test func brunchMapsToBreakfastPillKeepsLiveName() {
         let brunch = [
             MealPeriodWindow(name: "Brunch", startMinutes: 600, endMinutes: 840),
         ]
@@ -56,6 +56,27 @@ struct TodaysMenuPeriodPickTests {
             nowMinutes: 700
         )
         #expect(choice.period == "Breakfast")
+        #expect(choice.livePeriodName == "Brunch")
+        #expect(
+            MealPeriodDisplay.label(live: choice.livePeriodName, pill: choice.period) == "Brunch"
+        )
+    }
+
+    @Test func limitedDinnerKeepsLiveNameForDisplay() {
+        let limited = [
+            MealPeriodWindow(name: "Limited Dinner", startMinutes: 1020, endMinutes: 1140),
+        ]
+        let choice = TodaysMenuPeriodPick.choose(
+            timedPeriods: limited,
+            availablePeriods: ["Breakfast", "Limited Dinner"],
+            nowMinutes: 1050
+        )
+        #expect(choice.period == "Dinner")
+        #expect(choice.livePeriodName == "Limited Dinner")
+        #expect(
+            MealPeriodDisplay.label(live: choice.livePeriodName, pill: choice.period)
+                == "Limited Dinner"
+        )
     }
 }
 

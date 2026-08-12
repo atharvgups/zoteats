@@ -20,7 +20,7 @@ struct FavoriteAlertCopyTests {
                 hallName: "Brandywine",
                 period: "Limited Dinner",
                 servingNow: false
-            ) == "On today's dinner menu at Brandywine."
+            ) == "On today's limited dinner menu at Brandywine."
         )
     }
 }

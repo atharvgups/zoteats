@@ -16,7 +16,10 @@ public enum TodaysMenuEmptyCopy {
         surface: Surface
     ) -> String {
         if let open = opensTomorrowAtMinutes {
-            let meal = MealPeriodPill.canonical(opensTomorrowPeriod ?? "Breakfast")
+            let meal = MealPeriodDisplay.label(
+                live: opensTomorrowPeriod ?? "",
+                pill: "Breakfast"
+            )
             let time = UCITime.format(minutes: open)
             switch surface {
             case .glance:
@@ -42,7 +45,10 @@ public enum TodaysMenuEmptyCopy {
         let hall = hallName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = hall.isEmpty ? "This hall" : hall
         if let open = opensTomorrowAtMinutes {
-            let meal = MealPeriodPill.canonical(opensTomorrowPeriod ?? "Breakfast")
+            let meal = MealPeriodDisplay.label(
+                live: opensTomorrowPeriod ?? "",
+                pill: "Breakfast"
+            )
             let time = UCITime.format(minutes: open)
             return "\(name) is closed for tonight. \(meal) tomorrow · \(time)."
         }

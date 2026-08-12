@@ -98,13 +98,14 @@ public enum OpeningAlertPlanner {
             // Identifier keys off the fire-day ISO so an evening reschedule
             // for tomorrow replaces the same slot after midnight.
             let dateISO = PacificTime.todayISO(now: fireDate)
-            let pill = candidate.mealPeriod.map { MealPeriodPill.canonical($0) }
+            // Keep live meal names (Brunch / Limited Dinner) for notification
+            // titles; OpeningAlerts canonicalizes only the Eat deep-link pill.
             return PlannedAlert(
                 identifier: "open:\(candidate.id):\(dateISO)",
                 placeID: candidate.id,
                 placeName: candidate.name,
                 fireDate: fireDate,
-                mealPeriod: pill,
+                mealPeriod: candidate.mealPeriod,
                 deepLinkDate: candidate.dayOffset >= 1 ? dateISO : nil
             )
         }

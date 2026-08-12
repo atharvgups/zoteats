@@ -109,7 +109,8 @@ enum OpeningAlerts {
         for alert in OpeningAlertPlanner.plan(candidates: candidates, watchedIDs: watched) {
             let content = UNMutableNotificationContent()
             if let meal = alert.mealPeriod {
-                content.title = "\(alert.placeName) · \(meal) just opened"
+                let display = MealPeriodDisplay.label(live: meal)
+                content.title = "\(alert.placeName) · \(display) just opened"
             } else {
                 content.title = "\(alert.placeName) just opened"
             }
@@ -124,9 +125,11 @@ enum OpeningAlerts {
                     return .campus(placeID: String(alert.placeID.dropFirst("campus:".count)))
                 }
                 if alert.placeID.hasPrefix("dining:") {
+                    // Deep links use primary Eat pills; titles keep live names.
+                    let pill = alert.mealPeriod.map { MealPeriodPill.canonical($0) }
                     return .eat(
                         hall: String(alert.placeID.dropFirst("dining:".count)),
-                        period: alert.mealPeriod,
+                        period: pill,
                         date: alert.deepLinkDate
                     )
                 }

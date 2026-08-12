@@ -17,7 +17,7 @@ struct TodaysMenuEmptyCopyTests {
                 opensTomorrowPeriod: "Brunch",
                 opensTomorrowAtMinutes: 10 * 60,
                 surface: .home
-            ) == "Dinner's done — Breakfast tomorrow · 10:00 AM"
+            ) == "Dinner's done — Brunch tomorrow · 10:00 AM"
         )
     }
 
@@ -45,6 +45,13 @@ struct TodaysMenuEmptyCopyTests {
                 opensTomorrowPeriod: "Breakfast",
                 opensTomorrowAtMinutes: 7 * 60 + 15
             ) == "The Anteatery is closed for tonight. Breakfast tomorrow · 7:15 AM."
+        )
+        #expect(
+            TodaysMenuEmptyCopy.eatAfterHoursMessage(
+                hallName: "Brandywine",
+                opensTomorrowPeriod: "Brunch",
+                opensTomorrowAtMinutes: 10 * 60
+            ) == "Brandywine is closed for tonight. Brunch tomorrow · 10:00 AM."
         )
         #expect(
             TodaysMenuEmptyCopy.eatAfterHoursMessage(

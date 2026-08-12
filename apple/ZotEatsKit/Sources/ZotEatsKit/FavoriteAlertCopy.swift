@@ -8,7 +8,7 @@ public enum FavoriteAlertCopy {
         period: String,
         servingNow: Bool
     ) -> String {
-        let meal = MealPeriodPill.canonical(period).lowercased()
+        let meal = MealPeriodDisplay.label(live: period).lowercased()
         if servingNow {
             return "Being served now at \(hallName) for \(meal)."
         }
