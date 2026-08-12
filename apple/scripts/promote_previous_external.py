@@ -9,6 +9,9 @@ Intended flow after each CI upload of build N (what you're dogfooding):
 External testers therefore track one behind the build you're actively testing,
 while still getting automatic updates on every new upload.
 
+External Beta App Review is best-effort: ASC submission-limit 422s warn and exit
+0 so Internal dogfood uploads still show green on the TestFlight workflow.
+
 Required env:
   APP_STORE_CONNECT_KEY_ID
   APP_STORE_CONNECT_ISSUER_ID
@@ -310,6 +313,25 @@ def add_build_to_group(token: str, group_id: str, build_id: str) -> dict:
     )
 
 
+def _asc_error_code(payload: dict) -> str:
+    errors = payload.get("errors") or []
+    if not errors:
+        return ""
+    first = errors[0]
+    if isinstance(first, dict) and first.get("code"):
+        return str(first["code"])
+    # allow_statuses path stores raw ASC JSON in detail
+    detail = first.get("detail") if isinstance(first, dict) else ""
+    if not isinstance(detail, str) or not detail.strip():
+        return ""
+    try:
+        parsed = json.loads(detail)
+    except json.JSONDecodeError:
+        return ""
+    nested = (parsed.get("errors") or [{}])[0]
+    return str(nested.get("code") or "")
+
+
 def ensure_beta_review(token: str, build_id: str) -> dict:
     q = urllib.parse.urlencode({"filter[build]": build_id, "limit": 1})
     existing = api("GET", f"/v1/betaAppReviewSubmissions?{q}", token).get("data") or []
@@ -329,7 +351,9 @@ def ensure_beta_review(token: str, build_id: str) -> dict:
                 },
             }
         },
-        allow_statuses={404},
+        # 404: ASC flakiness / try older build. 422 submission limit: Internal
+        # dogfood already succeeded — External beta-review is best-effort.
+        allow_statuses={404, 422},
     )
 
 
@@ -358,6 +382,23 @@ def promote_build(token: str, group_id: str, build: dict) -> bool:
     if review.get("http_status") == 404:
         info(f"ASC could not submit build {version} ({build_id}) for beta review; trying older.")
         return False
+    if review.get("http_status") == 422:
+        code = _asc_error_code(review)
+        if code == "ENTITY_UNPROCESSABLE.SUBMISSION_LIMIT_REACHED":
+            # Attach already done; Internal (N) is VALID. Don't fail the TF job —
+            # External review can retry later when ASC allows another submission.
+            print(
+                "::warning::ASC External Beta App Review submission limit reached; "
+                f"build {version} is attached to the external group but not submitted "
+                "for review. Internal dogfood upload is unaffected.",
+                flush=True,
+            )
+            return True
+        detail = ""
+        errors = review.get("errors") or []
+        if errors and isinstance(errors[0], dict):
+            detail = str(errors[0].get("detail") or "")[:800]
+        die(f"ASC POST /v1/betaAppReviewSubmissions failed (422): {detail or code}")
     if review.get("already_exists"):
         pass
     else:
