@@ -538,6 +538,9 @@ struct TodaysMenuEntry: TimelineEntry {
     let deepLinkPeriod: String?
     /// Tomorrow ISO when after-hours glance deep-links into next day's board.
     let deepLinkDate: String?
+    /// Tomorrow open metadata for after-hours empty copy (nil when not after hours).
+    let opensTomorrowAtMinutes: Int?
+    let opensTomorrowPeriod: String?
 
     init(
         date: Date,
@@ -550,7 +553,9 @@ struct TodaysMenuEntry: TimelineEntry {
         reloadBoundaries: [Date] = [],
         filtersEmptiedMenu: Bool = false,
         deepLinkPeriod: String? = nil,
-        deepLinkDate: String? = nil
+        deepLinkDate: String? = nil,
+        opensTomorrowAtMinutes: Int? = nil,
+        opensTomorrowPeriod: String? = nil
     ) {
         self.date = date
         self.hallName = hallName
@@ -563,6 +568,8 @@ struct TodaysMenuEntry: TimelineEntry {
         self.filtersEmptiedMenu = filtersEmptiedMenu
         self.deepLinkPeriod = deepLinkPeriod
         self.deepLinkDate = deepLinkDate
+        self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
+        self.opensTomorrowPeriod = opensTomorrowPeriod
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -680,7 +687,9 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             reloadBoundaries: reloadBoundaries,
             filtersEmptiedMenu: filtersEmptiedMenu,
             deepLinkPeriod: link.period,
-            deepLinkDate: link.date
+            deepLinkDate: link.date,
+            opensTomorrowAtMinutes: choice.isAfterHours ? hall.opensTomorrowAtMinutes : nil,
+            opensTomorrowPeriod: choice.isAfterHours ? hall.opensTomorrowPeriod : nil
         )
     }
 }
@@ -765,9 +774,15 @@ struct TodaysMenuView: View {
                         .lineLimit(1)
                 }
             } else {
-                Text(entry.filtersEmptiedMenu
-                     ? "Nothing matches Eat Filters"
-                     : entry.period.isEmpty ? "See you at breakfast" : "Menu not posted yet")
+                Text(
+                    TodaysMenuEmptyCopy.reason(
+                        periodIsEmpty: entry.period.isEmpty,
+                        filtersEmptiedMenu: entry.filtersEmptiedMenu,
+                        opensTomorrowPeriod: entry.opensTomorrowPeriod,
+                        opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
+                        surface: .glance
+                    )
+                )
                     .font(.system(size: 12))
                     .opacity(0.75)
                     .lineLimit(1)
@@ -781,7 +796,9 @@ struct TodaysMenuView: View {
                 dishes: entry.dishes,
                 filtersEmptiedMenu: entry.filtersEmptiedMenu,
                 dishLimit: dishLimit,
-                surface: .glance
+                surface: .glance,
+                opensTomorrowPeriod: entry.opensTomorrowPeriod,
+                opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes
             )
         )
     }
@@ -842,9 +859,13 @@ struct TodaysMenuView: View {
                     }
                 } else {
                     Text(
-                        entry.period.isEmpty
-                            ? "Dinner's done — breakfast posts overnight."
-                            : "No menu posted right now — check back at the next meal."
+                        TodaysMenuEmptyCopy.reason(
+                            periodIsEmpty: entry.period.isEmpty,
+                            filtersEmptiedMenu: false,
+                            opensTomorrowPeriod: entry.opensTomorrowPeriod,
+                            opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
+                            surface: .home
+                        ) + "."
                     )
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.8))
@@ -885,7 +906,9 @@ struct TodaysMenuView: View {
                 dishes: entry.dishes,
                 filtersEmptiedMenu: entry.filtersEmptiedMenu,
                 dishLimit: dishLimit,
-                surface: .home
+                surface: .home,
+                opensTomorrowPeriod: entry.opensTomorrowPeriod,
+                opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes
             )
         )
     }

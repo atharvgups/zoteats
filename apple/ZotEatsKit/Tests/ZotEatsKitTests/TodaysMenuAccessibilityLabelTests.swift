@@ -65,6 +65,34 @@ struct TodaysMenuAccessibilityLabelTests {
         )
     }
 
+    @Test("After-hours with tomorrow open names meal")
+    func afterHoursTomorrow() {
+        #expect(
+            TodaysMenuAccessibilityLabel.label(
+                hallName: "The Anteatery",
+                period: "",
+                dishes: [],
+                filtersEmptiedMenu: false,
+                dishLimit: 4,
+                surface: .glance,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15
+            ) == "The Anteatery. Breakfast tomorrow · 7:15 AM"
+        )
+        #expect(
+            TodaysMenuAccessibilityLabel.label(
+                hallName: "The Anteatery",
+                period: "",
+                dishes: [],
+                filtersEmptiedMenu: false,
+                dishLimit: 4,
+                surface: .home,
+                opensTomorrowPeriod: "Breakfast",
+                opensTomorrowAtMinutes: 7 * 60 + 15
+            ) == "The Anteatery. Dinner's done — Breakfast tomorrow · 7:15 AM"
+        )
+    }
+
     @Test("Not-posted empty matches glance and home copy")
     func notPosted() {
         #expect(

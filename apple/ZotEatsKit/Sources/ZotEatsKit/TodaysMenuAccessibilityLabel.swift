@@ -6,6 +6,13 @@ public enum TodaysMenuAccessibilityLabel {
     public enum Surface: Equatable, Sendable {
         case glance
         case home
+
+        var emptyCopySurface: TodaysMenuEmptyCopy.Surface {
+            switch self {
+            case .glance: return .glance
+            case .home: return .home
+            }
+        }
     }
 
     public static func label(
@@ -14,7 +21,9 @@ public enum TodaysMenuAccessibilityLabel {
         dishes: [String],
         filtersEmptiedMenu: Bool,
         dishLimit: Int,
-        surface: Surface
+        surface: Surface,
+        opensTomorrowPeriod: String? = nil,
+        opensTomorrowAtMinutes: Int? = nil
     ) -> String {
         let listed = Array(dishes.prefix(max(0, dishLimit)))
         if !listed.isEmpty {
@@ -22,20 +31,13 @@ public enum TodaysMenuAccessibilityLabel {
             return "\(head): \(listed.joined(separator: ", "))"
         }
 
-        let reason: String
-        if filtersEmptiedMenu {
-            reason = surface == .glance
-                ? "Nothing matches Eat Filters"
-                : "Nothing matches your Eat Filters"
-        } else if period.isEmpty {
-            reason = surface == .glance
-                ? "See you at breakfast"
-                : "Dinner's done — breakfast posts overnight"
-        } else {
-            reason = surface == .glance
-                ? "Menu not posted yet"
-                : "No menu posted right now — check back at the next meal"
-        }
+        let reason = TodaysMenuEmptyCopy.reason(
+            periodIsEmpty: period.isEmpty,
+            filtersEmptiedMenu: filtersEmptiedMenu,
+            opensTomorrowPeriod: opensTomorrowPeriod,
+            opensTomorrowAtMinutes: opensTomorrowAtMinutes,
+            surface: surface.emptyCopySurface
+        )
 
         let head = period.isEmpty ? hallName : "\(hallName) \(period)"
         return "\(head). \(reason)"
