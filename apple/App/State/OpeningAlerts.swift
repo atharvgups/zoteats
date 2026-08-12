@@ -109,8 +109,8 @@ enum OpeningAlerts {
                     opensAtMinutes: window.startMinutes,
                     dayOffset: 1,
                     closesAtMinutes: window.endMinutes,
-                    windowStartMinutes: window.startMinutes,
-                    hoursSpan: place.tomorrowHours
+                    hoursSpan: place.tomorrowHours,
+                    windowStartMinutes: window.startMinutes
                 ))
             }
             if let offset = place.opensNextDayOffset {
@@ -121,8 +121,8 @@ enum OpeningAlerts {
                         opensAtMinutes: window.startMinutes,
                         dayOffset: offset,
                         closesAtMinutes: window.endMinutes,
-                        windowStartMinutes: window.startMinutes,
-                        hoursSpan: place.nextOpenHours
+                        hoursSpan: place.nextOpenHours,
+                        windowStartMinutes: window.startMinutes
                     ))
                 }
             }
