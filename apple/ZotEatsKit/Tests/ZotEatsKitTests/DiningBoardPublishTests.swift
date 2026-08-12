@@ -113,4 +113,22 @@ struct DiningBoardPublishTests {
         )
         #expect(DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: 12 * 60))
     }
+
+    @Test func shouldProbeForPublishCoversEmptyAndPartialBoards() {
+        #expect(
+            DiningBoardPublish.shouldProbeForPublish(periods: [], nowMinutes: 10 * 60)
+        )
+        #expect(
+            DiningBoardPublish.shouldProbeForPublish(periods: breakfastOnly, nowMinutes: 11 * 60 + 30)
+        )
+        #expect(
+            !DiningBoardPublish.shouldProbeForPublish(periods: fullDay, nowMinutes: 12 * 60)
+        )
+        #expect(
+            !DiningBoardPublish.shouldProbeForPublish(periods: [], nowMinutes: 20 * 60)
+        )
+        #expect(
+            !DiningBoardPublish.shouldProbeForPublish(periods: fullDay, nowMinutes: 15 * 60)
+        )
+    }
 }

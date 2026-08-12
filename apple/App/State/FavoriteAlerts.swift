@@ -129,18 +129,22 @@ enum FavoriteAlerts {
     /// breakfast / lunch / dinner / evening menu drop, plus live meal opens
     /// and meal wrap-up (T−45) so Favorite Alerts and Live Activity auto-start
     /// can fire without waiting on Eat-tab foreground. While a hall still
-    /// awaits Lunch/Dinner publish, also short-lead the next publish probes
-    /// so Opening Alerts can re-arm before a typical 11:00 / 16:00 open.
+    /// awaits Lunch/Dinner publish (or today's board is empty/unpublished),
+    /// also short-lead the next publish probes so Opening Alerts can re-arm
+    /// before a typical 11:00 / 16:00 open.
     static func scheduleNextRefresh(service: DiningService = DiningService()) async {
         let locations = await service.locations()
         let nowMinutes = UCITime.nowMinutes()
         let wrapUps = MealActivityAutoStart.wrapUpAimMinutes(locations: locations)
         let mealOpens = MealActivityAutoStart.mealOpenAimMinutes(locations: locations)
         let publishProbes: [Int] = {
-            let awaiting = locations.contains {
-                DiningBoardPublish.awaitingLaterMeals(periods: $0.periods, nowMinutes: nowMinutes)
+            let needsProbe = locations.contains {
+                DiningBoardPublish.shouldProbeForPublish(
+                    periods: $0.periods,
+                    nowMinutes: nowMinutes
+                )
             }
-            guard awaiting else { return [] }
+            guard needsProbe else { return [] }
             return DiningBoardPublish.upcomingPublishProbeMinutes(nowMinutes: nowMinutes)
         }()
         let inWindow = MealActivityAutoStart.pick(

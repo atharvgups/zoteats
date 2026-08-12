@@ -3,7 +3,7 @@ import Foundation
 /// WidgetKit reload points for Today's Menu — every hall's meal open/close
 /// (Auto can switch halls at a sibling's edge), Irvine midnight, each hall's
 /// tomorrow open, and Lunch/Dinner publish probes while a board is still
-/// awaiting more meals (so StandBy doesn't sit on the 30m cap until Lunch drops).
+/// incomplete (partial awaiting more meals, or empty/unpublished).
 public enum TodaysMenuReload {
     public static func boundaries(
         locations: [DiningLocation],
@@ -11,13 +11,13 @@ public enum TodaysMenuReload {
         now: Date = Date()
     ) -> [Date] {
         var dates: [Date] = [UCITime.nextIrvineMidnight(now: now)]
-        var awaitingPublish = false
+        var needsPublishProbe = false
         for hall in locations {
-            if DiningBoardPublish.awaitingLaterMeals(
+            if DiningBoardPublish.shouldProbeForPublish(
                 periods: hall.periods,
                 nowMinutes: nowMinutes
             ) {
-                awaitingPublish = true
+                needsPublishProbe = true
             }
             for window in hall.periods {
                 if let start = window.startMinutes {
@@ -42,7 +42,7 @@ public enum TodaysMenuReload {
                 )
             }
         }
-        if awaitingPublish {
+        if needsPublishProbe {
             dates.append(contentsOf: DiningBoardPublish.futurePublishProbeDates(
                 nowMinutes: nowMinutes,
                 now: now

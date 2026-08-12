@@ -107,6 +107,23 @@ struct EatBoundaryRefreshTests {
         )
         #expect(fire == lunchProbe.addingTimeInterval(2))
     }
+
+    @Test func emptyBoardArmsLunchPublishProbe() {
+        // Mon 10:20 AM — empty [[]] hall; 10:30 probe beats 15m cap.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:20:00Z")!
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let fire = EatBoundaryRefresh.nextFire(
+            hallPeriods: [[]],
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let earlyLunch = UCITime.date(
+            forMinutes: 10 * 60 + 30,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        #expect(fire == earlyLunch.addingTimeInterval(2))
+    }
 }
 
 @Suite("MealActivityWrapUpRefresh")

@@ -14,21 +14,22 @@ public enum EatBoundaryRefresh {
     /// Open/close edges for every loaded hall, Irvine midnight, **every**
     /// hall's Live Activity wrap-up (end − 45) — not only the selected pill —
     /// so Anteatery selected still ticks when Brandywine enters T−45 — plus
-    /// Lunch/Dinner publish probes while a board is still awaiting more meals.
+    /// Lunch/Dinner publish probes while a board is still incomplete
+    /// (partial awaiting more meals, or empty/unpublished).
     public static func boundaries(
         hallPeriods: [[MealPeriodWindow]],
         nowMinutes: Int,
         now: Date = Date()
     ) -> [Date] {
         var dates: [Date] = [UCITime.nextIrvineMidnight(now: now)]
-        var awaitingPublish = false
+        var needsPublishProbe = false
 
         for periods in hallPeriods {
-            if DiningBoardPublish.awaitingLaterMeals(
+            if DiningBoardPublish.shouldProbeForPublish(
                 periods: periods,
                 nowMinutes: nowMinutes
             ) {
-                awaitingPublish = true
+                needsPublishProbe = true
             }
             for window in periods {
                 if let start = window.startMinutes {
@@ -52,7 +53,7 @@ public enum EatBoundaryRefresh {
             }
         }
 
-        if awaitingPublish {
+        if needsPublishProbe {
             dates.append(contentsOf: DiningBoardPublish.futurePublishProbeDates(
                 nowMinutes: nowMinutes,
                 now: now

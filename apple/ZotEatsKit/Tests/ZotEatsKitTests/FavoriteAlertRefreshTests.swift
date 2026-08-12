@@ -203,6 +203,29 @@ struct FavoriteAlertRefreshTests {
         #expect(earliest < three.addingTimeInterval(60 * 60))
     }
 
+    @Test func emptyBoardPublishProbesShortLeadLikePartialBoards() {
+        // Monday 10:05 — empty board should expose the same upcoming probes BG uses.
+        let nowMinutes = 10 * 60 + 5
+        #expect(
+            DiningBoardPublish.shouldProbeForPublish(periods: [], nowMinutes: nowMinutes)
+        )
+        let probes = DiningBoardPublish.upcomingPublishProbeMinutes(nowMinutes: nowMinutes)
+        #expect(probes.contains(10 * 60 + 30))
+        #expect(probes.contains(10 * 60 + 50))
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:05:00Z")!
+        let earliest = FavoriteAlertRefresh.earliestBeginDate(
+            now: now,
+            extraAimMinutes: probes
+        )
+        let expected = UCITime.date(
+            forMinutes: 10 * 60 + 30,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(earliest == max(expected, now.addingTimeInterval(60)))
+        #expect(earliest < now.addingTimeInterval(60 * 60))
+    }
+
     @Test func earlyDinnerOpenAimSkipsOneHourFloor() {
         // Monday 3:30 PM — Brandywine Dinner at 4:00 must not push to 4:30.
         let halfPastThree = ISO8601DateFormatter().date(from: "2026-07-13T22:30:00Z")!

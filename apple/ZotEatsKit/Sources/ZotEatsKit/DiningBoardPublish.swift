@@ -51,6 +51,21 @@ public enum DiningBoardPublish {
         return !hasDinner
     }
 
+    /// True when widgets / Eat / BG should wake on Lunch/Dinner publish probes —
+    /// partial boards awaiting later meals, **or** empty/unpublished boards
+    /// still before evening confidence (first meals may still drop).
+    public static func shouldProbeForPublish(
+        periods: [MealPeriodWindow],
+        nowMinutes: Int
+    ) -> Bool {
+        if awaitingLaterMeals(periods: periods, nowMinutes: nowMinutes) {
+            return true
+        }
+        guard nowMinutes < eveningConfidenceMinutes else { return false }
+        let timed = periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+        return timed.isEmpty
+    }
+
     /// Future publish-probe minutes still ahead of `nowMinutes`.
     public static func upcomingPublishProbeMinutes(nowMinutes: Int) -> [Int] {
         guard nowMinutes < eveningConfidenceMinutes else { return [] }

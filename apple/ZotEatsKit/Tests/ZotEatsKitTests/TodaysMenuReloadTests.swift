@@ -245,4 +245,55 @@ struct TodaysMenuReloadTests {
         )
         #expect(!boundaries.contains(lunchProbe))
     }
+
+    @Test func emptyBoardArmsLunchPublishProbesBeforeConfidence() {
+        // Mon 10:05 AM — unpublished day; 10:30 probe beats 30m StandBy cap.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T17:05:00Z")!
+        let nowMinutes = UCITime.nowMinutes(now: now)
+        let locations = [
+            hall(id: "anteatery", name: "The Anteatery", periods: []),
+        ]
+        let earlyLunch = UCITime.date(
+            forMinutes: 10 * 60 + 30,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let lastChance = UCITime.date(
+            forMinutes: 10 * 60 + 50,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        let boundaries = TodaysMenuReload.boundaries(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now
+        )
+        #expect(boundaries.contains(earlyLunch))
+        #expect(boundaries.contains(lastChance))
+        let reload = TodaysMenuReload.nextReload(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: now,
+            maxInterval: 30 * 60
+        )
+        #expect(reload == earlyLunch.addingTimeInterval(2))
+    }
+
+    @Test func emptyBoardStopsPublishProbesAtEveningConfidence() {
+        let nowMinutes = UCITime.nowMinutes(now: evening)
+        let locations = [
+            hall(id: "anteatery", name: "The Anteatery", periods: []),
+        ]
+        let dinnerProbe = UCITime.date(
+            forMinutes: 16 * 60 + 15,
+            nowMinutes: nowMinutes,
+            now: evening
+        )
+        let boundaries = TodaysMenuReload.boundaries(
+            locations: locations,
+            nowMinutes: nowMinutes,
+            now: evening
+        )
+        #expect(!boundaries.contains(dinnerProbe))
+    }
 }
