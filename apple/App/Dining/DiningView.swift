@@ -140,6 +140,7 @@ struct DiningView: View {
             .onChange(of: scenePhase) { _, phase in
                 // Overnight warm launch: drop stale Dinner once Irvine is past last meal.
                 if phase == .active {
+                    syncDateSelection()
                     syncPeriodSelection()
                     considerAutoMealActivity()
                     boundaryEpoch += 1
@@ -672,6 +673,12 @@ struct DiningView: View {
     }
 
     private func applyBoundaryTick() async {
+        // Midnight (and meal edges): purge stale |"today"| menus, clear yesterday's
+        // plate, and refetch hall windows so chrome doesn't keep "opens tomorrow".
+        plate.ensureCurrentDay()
+        store.ensureCurrentDay()
+        await store.loadLocations()
+        syncDateSelection()
         syncPeriodSelection()
         if selectedDate == nil {
             await loadCurrentMenu()
@@ -836,8 +843,13 @@ struct DiningView: View {
         )
     }
 
-    /// Snap off days the feed hasn't published yet (never leave the user on a 404 day).
+    /// Snap off days the feed hasn't published yet, and collapse an explicit ISO
+    /// that is now Irvine today back to the live board (overnight DayStrip).
     private func syncDateSelection() {
+        selectedDate = EatDateSelection.snapLiveToday(
+            selectedDateISO: selectedDate,
+            todayISO: UCITime.todayISO()
+        )
         let days = upcomingDays
         guard let selectedDate else { return }
         if days.contains(where: { $0.isoDate == selectedDate }) { return }

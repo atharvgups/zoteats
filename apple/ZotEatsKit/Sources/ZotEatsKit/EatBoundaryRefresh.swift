@@ -3,6 +3,10 @@ import Foundation
 /// In-app Eat meal-boundary refresh — same honesty widgets get from
 /// `TodaysMenuReload` / `WidgetRefreshMath`, so hall chrome, sticky pills,
 /// and Live Activity auto-start update while the Eat tab stays open.
+///
+/// Callers must purge live `"today"` menus at Irvine midnight
+/// (`DiningStore.ensureCurrentDay`), reload locations, and snap the day strip
+/// (`EatDateSelection.snapLiveToday`) — the fire date alone does not refresh data.
 public enum EatBoundaryRefresh {
     /// Cap between ticks when no meal boundary is near (matches Dining Status).
     public static let maxInterval: TimeInterval = 15 * 60
