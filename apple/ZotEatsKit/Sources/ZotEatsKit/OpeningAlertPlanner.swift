@@ -229,4 +229,29 @@ public enum OpeningAlertPlanner {
     public static func earliestMeal(periods: [MealPeriodWindow]) -> MealOpening? {
         allTimedMeals(periods: periods).first
     }
+
+    /// Fri→Mon (and other beyond-tomorrow) Opening Alert Candidates from a
+    /// fetched next-open board only — never invent a single chrome open when
+    /// `mealPeriods` is empty (mirror tomorrow's allTimedMeals-only arming).
+    public static func nextOpenDiningCandidates(
+        placeID: String,
+        name: String,
+        opensTomorrowAtMinutes: Int?,
+        opensNextDayOffset: Int?,
+        nextOpenPeriods: [MealPeriodWindow]
+    ) -> [Candidate] {
+        guard opensTomorrowAtMinutes == nil,
+              let offset = opensNextDayOffset
+        else { return [] }
+        return allTimedMeals(periods: nextOpenPeriods).map { meal in
+            Candidate(
+                id: placeID,
+                name: name,
+                opensAtMinutes: meal.startMinutes,
+                dayOffset: offset,
+                mealPeriod: meal.periodName,
+                closesAtMinutes: meal.endMinutes
+            )
+        }
+    }
 }

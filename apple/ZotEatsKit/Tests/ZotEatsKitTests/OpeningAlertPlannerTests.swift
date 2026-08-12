@@ -406,4 +406,46 @@ struct DiningNextOpeningTests {
         #expect(OpeningAlertPlanner.nextOpening(periods: untimed, nowMinutes: 9 * 60) == nil)
         #expect(OpeningAlertPlanner.followingOpening(periods: untimed, nowMinutes: 9 * 60) == nil)
     }
+
+    @Test func nextOpenCandidatesRequireFetchedPeriods() {
+        #expect(
+            OpeningAlertPlanner.nextOpenDiningCandidates(
+                placeID: "dining:anteatery",
+                name: "The Anteatery",
+                opensTomorrowAtMinutes: nil,
+                opensNextDayOffset: 3,
+                nextOpenPeriods: []
+            ).isEmpty
+        )
+        #expect(
+            OpeningAlertPlanner.nextOpenDiningCandidates(
+                placeID: "dining:anteatery",
+                name: "The Anteatery",
+                opensTomorrowAtMinutes: nil,
+                opensNextDayOffset: nil,
+                nextOpenPeriods: periods
+            ).isEmpty
+        )
+        #expect(
+            OpeningAlertPlanner.nextOpenDiningCandidates(
+                placeID: "dining:anteatery",
+                name: "The Anteatery",
+                opensTomorrowAtMinutes: 7 * 60 + 15,
+                opensNextDayOffset: 3,
+                nextOpenPeriods: periods
+            ).isEmpty
+        )
+
+        let chain = OpeningAlertPlanner.nextOpenDiningCandidates(
+            placeID: "dining:anteatery",
+            name: "The Anteatery",
+            opensTomorrowAtMinutes: nil,
+            opensNextDayOffset: 3,
+            nextOpenPeriods: periods
+        )
+        #expect(chain.map(\.mealPeriod) == ["Breakfast", "Lunch", "Dinner"])
+        #expect(chain.map(\.dayOffset) == [3, 3, 3])
+        #expect(chain.map(\.closesAtMinutes) == [11 * 60, 14 * 60 + 30, 21 * 60])
+        #expect(chain.first?.opensAtMinutes == 7 * 60 + 15)
+    }
 }

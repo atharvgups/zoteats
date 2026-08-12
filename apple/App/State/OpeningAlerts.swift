@@ -87,40 +87,21 @@ enum OpeningAlerts {
             }
             // Tomorrow empty — arm the next published day's full meal chain
             // (Fri→Mon gaps), matching tomorrow's Breakfast+Lunch+Dinner pre-arm.
-            if hall.opensTomorrowAtMinutes == nil,
-               let offset = hall.opensNextDayOffset {
+            // Empty boards / missing ISO: skip — do not invent from chrome alone.
+            if hall.opensTomorrowAtMinutes == nil {
+                let nextPeriods: [MealPeriodWindow]
                 if let nextISO = hall.opensNextDateISO {
-                    let periods = await dining.mealPeriods(for: hall.id, dateISO: nextISO)
-                    let meals = OpeningAlertPlanner.allTimedMeals(periods: periods)
-                    if !meals.isEmpty {
-                        for meal in meals {
-                            candidates.append(.init(
-                                id: id,
-                                name: hall.name,
-                                opensAtMinutes: meal.startMinutes,
-                                dayOffset: offset,
-                                mealPeriod: meal.periodName,
-                                closesAtMinutes: meal.endMinutes
-                            ))
-                        }
-                    } else if let minutes = hall.opensNextAtMinutes {
-                        candidates.append(.init(
-                            id: id,
-                            name: hall.name,
-                            opensAtMinutes: minutes,
-                            dayOffset: offset,
-                            mealPeriod: hall.opensNextPeriod
-                        ))
-                    }
-                } else if let minutes = hall.opensNextAtMinutes {
-                    candidates.append(.init(
-                        id: id,
-                        name: hall.name,
-                        opensAtMinutes: minutes,
-                        dayOffset: offset,
-                        mealPeriod: hall.opensNextPeriod
-                    ))
+                    nextPeriods = await dining.mealPeriods(for: hall.id, dateISO: nextISO)
+                } else {
+                    nextPeriods = []
                 }
+                candidates.append(contentsOf: OpeningAlertPlanner.nextOpenDiningCandidates(
+                    placeID: id,
+                    name: hall.name,
+                    opensTomorrowAtMinutes: hall.opensTomorrowAtMinutes,
+                    opensNextDayOffset: hall.opensNextDayOffset,
+                    nextOpenPeriods: nextPeriods
+                ))
             }
         }
 
