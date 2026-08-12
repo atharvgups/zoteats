@@ -1,8 +1,8 @@
 import Foundation
 
 /// Eat tab meal-pill selection — same after-hours truth as Today's Menu.
-/// Never auto-picks last night's Dinner; overnight warm launches clear a
-/// serving selection whose window has already ended.
+/// Sticky picks stay only while live or still upcoming; ended meals advance
+/// to the next window (or clear after hours) so Eat matches Today's Menu.
 public enum EatPeriodSelection {
     /// Resolve the period pill to show for a hall.
     /// - Parameters:
@@ -35,7 +35,14 @@ public enum EatPeriodSelection {
             return nil
         }
 
-        if let current, pills.contains(current) {
+        if let current,
+           pills.contains(current),
+           MealPillLiveness.isLiveOrUpcoming(
+            pill: current,
+            timedPeriods: timedPeriods,
+            pills: pills,
+            nowMinutes: nowMinutes
+           ) {
             return current
         }
 
