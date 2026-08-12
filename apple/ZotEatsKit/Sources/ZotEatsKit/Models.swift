@@ -163,17 +163,18 @@ public enum HallOpenState: Sendable, Equatable {
     case awaitingMoreMeals
     /// All of today's windows have passed (board looks complete, or evening).
     case closedForToday
-    /// No period data available.
+    /// Empty / unpublished board before Lunch-probe confidence ("Menu not posted yet").
     case unknown
 }
 
 public extension DiningLocation {
     func openState(nowMinutes: Int) -> HallOpenState {
         guard !periods.isEmpty else {
-            // Unpublished / empty board: early morning stays unknown ("No menu yet").
-            // After empty-board confidence (Lunch probe), treat as closed-for-today
-            // so Status / Eat / widgets can surface tomorrow / Monday next-open —
-            // including weekend daytime, not only after 8 PM.
+            // Unpublished / empty board: early morning stays unknown
+            // ("Menu not posted yet"). After empty-board confidence (Lunch probe),
+            // treat as closed-for-today so Status / Eat / widgets can surface
+            // tomorrow / Monday next-open — including weekend daytime, not only
+            // after 8 PM.
             if DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: nowMinutes) {
                 return .closedForToday
             }

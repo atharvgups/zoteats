@@ -32,9 +32,10 @@ public enum DiningLocationHoursLine {
             }
             return "Closed for today"
         case .unknown:
-            // Ignore todayHours — echoing it beside unknown state reintroduces lies.
+            // Empty board before Lunch-probe confidence — Eat / Today's Menu parity.
+            // Ignore todayHours — echoing it beside unknown reintroduces lies.
             _ = todayHours
-            return "Hours unavailable"
+            return "Menu not posted yet"
         }
     }
 }

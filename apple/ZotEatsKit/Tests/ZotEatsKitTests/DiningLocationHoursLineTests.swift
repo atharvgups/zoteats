@@ -63,7 +63,7 @@ struct DiningLocationHoursLineTests {
         )
     }
 
-    @Test("Unknown falls back to Hours unavailable")
+    @Test("Unknown empty board says Menu not posted yet")
     func unknown() {
         #expect(
             DiningLocationHoursLine.resolve(
@@ -71,7 +71,7 @@ struct DiningLocationHoursLineTests {
                 todayHours: "Hours vary",
                 opensTomorrowAtMinutes: nil,
                 opensTomorrowPeriod: nil
-            ) == "Hours unavailable"
+            ) == "Menu not posted yet"
         )
         #expect(
             DiningLocationHoursLine.resolve(
@@ -79,7 +79,7 @@ struct DiningLocationHoursLineTests {
                 todayHours: nil,
                 opensTomorrowAtMinutes: nil,
                 opensTomorrowPeriod: nil
-            ) == "Hours unavailable"
+            ) == "Menu not posted yet"
         )
     }
 

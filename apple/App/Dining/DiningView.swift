@@ -1167,7 +1167,8 @@ private struct HallCard: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.75)
                     } else {
-                        // Mid-day unpublished (`.unknown`) — never echo stale todayHours.
+                        // Empty board before Lunch probe (`.unknown`) — hoursLine
+                        // says "Menu not posted yet"; never echo stale todayHours.
                         Text(location.hoursLine())
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)

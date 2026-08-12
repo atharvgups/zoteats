@@ -270,7 +270,9 @@ struct HallOpenStateTests {
 
     @Test func noPeriodsMeansUnknown() {
         // Before empty-board confidence (10:30) — still "Menu not posted yet".
-        #expect(hall(periods: []).openState(nowMinutes: 9 * 60) == .unknown)
+        let empty = hall(periods: [])
+        #expect(empty.openState(nowMinutes: 9 * 60) == .unknown)
+        #expect(empty.hoursLine(nowMinutes: 9 * 60) == "Menu not posted yet")
     }
 
     @Test func emptyBoardAfterLunchProbeIsClosedForToday() {

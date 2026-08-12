@@ -79,16 +79,16 @@ struct DiningStatusHallChromeTests {
         #expect(resolved.countdownKind == nil)
     }
 
-    @Test func unknownNeverEchoesTodayHours() {
+    @Test func unknownSaysMenuNotPostedYetNeverEchoesTodayHours() {
         let resolved = DiningStatusHallChrome.resolve(
             state: .unknown,
             todayHours: "7:15 AM – 8:00 PM",
             opensTomorrowAtMinutes: 7 * 60 + 15,
             opensTomorrowPeriod: "Breakfast",
-            nowMinutes: 12 * 60,
+            nowMinutes: 9 * 60,
             now: now
         )
-        #expect(resolved.statusText == "Hours unavailable")
+        #expect(resolved.statusText == "Menu not posted yet")
         #expect(resolved.countdownEnd == nil)
         #expect(resolved.countdownKind == nil)
     }
