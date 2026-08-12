@@ -76,21 +76,38 @@ public enum TodaysMenuPeriodPick {
             periods: timedPeriods,
             nowMinutes: nowMinutes
         )
+        // Partial board (Breakfast ended, Lunch/Dinner not posted) — keep the
+        // latest ended meal browsable so Eat / widgets / Status deep links show
+        // food that already posted, while chrome still says more meals later.
+        if awaiting,
+           let lastEnded = timed
+            .filter({ ($0.endMinutes ?? Int.min) <= nowMinutes })
+            .max(by: { $0.endMinutes! < $1.endMinutes! })
+        {
+            return Choice(
+                period: MealPeriodPill.match(lastEnded.name, in: pills) ?? lastEnded.name,
+                livePeriodName: lastEnded.name,
+                endsAtMinutes: nil,
+                upcomingStartMinutes: nil,
+                isAfterHours: false,
+                isAwaitingMoreMeals: true
+            )
+        }
+
         // Empty timed board early morning stays not-after-hours (Menu not posted yet).
         // After empty-board confidence — including weekend daytime — treat as
         // after-hours so widgets can show tomorrow / Monday next-open copy.
         let emptyBoard = timed.isEmpty
-        let afterHours = !awaiting && (
+        let afterHours =
             !emptyBoard
-                || DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: nowMinutes)
-        )
+            || DiningBoardPublish.emptyBoardIsAfterHours(nowMinutes: nowMinutes)
         return Choice(
             period: "",
             livePeriodName: "",
             endsAtMinutes: nil,
             upcomingStartMinutes: nil,
             isAfterHours: afterHours,
-            isAwaitingMoreMeals: awaiting,
+            isAwaitingMoreMeals: false,
             isEmptyBoard: emptyBoard
         )
     }

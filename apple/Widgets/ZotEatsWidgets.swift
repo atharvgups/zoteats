@@ -306,7 +306,9 @@ struct DiningStatusProvider: TimelineProvider {
                 opensNextAtMinutes: location.opensNextAtMinutes,
                 opensNextDayOffset: location.opensNextDayOffset,
                 opensNextPeriod: location.opensNextPeriod,
-                opensNextDateISO: location.opensNextDateISO
+                opensNextDateISO: location.opensNextDateISO,
+                timedPeriods: location.periods,
+                nowMinutes: nowMinutes
             )
             let estimate = TypicalBusyness.dining(periods: location.periods)
             let serving = location.isServing(nowMinutes: nowMinutes)

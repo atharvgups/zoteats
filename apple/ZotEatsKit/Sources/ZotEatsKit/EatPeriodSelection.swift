@@ -3,6 +3,7 @@ import Foundation
 /// Eat tab meal-pill selection — same after-hours truth as Today's Menu.
 /// Sticky picks stay only while live or still upcoming; ended meals advance
 /// to the next window (or clear after hours) so Eat matches Today's Menu.
+/// Partial boards awaiting later meals keep the last posted pill browsable.
 public enum EatPeriodSelection {
     /// Resolve the period pill to show for a hall.
     /// - Parameters:

@@ -154,4 +154,38 @@ struct EatPeriodSelectionTests {
         )
         #expect(snapped == "Dinner")
     }
+
+    @Test func partialBoardAwaitingKeepsLastPostedBreakfast() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        #expect(
+            EatPeriodSelection.snap(
+                current: nil,
+                availablePeriods: ["Breakfast"],
+                timedPeriods: partial,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Breakfast"
+        )
+        // Ended sticky still resolves to last posted while awaiting Lunch/Dinner.
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Breakfast",
+                availablePeriods: ["Breakfast"],
+                timedPeriods: partial,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Breakfast"
+        )
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Breakfast",
+                availablePeriods: ["Breakfast"],
+                timedPeriods: partial,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Breakfast"
+        )
+    }
 }

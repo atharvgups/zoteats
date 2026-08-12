@@ -24,7 +24,9 @@ public enum DiningStatusDeepLink {
         opensNextAtMinutes: Int? = nil,
         opensNextDayOffset: Int? = nil,
         opensNextPeriod: String? = nil,
-        opensNextDateISO: String? = nil
+        opensNextDateISO: String? = nil,
+        timedPeriods: [MealPeriodWindow] = [],
+        nowMinutes: Int? = nil
     ) -> Destination {
         switch state {
         case .open(let period, _), .openingLater(let period, _):
@@ -32,8 +34,16 @@ public enum DiningStatusDeepLink {
                 period: MealPeriodPill.match(period, in: DiningService.primaryPeriods(from: availablePeriods))
             )
         case .awaitingMoreMeals:
-            // Stay on today's board — Lunch/Dinner may still publish.
-            return Destination(period: nil)
+            // Stay on today's board — deep-link the last posted meal so Eat /
+            // widgets don't wipe to empty while Lunch/Dinner may still publish.
+            let minutes = nowMinutes ?? UCITime.nowMinutes(now: now)
+            let choice = TodaysMenuPeriodPick.choose(
+                timedPeriods: timedPeriods,
+                availablePeriods: availablePeriods,
+                nowMinutes: minutes
+            )
+            let period = choice.period.isEmpty ? nil : choice.period
+            return Destination(period: period)
         case .closedForToday:
             if opensTomorrowAtMinutes != nil {
                 // Tomorrow's meal is independent of today's pills (weekend Brunch
@@ -70,7 +80,9 @@ public enum DiningStatusDeepLink {
         opensNextAtMinutes: Int? = nil,
         opensNextDayOffset: Int? = nil,
         opensNextPeriod: String? = nil,
-        opensNextDateISO: String? = nil
+        opensNextDateISO: String? = nil,
+        timedPeriods: [MealPeriodWindow] = [],
+        nowMinutes: Int? = nil
     ) -> String? {
         destination(
             for: state,
@@ -81,7 +93,9 @@ public enum DiningStatusDeepLink {
             opensNextAtMinutes: opensNextAtMinutes,
             opensNextDayOffset: opensNextDayOffset,
             opensNextPeriod: opensNextPeriod,
-            opensNextDateISO: opensNextDateISO
+            opensNextDateISO: opensNextDateISO,
+            timedPeriods: timedPeriods,
+            nowMinutes: nowMinutes
         ).period
     }
 }

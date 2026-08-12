@@ -237,8 +237,10 @@ struct HallOpenStateTests {
                 for: .awaitingMoreMeals,
                 availablePeriods: location.availablePeriods,
                 opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
-                opensTomorrowPeriod: location.opensTomorrowPeriod
-            ) == .init(period: nil)
+                opensTomorrowPeriod: location.opensTomorrowPeriod,
+                timedPeriods: location.periods,
+                nowMinutes: 700
+            ) == .init(period: "Breakfast")
         )
     }
 

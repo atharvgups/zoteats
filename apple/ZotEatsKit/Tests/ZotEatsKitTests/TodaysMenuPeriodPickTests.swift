@@ -56,9 +56,25 @@ struct TodaysMenuPeriodPickTests {
             availablePeriods: ["Breakfast"],
             nowMinutes: 700
         )
-        #expect(choice.period.isEmpty)
+        #expect(choice.period == "Breakfast")
+        #expect(choice.livePeriodName == "Breakfast")
         #expect(!choice.isAfterHours)
         #expect(choice.isAwaitingMoreMeals)
+    }
+
+    @Test func breakfastLunchPartialKeepsLunchWhileAwaitingDinner() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        ]
+        let choice = TodaysMenuPeriodPick.choose(
+            timedPeriods: partial,
+            availablePeriods: ["Breakfast", "Lunch"],
+            nowMinutes: 15 * 60
+        )
+        #expect(choice.period == "Lunch")
+        #expect(choice.isAwaitingMoreMeals)
+        #expect(!choice.isAfterHours)
     }
 
     @Test func emptyTimedBoardBeforeLunchProbeIsNotAfterHours() {
