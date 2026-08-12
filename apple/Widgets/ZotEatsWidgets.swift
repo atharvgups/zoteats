@@ -54,6 +54,14 @@ struct MealCountdownActivity: Widget {
             .activityBackgroundTint(activityBlue)
             .activitySystemActionForegroundColor(.white)
             .foregroundStyle(.white)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                MealCountdownAccessibilityLabel.label(
+                    hallName: context.attributes.hallName,
+                    period: context.attributes.period,
+                    endsAt: context.state.endsAt
+                )
+            )
             .widgetURL(
                 AnteatsDeepLink.eat(
                     hall: context.attributes.hallID,
@@ -61,6 +69,11 @@ struct MealCountdownActivity: Widget {
                 ).url
             )
         } dynamicIsland: { context in
+            let voiceOver = MealCountdownAccessibilityLabel.label(
+                hallName: context.attributes.hallName,
+                period: context.attributes.period,
+                endsAt: context.state.endsAt
+            )
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
@@ -70,6 +83,8 @@ struct MealCountdownActivity: Widget {
                             .font(.system(size: 14, weight: .semibold))
                             .lineLimit(1)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(voiceOver)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
@@ -78,23 +93,28 @@ struct MealCountdownActivity: Widget {
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 84)
                         .foregroundStyle(activityGold)
+                        .accessibilityHidden(true)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     Text("\(context.attributes.period) is wrapping up — grab a bite while you can")
                         .font(.system(size: 12))
                         .opacity(0.8)
+                        .accessibilityHidden(true)
                 }
             } compactLeading: {
                 Image(systemName: "fork.knife")
                     .foregroundStyle(activityGold)
+                    .accessibilityLabel(voiceOver)
             } compactTrailing: {
                 Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
                     .monospacedDigit()
                     .frame(maxWidth: 52)
                     .foregroundStyle(activityGold)
+                    .accessibilityHidden(true)
             } minimal: {
                 Image(systemName: "fork.knife")
                     .foregroundStyle(activityGold)
+                    .accessibilityLabel(voiceOver)
             }
             .widgetURL(
                 AnteatsDeepLink.eat(
