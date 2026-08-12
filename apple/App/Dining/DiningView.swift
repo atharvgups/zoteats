@@ -24,6 +24,8 @@ struct DiningView: View {
     @State private var didApplyScreenshotArgs = false
     /// Dish name from a notification tap — opened once the menu finishes loading.
     @State private var pendingDishName: String?
+    /// Bumps after each meal-boundary tick so hall chrome / pills re-render.
+    @State private var boundaryEpoch = 0
     @Environment(\.scenePhase) private var scenePhase
 
     /// All published days the feed currently exposes (often a week+ ahead).
@@ -59,7 +61,17 @@ struct DiningView: View {
         "\(selectedHall)|\(selectedDate ?? "today")"
     }
 
+    private var browsePeriodsTaskID: String {
+        "\(selectedHall)|\(selectedDate ?? "today")"
+    }
+
+    private var boundaryWatchID: String {
+        "\(boundaryEpoch)|\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")|\(store.dayEpoch)|\(store.locations.value?.map(\.id).joined() ?? "")"
+    }
+
     var body: some View {
+        // Hall cards / Track meal read wall-clock minutes; re-render after ticks.
+        let _ = boundaryEpoch
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -101,6 +113,9 @@ struct DiningView: View {
                 syncPeriodSelection()
                 applyPendingDeepLinkIfNeeded()
             }
+            .task(id: boundaryWatchID) {
+                await watchMealBoundaries()
+            }
             .onChange(of: store.locations.value) {
                 syncPeriodSelection()
                 considerAutoMealActivity()
@@ -131,6 +146,7 @@ struct DiningView: View {
                 if phase == .active {
                     syncPeriodSelection()
                     considerAutoMealActivity()
+                    boundaryEpoch += 1
                 }
             }
             .sheet(item: $selectedDish) { dish in
@@ -636,6 +652,36 @@ struct DiningView: View {
         syncPeriodSelection()
         await loadCurrentMenu()
         considerAutoMealActivity()
+        boundaryEpoch += 1
+    }
+
+    /// Sleep until the next meal open/close / auto-start / midnight, then
+    /// refresh pills, menu, Live Activity, and hall chrome without leaving Eat.
+    private func watchMealBoundaries() async {
+        guard let locations = store.locations.value, !locations.isEmpty else { return }
+        let selected = locations.first { $0.id == selectedHall }
+        let fire = EatBoundaryRefresh.nextFire(
+            hallPeriods: locations.map(\.periods),
+            selectedTimedPeriods: selected?.periods ?? [],
+            selectedAvailablePeriods: selected?.availablePeriods ?? [],
+            selectedPill: selectedDate == nil ? selectedPeriod : nil,
+            nowMinutes: UCITime.nowMinutes()
+        )
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await applyBoundaryTick()
+    }
+
+    private func applyBoundaryTick() async {
+        syncPeriodSelection()
+        if selectedDate == nil {
+            await loadCurrentMenu()
+            considerAutoMealActivity()
+        }
+        boundaryEpoch += 1
     }
 
     /// When a meal is in its last ~45 minutes, start the Dynamic Island countdown
