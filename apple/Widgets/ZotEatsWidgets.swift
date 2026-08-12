@@ -600,8 +600,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         if let id = configuration.hall.hallID {
             hall = locations.first { $0.id == id } ?? locations.first
         } else {
-            hall = locations.first(where: { $0.isServing(nowMinutes: nowMinutes) })
-                ?? locations.first
+            hall = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes)
         }
         guard let hall else {
             return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], favorited: [], periodEndsAt: nil)

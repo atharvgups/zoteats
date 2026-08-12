@@ -15,7 +15,7 @@ public enum TodaysMenuHallChoices {
     }
 
     public static let autoID = "auto"
-    public static let autoTitle = "Auto (open now)"
+    public static let autoTitle = "Auto"
 
     /// `auto` first, then each location. Empty/offline → `auto` + `HallDirectory.fallbackIDs`.
     public static func options(from locations: [DiningLocation]) -> [Option] {
