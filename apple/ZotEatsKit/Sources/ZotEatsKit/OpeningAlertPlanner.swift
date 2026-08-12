@@ -5,13 +5,15 @@ import Foundation
 /// watchlist; it returns concrete fire times for local notifications.
 /// Kept in the Kit so the scheduling brain is unit-testable on Linux.
 public enum OpeningAlertPlanner {
-    /// Next meal window still ahead (start + live API period name).
+    /// Next meal window still ahead (start + live API period name + close).
     public struct MealOpening: Sendable, Equatable {
         public let startMinutes: Int
+        public let endMinutes: Int?
         public let periodName: String
 
-        public init(startMinutes: Int, periodName: String) {
+        public init(startMinutes: Int, endMinutes: Int? = nil, periodName: String) {
             self.startMinutes = startMinutes
+            self.endMinutes = endMinutes
             self.periodName = periodName
         }
     }
@@ -26,19 +28,23 @@ public enum OpeningAlertPlanner {
         public let dayOffset: Int
         /// Live dining meal name when known (Brunch, Dinner, …); campus omits.
         public let mealPeriod: String?
+        /// Dining meal close (minutes since midnight); campus omits.
+        public let closesAtMinutes: Int?
 
         public init(
             id: String,
             name: String,
             opensAtMinutes: Int?,
             dayOffset: Int = 0,
-            mealPeriod: String? = nil
+            mealPeriod: String? = nil,
+            closesAtMinutes: Int? = nil
         ) {
             self.id = id
             self.name = name
             self.opensAtMinutes = opensAtMinutes
             self.dayOffset = max(0, dayOffset)
             self.mealPeriod = mealPeriod
+            self.closesAtMinutes = closesAtMinutes
         }
     }
 
@@ -49,10 +55,12 @@ public enum OpeningAlertPlanner {
         public let placeID: String
         public let placeName: String
         public let fireDate: Date
-        /// Primary meal pill for Eat deep links (nil for campus).
+        /// Live meal name for titles (nil for campus); deep links canonicalize.
         public let mealPeriod: String?
         /// Tomorrow ISO when the alert fires on a future day; omit for today.
         public let deepLinkDate: String?
+        /// Dining meal close for "Open until …" body copy.
+        public let closesAtMinutes: Int?
 
         public init(
             identifier: String,
@@ -60,7 +68,8 @@ public enum OpeningAlertPlanner {
             placeName: String,
             fireDate: Date,
             mealPeriod: String? = nil,
-            deepLinkDate: String? = nil
+            deepLinkDate: String? = nil,
+            closesAtMinutes: Int? = nil
         ) {
             self.identifier = identifier
             self.placeID = placeID
@@ -68,6 +77,7 @@ public enum OpeningAlertPlanner {
             self.fireDate = fireDate
             self.mealPeriod = mealPeriod
             self.deepLinkDate = deepLinkDate
+            self.closesAtMinutes = closesAtMinutes
         }
     }
 
@@ -106,7 +116,8 @@ public enum OpeningAlertPlanner {
                 placeName: candidate.name,
                 fireDate: fireDate,
                 mealPeriod: candidate.mealPeriod,
-                deepLinkDate: candidate.dayOffset >= 1 ? dateISO : nil
+                deepLinkDate: candidate.dayOffset >= 1 ? dateISO : nil,
+                closesAtMinutes: candidate.closesAtMinutes
             )
         }
         .sorted { $0.fireDate < $1.fireDate }
@@ -128,7 +139,7 @@ public enum OpeningAlertPlanner {
         followingMeal(periods: periods, nowMinutes: nowMinutes)?.startMinutes
     }
 
-    /// Same as `followingOpening`, plus the live meal name for Eat deep links.
+    /// Same as `followingOpening`, plus the live meal name and close for copy.
     public static func followingMeal(
         periods: [MealPeriodWindow],
         nowMinutes: Int
@@ -136,7 +147,11 @@ public enum OpeningAlertPlanner {
         periods
             .compactMap { period -> MealOpening? in
                 guard let start = period.startMinutes, start > nowMinutes else { return nil }
-                return MealOpening(startMinutes: start, periodName: period.name)
+                return MealOpening(
+                    startMinutes: start,
+                    endMinutes: period.endMinutes,
+                    periodName: period.name
+                )
             }
             .min { $0.startMinutes < $1.startMinutes }
     }
@@ -146,12 +161,16 @@ public enum OpeningAlertPlanner {
         earliestMeal(periods: periods)?.startMinutes
     }
 
-    /// Same as `earliestOpening`, plus the live meal name for Eat deep links.
+    /// Same as `earliestOpening`, plus the live meal name and close for copy.
     public static func earliestMeal(periods: [MealPeriodWindow]) -> MealOpening? {
         periods
             .compactMap { period -> MealOpening? in
                 guard let start = period.startMinutes else { return nil }
-                return MealOpening(startMinutes: start, periodName: period.name)
+                return MealOpening(
+                    startMinutes: start,
+                    endMinutes: period.endMinutes,
+                    periodName: period.name
+                )
             }
             .min { $0.startMinutes < $1.startMinutes }
     }

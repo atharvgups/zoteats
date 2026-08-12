@@ -48,7 +48,8 @@ enum OpeningAlerts {
         guard !watched.isEmpty else { return }
 
         var candidates: [OpeningAlertPlanner.Candidate] = []
-        var hoursByID: [String: String] = [:]
+        /// Campus continuous hours only — dining bodies use meal close times.
+        var campusHoursByID: [String: String] = [:]
 
         let dining = DiningService()
         let nowMinutes = UCITime.nowMinutes()
@@ -66,9 +67,9 @@ enum OpeningAlerts {
                     name: hall.name,
                     opensAtMinutes: meal.startMinutes,
                     dayOffset: 0,
-                    mealPeriod: meal.periodName
+                    mealPeriod: meal.periodName,
+                    closesAtMinutes: meal.endMinutes
                 ))
-                if let hours = hall.todayHours { hoursByID[id] = hours }
             } else if let tomorrowISO {
                 let periods = await dining.mealPeriods(for: hall.id, dateISO: tomorrowISO)
                 if let meal = OpeningAlertPlanner.earliestMeal(periods: periods) {
@@ -77,11 +78,9 @@ enum OpeningAlerts {
                         name: hall.name,
                         opensAtMinutes: meal.startMinutes,
                         dayOffset: 1,
-                        mealPeriod: meal.periodName
+                        mealPeriod: meal.periodName,
+                        closesAtMinutes: meal.endMinutes
                     ))
-                    if let summary = Self.hoursSummary(periods: periods) {
-                        hoursByID[id] = summary
-                    }
                 }
             }
         }
@@ -93,7 +92,7 @@ enum OpeningAlerts {
                 candidates.append(.init(
                     id: id, name: place.name, opensAtMinutes: todayOpen, dayOffset: 0
                 ))
-                if let hours = place.todayHours { hoursByID[id] = hours }
+                if let hours = place.todayHours { campusHoursByID[id] = hours }
             } else if let tomorrowOpen = place.opensTomorrowAtMinutes {
                 // Open now or done for today — still schedule tomorrow morning.
                 candidates.append(.init(
@@ -102,7 +101,7 @@ enum OpeningAlerts {
                 // tomorrowHours isn't on the model — fall back to a generic body.
             } else {
                 candidates.append(.init(id: id, name: place.name, opensAtMinutes: nil))
-                if let hours = place.todayHours { hoursByID[id] = hours }
+                if let hours = place.todayHours { campusHoursByID[id] = hours }
             }
         }
 
@@ -114,10 +113,10 @@ enum OpeningAlerts {
             } else {
                 content.title = "\(alert.placeName) just opened"
             }
-            if let hours = hoursByID[alert.placeID] {
-                content.body = "Open \(hours). Head over when you're ready."
+            if alert.placeID.hasPrefix("dining:") {
+                content.body = OpeningAlertCopy.body(openUntilMinutes: alert.closesAtMinutes)
             } else {
-                content.body = "Doors are open — head over when you're ready."
+                content.body = OpeningAlertCopy.body(hoursSpan: campusHoursByID[alert.placeID])
             }
             content.sound = .default
             let link: AnteatsDeepLink = {
@@ -147,12 +146,5 @@ enum OpeningAlerts {
                 UNNotificationRequest(identifier: alert.identifier, content: content, trigger: trigger)
             )
         }
-    }
-
-    private static func hoursSummary(periods: [MealPeriodWindow]) -> String? {
-        let starts = periods.compactMap(\.startMinutes)
-        let ends = periods.compactMap(\.endMinutes)
-        guard let start = starts.min(), let end = ends.max() else { return nil }
-        return "\(UCITime.format(minutes: start)) – \(UCITime.format(minutes: end))"
     }
 }

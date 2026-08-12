@@ -147,6 +147,7 @@ struct OpeningAlertPlannerTests {
         #expect(OpeningAlertPlanner.earliestOpening(periods: []) == nil)
         let meal = OpeningAlertPlanner.earliestMeal(periods: periods)
         #expect(meal?.startMinutes == 7 * 60 + 15)
+        #expect(meal?.endMinutes == 11 * 60)
         #expect(meal?.periodName == "Breakfast")
     }
 
@@ -159,7 +160,8 @@ struct OpeningAlertPlannerTests {
                     name: "The Anteatery",
                     opensAtMinutes: 7 * 60 + 15,
                     dayOffset: 1,
-                    mealPeriod: "Breakfast"
+                    mealPeriod: "Breakfast",
+                    closesAtMinutes: 11 * 60
                 ),
             ],
             watchedIDs: ["dining:anteatery"],
@@ -167,6 +169,7 @@ struct OpeningAlertPlannerTests {
         )
         let plan = try! #require(plans.first)
         #expect(plan.mealPeriod == "Breakfast")
+        #expect(plan.closesAtMinutes == 11 * 60)
         #expect(plan.deepLinkDate == "2026-07-17")
     }
 
@@ -179,7 +182,8 @@ struct OpeningAlertPlannerTests {
                     name: "The Anteatery",
                     opensAtMinutes: 16 * 60 + 30,
                     dayOffset: 0,
-                    mealPeriod: "Limited Dinner"
+                    mealPeriod: "Limited Dinner",
+                    closesAtMinutes: 19 * 60
                 ),
             ],
             watchedIDs: ["dining:anteatery"],
@@ -188,6 +192,7 @@ struct OpeningAlertPlannerTests {
         let plan = try! #require(plans.first)
         #expect(plan.mealPeriod == "Limited Dinner")
         #expect(MealPeriodPill.canonical(plan.mealPeriod!) == "Dinner")
+        #expect(plan.closesAtMinutes == 19 * 60)
         #expect(plan.deepLinkDate == nil)
     }
 }
@@ -212,6 +217,7 @@ struct DiningNextOpeningTests {
         #expect(OpeningAlertPlanner.followingOpening(periods: periods, nowMinutes: 12 * 60) == 16 * 60 + 30)
         let meal = OpeningAlertPlanner.followingMeal(periods: periods, nowMinutes: 12 * 60)
         #expect(meal?.startMinutes == 16 * 60 + 30)
+        #expect(meal?.endMinutes == 21 * 60)
         #expect(meal?.periodName == "Dinner")
     }
 
