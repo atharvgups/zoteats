@@ -139,7 +139,12 @@ final class CampusStore {
     func loadPlaces() async {
         if places.value == nil { places = .loading }
         do {
-            places = .loaded(try await service.places())
+            let next = try await service.places()
+            // Boundary ticks recompute openNow from the same schedule — skip
+            // churn when nothing actually changed (smoother Campus scroll).
+            if places.value != next {
+                places = .loaded(next)
+            }
         } catch {
             places = .failed(error.localizedDescription)
         }
@@ -163,19 +168,34 @@ final class CampusStore {
 @Observable
 final class BusynessStore {
     private let service: BusynessService
+    private let libraryHoursService: LibraryHoursService
 
     var facilities: LoadState<[BusynessPoint]> = .idle
+    /// Official Langson + Science building hours (LibCal). Soft-fails empty.
+    var libraryHours: [LibraryBuildingHours] = []
 
-    init(service: BusynessService = BusynessService()) {
+    init(
+        service: BusynessService = BusynessService(),
+        libraryHoursService: LibraryHoursService = LibraryHoursService()
+    ) {
         self.service = service
+        self.libraryHoursService = libraryHoursService
     }
 
     func load() async {
         if facilities.value == nil { facilities = .loading }
+        async let facilitiesTask = service.all()
+        async let hoursTask = libraryHoursService.today()
         do {
-            facilities = .loaded(try await service.all())
+            let next = try await facilitiesTask
+            if facilities.value != next {
+                facilities = .loaded(next)
+            }
         } catch {
             facilities = .failed(error.localizedDescription)
+        }
+        if let hours = try? await hoursTask {
+            libraryHours = hours
         }
     }
 }

@@ -36,7 +36,7 @@ struct CampusView: View {
         let _ = boundaryEpoch
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                ScreenHeader(title: "Campus", subtitle: "Coffee, food courts, and markets", onSettings: openSettings)
+                ScreenHeader(title: "Campus", subtitle: "Coffee, food, and markets", onSettings: openSettings)
 
                 filterBar
 
@@ -373,11 +373,10 @@ private struct CampusFavoriteShelfRow: View {
                     }
                     Spacer(minLength: 6)
                     StatusPill(isOpen: place.openNow)
-                    if place.hasMenu {
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
+                    // Every place opens the details/menu sheet — chevron is honest.
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
                 .contentShape(Rectangle())
             }
@@ -471,11 +470,9 @@ private struct CampusBrandGroupRow: View {
                                     }
                                     Spacer(minLength: 6)
                                     StatusPill(isOpen: place.openNow)
-                                    if place.hasMenu {
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.tertiary)
-                                    }
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 9)
@@ -490,7 +487,8 @@ private struct CampusBrandGroupRow: View {
                                     brand: brand,
                                     locationDetail: place.locationDetail ?? place.name,
                                     openNow: place.openNow,
-                                    hoursLine: place.hoursLine
+                                    hoursLine: place.hoursLine,
+                                    hasMenu: place.hasMenu
                                 )
                             )
                             .accessibilityHint(place.hasMenu ? "Shows menu and details" : "Shows details")
@@ -551,11 +549,9 @@ private struct CampusPlaceRow: View {
                     }
                     Spacer(minLength: 8)
                     StatusPill(isOpen: place.openNow)
-                    if place.hasMenu {
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
@@ -643,58 +639,53 @@ struct CampusMenuSheet: View {
             DietFilterSheet(prefs: prefs)
         }
         .task {
-            // Honest empty for brand-app-only venues — don't fetch a menu we know is absent.
-            guard place.hasMenu else { return }
+            // Always probe the Hub menu — hasActiveMenus can lag; empty stays honest.
             await store.loadMenu(for: place.id)
         }
     }
 
     @ViewBuilder
     private var menuContent: some View {
-        if !place.hasMenu {
-            noMenuNote(published: false)
-        } else {
-            switch store.menuState(for: place.id) {
-            case .idle, .loading:
-                VStack(spacing: 12) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        SkeletonCard(height: 72)
-                    }
+        switch store.menuState(for: place.id) {
+        case .idle, .loading:
+            VStack(spacing: 12) {
+                ForEach(0..<3, id: \.self) { _ in
+                    SkeletonCard(height: 72)
                 }
-                .padding(.horizontal, 20)
-            case .failed:
-                noMenuNote(published: true)
-            case .loaded(let stations):
-                if stations.isEmpty {
-                    noMenuNote(published: true)
-                } else {
-                    filtersChip
-                        .padding(.horizontal, 20)
+            }
+            .padding(.horizontal, 20)
+        case .failed:
+            noMenuNote
+        case .loaded(let stations):
+            if stations.isEmpty {
+                noMenuNote
+            } else {
+                filtersChip
+                    .padding(.horizontal, 20)
 
-                    let filtered = filteredStations(stations)
-                    if filtered.isEmpty {
-                        // Same Eat Filters prefs as Dining — reuse honest empty copy (no search on Campus menus).
-                        if let copy = EatFilterEmptyCopy.resolve(
-                            hasSearch: false,
-                            hasMenuFilters: prefs.hasActiveMenuFilters
-                        ) {
-                            EmptyStateView(
-                                icon: "ant",
-                                title: copy.title,
-                                message: copy.message,
-                                actionTitle: copy.actionTitle,
-                                retry: {
-                                    prefs.clearMenuFilters()
-                                    Haptics.selection()
-                                }
-                            )
-                        } else {
-                            noMenuNote(published: true)
-                        }
+                let filtered = filteredStations(stations)
+                if filtered.isEmpty {
+                    // Same Eat Filters prefs as Dining — reuse honest empty copy (no search on Campus menus).
+                    if let copy = EatFilterEmptyCopy.resolve(
+                        hasSearch: false,
+                        hasMenuFilters: prefs.hasActiveMenuFilters
+                    ) {
+                        EmptyStateView(
+                            icon: "ant",
+                            title: copy.title,
+                            message: copy.message,
+                            actionTitle: copy.actionTitle,
+                            retry: {
+                                prefs.clearMenuFilters()
+                                Haptics.selection()
+                            }
+                        )
                     } else {
-                        ForEach(filtered) { station in
-                            stationBlock(station)
-                        }
+                        noMenuNote
+                    }
+                } else {
+                    ForEach(filtered) { station in
+                        stationBlock(station)
                     }
                 }
             }
@@ -785,18 +776,15 @@ struct CampusMenuSheet: View {
         )
     }
 
-    private func noMenuNote(published: Bool) -> some View {
-        VStack(spacing: 8) {
+    private var noMenuNote: some View {
+        let kind = CampusMenuEmptyCopy.kind(hasMenuFlag: place.hasMenu, category: place.category)
+        return VStack(spacing: 8) {
             Image(systemName: "menucard")
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(published ? "Menu not posted" : "No published menu")
+            Text(CampusMenuEmptyCopy.title(kind))
                 .font(ZotFont.sectionTitle)
-            Text(
-                published
-                    ? "\(place.name) usually posts a menu here, but nothing is listed for today yet."
-                    : "\(place.name) doesn't post its menu here — check the brand's own app for ordering."
-            )
+            Text(CampusMenuEmptyCopy.message(kind: kind, placeName: place.name))
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

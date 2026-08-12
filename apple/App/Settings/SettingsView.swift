@@ -27,13 +27,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     ScreenHeader(title: "Settings", subtitle: "Make Anteats yours")
 
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
                         appearanceCard
                         alertsCard
-                        liveActivityCard
                         widgetsCard
                         aboutCard
                         dataSourcesCard
@@ -74,7 +73,7 @@ struct SettingsView: View {
     // MARK: - Appearance
 
     private var appearanceCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Appearance")
                 .font(ZotFont.sectionTitle)
 
@@ -97,15 +96,15 @@ struct SettingsView: View {
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
 
-    // MARK: - Notifications
+    // MARK: - Notifications (+ Live Activity)
 
     private var alertsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Notifications")
                 .font(ZotFont.sectionTitle)
 
@@ -113,7 +112,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Favorite dish alerts")
                         .font(ZotFont.body)
-                    Text("Get a heads-up when a dish you've hearted is on today's menu.")
+                    Text("Ping when a hearted dish is on today's menu.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -144,7 +143,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Menu-drop alerts")
                         .font(ZotFont.body)
-                    Text("Ping when UCI posts a future day's menu that wasn't up yet.")
+                    Text("Ping when a future day's menu posts.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -199,6 +198,22 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("opening-alerts-row")
 
+            Toggle(isOn: $autoMealActivity) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto meal countdown")
+                        .font(ZotFont.body)
+                    Text("Start Island / Lock Screen timer in the last \(MealActivityManager.autoStartWindowMinutes) minutes of a meal.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .tint(.uciBlue)
+            .accessibilityIdentifier("auto-meal-activity-toggle")
+            .onChange(of: autoMealActivity) { _, enabled in
+                MealActivityManager.autoStartEnabled = enabled
+                Haptics.selection()
+            }
+
             Button {
                 Task {
                     let granted = await FavoriteAlerts.requestPermission()
@@ -214,7 +229,7 @@ struct SettingsView: View {
                 Text(testPingSent ? "Test ping sent" : "Send test notification")
                     .font(ZotFont.pill.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
+                    .padding(.vertical, 10)
                     .background(Color.primary.opacity(0.05), in: Capsule())
                     .foregroundStyle(.primary)
             }
@@ -229,35 +244,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
-    }
-
-    // MARK: - Live Activity
-
-    private var liveActivityCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Live Activity")
-                .font(ZotFont.sectionTitle)
-
-            Toggle(isOn: $autoMealActivity) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Auto meal countdown")
-                        .font(ZotFont.body)
-                    Text("When a hall meal is in its last \(MealActivityManager.autoStartWindowMinutes) minutes, start the Dynamic Island / Lock Screen timer automatically.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .tint(.uciBlue)
-            .accessibilityIdentifier("auto-meal-activity-toggle")
-            .onChange(of: autoMealActivity) { _, enabled in
-                MealActivityManager.autoStartEnabled = enabled
-                Haptics.selection()
-            }
-        }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
@@ -265,29 +252,24 @@ struct SettingsView: View {
     // MARK: - Widgets
 
     private var widgetsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Home Screen Widgets")
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Widgets")
                 .font(ZotFont.sectionTitle)
 
-            Text("Long-press your Home Screen → tap Edit → Add Widget → search Anteats.")
+            Text("Home Screen → Edit → Add Widget → Anteats.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 8) {
-                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in / opens-at")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Pick any live hall (or Auto); Eat Filters + favorites sync — Clear filters on the widget when empty")
-                widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets that are open — or the next one that will be")
-                widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness — live sensors, or typical when Waitz is quiet")
-                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance — shows closed overnight")
+            VStack(alignment: .leading, spacing: 6) {
+                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Live hall + Eat Filters")
+                widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets open now")
+                widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness")
+                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
             }
-            .padding(.top, 4)
-
-            Text("Tip: Edit Today's Menu to choose Auto or any live hall (third commons appears when the API lists it). Favorites and Eat Filters sync via App Group. Meal countdown can auto-start in the last 45 minutes (Settings → Live Activity).")
-                .font(ZotFont.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
+            .padding(.top, 2)
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
@@ -345,7 +327,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
@@ -372,6 +354,13 @@ struct SettingsView: View {
             )
             Divider()
             sourceRow(
+                icon: "books.vertical.fill",
+                title: "Library hours — UCI LibCal",
+                subtitle: "Official Langson + Science building hours",
+                url: "https://www.lib.uci.edu/hours"
+            )
+            Divider()
+            sourceRow(
                 icon: "dumbbell.fill",
                 title: "ARC hours — UCI Campus Rec",
                 subtitle: "Verify seasonal changes on the official page",
@@ -391,7 +380,7 @@ struct SettingsView: View {
             }
             .padding(.top, 4)
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }

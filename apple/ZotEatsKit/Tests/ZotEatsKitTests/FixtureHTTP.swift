@@ -21,6 +21,8 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "date_range"
         } else if url.host == "waitz.io" {
             fixture = "waitz"
+        } else if url.host?.contains("libcal") == true {
+            fixture = "libcal_hours_today"
         } else if url.host?.contains("elevate-dxp.com") == true {
             let query = url.query ?? ""
             fixture = query.contains("getLocationMealPeriodRecipes") ? "campus_menu" : "campus_locations"

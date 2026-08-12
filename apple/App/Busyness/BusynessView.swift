@@ -167,6 +167,9 @@ struct BusynessView: View {
                     quietestFacilityID: pick?.facilityID
                 )
                 let grouped = groups(from: facilities)
+                if !store.libraryHours.isEmpty {
+                    LibraryHoursTodayCard(hours: store.libraryHours)
+                }
                 ForEach(grouped, id: \.category) { group in
                     // A lone "Library" header under a tab named Study is noise;
                     // headers earn their place only when multiple categories report.
@@ -175,7 +178,8 @@ struct BusynessView: View {
                         facilities: group.facilities,
                         showHeader: grouped.count > 1,
                         expandFacilityID: expandID,
-                        expandPulse: expandPulse
+                        expandPulse: expandPulse,
+                        libraryHours: store.libraryHours
                     )
                 }
             }
@@ -309,6 +313,42 @@ struct QuietestClosedCard: View {
     }
 }
 
+/// Neat today hours for Langson + Science — LibCal clocks Waitz doesn't give.
+private struct LibraryHoursTodayCard: View {
+    let hours: [LibraryBuildingHours]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Library hours")
+                .font(ZotFont.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+
+            VStack(spacing: 8) {
+                ForEach(hours) { building in
+                    HStack(spacing: 10) {
+                        Text(building.shortName)
+                            .font(ZotFont.body.weight(.semibold))
+                            .frame(width: 72, alignment: .leading)
+                        Text(building.rendered)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        StatusPill(isOpen: building.isOpen)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "\(building.shortName), \(building.isOpen ? "open" : "closed"), \(building.rendered)"
+                    )
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+    }
+}
+
 // MARK: - Category section
 
 struct BusynessGroupSection: View {
@@ -319,6 +359,7 @@ struct BusynessGroupSection: View {
     var expandFacilityID: Int? = nil
     /// Increments on facility deep links so warm re-taps re-expand collapsed floors.
     var expandPulse: Int = 0
+    var libraryHours: [LibraryBuildingHours] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -334,7 +375,11 @@ struct BusynessGroupSection: View {
                 BusynessFacilityCard(
                     facility: facility,
                     initiallyExpanded: expandFacilityID == facility.id,
-                    expandPulse: expandFacilityID == facility.id ? expandPulse : 0
+                    expandPulse: expandFacilityID == facility.id ? expandPulse : 0,
+                    libraryHours: LibraryHoursMatch.hours(
+                        forFacilityName: facility.name,
+                        from: libraryHours
+                    )
                 )
                 .id(facility.id)
             }
@@ -348,6 +393,7 @@ struct BusynessFacilityCard: View {
     let facility: BusynessPoint
     var initiallyExpanded: Bool = false
     var expandPulse: Int = 0
+    var libraryHours: LibraryBuildingHours? = nil
     @State private var isExpanded = false
 
     /// Floors/zones after Lobby filtering + floor grouping.
@@ -403,14 +449,20 @@ struct BusynessFacilityCard: View {
                 if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
                     OccupancyBar(percent: facility.percent, level: facility.level)
                     if let openLine = StudyIdleCopy.facilityOpenDetail(
-                        hoursSummary: facility.hoursSummary
+                        hoursSummary: facility.hoursSummary,
+                        libraryHours: libraryHours
                     ) {
                         Text(openLine)
                             .font(ZotFont.caption)
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Text(StudyIdleCopy.facilityClosedDetail(hoursSummary: facility.hoursSummary))
+                    Text(
+                        StudyIdleCopy.facilityClosedDetail(
+                            hoursSummary: facility.hoursSummary,
+                            libraryHours: libraryHours
+                        )
+                    )
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }

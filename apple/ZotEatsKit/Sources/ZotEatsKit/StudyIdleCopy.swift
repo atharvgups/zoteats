@@ -32,10 +32,12 @@ public enum StudyIdleCopy {
         return opensTomorrowLine(minutes: minutes)
     }
 
-    /// Per-facility closed secondary from Waitz `hoursSummary`.
+    /// Per-facility closed secondary from Waitz `hoursSummary`, with optional
+    /// LibCal building hours when Waitz has no Closed-until clock.
     public static func facilityClosedDetail(
         hoursSummary: String?,
-        nowMinutes: Int = UCITime.nowMinutes()
+        nowMinutes: Int = UCITime.nowMinutes(),
+        libraryHours: LibraryBuildingHours? = nil
     ) -> String {
         if let minutes = WaitzHoursSummary.closedUntilMinutes(hoursSummary) {
             if nowMinutes < minutes {
@@ -43,11 +45,34 @@ public enum StudyIdleCopy {
             }
             return opensTomorrowLine(minutes: minutes)
         }
+        if let libraryHours {
+            if let open = libraryHours.openMinutes {
+                if nowMinutes < open {
+                    return opensAtLine(minutes: open)
+                }
+                return opensTomorrowLine(minutes: open)
+            }
+            if libraryHours.rendered != "Closed" {
+                return libraryHours.rendered
+            }
+        }
         return StudyFacilityCrowding.closedDetail
     }
 
-    /// Per-facility open secondary — nil when Waitz only says `"open"`.
-    public static func facilityOpenDetail(hoursSummary: String?) -> String? {
-        WaitzHoursSummary.openUntilLine(hoursSummary)
+    /// Per-facility open secondary — Waitz range first, else LibCal today span.
+    public static func facilityOpenDetail(
+        hoursSummary: String?,
+        libraryHours: LibraryBuildingHours? = nil
+    ) -> String? {
+        if let line = WaitzHoursSummary.openUntilLine(hoursSummary) {
+            return line
+        }
+        if let libraryHours, libraryHours.rendered != "Closed", !libraryHours.rendered.isEmpty {
+            if let close = libraryHours.closeMinutes {
+                return "Open until \(UCITime.format(minutes: close))"
+            }
+            return libraryHours.rendered
+        }
+        return nil
     }
 }

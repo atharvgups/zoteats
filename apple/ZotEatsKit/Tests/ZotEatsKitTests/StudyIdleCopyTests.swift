@@ -115,4 +115,37 @@ struct StudyIdleCopyTests {
         #expect(StudyIdleCopy.facilityOpenDetail(hoursSummary: "Closed until 8:00am") == nil)
         #expect(StudyIdleCopy.facilityOpenDetail(hoursSummary: nil) == nil)
     }
+
+    @Test func facilityOpenDetailFallsBackToLibCal() {
+        let hours = LibraryBuildingHours(
+            id: "langson",
+            shortName: "Langson",
+            rendered: "8:00 AM – 8:00 PM",
+            isOpen: true,
+            openMinutes: 8 * 60,
+            closeMinutes: 20 * 60
+        )
+        #expect(
+            StudyIdleCopy.facilityOpenDetail(hoursSummary: "open", libraryHours: hours)
+                == "Open until 8:00 PM"
+        )
+    }
+
+    @Test func facilityClosedDetailFallsBackToLibCalOpen() {
+        let hours = LibraryBuildingHours(
+            id: "science",
+            shortName: "Science",
+            rendered: "8:00 AM – 8:00 PM",
+            isOpen: false,
+            openMinutes: 8 * 60,
+            closeMinutes: 20 * 60
+        )
+        #expect(
+            StudyIdleCopy.facilityClosedDetail(
+                hoursSummary: nil,
+                nowMinutes: 6 * 60,
+                libraryHours: hours
+            ) == "Opens at 8:00 AM"
+        )
+    }
 }

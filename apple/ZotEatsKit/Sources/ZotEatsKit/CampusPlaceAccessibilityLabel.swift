@@ -23,7 +23,8 @@ public enum CampusPlaceAccessibilityLabel {
         brand: String,
         locationDetail: String?,
         openNow: Bool,
-        hoursLine: String
+        hoursLine: String,
+        hasMenu: Bool = false
     ) -> String {
         let whereAt = locationDetail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subject: String
@@ -36,7 +37,7 @@ public enum CampusPlaceAccessibilityLabel {
             subject: subject,
             openNow: openNow,
             hoursLine: hoursLine,
-            hasMenu: false
+            hasMenu: hasMenu
         )
     }
 
