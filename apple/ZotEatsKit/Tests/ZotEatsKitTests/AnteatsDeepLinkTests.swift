@@ -48,6 +48,22 @@ struct AnteatsDeepLinkTests {
         #expect(parsed?.dish == nil)
     }
 
+    @Test("Today's Menu dish tap URL keeps hall, meal, date, and dish")
+    func todaysMenuDishTapRoundTrips() {
+        let original = AnteatsDeepLink.eat(
+            hall: "anteatery",
+            period: "Lunch",
+            dish: "Crispy Okra",
+            date: "2026-07-16"
+        )
+        let parsed = AnteatsDeepLink.parse(original.url)
+        #expect(parsed == original)
+        #expect(parsed?.hall == "anteatery")
+        #expect(parsed?.period == "Lunch")
+        #expect(parsed?.dish == "Crispy Okra")
+        #expect(parsed?.date == "2026-07-16")
+    }
+
     @Test func diningStatusAndCampusOpenRowURLs() {
         let hall = AnteatsDeepLink.eat(hall: "brandywine", period: "Lunch")
         #expect(AnteatsDeepLink.parse(hall.url)?.hall == "brandywine")

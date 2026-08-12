@@ -824,17 +824,28 @@ def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
 
 
 def ensure_app_privacy(token: str, app_id: str) -> None:
-    """Declare Data Not Collected and publish App Privacy answers.
+    """Best-effort Data Not Collected declaration + publish.
 
-    ASC rejects review attach with APP_DATA_USAGES_REQUIRED until a published
-    privacy nutrition label exists. Anteats collects no data (see privacy-policy.md).
+    Official ASC Connect API often 404s ``appDataUsages`` (Apple gates nutrition
+    labels behind the App Store Connect UI). Never hard-fail here — surface a
+    clear App Privacy Publish reminder and let review attach report the real
+    remaining blocker.
     """
     usages = api(
         "GET",
         f"/v1/apps/{app_id}/dataUsages?limit=50&include=dataProtection,category,purpose",
         token,
-        ok_codes={200, 404},
+        ok_codes={200, 404, 403},
     )
+    if usages.get("errors") or (
+        isinstance(usages.get("raw"), str) and "does not exist" in (usages.get("raw") or "")
+    ):
+        warn(
+            "App Privacy dataUsages API unavailable — Atharv must open "
+            "App Store Connect → App Privacy → Data Not Collected → Publish."
+        )
+        return
+
     rows = usages.get("data") or []
 
     def protection_id(usage: dict) -> str | None:
@@ -844,7 +855,6 @@ def ensure_app_privacy(token: str, app_id: str) -> None:
     prior_count = len(rows)
     has_not_collected = any(protection_id(u) == "DATA_NOT_COLLECTED" for u in rows)
     if rows and not has_not_collected:
-        # Replace prior category answers with a clean "not collected" declaration.
         for usage in rows:
             uid = usage.get("id")
             if not uid:
@@ -878,14 +888,15 @@ def ensure_app_privacy(token: str, app_id: str) -> None:
                     },
                 }
             },
-            ok_codes={200, 201, 409, 422},
+            ok_codes={200, 201, 404, 409, 422},
         )
         if created.get("errors") and not created.get("data"):
-            die(
-                "Could not declare App Privacy DATA_NOT_COLLECTED via API. "
-                "In App Store Connect → App Privacy, choose Data Not Collected and Publish. "
-                f"Detail: {json.dumps(created)[:1500]}"
+            warn(
+                "Could not declare DATA_NOT_COLLECTED via API (often unavailable). "
+                "Atharv: App Store Connect → App Privacy → Data Not Collected → Publish. "
+                f"Detail: {json.dumps(created)[:600]}"
             )
+            return
         info("Declared App Privacy: DATA_NOT_COLLECTED.")
     else:
         info("App Privacy already declares DATA_NOT_COLLECTED.")
@@ -894,10 +905,13 @@ def ensure_app_privacy(token: str, app_id: str) -> None:
         "GET",
         f"/v1/apps/{app_id}/dataUsagePublishState",
         token,
-        ok_codes={200, 404},
+        ok_codes={200, 404, 403},
     ).get("data")
     if not state:
-        warn("No dataUsagePublishState — publish App Privacy once in ASC if submit still fails.")
+        warn(
+            "No dataUsagePublishState via API — Atharv must Publish App Privacy "
+            "in App Store Connect if submit still fails."
+        )
         return
     if (state.get("attributes") or {}).get("published") is True:
         info("App Privacy answers already published.")
@@ -913,30 +927,15 @@ def ensure_app_privacy(token: str, app_id: str) -> None:
                 "attributes": {"published": True},
             }
         },
-        ok_codes={200, 204, 409, 422},
+        ok_codes={200, 204, 404, 409, 422},
     )
-    if published.get("errors") and not published.get("data") and published.get("already_exists"):
-        # Some 409 bodies still succeed on a follow-up GET; verify.
-        again = api(
-            "GET",
-            f"/v1/apps/{app_id}/dataUsagePublishState",
-            token,
-            ok_codes={200, 404},
-        ).get("data")
-        if (again.get("attributes") or {}).get("published") is True:
-            info("App Privacy answers already published.")
-            return
-        die(
-            "Could not publish App Privacy answers via API. "
-            "In App Store Connect → App Privacy, tap Publish. "
-            f"Detail: {json.dumps(published)[:1500]}"
-        )
     if published.get("errors") and not published.get("data"):
-        die(
-            "Could not publish App Privacy answers via API. "
-            "In App Store Connect → App Privacy, tap Publish. "
-            f"Detail: {json.dumps(published)[:1500]}"
+        warn(
+            "Could not publish App Privacy via API. "
+            "Atharv: App Store Connect → App Privacy → Publish. "
+            f"Detail: {json.dumps(published)[:600]}"
         )
+        return
     info("Published App Privacy answers (Data Not Collected).")
 
 
@@ -963,7 +962,7 @@ def wait_for_screenshot_processing(token: str, localization_id: str, timeout_s: 
                 state = ((shot.get("attributes") or {}).get("assetDeliveryState") or {}).get(
                     "state"
                 )
-                if state in {None, "UPLOAD_COMPLETE", "PROCESSING", "AWAITING_UPLOAD"}:
+                if state not in {"COMPLETE", "FAILED"}:
                     pending += 1
         if pending == 0:
             info("Screenshot assets ready for review.")

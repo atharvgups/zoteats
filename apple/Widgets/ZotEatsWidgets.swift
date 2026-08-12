@@ -727,6 +727,17 @@ struct TodaysMenuEntry: TimelineEntry {
             date: deepLinkDate
         ).url
     }
+
+    /// Per-dish tap — same hall/meal/date as the glance, plus the dish name.
+    func dishDeepLinkURL(_ dish: String) -> URL {
+        let periodParam = deepLinkPeriod ?? (period.isEmpty ? nil : period)
+        return AnteatsDeepLink.eat(
+            hall: hallID,
+            period: periodParam,
+            dish: dish,
+            date: deepLinkDate
+        ).url
+    }
 }
 
 struct TodaysMenuProvider: AppIntentTimelineProvider {
@@ -930,16 +941,20 @@ struct TodaysMenuView: View {
                 Spacer(minLength: 0)
             }
             if let first = Array(entry.dishes.prefix(dishLimit)).first {
-                Text(first)
-                    .font(.system(size: 12))
-                    .opacity(0.85)
-                    .lineLimit(1)
+                Link(destination: entry.dishDeepLinkURL(first)) {
+                    Text(first)
+                        .font(.system(size: 12))
+                        .opacity(0.85)
+                        .lineLimit(1)
+                }
                 if entry.dishes.count > 1 {
                     let second = entry.dishes[1]
-                    Text(second)
-                        .font(.system(size: 12))
-                        .opacity(0.7)
-                        .lineLimit(1)
+                    Link(destination: entry.dishDeepLinkURL(second)) {
+                        Text(second)
+                            .font(.system(size: 12))
+                            .opacity(0.7)
+                            .lineLimit(1)
+                    }
                 }
             } else {
                 Text(
@@ -1093,20 +1108,22 @@ struct TodaysMenuView: View {
                 Spacer()
             } else {
                 ForEach(dishes, id: \.self) { dish in
-                    HStack(spacing: 6) {
-                        if entry.favorited.contains(dish) {
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(gold)
-                        } else {
-                            Circle()
-                                .fill(gold)
-                                .frame(width: 3.5, height: 3.5)
+                    Link(destination: entry.dishDeepLinkURL(dish)) {
+                        HStack(spacing: 6) {
+                            if entry.favorited.contains(dish) {
+                                Image(systemName: "heart.fill")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(gold)
+                            } else {
+                                Circle()
+                                    .fill(gold)
+                                    .frame(width: 3.5, height: 3.5)
+                            }
+                            Text(dish)
+                                .font(.system(size: family == .systemLarge ? 13 : 12, weight: .medium))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
                         }
-                        Text(dish)
-                            .font(.system(size: family == .systemLarge ? 13 : 12, weight: .medium))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
                     }
                 }
                 if entry.dishes.count > dishLimit {
