@@ -1,6 +1,6 @@
 import Foundation
 
-/// In-app Study schedule refresh — same morning-open probes, Irvine midnight,
+/// In-app Study schedule refresh — same Waitz reopen probes, Irvine midnight,
 /// and open/closed Waitz cadence as the Quietest Library widget, so the
 /// Quietest hero, crowding, and Status pills flip while the Study tab stays open.
 public enum StudyBoundaryRefresh {
@@ -17,7 +17,8 @@ public enum StudyBoundaryRefresh {
     ) -> Date {
         QuietestLibraryReload.nextReload(
             now: now,
-            anyLibraryOpen: anyLibraryOpen(from: facilities)
+            anyLibraryOpen: anyLibraryOpen(from: facilities),
+            reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities)
         )
     }
 }

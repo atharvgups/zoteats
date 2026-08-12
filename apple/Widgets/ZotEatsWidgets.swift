@@ -243,7 +243,7 @@ struct DiningStatusProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<DiningStatusEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let (entry, locations) = await fetchEntryAndLocations()
+            let (entry, locations, libraryReopenMinutes) = await fetchEntryAndLocations()
             let librariesClosed: Bool = {
                 if case .librariesClosed = entry.quietest { return true }
                 return false
@@ -252,7 +252,8 @@ struct DiningStatusProvider: TimelineProvider {
                 locations: locations,
                 nowMinutes: UCITime.nowMinutes(),
                 now: .now,
-                librariesClosed: librariesClosed
+                librariesClosed: librariesClosed,
+                libraryReopenMinutes: libraryReopenMinutes
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
@@ -262,7 +263,11 @@ struct DiningStatusProvider: TimelineProvider {
         await fetchEntryAndLocations().entry
     }
 
-    private func fetchEntryAndLocations() async -> (entry: DiningStatusEntry, locations: [DiningLocation]) {
+    private func fetchEntryAndLocations() async -> (
+        entry: DiningStatusEntry,
+        locations: [DiningLocation],
+        libraryReopenMinutes: [Int]
+    ) {
         let locations = await DiningService().locations()
         let nowMinutes = UCITime.nowMinutes()
 
@@ -305,15 +310,19 @@ struct DiningStatusProvider: TimelineProvider {
         }
 
         let quietest: QuietestLibraryGlance.DiningStatusTip?
+        let libraryReopenMinutes: [Int]
         if let places = try? await BusynessService().all() {
             quietest = QuietestLibraryGlance.diningStatusTip(from: places)
+            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
         } else {
             quietest = nil
+            libraryReopenMinutes = []
         }
 
         return (
             DiningStatusEntry(date: .now, halls: halls, quietest: quietest),
-            locations
+            locations,
+            libraryReopenMinutes
         )
     }
 }
@@ -1501,7 +1510,8 @@ struct QuietestLibraryProvider: TimelineProvider {
             let anyOpen = pool.contains(where: \.isOpen)
             let reload = QuietestLibraryReload.nextReload(
                 now: .now,
-                anyLibraryOpen: anyOpen
+                anyLibraryOpen: anyOpen,
+                reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities)
             )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }

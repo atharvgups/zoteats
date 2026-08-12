@@ -7,7 +7,8 @@ struct StudyBoundaryRefreshTests {
     private func point(
         id: Int,
         category: String,
-        isOpen: Bool
+        isOpen: Bool,
+        hoursSummary: String? = nil
     ) -> BusynessPoint {
         BusynessPoint(
             id: id,
@@ -18,7 +19,7 @@ struct StudyBoundaryRefreshTests {
             percent: isOpen ? 12 : nil,
             level: isOpen ? .notBusy : .unknown,
             isOpen: isOpen,
-            hoursSummary: nil,
+            hoursSummary: hoursSummary,
             updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
             subLocations: nil
         )
@@ -44,6 +45,26 @@ struct StudyBoundaryRefreshTests {
             now: now
         )
         #expect(fire == eight.addingTimeInterval(2))
+    }
+
+    @Test func closedLibrariesPreferWaitzReopen() {
+        // Monday 11:50 AM — Waitz noon beats morning-only probes (already past).
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:50:00Z")!
+        let facilities = [
+            point(
+                id: 1,
+                category: "Library",
+                isOpen: false,
+                hoursSummary: "Closed until 12:00pm"
+            ),
+        ]
+        let fire = StudyBoundaryRefresh.nextFire(now: now, facilities: facilities)
+        let noon = UCITime.date(
+            forMinutes: 12 * 60,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(fire == noon.addingTimeInterval(2))
     }
 
     @Test func libraryCategoryBeatsOpenNonLibrary() {
