@@ -44,6 +44,20 @@ public enum ArcIdleCopy {
         return true
     }
 
+    /// Today's open minutes for closed chrome — prefer Waitz `Closed until …`
+    /// when the ARC is closed so holiday / late opens don't say “Opens at 6 AM”
+    /// after 6 AM.
+    public static func opensAtMinutesToday(
+        weekday: String,
+        openNow: Bool,
+        waitzReopenMinutes: Int? = nil,
+        arcWeek: [(day: String, open: Int, close: Int)] = GymService.arcWeek
+    ) -> Int? {
+        let schedule = todayOpenMinutes(weekday: weekday, arcWeek: arcWeek)
+        guard !openNow, let waitz = waitzReopenMinutes else { return schedule }
+        return waitz
+    }
+
     /// Copy when the Gym hero has no busyness %.
     public static func noBusynessMessage(
         openNow: Bool,

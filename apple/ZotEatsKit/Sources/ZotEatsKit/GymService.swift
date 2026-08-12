@@ -59,7 +59,12 @@ public struct GymService: Sendable {
             DayHours(day: $0.day, hours: "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))")
         }
 
-        let todayHours = liveHours ?? today.map { "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))" }
+        let scheduleHours = today.map { "\(Self.formatHour($0.open)) – \(Self.formatHour($0.close))" }
+        let waitzReopen = WaitzHoursSummary.closedUntilMinutes(liveHours)
+        // Only range-looking Waitz strings are displayable hours — "open" and
+        // "Closed until 8:00am" must not become "Open until open".
+        let usingLiveRange = Self.isDisplayableHoursRange(liveHours)
+        let todayHours = usingLiveRange ? liveHours : scheduleHours
 
         // Live sensor data wins; otherwise fall back to the typical-pattern
         // estimate, clearly flagged so the UI can label it.
@@ -86,15 +91,27 @@ public struct GymService: Sendable {
             todayHours: todayHours,
             weekHours: weekHours,
             busyness: liveBusyness ?? typicalPoint,
-            hoursApproximate: liveHours == nil,
+            hoursApproximate: !usingLiveRange,
+            waitzReopenMinutes: waitzReopen,
             typicalCurve: typical.dayCurve,
             busiestSummary: typical.busiestSummary,
             quietestSummary: typical.quietestSummary
         )
     }
 
+    /// True for live Waitz hour strings that look like a continuous range
+    /// (`"6:00 AM – 10:00 PM"`), not `"open"` / `"Closed until …"`.
+    static func isDisplayableHoursRange(_ summary: String?) -> Bool {
+        guard let summary else { return false }
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if WaitzHoursSummary.closedUntilMinutes(trimmed) != nil { return false }
+        if trimmed.lowercased() == "open" { return false }
+        return trimmed.contains("–") || trimmed.contains("-")
+    }
+
     /// Next schedule open or close as a wall-clock `Date` (Irvine), for widget reload.
-    /// Uses the maintained weekly schedule — live hours strings aren't reliably parseable.
+    /// Pair with Waitz `Closed until …` via `GymBoundaryRefresh` when live.
     public static func nextScheduleBoundary(now: Date = Date()) -> Date? {
         let weekday = PacificTime.weekdayName(now: now)
         let minutes = PacificTime.nowMinutes(now: now)

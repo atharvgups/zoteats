@@ -82,10 +82,23 @@ struct GymServiceTests {
         let status = await service.status()
         if let arc = status.busyness {
             #expect(arc.category == "Recreation" || arc.name.lowercased().contains("arc"))
-            #expect(status.hoursApproximate == (arc.hoursSummary == nil))
+            #expect(status.hoursApproximate == !GymService.isDisplayableHoursRange(arc.hoursSummary))
+            if let summary = arc.hoursSummary {
+                #expect(status.waitzReopenMinutes == WaitzHoursSummary.closedUntilMinutes(summary))
+            }
         } else {
             #expect(status.hoursApproximate)
         }
+    }
+
+    @Test func displayableHoursRangeRejectsOpenAndClosedUntil() {
+        #expect(GymService.isDisplayableHoursRange("6:00am-11:00pm"))
+        #expect(GymService.isDisplayableHoursRange("6:00 AM – 10:00 PM"))
+        #expect(!GymService.isDisplayableHoursRange("open"))
+        #expect(!GymService.isDisplayableHoursRange("Closed until 12:00pm"))
+        #expect(!GymService.isDisplayableHoursRange("Open 24 Hours"))
+        #expect(!GymService.isDisplayableHoursRange(""))
+        #expect(!GymService.isDisplayableHoursRange(nil))
     }
 
     @Test func nextScheduleBoundaryIsWeekdayClose() {

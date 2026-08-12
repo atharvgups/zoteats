@@ -131,4 +131,49 @@ struct ArcIdleCopyTests {
             ) == "Closed — see you tomorrow"
         )
     }
+
+    @Test func waitzClosedUntilBeatsPastScheduleOpen() {
+        // Schedule said 6 AM; Waitz says noon and ARC is still closed at 10 AM.
+        let waitz = ArcIdleCopy.opensAtMinutesToday(
+            weekday: "Monday",
+            openNow: false,
+            waitzReopenMinutes: 12 * 60
+        )
+        #expect(waitz == 12 * 60)
+        #expect(
+            ArcIdleCopy.closedHoursLine(
+                todayHours: "6:00 AM – 10:00 PM",
+                nowMinutes: 10 * 60,
+                opensAtMinutesToday: waitz,
+                closesAtMinutesToday: 22 * 60,
+                opensAtMinutesTomorrow: 6 * 60
+            ) == "Opens at 12:00 PM"
+        )
+        #expect(
+            ArcIdleCopy.noBusynessMessage(
+                openNow: false,
+                nowMinutes: 10 * 60,
+                opensAtMinutesToday: waitz,
+                closesAtMinutesToday: 22 * 60,
+                opensAtMinutesTomorrow: 6 * 60
+            ) == "Closed — opens at 12:00 PM"
+        )
+    }
+
+    @Test func scheduleOpenUsedWhenWaitzAbsentOrOpen() {
+        #expect(
+            ArcIdleCopy.opensAtMinutesToday(
+                weekday: "Monday",
+                openNow: false,
+                waitzReopenMinutes: nil
+            ) == 6 * 60
+        )
+        #expect(
+            ArcIdleCopy.opensAtMinutesToday(
+                weekday: "Monday",
+                openNow: true,
+                waitzReopenMinutes: 12 * 60
+            ) == 6 * 60
+        )
+    }
 }

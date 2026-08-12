@@ -482,6 +482,9 @@ public struct GymStatus: Codable, Sendable, Equatable {
     public let busyness: BusynessPoint?
     /// True when hours come from a maintained schedule rather than a live source.
     public let hoursApproximate: Bool
+    /// Waitz `Closed until …` reopen (Irvine minutes) when the ARC is closed
+    /// with a parseable summary — drives Gym reload + “Opens at …” chrome.
+    public let waitzReopenMinutes: Int?
     /// Typical 24-hour rush curve for today (index = hour, 0 = closed).
     public let typicalCurve: [Int]?
     /// e.g. "Usually busiest 6–8 PM".
@@ -496,6 +499,7 @@ public struct GymStatus: Codable, Sendable, Equatable {
         weekHours: [DayHours],
         busyness: BusynessPoint?,
         hoursApproximate: Bool,
+        waitzReopenMinutes: Int? = nil,
         typicalCurve: [Int]? = nil,
         busiestSummary: String? = nil,
         quietestSummary: String? = nil
@@ -506,6 +510,7 @@ public struct GymStatus: Codable, Sendable, Equatable {
         self.weekHours = weekHours
         self.busyness = busyness
         self.hoursApproximate = hoursApproximate
+        self.waitzReopenMinutes = waitzReopenMinutes
         self.typicalCurve = typicalCurve
         self.busiestSummary = busiestSummary
         self.quietestSummary = quietestSummary

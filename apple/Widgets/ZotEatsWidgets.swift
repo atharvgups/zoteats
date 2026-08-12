@@ -1298,21 +1298,32 @@ struct ArcStatusProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ArcStatusEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let entry = await fetchEntry()
-            let reload = GymBoundaryRefresh.nextFire(now: .now)
+            let status = await GymService().status()
+            let entry = Self.entry(from: status)
+            let reload = GymBoundaryRefresh.nextFire(
+                now: .now,
+                reopenMinutes: status.waitzReopenMinutes
+            )
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
         }
     }
 
     private func fetchEntry() async -> ArcStatusEntry {
-        let status = await GymService().status()
+        Self.entry(from: await GymService().status())
+    }
+
+    private static func entry(from status: GymStatus) -> ArcStatusEntry {
         let nowMinutes = UCITime.nowMinutes()
         let weekday = UCITime.weekdayName()
         let hoursLine = ArcIdleCopy.hoursLine(
             openNow: status.openNow,
             todayHours: status.todayHours,
             nowMinutes: nowMinutes,
-            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday),
+            opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
+                weekday: weekday,
+                openNow: status.openNow,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            ),
             closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
             opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
         )

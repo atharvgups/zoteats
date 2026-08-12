@@ -51,7 +51,9 @@ struct GymView: View {
     /// honesty as the ARC widget while the Gym tab stays open.
     private func watchScheduleBoundaries() async {
         guard store.status.value != nil else { return }
-        let fire = GymBoundaryRefresh.nextFire()
+        let fire = GymBoundaryRefresh.nextFire(
+            reopenMinutes: store.status.value?.waitzReopenMinutes
+        )
         let delay = fire.timeIntervalSinceNow
         if delay > 0.05 {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -179,7 +181,11 @@ struct GymBusynessHero: View {
             openNow: status.openNow,
             todayHours: status.todayHours,
             nowMinutes: UCITime.nowMinutes(),
-            opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(weekday: weekday),
+            opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
+                weekday: weekday,
+                openNow: status.openNow,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            ),
             closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
             opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
         )
@@ -191,8 +197,10 @@ struct GymBusynessHero: View {
             : ArcIdleCopy.noBusynessMessage(
                 openNow: false,
                 nowMinutes: UCITime.nowMinutes(),
-                opensAtMinutesToday: ArcIdleCopy.todayOpenMinutes(
-                    weekday: UCITime.weekdayName()
+                opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
+                    weekday: UCITime.weekdayName(),
+                    openNow: false,
+                    waitzReopenMinutes: status.waitzReopenMinutes
                 ),
                 closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(
                     weekday: UCITime.weekdayName()
