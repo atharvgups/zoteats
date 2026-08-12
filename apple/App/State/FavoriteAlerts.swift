@@ -44,9 +44,15 @@ enum FavoriteAlerts {
         let hallNames = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0.name) })
 
         var menus: [DiningMenu] = []
+        let nowMinutes = UCITime.nowMinutes()
         for location in locations {
-            // Primary pills only — menu(for:) resolves Brunch / Limited Dinner.
-            for period in DiningService.primaryPeriods(from: location.availablePeriods) {
+            // Live/upcoming primary pills only — skip ended Breakfast after lunch
+            // and all today leftovers after hours.
+            for period in FavoriteAlertPeriods.eligible(
+                timedPeriods: location.periods,
+                availablePeriods: location.availablePeriods,
+                nowMinutes: nowMinutes
+            ) {
                 if let menu = try? await service.menu(for: location.id, period: period) {
                     menus.append(menu)
                 }
