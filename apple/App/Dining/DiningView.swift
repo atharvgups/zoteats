@@ -725,6 +725,7 @@ struct DiningView: View {
         await store.loadLocations(forceRefresh: true)
         syncPeriodSelection()
         await loadCurrentMenu(forceRefresh: true)
+        WidgetReloader.reloadEatWidgets()
         considerAutoMealActivity()
         boundaryEpoch += 1
     }
@@ -758,6 +759,7 @@ struct DiningView: View {
             await loadCurrentMenu(forceRefresh: true)
             considerAutoMealActivity()
         }
+        WidgetReloader.reloadEatWidgets()
         boundaryEpoch += 1
     }
 

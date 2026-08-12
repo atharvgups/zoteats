@@ -17,4 +17,11 @@ public enum WidgetTimelineKinds {
         arcStatus,
         quietestLibrary,
     ]
+
+    /// Eat-facing glances that should wake when dining boards force-refresh
+    /// (pull-to-refresh / Lunch·Dinner publish probes) — not Campus/Gym/Study.
+    public static let eat: [String] = [
+        diningStatus,
+        todaysMenu,
+    ]
 }
