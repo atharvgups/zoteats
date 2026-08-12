@@ -943,7 +943,9 @@ struct DietFilterSheet: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title) filter\(isSelected ? ", active" : "")")
+        .accessibilityLabel(DietFilterRowAccessibility.label(title: title, subtitle: subtitle))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint(DietFilterRowAccessibility.hint(isSelected: isSelected))
     }
 }
 
