@@ -10,21 +10,29 @@ public enum QuietestLibraryGlance {
     /// Prefer Waitz `Closed until …` Opens-at when reload already knows the reopen.
     public static func widgetRectangularDetail(
         percent: Int?,
-        reopenMinutes: Int? = nil
+        reopenMinutes: Int? = nil,
+        nowMinutes: Int = UCITime.nowMinutes()
     ) -> String {
         if let percent {
             return "\(percent)% full · quietest now"
         }
-        return StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+        return StudyIdleCopy.quietestClosedDetail(
+            reopenMinutes: reopenMinutes,
+            nowMinutes: nowMinutes
+        )
     }
 
     /// Home small secondary line when there is no quietest % (libraries closed).
     public static func widgetHomeSecondary(
         percent: Int?,
-        reopenMinutes: Int? = nil
+        reopenMinutes: Int? = nil,
+        nowMinutes: Int = UCITime.nowMinutes()
     ) -> String? {
         percent == nil
-            ? StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+            ? StudyIdleCopy.quietestClosedDetail(
+                reopenMinutes: reopenMinutes,
+                nowMinutes: nowMinutes
+            )
             : nil
     }
 

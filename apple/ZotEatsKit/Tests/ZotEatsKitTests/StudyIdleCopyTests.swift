@@ -57,30 +57,47 @@ struct StudyIdleCopyTests {
 
     @Test func quietestClosedDetailPrefersOpensAt() {
         #expect(
-            StudyIdleCopy.quietestClosedDetail(reopenMinutes: 8 * 60)
+            StudyIdleCopy.quietestClosedDetail(reopenMinutes: 8 * 60, nowMinutes: 6 * 60)
                 == "Opens at 8:00 AM"
         )
         #expect(
-            StudyIdleCopy.quietestClosedDetail(reopenMinutes: nil)
+            StudyIdleCopy.quietestClosedDetail(reopenMinutes: nil, nowMinutes: 6 * 60)
                 == QuietestLibraryGlance.closedDetail
+        )
+    }
+
+    @Test func quietestClosedDetailPastReopenSaysTomorrow() {
+        #expect(
+            StudyIdleCopy.quietestClosedDetail(reopenMinutes: 8 * 60, nowMinutes: 13 * 60)
+                == "Opens tomorrow at 8:00 AM"
         )
     }
 
     @Test func facilityClosedDetailFromWaitz() {
         #expect(
-            StudyIdleCopy.facilityClosedDetail(hoursSummary: "Closed until 8:00am")
-                == "Opens at 8:00 AM"
+            StudyIdleCopy.facilityClosedDetail(
+                hoursSummary: "Closed until 8:00am",
+                nowMinutes: 6 * 60
+            ) == "Opens at 8:00 AM"
         )
         #expect(
-            StudyIdleCopy.facilityClosedDetail(hoursSummary: "Closed until 12:00pm")
-                == "Opens at 12:00 PM"
+            StudyIdleCopy.facilityClosedDetail(
+                hoursSummary: "Closed until 12:00pm",
+                nowMinutes: 10 * 60
+            ) == "Opens at 12:00 PM"
         )
         #expect(
-            StudyIdleCopy.facilityClosedDetail(hoursSummary: nil)
+            StudyIdleCopy.facilityClosedDetail(
+                hoursSummary: "Closed until 8:00am",
+                nowMinutes: 13 * 60
+            ) == "Opens tomorrow at 8:00 AM"
+        )
+        #expect(
+            StudyIdleCopy.facilityClosedDetail(hoursSummary: nil, nowMinutes: 6 * 60)
                 == StudyFacilityCrowding.closedDetail
         )
         #expect(
-            StudyIdleCopy.facilityClosedDetail(hoursSummary: "open")
+            StudyIdleCopy.facilityClosedDetail(hoursSummary: "open", nowMinutes: 6 * 60)
                 == StudyFacilityCrowding.closedDetail
         )
     }

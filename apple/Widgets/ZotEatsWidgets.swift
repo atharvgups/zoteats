@@ -1338,8 +1338,19 @@ struct ArcStatusProvider: TimelineProvider {
                 openNow: status.openNow,
                 waitzReopenMinutes: status.waitzReopenMinutes
             ),
-            closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
-            opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
+            closesAtMinutesToday: ArcIdleCopy.closesAtMinutesToday(
+                weekday: weekday,
+                openNow: status.openNow,
+                nowMinutes: nowMinutes,
+                waitzCloseMinutes: status.waitzCloseMinutes,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            ),
+            opensAtMinutesTomorrow: ArcIdleCopy.opensAtMinutesTomorrow(
+                weekday: weekday,
+                openNow: status.openNow,
+                nowMinutes: nowMinutes,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            )
         )
         let crowding = ArcWidgetGlance.crowding(from: status)
         let isTypical = crowding?.isTypical ?? false

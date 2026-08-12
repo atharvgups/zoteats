@@ -83,9 +83,13 @@ struct DiningStatusAccessibilityLabelTests {
 
     @Test("Libraries closed tip prefers Waitz Opens at")
     func quietestClosedOpensAt() {
+        // Fixed Irvine morning so Closed-until 8 AM stays “Opens at”, not tomorrow.
+        let morning = ISO8601DateFormatter().date(from: "2026-07-13T13:00:00Z")! // Mon 6 AM PDT
         #expect(
-            DiningStatusAccessibilityLabel.quietestTip(.librariesClosed(reopenMinutes: 8 * 60))
-                == "\(QuietestLibraryGlance.closedTitle). Opens at 8:00 AM"
+            DiningStatusAccessibilityLabel.quietestTip(
+                .librariesClosed(reopenMinutes: 8 * 60),
+                now: morning
+            ) == "\(QuietestLibraryGlance.closedTitle). Opens at 8:00 AM"
         )
     }
 }

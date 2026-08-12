@@ -84,8 +84,25 @@ struct StudyFacilityAccessibilityLabelTests {
                 levelLabel: nil,
                 peopleCount: nil,
                 capacity: nil,
-                hoursSummary: "Closed until 8:00am"
+                hoursSummary: "Closed until 8:00am",
+                nowMinutes: 6 * 60
             ) == "Langson Library, closed, Opens at 8:00 AM"
+        )
+    }
+
+    @Test("Closed past Waitz reopen says Opens tomorrow")
+    func closedOpensTomorrow() {
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Langson Library",
+                isOpen: false,
+                percent: nil,
+                levelLabel: nil,
+                peopleCount: nil,
+                capacity: nil,
+                hoursSummary: "Closed until 8:00am",
+                nowMinutes: 13 * 60
+            ) == "Langson Library, closed, Opens tomorrow at 8:00 AM"
         )
     }
 

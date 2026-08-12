@@ -1,8 +1,8 @@
 import Foundation
 
-/// Study / Quietest hours chrome from Waitz — Closed-until → “Opens at …”,
-/// parseable open ranges → “Open until …”. Reload already parses reopen/
-/// close minutes; this keeps cards and widgets honest.
+/// Study / Quietest hours chrome from Waitz — Closed-until → “Opens at …” /
+/// “Opens tomorrow at …” when that clock is past; parseable open ranges →
+/// “Open until …”.
 public enum StudyIdleCopy {
     /// Soonest library-pool reopen from Waitz (sorted ascending).
     public static func soonestReopenMinutes(from facilities: [BusynessPoint]) -> Int? {
@@ -13,18 +13,35 @@ public enum StudyIdleCopy {
         "Opens at \(UCITime.format(minutes: minutes))"
     }
 
-    /// Quietest / Dining Status closed secondary — Opens-at when known.
-    public static func quietestClosedDetail(reopenMinutes: Int?) -> String {
+    public static func opensTomorrowLine(minutes: Int) -> String {
+        "Opens tomorrow at \(UCITime.format(minutes: minutes))"
+    }
+
+    /// Quietest / Dining Status closed secondary — Opens-at when known and
+    /// still ahead; Opens-tomorrow when Waitz Closed-until is already past.
+    public static func quietestClosedDetail(
+        reopenMinutes: Int?,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> String {
         guard let minutes = reopenMinutes else {
             return QuietestLibraryGlance.closedDetail
         }
-        return opensAtLine(minutes: minutes)
+        if nowMinutes < minutes {
+            return opensAtLine(minutes: minutes)
+        }
+        return opensTomorrowLine(minutes: minutes)
     }
 
     /// Per-facility closed secondary from Waitz `hoursSummary`.
-    public static func facilityClosedDetail(hoursSummary: String?) -> String {
+    public static func facilityClosedDetail(
+        hoursSummary: String?,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> String {
         if let minutes = WaitzHoursSummary.closedUntilMinutes(hoursSummary) {
-            return opensAtLine(minutes: minutes)
+            if nowMinutes < minutes {
+                return opensAtLine(minutes: minutes)
+            }
+            return opensTomorrowLine(minutes: minutes)
         }
         return StudyFacilityCrowding.closedDetail
     }

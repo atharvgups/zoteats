@@ -178,36 +178,57 @@ struct GymBusynessHero: View {
 
     private var hoursLine: String {
         let weekday = UCITime.weekdayName()
+        let nowMinutes = UCITime.nowMinutes()
         return ArcIdleCopy.hoursLine(
             openNow: status.openNow,
             todayHours: status.todayHours,
-            nowMinutes: UCITime.nowMinutes(),
+            nowMinutes: nowMinutes,
             opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
                 weekday: weekday,
                 openNow: status.openNow,
                 waitzReopenMinutes: status.waitzReopenMinutes
             ),
-            closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(weekday: weekday),
-            opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(weekday: weekday)
+            closesAtMinutesToday: ArcIdleCopy.closesAtMinutesToday(
+                weekday: weekday,
+                openNow: status.openNow,
+                nowMinutes: nowMinutes,
+                waitzCloseMinutes: status.waitzCloseMinutes,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            ),
+            opensAtMinutesTomorrow: ArcIdleCopy.opensAtMinutesTomorrow(
+                weekday: weekday,
+                openNow: status.openNow,
+                nowMinutes: nowMinutes,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            )
         )
     }
 
     private var idleMessage: String {
-        status.openNow
+        let weekday = UCITime.weekdayName()
+        let nowMinutes = UCITime.nowMinutes()
+        return status.openNow
             ? "No busyness estimate right now"
             : ArcIdleCopy.noBusynessMessage(
                 openNow: false,
-                nowMinutes: UCITime.nowMinutes(),
+                nowMinutes: nowMinutes,
                 opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
-                    weekday: UCITime.weekdayName(),
+                    weekday: weekday,
                     openNow: false,
                     waitzReopenMinutes: status.waitzReopenMinutes
                 ),
-                closesAtMinutesToday: ArcIdleCopy.todayCloseMinutes(
-                    weekday: UCITime.weekdayName()
+                closesAtMinutesToday: ArcIdleCopy.closesAtMinutesToday(
+                    weekday: weekday,
+                    openNow: false,
+                    nowMinutes: nowMinutes,
+                    waitzCloseMinutes: status.waitzCloseMinutes,
+                    waitzReopenMinutes: status.waitzReopenMinutes
                 ),
-                opensAtMinutesTomorrow: ArcIdleCopy.tomorrowOpenMinutes(
-                    weekday: UCITime.weekdayName()
+                opensAtMinutesTomorrow: ArcIdleCopy.opensAtMinutesTomorrow(
+                    weekday: weekday,
+                    openNow: false,
+                    nowMinutes: nowMinutes,
+                    waitzReopenMinutes: status.waitzReopenMinutes
                 )
             )
     }

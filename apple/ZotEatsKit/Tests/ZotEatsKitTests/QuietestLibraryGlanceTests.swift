@@ -142,14 +142,23 @@ struct QuietestLibraryGlanceTests {
         #expect(
             QuietestLibraryGlance.widgetRectangularDetail(
                 percent: nil,
-                reopenMinutes: 8 * 60
+                reopenMinutes: 8 * 60,
+                nowMinutes: 6 * 60
             ) == "Opens at 8:00 AM"
         )
         #expect(
             QuietestLibraryGlance.widgetHomeSecondary(
                 percent: nil,
-                reopenMinutes: 8 * 60
+                reopenMinutes: 8 * 60,
+                nowMinutes: 6 * 60
             ) == "Opens at 8:00 AM"
+        )
+        #expect(
+            QuietestLibraryGlance.widgetRectangularDetail(
+                percent: nil,
+                reopenMinutes: 8 * 60,
+                nowMinutes: 13 * 60
+            ) == "Opens tomorrow at 8:00 AM"
         )
     }
 }

@@ -11,7 +11,8 @@ public enum StudyFacilityAccessibilityLabel {
         peopleCount: Int?,
         capacity: Int?,
         updatedRelative: String? = nil,
-        hoursSummary: String? = nil
+        hoursSummary: String? = nil,
+        nowMinutes: Int = UCITime.nowMinutes()
     ) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = [trimmed.isEmpty ? "Library" : trimmed]
@@ -41,7 +42,12 @@ public enum StudyFacilityAccessibilityLabel {
             }
         } else {
             parts.append("closed")
-            parts.append(StudyIdleCopy.facilityClosedDetail(hoursSummary: hoursSummary))
+            parts.append(
+                StudyIdleCopy.facilityClosedDetail(
+                    hoursSummary: hoursSummary,
+                    nowMinutes: nowMinutes
+                )
+            )
         }
 
         if let updated = updatedRelative?.trimmingCharacters(in: .whitespacesAndNewlines),

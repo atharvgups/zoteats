@@ -9,12 +9,16 @@ public enum QuietestLibraryAccessibilityLabel {
         percent: Int?,
         includeQuietestQualifier: Bool = false,
         updatedRelative: String? = nil,
-        reopenMinutes: Int? = nil
+        reopenMinutes: Int? = nil,
+        nowMinutes: Int = UCITime.nowMinutes()
     ) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let percent else {
             let title = trimmed.isEmpty ? QuietestLibraryGlance.closedTitle : trimmed
-            let detail = StudyIdleCopy.quietestClosedDetail(reopenMinutes: reopenMinutes)
+            let detail = StudyIdleCopy.quietestClosedDetail(
+                reopenMinutes: reopenMinutes,
+                nowMinutes: nowMinutes
+            )
             return "\(title). \(detail)"
         }
         var parts: [String] = [

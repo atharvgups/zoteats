@@ -2,6 +2,7 @@ import Foundation
 
 /// Honest ARC idle / closed chrome — "opens at 6:00 AM" before today's open,
 /// and "opens tomorrow at …" after today's close (not a vague "see you tomorrow").
+/// Prefers Waitz reopen / live close over the maintained week when they disagree.
 public enum ArcIdleCopy {
     /// Today's open minutes (Irvine) from the maintained ARC week, when known.
     public static func todayOpenMinutes(
@@ -28,7 +29,7 @@ public enum ArcIdleCopy {
         return arcWeek[(idx + 1) % arcWeek.count].open * 60
     }
 
-    /// True once today's maintained window is finished (Irvine minutes).
+    /// True once today's window is finished (Irvine minutes).
     private static func isDoneForToday(
         nowMinutes: Int,
         opensAtMinutesToday: Int?,
@@ -56,6 +57,44 @@ public enum ArcIdleCopy {
         let schedule = todayOpenMinutes(weekday: weekday, arcWeek: arcWeek)
         guard !openNow, let waitz = waitzReopenMinutes else { return schedule }
         return waitz
+    }
+
+    /// Effective close for closed chrome — Waitz live-range close when known;
+    /// when Waitz `Closed until …` is already past, pin done-for-today at that
+    /// reopen so afternoon holiday closes say “Opens tomorrow” instead of
+    /// waiting on the maintained 10 PM close.
+    public static func closesAtMinutesToday(
+        weekday: String,
+        openNow: Bool,
+        nowMinutes: Int,
+        waitzCloseMinutes: Int? = nil,
+        waitzReopenMinutes: Int? = nil,
+        arcWeek: [(day: String, open: Int, close: Int)] = GymService.arcWeek
+    ) -> Int? {
+        if let waitz = waitzCloseMinutes { return waitz }
+        if !openNow, let reopen = waitzReopenMinutes, nowMinutes >= reopen {
+            return reopen
+        }
+        return todayCloseMinutes(weekday: weekday, arcWeek: arcWeek)
+    }
+
+    /// Tomorrow's open — prefer Waitz `Closed until …` when that clock is
+    /// already past (next open is tomorrow at that time).
+    public static func opensAtMinutesTomorrow(
+        weekday: String,
+        openNow: Bool = true,
+        nowMinutes: Int? = nil,
+        waitzReopenMinutes: Int? = nil,
+        arcWeek: [(day: String, open: Int, close: Int)] = GymService.arcWeek
+    ) -> Int? {
+        let schedule = tomorrowOpenMinutes(weekday: weekday, arcWeek: arcWeek)
+        if !openNow,
+           let waitz = waitzReopenMinutes,
+           let now = nowMinutes,
+           now >= waitz {
+            return waitz
+        }
+        return schedule
     }
 
     /// Copy when the Gym hero has no busyness %.

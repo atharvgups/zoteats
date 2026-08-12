@@ -202,4 +202,64 @@ struct ArcIdleCopyTests {
             ) == 6 * 60
         )
     }
+
+    @Test func waitzLiveClosePreferredOverSchedule() {
+        #expect(
+            ArcIdleCopy.closesAtMinutesToday(
+                weekday: "Monday",
+                openNow: true,
+                nowMinutes: 10 * 60,
+                waitzCloseMinutes: 12 * 60
+            ) == 12 * 60
+        )
+        #expect(
+            ArcIdleCopy.hoursLine(
+                openNow: true,
+                todayHours: "6:00 AM – 12:00 PM",
+                nowMinutes: 10 * 60,
+                opensAtMinutesToday: 6 * 60,
+                closesAtMinutesToday: 12 * 60,
+                opensAtMinutesTomorrow: 6 * 60
+            ) == "Open until 12:00 PM"
+        )
+    }
+
+    @Test func waitzPastClosedUntilSaysOpensTomorrow() {
+        // Holiday early close: Waitz Closed until 6 AM (past); schedule still lists 10 PM.
+        let now = 13 * 60
+        let reopen = 6 * 60
+        let close = ArcIdleCopy.closesAtMinutesToday(
+            weekday: "Monday",
+            openNow: false,
+            nowMinutes: now,
+            waitzCloseMinutes: nil,
+            waitzReopenMinutes: reopen
+        )
+        #expect(close == reopen)
+        let tomorrow = ArcIdleCopy.opensAtMinutesTomorrow(
+            weekday: "Monday",
+            openNow: false,
+            nowMinutes: now,
+            waitzReopenMinutes: reopen
+        )
+        #expect(tomorrow == reopen)
+        #expect(
+            ArcIdleCopy.closedHoursLine(
+                todayHours: "6:00 AM – 10:00 PM",
+                nowMinutes: now,
+                opensAtMinutesToday: reopen,
+                closesAtMinutesToday: close,
+                opensAtMinutesTomorrow: tomorrow
+            ) == "Opens tomorrow at 6:00 AM"
+        )
+        #expect(
+            ArcIdleCopy.noBusynessMessage(
+                openNow: false,
+                nowMinutes: now,
+                opensAtMinutesToday: reopen,
+                closesAtMinutesToday: close,
+                opensAtMinutesTomorrow: tomorrow
+            ) == "Closed — opens tomorrow at 6:00 AM"
+        )
+    }
 }

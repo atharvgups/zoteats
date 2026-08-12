@@ -104,7 +104,8 @@ struct QuietestLibraryAccessibilityLabelTests {
             QuietestLibraryAccessibilityLabel.label(
                 name: QuietestLibraryGlance.closedTitle,
                 percent: nil,
-                reopenMinutes: 8 * 60
+                reopenMinutes: 8 * 60,
+                nowMinutes: 6 * 60
             ) == "\(QuietestLibraryGlance.closedTitle). Opens at 8:00 AM"
         )
     }
