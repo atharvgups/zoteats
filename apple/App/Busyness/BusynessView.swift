@@ -307,62 +307,73 @@ struct BusynessFacilityCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(facility.name)
-                    .font(ZotFont.cardTitle)
-                    .lineLimit(2)
-                Spacer(minLength: 8)
-                StatusPill(isOpen: facility.isOpen)
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
-                   let percent = facility.percent {
-                    Text("\(percent)%")
-                        .font(.system(size: 28, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(facility.level.color)
-                    Text(facility.level.label)
-                        .font(ZotFont.pill)
-                        .foregroundStyle(facility.level.color)
-                } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
-                    Text("—")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(.secondary)
-                    Text(facility.level.label)
-                        .font(ZotFont.pill)
-                        .foregroundStyle(facility.level.color)
-                } else {
-                    Text("—")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(.secondary)
-                    Text(StudyFacilityCrowding.closedLevelLabel)
-                        .font(ZotFont.pill)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(facility.name)
+                        .font(ZotFont.cardTitle)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    StatusPill(isOpen: facility.isOpen)
                 }
-                Spacer()
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(percentAccessibilityLabel)
 
-            if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
-                OccupancyBar(percent: facility.percent, level: facility.level)
-            } else {
-                Text(StudyFacilityCrowding.closedDetail)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-            }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+                       let percent = facility.percent {
+                        Text("\(percent)%")
+                            .font(.system(size: 28, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(facility.level.color)
+                        Text(facility.level.label)
+                            .font(ZotFont.pill)
+                            .foregroundStyle(facility.level.color)
+                    } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+                        Text("—")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Text(facility.level.label)
+                            .font(ZotFont.pill)
+                            .foregroundStyle(facility.level.color)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Text(StudyFacilityCrowding.closedLevelLabel)
+                            .font(ZotFont.pill)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
 
-            HStack {
-                if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
-                   let count = facility.count, let capacity = facility.capacity {
-                    Text("\(count) / \(capacity) people")
+                if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
+                    OccupancyBar(percent: facility.percent, level: facility.level)
+                } else {
+                    Text(StudyFacilityCrowding.closedDetail)
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
-                UpdatedAgoText(date: facility.updatedAt)
+
+                HStack {
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
+                       let count = facility.count, let capacity = facility.capacity {
+                        Text("\(count) / \(capacity) people")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    UpdatedAgoText(date: facility.updatedAt)
+                }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                StudyFacilityAccessibilityLabel.label(
+                    name: facility.name,
+                    isOpen: facility.isOpen,
+                    percent: facility.percent,
+                    levelLabel: facility.level.label,
+                    peopleCount: facility.count,
+                    capacity: facility.capacity
+                )
+            )
 
             // Floor % goes stale overnight — only expand while the building is open.
             if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
@@ -427,17 +438,6 @@ struct BusynessFacilityCard: View {
                 ? "Hide floors inside \(facility.name)"
                 : "Show floors inside \(facility.name)"
         )
-    }
-
-    private var percentAccessibilityLabel: String {
-        if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen),
-           let percent = facility.percent {
-            return "\(percent) percent full, \(facility.level.label)"
-        }
-        if StudyFacilityCrowding.showsLiveCrowding(isOpen: facility.isOpen) {
-            return facility.level.label
-        }
-        return "\(StudyFacilityCrowding.closedLevelLabel). \(StudyFacilityCrowding.closedDetail)"
     }
 }
 
