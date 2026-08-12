@@ -33,6 +33,27 @@ public enum TodaysMenuEmptyCopy {
         }
     }
 
+    /// Eat tab after-hours empty message — hall + tomorrow meal/time when known.
+    public static func eatAfterHoursMessage(
+        hallName: String,
+        opensTomorrowPeriod: String?,
+        opensTomorrowAtMinutes: Int?
+    ) -> String {
+        let hall = hallName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = hall.isEmpty ? "This hall" : hall
+        if let open = opensTomorrowAtMinutes {
+            let meal = MealPeriodPill.canonical(opensTomorrowPeriod ?? "Breakfast")
+            let time = UCITime.format(minutes: open)
+            return "\(name) is closed for tonight. \(meal) tomorrow · \(time)."
+        }
+        return "\(name) is closed for tonight. Breakfast posts overnight — or pick tomorrow in the day strip."
+    }
+
+    /// Tomorrow's Irvine ISO for Eat "See tomorrow" CTA / deep links.
+    public static func tomorrowISO(now: Date = Date()) -> String? {
+        UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+    }
+
     public static func reason(
         periodIsEmpty: Bool,
         filtersEmptiedMenu: Bool,

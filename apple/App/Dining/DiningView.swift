@@ -335,14 +335,25 @@ struct DiningView: View {
             case .emptyNoMenu:
                 let afterHours = selectedDate == nil
                     && selectedLocation?.openState(nowMinutes: UCITime.nowMinutes()) == .closedForToday
+                let location = selectedLocation
                 EmptyStateView(
                     icon: "moon.zzz",
                     title: afterHours ? "Dinner's done" : "No menu yet",
                     message: afterHours
-                        ? "\(selectedLocation?.name ?? "This hall") is closed for tonight. Breakfast posts overnight — or pick tomorrow in the day strip."
-                        : "\(selectedLocation?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
+                        ? TodaysMenuEmptyCopy.eatAfterHoursMessage(
+                            hallName: location?.name ?? "This hall",
+                            opensTomorrowPeriod: location?.opensTomorrowPeriod,
+                            opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes
+                        )
+                        : "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall.",
+                    actionTitle: afterHours ? "See tomorrow" : "Try Again"
                 ) {
-                    Task { await refresh() }
+                    if afterHours, let tomorrow = TodaysMenuEmptyCopy.tomorrowISO() {
+                        selectedDate = tomorrow
+                        Haptics.selection()
+                    } else {
+                        Task { await refresh() }
+                    }
                 }
             case .loading:
                 loadingPlaceholder
