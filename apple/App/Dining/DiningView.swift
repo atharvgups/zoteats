@@ -601,18 +601,20 @@ struct DiningView: View {
         guard selectedDate == nil,
               let location = selectedLocation,
               let period = selectedPeriod,
-              let window = location.periods.first(where: {
-                  $0.name.caseInsensitiveCompare(period) == .orderedSame
-              }),
-              let start = window.startMinutes,
-              let end = window.endMinutes
+              let window = MealTrackWindow.resolve(
+                pill: period,
+                timedPeriods: location.periods,
+                availablePeriods: location.availablePeriods
+              )
         else { return }
+        // Use the live API name (Brunch / Limited Dinner) so the Island label
+        // and Tracking key match the Track meal button.
         mealActivity.autoStartIfNeeded(
             hallName: location.name,
             hallID: location.id,
-            period: period,
-            startMinutes: start,
-            endMinutes: end
+            period: window.livePeriodName,
+            startMinutes: window.startMinutes,
+            endMinutes: window.endMinutes
         )
     }
 
