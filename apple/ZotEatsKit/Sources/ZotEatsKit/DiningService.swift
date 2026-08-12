@@ -227,8 +227,16 @@ public struct DiningService: Sendable {
         return map
     }
 
-    private func today(for hall: String, dateISO: String) async throws -> APIRestaurantToday {
-        try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL) {
+    private func today(
+        for hall: String,
+        dateISO: String,
+        forceRefresh: Bool = false
+    ) async throws -> APIRestaurantToday {
+        let key = "dining:today:\(hall):\(dateISO)"
+        if forceRefresh {
+            await cache.invalidate(key)
+        }
+        return try await cache.remember(key, ttl: Self.todayTTL) {
             do {
                 return try await getData(
                     APIRestaurantToday.self,
@@ -242,8 +250,11 @@ public struct DiningService: Sendable {
     }
 
     /// Days the Anteater dining feed currently has menus for (clamps the day strip).
-    public func publishedDateRange() async -> PublishedDateRange? {
+    public func publishedDateRange(forceRefresh: Bool = false) async -> PublishedDateRange? {
         do {
+            if forceRefresh {
+                await cache.invalidate("dining:dateRange")
+            }
             return try await cache.remember("dining:dateRange", ttl: Self.dateRangeTTL) {
                 let raw = try await getData(APIDateRange.self, path: "/dateRange")
                 return PublishedDateRange(earliest: raw.earliest, latest: raw.latest)
@@ -402,7 +413,9 @@ public struct DiningService: Sendable {
 
     /// Every dining commons the live API lists (a new hall shows up here
     /// automatically) with today's hours, open state, and served meal periods.
-    public func locations() async -> [DiningLocation] {
+    /// Pass `forceRefresh` at publish probes / pull-to-refresh so a stale
+    /// empty or breakfast-only board is not reused for up to 20 minutes.
+    public func locations(forceRefresh: Bool = false) async -> [DiningLocation] {
         let dateISO = PacificTime.todayISO(now: now())
         let nowMinutes = PacificTime.nowMinutes(now: now())
 
@@ -413,7 +426,12 @@ public struct DiningService: Sendable {
         await withTaskGroup(of: DiningLocation.self) { group in
             for hall in hallIDs {
                 group.addTask {
-                    await location(for: hall, dateISO: dateISO, nowMinutes: nowMinutes)
+                    await location(
+                        for: hall,
+                        dateISO: dateISO,
+                        nowMinutes: nowMinutes,
+                        forceRefresh: forceRefresh
+                    )
                 }
             }
             for await location in group {
@@ -426,9 +444,15 @@ public struct DiningService: Sendable {
 
     /// Meal-period windows for a hall on a specific Irvine ISO date.
     /// Empty when unpublished (404) or offline — never throws.
-    public func mealPeriods(for hall: String, dateISO: String) async -> [MealPeriodWindow] {
+    public func mealPeriods(
+        for hall: String,
+        dateISO: String,
+        forceRefresh: Bool = false
+    ) async -> [MealPeriodWindow] {
         do {
-            let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
+            let periods = Self.servedPeriods(
+                try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+            )
             return periods.map {
                 MealPeriodWindow(
                     name: $0.name,
@@ -441,14 +465,21 @@ public struct DiningService: Sendable {
         }
     }
 
-    private func location(for hall: String, dateISO: String, nowMinutes: Int) async -> DiningLocation {
+    private func location(
+        for hall: String,
+        dateISO: String,
+        nowMinutes: Int,
+        forceRefresh: Bool = false
+    ) async -> DiningLocation {
         let calendar = PacificTime.calendar
         let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: now()) ?? now()
         let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
         async let tomorrowWindows = mealPeriods(for: hall, dateISO: tomorrowISO)
 
         do {
-            let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
+            let periods = Self.servedPeriods(
+                try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+            )
             let starts = periods.compactMap { PacificTime.parseMinutes($0.startTime) }
             let ends = periods.compactMap { PacificTime.parseMinutes($0.endTime) }
             let openNow = periods.contains { period in
@@ -577,9 +608,14 @@ public struct DiningService: Sendable {
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
     /// All Day stations fold into the bottom as "Available all day".
     /// Unpublished days (API 404) return an empty menu — never throw.
-    public func menu(for hall: String, period: String, date: String? = nil) async throws -> DiningMenu {
+    public func menu(
+        for hall: String,
+        period: String,
+        date: String? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        let today = try await today(for: hall, dateISO: dateISO)
+        let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
         let available = (today.periods ?? [:]).values.map(\.name)
 
         // No periods published for this day yet (404 mapped to empty, or blank payload).

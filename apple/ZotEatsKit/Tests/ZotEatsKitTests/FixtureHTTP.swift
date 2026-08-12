@@ -53,3 +53,44 @@ struct NotFoundHTTP: HTTPFetching {
         throw HTTPError.badStatus(code: 404, url: url)
     }
 }
+
+/// Mutable dining HTTP — first `restaurantToday` responses are empty boards;
+/// after `publish()`, subsequent reads return the full fixture. Used to prove
+/// `forceRefresh` bypasses the 20-minute today TTL when Lunch/Dinner lands.
+actor PublishProbeHTTP: HTTPFetching {
+    private var published = false
+    private(set) var restaurantTodayHits = 0
+
+    func publish() {
+        published = true
+    }
+
+    func todayHits() -> Int { restaurantTodayHits }
+
+    func data(from url: URL) async throws -> Data {
+        let path = url.path
+        if path.hasSuffix("/restaurants") {
+            return try FixtureHTTP.load("restaurants")
+        }
+        if path.hasSuffix("/restaurantToday") {
+            restaurantTodayHits += 1
+            if published {
+                return try FixtureHTTP.load("restaurant_today")
+            }
+            let hall = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "id" })?
+                .value ?? "anteatery"
+            return Data(
+                #"{"ok":true,"data":{"id":"\#(hall)","periods":{}}}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dishes/batch") {
+            return try FixtureHTTP.load("dishes_batch")
+        }
+        if path.hasSuffix("/dateRange") {
+            return try FixtureHTTP.load("date_range")
+        }
+        throw FixtureHTTP.UnexpectedRequest(url: url)
+    }
+}

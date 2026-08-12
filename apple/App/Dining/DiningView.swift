@@ -707,17 +707,24 @@ struct DiningView: View {
 
     // MARK: - Loading
 
-    private func loadCurrentMenu() async {
+    private func loadCurrentMenu(forceRefresh: Bool = false) async {
         // Cache under the primary pill name (Breakfast/Lunch/Dinner). The
         // service resolves Brunch / Limited Dinner internally.
         guard let selectedPeriod else { return }
-        await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
+        await store.loadMenu(
+            hall: selectedHall,
+            period: selectedPeriod,
+            date: selectedDate,
+            forceRefresh: forceRefresh
+        )
     }
 
     private func refresh() async {
-        await store.loadLocations()
+        // Pull-to-refresh must bypass the 20-minute restaurantToday TTL so a
+        // publish that landed minutes ago shows up immediately.
+        await store.loadLocations(forceRefresh: true)
         syncPeriodSelection()
-        await loadCurrentMenu()
+        await loadCurrentMenu(forceRefresh: true)
         considerAutoMealActivity()
         boundaryEpoch += 1
     }
@@ -739,15 +746,16 @@ struct DiningView: View {
     }
 
     private func applyBoundaryTick() async {
-        // Midnight (and meal edges): purge stale |"today"| menus, clear yesterday's
-        // plate, and refetch hall windows so chrome doesn't keep "opens tomorrow".
+        // Midnight (and meal edges / Lunch·Dinner publish probes): purge stale
+        // |"today"| menus, clear yesterday's plate, and force-refetch hall
+        // windows so an empty or breakfast-only board isn't stuck for 20m.
         plate.ensureCurrentDay()
         store.ensureCurrentDay()
-        await store.loadLocations()
+        await store.loadLocations(forceRefresh: true)
         syncDateSelection()
         syncPeriodSelection()
         if selectedDate == nil {
-            await loadCurrentMenu()
+            await loadCurrentMenu(forceRefresh: true)
             considerAutoMealActivity()
         }
         boundaryEpoch += 1

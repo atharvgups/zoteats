@@ -62,16 +62,18 @@ final class DiningStore {
         dayPeriods["\(hall)|\(dateISO)"] ?? .idle
     }
 
-    func loadDayPeriods(hall: String, dateISO: String) async {
+    func loadDayPeriods(hall: String, dateISO: String, forceRefresh: Bool = false) async {
         let key = "\(hall)|\(dateISO)"
         if dayPeriods[key]?.value == nil { dayPeriods[key] = .loading }
-        dayPeriods[key] = .loaded(await service.mealPeriods(for: hall, dateISO: dateISO))
+        dayPeriods[key] = .loaded(
+            await service.mealPeriods(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+        )
     }
 
-    func loadLocations() async {
+    func loadLocations(forceRefresh: Bool = false) async {
         if locations.value == nil { locations = .loading }
-        async let range = service.publishedDateRange()
-        let result = await service.locations()
+        async let range = service.publishedDateRange(forceRefresh: forceRefresh)
+        let result = await service.locations(forceRefresh: forceRefresh)
         publishedDateRange = await range
         locationsDateISO = UCITime.todayISO()
         // The service degrades per-hall; treat "no data at all" as an error state.
@@ -86,11 +88,18 @@ final class DiningStore {
         menus["\(hall)|\(period)|\(date ?? "today")"] ?? .idle
     }
 
-    func loadMenu(hall: String, period: String, date: String? = nil) async {
+    func loadMenu(hall: String, period: String, date: String? = nil, forceRefresh: Bool = false) async {
         let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
-            menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date))
+            menus[key] = .loaded(
+                try await service.menu(
+                    for: hall,
+                    period: period,
+                    date: date,
+                    forceRefresh: forceRefresh
+                )
+            )
         } catch {
             menus[key] = .failed(error.localizedDescription)
         }

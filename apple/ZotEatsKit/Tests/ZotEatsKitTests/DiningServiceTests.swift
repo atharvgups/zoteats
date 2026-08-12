@@ -411,6 +411,32 @@ struct HallDirectoryTests {
         #expect(HallDirectory.id(matchingDisplayName: "Unknown Hall") == nil)
         #expect(HallDirectory.id(matchingDisplayName: "") == nil)
     }
+
+    @Test("forceRefresh replaces cached empty board before today TTL expires")
+    func forceRefreshBypassesStaleEmptyTodayBoard() async {
+        let http = PublishProbeHTTP()
+        let cache = TTLCache()
+        let service = DiningService(http: http, cache: cache, now: { fixtureNoon })
+
+        let before = await service.locations()
+        #expect(before.allSatisfy { $0.availablePeriods.isEmpty })
+        let hitsAfterEmpty = await http.todayHits()
+        #expect(hitsAfterEmpty >= 1)
+
+        // Soft reload within TTL must reuse the empty board (no new today hits).
+        let soft = await service.locations()
+        #expect(soft.allSatisfy { $0.availablePeriods.isEmpty })
+        #expect(await http.todayHits() == hitsAfterEmpty)
+
+        await http.publish()
+        let softStillStale = await service.locations()
+        #expect(softStillStale.allSatisfy { $0.availablePeriods.isEmpty })
+        #expect(await http.todayHits() == hitsAfterEmpty)
+
+        let fresh = await service.locations(forceRefresh: true)
+        #expect(fresh.contains { $0.availablePeriods.contains("Lunch") })
+        #expect(await http.todayHits() > hitsAfterEmpty)
+    }
 }
 
 @Suite("PacificTime")
