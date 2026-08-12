@@ -126,19 +126,11 @@ enum FavoriteAlerts {
     }
 
     /// Asks iOS for the next opportunistic background check, aiming near
-    /// breakfast so favorite alerts land before the lunch rush.
+    /// breakfast, pre-lunch, and pre-dinner so hearted dishes still ping when
+    /// Limited Dinner / Dinner is the live board (not only the morning slot).
     static func scheduleNextRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: refreshTaskID)
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .current
-        let now = Date()
-        var components = cal.dateComponents([.year, .month, .day], from: now)
-        components.hour = 6
-        components.minute = 45
-        let todayTarget = cal.date(from: components) ?? now
-        let tomorrowTarget = cal.date(byAdding: .day, value: 1, to: todayTarget) ?? now.addingTimeInterval(86_400)
-        let preferred = todayTarget > now.addingTimeInterval(30 * 60) ? todayTarget : tomorrowTarget
-        request.earliestBeginDate = max(preferred, now.addingTimeInterval(60 * 60))
+        request.earliestBeginDate = FavoriteAlertRefresh.earliestBeginDate()
         try? BGTaskScheduler.shared.submit(request)
     }
 
