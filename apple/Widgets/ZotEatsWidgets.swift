@@ -285,7 +285,11 @@ struct DiningStatusProvider: TimelineProvider {
                 todayHours: location.todayHours,
                 opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
                 opensTomorrowPeriod: location.opensTomorrowPeriod,
-                nowMinutes: nowMinutes
+                nowMinutes: nowMinutes,
+                opensNextAtMinutes: location.opensNextAtMinutes,
+                opensNextDayOffset: location.opensNextDayOffset,
+                opensNextWeekday: location.opensNextWeekday,
+                opensNextPeriod: location.opensNextPeriod
             )
             let countdownKind: DiningStatusEntry.HallStatus.CountdownKind? = {
                 switch chrome.countdownKind {
@@ -298,7 +302,11 @@ struct DiningStatusProvider: TimelineProvider {
                 for: state,
                 availablePeriods: location.availablePeriods,
                 opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
-                opensTomorrowPeriod: location.opensTomorrowPeriod
+                opensTomorrowPeriod: location.opensTomorrowPeriod,
+                opensNextAtMinutes: location.opensNextAtMinutes,
+                opensNextDayOffset: location.opensNextDayOffset,
+                opensNextPeriod: location.opensNextPeriod,
+                opensNextDateISO: location.opensNextDateISO
             )
             let estimate = TypicalBusyness.dining(periods: location.periods)
             let serving = location.isServing(nowMinutes: nowMinutes)
@@ -616,6 +624,10 @@ struct TodaysMenuEntry: TimelineEntry {
     /// Tomorrow open metadata for after-hours empty copy (nil when not after hours).
     let opensTomorrowAtMinutes: Int?
     let opensTomorrowPeriod: String?
+    /// Later-than-tomorrow open for after-hours empty copy (nil when not after hours).
+    let opensNextAtMinutes: Int?
+    let opensNextWeekday: String?
+    let opensNextPeriod: String?
     /// Upcoming meal start (Irvine minutes) for empty "starts at" copy.
     let upcomingStartMinutes: Int?
     /// Partial board — Dinner may still drop; don't use after-hours empty copy.
@@ -637,7 +649,10 @@ struct TodaysMenuEntry: TimelineEntry {
         opensTomorrowAtMinutes: Int? = nil,
         opensTomorrowPeriod: String? = nil,
         upcomingStartMinutes: Int? = nil,
-        awaitingMoreMeals: Bool = false
+        awaitingMoreMeals: Bool = false,
+        opensNextAtMinutes: Int? = nil,
+        opensNextWeekday: String? = nil,
+        opensNextPeriod: String? = nil
     ) {
         self.date = date
         self.hallName = hallName
@@ -655,6 +670,9 @@ struct TodaysMenuEntry: TimelineEntry {
         self.opensTomorrowPeriod = opensTomorrowPeriod
         self.upcomingStartMinutes = upcomingStartMinutes
         self.awaitingMoreMeals = awaitingMoreMeals
+        self.opensNextAtMinutes = opensNextAtMinutes
+        self.opensNextWeekday = opensNextWeekday
+        self.opensNextPeriod = opensNextPeriod
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -762,7 +780,11 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 for: .closedForToday,
                 availablePeriods: hall.availablePeriods,
                 opensTomorrowAtMinutes: hall.opensTomorrowAtMinutes,
-                opensTomorrowPeriod: hall.opensTomorrowPeriod
+                opensTomorrowPeriod: hall.opensTomorrowPeriod,
+                opensNextAtMinutes: hall.opensNextAtMinutes,
+                opensNextDayOffset: hall.opensNextDayOffset,
+                opensNextPeriod: hall.opensNextPeriod,
+                opensNextDateISO: hall.opensNextDateISO
             )
         } else {
             link = DiningStatusDeepLink.Destination(
@@ -786,7 +808,10 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             opensTomorrowAtMinutes: choice.isAfterHours ? hall.opensTomorrowAtMinutes : nil,
             opensTomorrowPeriod: choice.isAfterHours ? hall.opensTomorrowPeriod : nil,
             upcomingStartMinutes: choice.upcomingStartMinutes,
-            awaitingMoreMeals: choice.isAwaitingMoreMeals
+            awaitingMoreMeals: choice.isAwaitingMoreMeals,
+            opensNextAtMinutes: choice.isAfterHours ? hall.opensNextAtMinutes : nil,
+            opensNextWeekday: choice.isAfterHours ? hall.opensNextWeekday : nil,
+            opensNextPeriod: choice.isAfterHours ? hall.opensNextPeriod : nil
         )
     }
 }
@@ -880,7 +905,10 @@ struct TodaysMenuView: View {
                         surface: .glance,
                         period: entry.period,
                         upcomingStartMinutes: entry.upcomingStartMinutes,
-                        awaitingMoreMeals: entry.awaitingMoreMeals
+                        awaitingMoreMeals: entry.awaitingMoreMeals,
+                        opensNextPeriod: entry.opensNextPeriod,
+                        opensNextAtMinutes: entry.opensNextAtMinutes,
+                        opensNextWeekday: entry.opensNextWeekday
                     )
                 )
                     .font(.system(size: 12))
@@ -899,7 +927,10 @@ struct TodaysMenuView: View {
                 surface: .glance,
                 opensTomorrowPeriod: entry.opensTomorrowPeriod,
                 opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
-                awaitingMoreMeals: entry.awaitingMoreMeals
+                awaitingMoreMeals: entry.awaitingMoreMeals,
+                opensNextPeriod: entry.opensNextPeriod,
+                opensNextAtMinutes: entry.opensNextAtMinutes,
+                opensNextWeekday: entry.opensNextWeekday
             )
         )
     }
@@ -979,7 +1010,10 @@ struct TodaysMenuView: View {
                             surface: .home,
                             period: entry.period,
                             upcomingStartMinutes: entry.upcomingStartMinutes,
-                            awaitingMoreMeals: entry.awaitingMoreMeals
+                            awaitingMoreMeals: entry.awaitingMoreMeals,
+                            opensNextPeriod: entry.opensNextPeriod,
+                            opensNextAtMinutes: entry.opensNextAtMinutes,
+                            opensNextWeekday: entry.opensNextWeekday
                         ) + "."
                     )
                     .font(.system(size: 12))
@@ -1024,7 +1058,10 @@ struct TodaysMenuView: View {
                 surface: .home,
                 opensTomorrowPeriod: entry.opensTomorrowPeriod,
                 opensTomorrowAtMinutes: entry.opensTomorrowAtMinutes,
-                awaitingMoreMeals: entry.awaitingMoreMeals
+                awaitingMoreMeals: entry.awaitingMoreMeals,
+                opensNextPeriod: entry.opensNextPeriod,
+                opensNextAtMinutes: entry.opensNextAtMinutes,
+                opensNextWeekday: entry.opensNextWeekday
             )
         )
     }

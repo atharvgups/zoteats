@@ -21,7 +21,10 @@ enum MealActivityAutoStartRunner {
         let postClose = MealActivityPostClose.destination(
             currentPeriodEndMinutes: pick.endMinutes,
             timedPeriods: pick.timedPeriods,
-            opensTomorrowPeriod: pick.opensTomorrowPeriod
+            opensTomorrowPeriod: pick.opensTomorrowPeriod,
+            opensNextPeriod: pick.opensNextPeriod,
+            opensNextDayOffset: pick.opensNextDayOffset,
+            opensNextDateISO: pick.opensNextDateISO
         )
         manager.autoStartIfNeeded(
             hallName: pick.hallName,

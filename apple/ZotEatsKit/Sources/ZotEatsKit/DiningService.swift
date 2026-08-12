@@ -461,6 +461,10 @@ public struct DiningService: Sendable {
                 ? nil
                 : "\(PacificTime.formatMinutes(starts.min()!)) – \(PacificTime.formatMinutes(ends.max()!))"
             let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
+            let next = await nextOpenBeyondTomorrow(
+                hall: hall,
+                tomorrowMinutes: tomorrow.minutes
+            )
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -477,10 +481,19 @@ public struct DiningService: Sendable {
                 },
                 hoursApproximate: false,
                 opensTomorrowAtMinutes: tomorrow.minutes,
-                opensTomorrowPeriod: tomorrow.period
+                opensTomorrowPeriod: tomorrow.period,
+                opensNextAtMinutes: next?.minutes,
+                opensNextDayOffset: next?.dayOffset,
+                opensNextWeekday: next?.weekday,
+                opensNextPeriod: next?.period,
+                opensNextDateISO: next?.dateISO
             )
         } catch {
             let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
+            let next = await nextOpenBeyondTomorrow(
+                hall: hall,
+                tomorrowMinutes: tomorrow.minutes
+            )
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -491,9 +504,28 @@ public struct DiningService: Sendable {
                 periods: [],
                 hoursApproximate: false,
                 opensTomorrowAtMinutes: tomorrow.minutes,
-                opensTomorrowPeriod: tomorrow.period
+                opensTomorrowPeriod: tomorrow.period,
+                opensNextAtMinutes: next?.minutes,
+                opensNextDayOffset: next?.dayOffset,
+                opensNextWeekday: next?.weekday,
+                opensNextPeriod: next?.period,
+                opensNextDateISO: next?.dateISO
             )
         }
+    }
+
+    /// When tomorrow is unpublished, scan further days inside `/dateRange`.
+    private func nextOpenBeyondTomorrow(
+        hall: String,
+        tomorrowMinutes: Int?
+    ) async -> DiningNextOpen.Result? {
+        guard tomorrowMinutes == nil else { return nil }
+        let latest = await publishedDateRange()?.latest
+        return await DiningNextOpen.find(
+            from: now(),
+            latestISO: latest,
+            periodsForDay: { iso in await mealPeriods(for: hall, dateISO: iso) }
+        )
     }
 
     /// Earliest timed meal on tomorrow's board (for after-hours status).

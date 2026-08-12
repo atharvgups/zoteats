@@ -108,6 +108,13 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let opensTomorrowAtMinutes: Int?
     /// Meal name for `opensTomorrowAtMinutes` (e.g. "Breakfast").
     public let opensTomorrowPeriod: String?
+    /// Next open after tomorrow when tomorrow's board is empty (dayOffset ≥ 2).
+    public let opensNextAtMinutes: Int?
+    public let opensNextDayOffset: Int?
+    public let opensNextWeekday: String?
+    public let opensNextPeriod: String?
+    /// Irvine ISO for `opensNext*` (deep links / See-next CTA).
+    public let opensNextDateISO: String?
 
     public init(
         id: String,
@@ -119,7 +126,12 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         periods: [MealPeriodWindow] = [],
         hoursApproximate: Bool,
         opensTomorrowAtMinutes: Int? = nil,
-        opensTomorrowPeriod: String? = nil
+        opensTomorrowPeriod: String? = nil,
+        opensNextAtMinutes: Int? = nil,
+        opensNextDayOffset: Int? = nil,
+        opensNextWeekday: String? = nil,
+        opensNextPeriod: String? = nil,
+        opensNextDateISO: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -131,6 +143,11 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         self.hoursApproximate = hoursApproximate
         self.opensTomorrowAtMinutes = opensTomorrowAtMinutes
         self.opensTomorrowPeriod = opensTomorrowPeriod
+        self.opensNextAtMinutes = opensNextAtMinutes
+        self.opensNextDayOffset = opensNextDayOffset
+        self.opensNextWeekday = opensNextWeekday
+        self.opensNextPeriod = opensNextPeriod
+        self.opensNextDateISO = opensNextDateISO
     }
 }
 

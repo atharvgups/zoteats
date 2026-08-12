@@ -20,7 +20,10 @@ public enum MealActivityPostClose {
         currentPeriodEndMinutes: Int,
         timedPeriods: [MealPeriodWindow],
         opensTomorrowPeriod: String?,
-        now: Date = Date()
+        now: Date = Date(),
+        opensNextPeriod: String? = nil,
+        opensNextDayOffset: Int? = nil,
+        opensNextDateISO: String? = nil
     ) -> Destination {
         if let next = timedPeriods
             .compactMap({ window -> (name: String, start: Int)? in
@@ -45,13 +48,27 @@ public enum MealActivityPostClose {
 
         let tomorrowMeal = opensTomorrowPeriod?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !tomorrowMeal.isEmpty else {
-            return Destination(period: nil)
+        if !tomorrowMeal.isEmpty {
+            let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+            return Destination(
+                period: MealPeriodPill.canonical(tomorrowMeal),
+                date: tomorrow
+            )
         }
-        let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
-        return Destination(
-            period: MealPeriodPill.canonical(tomorrowMeal),
-            date: tomorrow
-        )
+
+        let nextMeal = opensNextPeriod?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !nextMeal.isEmpty {
+            let iso = opensNextDateISO
+                ?? opensNextDayOffset.flatMap { offset in
+                    TodaysMenuEmptyCopy.nextOpenISO(dayOffset: offset, now: now)
+                }
+            return Destination(
+                period: MealPeriodPill.canonical(nextMeal),
+                date: iso
+            )
+        }
+
+        return Destination(period: nil)
     }
 }

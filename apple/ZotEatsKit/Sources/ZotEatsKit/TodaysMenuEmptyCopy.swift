@@ -13,7 +13,10 @@ public enum TodaysMenuEmptyCopy {
     public static func afterHours(
         opensTomorrowPeriod: String?,
         opensTomorrowAtMinutes: Int?,
-        surface: Surface
+        surface: Surface,
+        opensNextPeriod: String? = nil,
+        opensNextAtMinutes: Int? = nil,
+        opensNextWeekday: String? = nil
     ) -> String {
         if let open = opensTomorrowAtMinutes {
             let meal = MealPeriodDisplay.label(
@@ -26,6 +29,21 @@ public enum TodaysMenuEmptyCopy {
                 return "\(meal) tomorrow · \(time)"
             case .home:
                 return "Dinner's done — \(meal) tomorrow · \(time)"
+            }
+        }
+        if let open = opensNextAtMinutes,
+           let weekday = opensNextWeekday,
+           !weekday.isEmpty {
+            let meal = MealPeriodDisplay.label(
+                live: opensNextPeriod ?? "",
+                pill: "Breakfast"
+            )
+            let time = UCITime.format(minutes: open)
+            switch surface {
+            case .glance:
+                return "\(meal) \(weekday) · \(time)"
+            case .home:
+                return "Dinner's done — \(meal) \(weekday) · \(time)"
             }
         }
         switch surface {
@@ -46,11 +64,14 @@ public enum TodaysMenuEmptyCopy {
         }
     }
 
-    /// Eat tab after-hours empty message — hall + tomorrow meal/time when known.
+    /// Eat tab after-hours empty message — hall + next meal/time when known.
     public static func eatAfterHoursMessage(
         hallName: String,
         opensTomorrowPeriod: String?,
-        opensTomorrowAtMinutes: Int?
+        opensTomorrowAtMinutes: Int?,
+        opensNextPeriod: String? = nil,
+        opensNextAtMinutes: Int? = nil,
+        opensNextWeekday: String? = nil
     ) -> String {
         let hall = hallName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = hall.isEmpty ? "This hall" : hall
@@ -62,12 +83,31 @@ public enum TodaysMenuEmptyCopy {
             let time = UCITime.format(minutes: open)
             return "\(name) is closed for tonight. \(meal) tomorrow · \(time)."
         }
+        if let open = opensNextAtMinutes,
+           let weekday = opensNextWeekday,
+           !weekday.isEmpty {
+            let meal = MealPeriodDisplay.label(
+                live: opensNextPeriod ?? "",
+                pill: "Breakfast"
+            )
+            let time = UCITime.format(minutes: open)
+            return "\(name) is closed for tonight. \(meal) \(weekday) · \(time)."
+        }
         return "\(name) is closed for tonight. Breakfast posts overnight — or pick tomorrow in the day strip."
     }
 
     /// Tomorrow's Irvine ISO for Eat "See tomorrow" CTA / deep links.
     public static func tomorrowISO(now: Date = Date()) -> String? {
         UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+    }
+
+    /// Next-open ISO when jumping past an empty tomorrow (dayOffset ≥ 2).
+    public static func nextOpenISO(dayOffset: Int, now: Date = Date()) -> String? {
+        guard dayOffset >= 1 else { return nil }
+        return UCITime.upcomingDays(count: dayOffset + 1, now: now)
+            .dropFirst(dayOffset)
+            .first?
+            .isoDate
     }
 
     public static func reason(
@@ -78,7 +118,10 @@ public enum TodaysMenuEmptyCopy {
         surface: Surface,
         period: String = "",
         upcomingStartMinutes: Int? = nil,
-        awaitingMoreMeals: Bool = false
+        awaitingMoreMeals: Bool = false,
+        opensNextPeriod: String? = nil,
+        opensNextAtMinutes: Int? = nil,
+        opensNextWeekday: String? = nil
     ) -> String {
         if filtersEmptiedMenu {
             return surface == .glance
@@ -92,7 +135,10 @@ public enum TodaysMenuEmptyCopy {
             return afterHours(
                 opensTomorrowPeriod: opensTomorrowPeriod,
                 opensTomorrowAtMinutes: opensTomorrowAtMinutes,
-                surface: surface
+                surface: surface,
+                opensNextPeriod: opensNextPeriod,
+                opensNextAtMinutes: opensNextAtMinutes,
+                opensNextWeekday: opensNextWeekday
             )
         }
         if let start = upcomingStartMinutes {

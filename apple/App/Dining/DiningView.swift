@@ -385,14 +385,30 @@ struct DiningView: View {
                         ? TodaysMenuEmptyCopy.eatAfterHoursMessage(
                             hallName: location?.name ?? "This hall",
                             opensTomorrowPeriod: location?.opensTomorrowPeriod,
-                            opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes
+                            opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                            opensNextPeriod: location?.opensNextPeriod,
+                            opensNextAtMinutes: location?.opensNextAtMinutes,
+                            opensNextWeekday: location?.opensNextWeekday
                         )
                         : "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall.",
                     actionTitle: afterHours ? "See tomorrow" : "Try Again"
                 ) {
-                    if afterHours, let tomorrow = TodaysMenuEmptyCopy.tomorrowISO() {
-                        selectedDate = tomorrow
-                        Haptics.selection()
+                    if afterHours {
+                        let jump = location?.opensTomorrowAtMinutes != nil
+                            ? TodaysMenuEmptyCopy.tomorrowISO()
+                            : (location?.opensNextDateISO
+                                ?? location?.opensNextDayOffset.flatMap {
+                                    TodaysMenuEmptyCopy.nextOpenISO(dayOffset: $0)
+                                })
+                        if let jump {
+                            selectedDate = jump
+                            Haptics.selection()
+                        } else if let tomorrow = TodaysMenuEmptyCopy.tomorrowISO() {
+                            selectedDate = tomorrow
+                            Haptics.selection()
+                        } else {
+                            Task { await refresh() }
+                        }
                     } else {
                         Task { await refresh() }
                     }
@@ -527,7 +543,10 @@ struct DiningView: View {
                         let postClose = MealActivityPostClose.destination(
                             currentPeriodEndMinutes: end,
                             timedPeriods: location.periods,
-                            opensTomorrowPeriod: location.opensTomorrowPeriod
+                            opensTomorrowPeriod: location.opensTomorrowPeriod,
+                            opensNextPeriod: location.opensNextPeriod,
+                            opensNextDayOffset: location.opensNextDayOffset,
+                            opensNextDateISO: location.opensNextDateISO
                         )
                         mealActivity.track(
                             hallName: location.name,
@@ -711,7 +730,10 @@ struct DiningView: View {
         let postClose = MealActivityPostClose.destination(
             currentPeriodEndMinutes: pick.endMinutes,
             timedPeriods: pick.timedPeriods,
-            opensTomorrowPeriod: pick.opensTomorrowPeriod
+            opensTomorrowPeriod: pick.opensTomorrowPeriod,
+            opensNextPeriod: pick.opensNextPeriod,
+            opensNextDayOffset: pick.opensNextDayOffset,
+            opensNextDateISO: pick.opensNextDateISO
         )
         mealActivity.autoStartIfNeeded(
             hallName: pick.hallName,
@@ -1203,6 +1225,16 @@ private struct HallCard: View {
                 let meal = location.opensTomorrowPeriod ?? "Opens"
                 return (
                     "\(meal) tomorrow · \(UCITime.format(minutes: open))",
+                    "moon.zzz",
+                    .secondary
+                )
+            }
+            if let open = location.opensNextAtMinutes,
+               let weekday = location.opensNextWeekday,
+               !weekday.isEmpty {
+                let meal = location.opensNextPeriod ?? "Opens"
+                return (
+                    "\(meal) \(weekday) · \(UCITime.format(minutes: open))",
                     "moon.zzz",
                     .secondary
                 )

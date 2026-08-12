@@ -32,7 +32,11 @@ public enum DiningStatusHallChrome {
         opensTomorrowAtMinutes: Int?,
         opensTomorrowPeriod: String?,
         nowMinutes: Int,
-        now: Date = Date()
+        now: Date = Date(),
+        opensNextAtMinutes: Int? = nil,
+        opensNextDayOffset: Int? = nil,
+        opensNextWeekday: String? = nil,
+        opensNextPeriod: String? = nil
     ) -> Resolved {
         switch state {
         case .open(let period, let closesAt):
@@ -59,6 +63,17 @@ public enum DiningStatusHallChrome {
                 return Resolved(
                     statusText: "\(meal) tomorrow",
                     countdownEnd: UCITime.date(forMinutes: open, nowMinutes: nowMinutes, now: now),
+                    countdownKind: .opens
+                )
+            }
+            if let open = opensNextAtMinutes,
+               let offset = opensNextDayOffset,
+               let weekday = opensNextWeekday,
+               !weekday.isEmpty {
+                let meal = opensNextPeriod ?? "Opens"
+                return Resolved(
+                    statusText: "\(meal) \(weekday)",
+                    countdownEnd: UCITime.date(forMinutes: open, dayOffset: offset, now: now),
                     countdownKind: .opens
                 )
             }

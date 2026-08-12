@@ -85,6 +85,18 @@ enum OpeningAlerts {
                     ))
                 }
             }
+            // Tomorrow empty — arm the next published day (Fri→Mon gaps).
+            if hall.opensTomorrowAtMinutes == nil,
+               let offset = hall.opensNextDayOffset,
+               let minutes = hall.opensNextAtMinutes {
+                candidates.append(.init(
+                    id: id,
+                    name: hall.name,
+                    opensAtMinutes: minutes,
+                    dayOffset: offset,
+                    mealPeriod: hall.opensNextPeriod
+                ))
+            }
         }
 
         for place in (try? await CampusService().places()) ?? [] {

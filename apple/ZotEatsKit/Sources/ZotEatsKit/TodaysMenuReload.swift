@@ -35,6 +35,11 @@ public enum TodaysMenuReload {
                 dates.append(
                     UCITime.date(forMinutes: open, nowMinutes: nowMinutes, now: now)
                 )
+            } else if let open = hall.opensNextAtMinutes,
+                      let offset = hall.opensNextDayOffset {
+                dates.append(
+                    UCITime.date(forMinutes: open, dayOffset: offset, now: now)
+                )
             }
         }
         if awaitingPublish {

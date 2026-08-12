@@ -20,7 +20,11 @@ public enum DiningStatusDeepLink {
         availablePeriods: [String],
         opensTomorrowAtMinutes: Int? = nil,
         opensTomorrowPeriod: String? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        opensNextAtMinutes: Int? = nil,
+        opensNextDayOffset: Int? = nil,
+        opensNextPeriod: String? = nil,
+        opensNextDateISO: String? = nil
     ) -> Destination {
         switch state {
         case .open(let period, _), .openingLater(let period, _):
@@ -31,34 +35,53 @@ public enum DiningStatusDeepLink {
             // Stay on today's board — Lunch/Dinner may still publish.
             return Destination(period: nil)
         case .closedForToday:
-            guard opensTomorrowAtMinutes != nil else {
-                return Destination(period: nil)
+            if opensTomorrowAtMinutes != nil {
+                // Tomorrow's meal is independent of today's pills (weekend Brunch
+                // must not gate weekday Breakfast / Lunch deep links).
+                let period = opensTomorrowPeriod.map { MealPeriodPill.canonical($0) }
+                let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+                return Destination(period: period, date: tomorrow)
             }
-            // Tomorrow's meal is independent of today's pills (weekend Brunch
-            // must not gate weekday Breakfast / Lunch deep links).
-            let period = opensTomorrowPeriod.map { MealPeriodPill.canonical($0) }
-            let tomorrow = UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
-            return Destination(period: period, date: tomorrow)
+            if opensNextAtMinutes != nil {
+                let period = opensNextPeriod.map { MealPeriodPill.canonical($0) }
+                let iso = opensNextDateISO
+                    ?? opensNextDayOffset.flatMap { offset in
+                        UCITime.upcomingDays(count: offset + 1, now: now)
+                            .dropFirst(offset)
+                            .first?
+                            .isoDate
+                    }
+                return Destination(period: period, date: iso)
+            }
+            return Destination(period: nil)
         case .unknown:
             return Destination(period: nil)
         }
     }
 
     /// Period-only convenience (same-day open / opening-later; after hours nil
-    /// unless tomorrow open metadata is passed through `destination`).
+    /// unless tomorrow / later open metadata is passed through `destination`).
     public static func period(
         for state: HallOpenState,
         availablePeriods: [String],
         opensTomorrowAtMinutes: Int? = nil,
         opensTomorrowPeriod: String? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        opensNextAtMinutes: Int? = nil,
+        opensNextDayOffset: Int? = nil,
+        opensNextPeriod: String? = nil,
+        opensNextDateISO: String? = nil
     ) -> String? {
         destination(
             for: state,
             availablePeriods: availablePeriods,
             opensTomorrowAtMinutes: opensTomorrowAtMinutes,
             opensTomorrowPeriod: opensTomorrowPeriod,
-            now: now
+            now: now,
+            opensNextAtMinutes: opensNextAtMinutes,
+            opensNextDayOffset: opensNextDayOffset,
+            opensNextPeriod: opensNextPeriod,
+            opensNextDateISO: opensNextDateISO
         ).period
     }
 }

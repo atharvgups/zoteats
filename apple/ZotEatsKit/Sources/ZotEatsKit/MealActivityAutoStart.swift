@@ -11,6 +11,9 @@ public enum MealActivityAutoStart {
         public let endMinutes: Int
         public let opensTomorrowPeriod: String?
         public let timedPeriods: [MealPeriodWindow]
+        public let opensNextPeriod: String?
+        public let opensNextDayOffset: Int?
+        public let opensNextDateISO: String?
 
         public init(
             hallID: String,
@@ -19,7 +22,10 @@ public enum MealActivityAutoStart {
             startMinutes: Int,
             endMinutes: Int,
             opensTomorrowPeriod: String?,
-            timedPeriods: [MealPeriodWindow]
+            timedPeriods: [MealPeriodWindow],
+            opensNextPeriod: String? = nil,
+            opensNextDayOffset: Int? = nil,
+            opensNextDateISO: String? = nil
         ) {
             self.hallID = hallID
             self.hallName = hallName
@@ -28,6 +34,9 @@ public enum MealActivityAutoStart {
             self.endMinutes = endMinutes
             self.opensTomorrowPeriod = opensTomorrowPeriod
             self.timedPeriods = timedPeriods
+            self.opensNextPeriod = opensNextPeriod
+            self.opensNextDayOffset = opensNextDayOffset
+            self.opensNextDateISO = opensNextDateISO
         }
     }
 
@@ -64,7 +73,10 @@ public enum MealActivityAutoStart {
                         startMinutes: window.startMinutes,
                         endMinutes: window.endMinutes,
                         opensTomorrowPeriod: location.opensTomorrowPeriod,
-                        timedPeriods: location.periods
+                        timedPeriods: location.periods,
+                        opensNextPeriod: location.opensNextPeriod,
+                        opensNextDayOffset: location.opensNextDayOffset,
+                        opensNextDateISO: location.opensNextDateISO
                     )
                 )
             }

@@ -23,13 +23,19 @@ public enum TodaysMenuHallPick {
             return soonest.hall
         }
 
-        let tomorrow = locations.compactMap { hall -> (hall: DiningLocation, opensAt: Int)? in
-            guard hall.openState(nowMinutes: nowMinutes) == .closedForToday,
-                  let opensAt = hall.opensTomorrowAtMinutes
-            else { return nil }
-            return (hall, opensAt)
+        let tomorrow = locations.compactMap { hall -> (hall: DiningLocation, opensAt: Int, dayOffset: Int)? in
+            guard hall.openState(nowMinutes: nowMinutes) == .closedForToday else { return nil }
+            if let opensAt = hall.opensTomorrowAtMinutes {
+                return (hall, opensAt, 1)
+            }
+            if let opensAt = hall.opensNextAtMinutes,
+               let offset = hall.opensNextDayOffset {
+                return (hall, opensAt, offset)
+            }
+            return nil
         }
         if let soonest = tomorrow.min(by: { lhs, rhs in
+            if lhs.dayOffset != rhs.dayOffset { return lhs.dayOffset < rhs.dayOffset }
             if lhs.opensAt != rhs.opensAt { return lhs.opensAt < rhs.opensAt }
             return lhs.hall.id < rhs.hall.id
         }) {

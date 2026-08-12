@@ -7,7 +7,10 @@ public enum DiningLocationHoursLine {
         state: HallOpenState,
         todayHours: String?,
         opensTomorrowAtMinutes: Int?,
-        opensTomorrowPeriod: String?
+        opensTomorrowPeriod: String?,
+        opensNextAtMinutes: Int? = nil,
+        opensNextWeekday: String? = nil,
+        opensNextPeriod: String? = nil
     ) -> String {
         switch state {
         case .open(let period, let closesAt):
@@ -20,6 +23,12 @@ public enum DiningLocationHoursLine {
             if let open = opensTomorrowAtMinutes {
                 let meal = opensTomorrowPeriod ?? "Opens"
                 return "\(meal) tomorrow · \(UCITime.format(minutes: open))"
+            }
+            if let open = opensNextAtMinutes,
+               let weekday = opensNextWeekday,
+               !weekday.isEmpty {
+                let meal = opensNextPeriod ?? "Opens"
+                return "\(meal) \(weekday) · \(UCITime.format(minutes: open))"
             }
             return "Closed for today"
         case .unknown:
@@ -37,7 +46,10 @@ public extension DiningLocation {
             state: openState(nowMinutes: nowMinutes),
             todayHours: todayHours,
             opensTomorrowAtMinutes: opensTomorrowAtMinutes,
-            opensTomorrowPeriod: opensTomorrowPeriod
+            opensTomorrowPeriod: opensTomorrowPeriod,
+            opensNextAtMinutes: opensNextAtMinutes,
+            opensNextWeekday: opensNextWeekday,
+            opensNextPeriod: opensNextPeriod
         )
     }
 }
