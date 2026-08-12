@@ -830,7 +830,8 @@ struct DiningView: View {
                         availablePeriods: windows.map(\.name),
                         timedPeriods: windows,
                         nowMinutes: UCITime.nowMinutes(),
-                        browsingFutureDay: true
+                        browsingFutureDay: true,
+                        preserveRequestedMeal: link.dish != nil
                     )
                 } else if let location = selectedLocation {
                     selectedPeriod = EatDeepLinkPeriod.resolve(
@@ -838,7 +839,8 @@ struct DiningView: View {
                         availablePeriods: location.availablePeriods,
                         timedPeriods: location.periods,
                         nowMinutes: UCITime.nowMinutes(),
-                        browsingFutureDay: false
+                        browsingFutureDay: false,
+                        preserveRequestedMeal: link.dish != nil
                     )
                 }
             }
@@ -852,6 +854,9 @@ struct DiningView: View {
 
     private func openPendingDishIfPossible() {
         guard let name = pendingDishName else { return }
+        // Wait for the deep-linked meal board — searching a stale live meal
+        // clears the pending name before Lunch finishes loading.
+        guard selectedPeriod != nil else { return }
         guard case .loaded(let menu) = currentMenuState else { return }
         if let item = menu.stations.flatMap(\.items).first(where: {
             $0.name.caseInsensitiveCompare(name) == .orderedSame
@@ -893,6 +898,9 @@ struct DiningView: View {
     /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
     /// matching Today's Menu after-hours truth (no stale Dinner overnight).
     private func syncPeriodSelection() {
+        // Hold an ended meal while a dish deep link is still resolving —
+        // Favorite Alerts pin Lunch; snapping to Dinner loads the wrong board.
+        if pendingDishName != nil { return }
         guard let available = boardAvailablePeriods,
               let timed = boardTimedPeriods
         else { return }

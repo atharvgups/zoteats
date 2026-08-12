@@ -5,13 +5,18 @@ import Foundation
 /// gate as Eat's sticky pill via `MealPillLiveness`). Future-day browse (Menu
 /// Drop date-only links included) snaps the first primary pill when none is
 /// requested.
+///
+/// Dish deep links (Favorite Alerts, shared dish URLs) pass
+/// `preserveRequestedMeal: true` so an ended Lunch still opens the Lunch board
+/// where the dish lives, instead of remapping to Dinner / clearing after hours.
 public enum EatDeepLinkPeriod {
     public static func resolve(
         requested: String?,
         availablePeriods: [String],
         timedPeriods: [MealPeriodWindow],
         nowMinutes: Int,
-        browsingFutureDay: Bool
+        browsingFutureDay: Bool,
+        preserveRequestedMeal: Bool = false
     ) -> String? {
         let pills = DiningService.primaryPeriods(from: availablePeriods)
         guard !pills.isEmpty else { return nil }
@@ -21,6 +26,14 @@ public enum EatDeepLinkPeriod {
                 return match
             }
             return pills.first
+        }
+
+        // Favorite / dish targets: keep the named meal whenever it exists on the
+        // board, even when ended or after hours.
+        if preserveRequestedMeal,
+           let requested,
+           let pill = MealPeriodPill.match(requested, in: pills) {
+            return pill
         }
 
         let choice = TodaysMenuPeriodPick.choose(

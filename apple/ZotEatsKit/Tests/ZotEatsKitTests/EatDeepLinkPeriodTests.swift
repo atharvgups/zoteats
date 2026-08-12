@@ -50,6 +50,48 @@ struct EatDeepLinkPeriodTests {
         )
     }
 
+    @Test("Dish deeplink preserves ended Lunch instead of remapping to Dinner")
+    func dishPreservesEndedLunch() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Lunch",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 900,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Lunch"
+        )
+    }
+
+    @Test("Dish deeplink preserves Dinner after hours")
+    func dishPreservesAfterHoursDinner() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Dinner",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 1300,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Dish preserve without requested meal still picks live")
+    func dishPreserveNilStillPicksLive() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: nil,
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 700,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Lunch"
+        )
+    }
+
     @Test("Upcoming Dinner deeplink before open is kept")
     func upcomingDinnerKept() {
         #expect(
