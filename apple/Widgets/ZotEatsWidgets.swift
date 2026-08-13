@@ -1245,9 +1245,11 @@ struct CampusOpenProvider: TimelineProvider {
     }
 
     private func entry(from places: [CampusPlace]) -> CampusOpenEntry {
-        let open = places
-            .filter(\.openNow)
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let favoriteIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
+        let open = CampusPlaceSort.sortOpenForWidget(
+            places: places,
+            favoriteIDs: favoriteIDs
+        )
         let rows = open.prefix(4).map { place -> (id: String, name: String, hours: String) in
             let hours = CampusPlaceHoursLine.widgetOpenHours(
                 todayHours: place.todayHours,

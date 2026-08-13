@@ -33,6 +33,21 @@ public enum CampusPlaceSort {
         }
     }
 
+    /// Campus Open widget glance: open spots only, hearted first, then name.
+    public static func sortOpenForWidget(
+        places: [CampusPlace],
+        favoriteIDs: Set<String>
+    ) -> [CampusPlace] {
+        places
+            .filter(\.openNow)
+            .sorted { lhs, rhs in
+                let lhsFav = favoriteIDs.contains(lhs.id)
+                let rhsFav = favoriteIDs.contains(rhs.id)
+                if lhsFav != rhsFav { return lhsFav }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
     /// Non-favorited Campus rows — Twisted Root first, then open, then name.
     public static func sortMain(_ places: [CampusPlace]) -> [CampusPlace] {
         places.sorted { lhs, rhs in

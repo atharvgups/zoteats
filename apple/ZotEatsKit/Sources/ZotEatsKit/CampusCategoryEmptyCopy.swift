@@ -10,11 +10,17 @@ public enum CampusCategoryEmptyCopy {
     ) -> String {
         if openOnly {
             if let hint {
-                return "\(hint.line). Clear the filter, or show closed spots."
+                return "\(hint.line). Open it for hours or menu, clear the filter, or show closed spots."
             }
             return "Try clearing the type filter, or show closed spots from the chip."
         }
         return "Clear the type filter to see other campus spots."
+    }
+
+    /// Primary empty CTA when a next-open hint is available.
+    public static func viewNextActionTitle(shortName: String) -> String {
+        let name = shortName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "View spot" : "View \(name)"
     }
 
     /// Places matching the selected type filter for a scoped next-open lookup.

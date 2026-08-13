@@ -54,7 +54,19 @@ struct CampusCategoryEmptyCopyTests {
         )
         let message = CampusCategoryEmptyCopy.message(openOnly: true, hint: hint)
         #expect(message.contains("Starbucks opens at 7:30 AM"))
-        #expect(message.contains("Clear the filter"))
+        #expect(message.contains("Open it for hours or menu"))
+        #expect(message.localizedCaseInsensitiveContains("clear the filter"))
+    }
+
+    @Test func viewNextActionTitleUsesShortName() {
+        #expect(
+            CampusCategoryEmptyCopy.viewNextActionTitle(shortName: "Starbucks")
+                == "View Starbucks"
+        )
+        #expect(
+            CampusCategoryEmptyCopy.viewNextActionTitle(shortName: "  ")
+                == "View spot"
+        )
     }
 
     @Test func openOnlyWithoutHintKeepsGeneric() {

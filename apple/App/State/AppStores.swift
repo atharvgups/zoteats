@@ -239,6 +239,7 @@ final class Preferences {
     var favoriteCampusPlaceIDs: Set<String> {
         didSet {
             SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+            WidgetReloader.reloadCampusOpen()
         }
     }
 

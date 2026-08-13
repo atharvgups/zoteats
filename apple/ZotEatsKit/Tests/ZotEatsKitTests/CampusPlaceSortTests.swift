@@ -90,6 +90,19 @@ struct CampusPlaceSortTests {
         ])
         #expect(sorted.map(\.id) == ["c", "a", "b"])
     }
+
+    @Test func widgetOpenListHeartsFirstThenName() {
+        let sorted = CampusPlaceSort.sortOpenForWidget(
+            places: [
+                place(id: "px", name: "Panda Express", openNow: true),
+                place(id: "sb", name: "Starbucks", openNow: true),
+                place(id: "zg", name: "Zot N Go", openNow: true),
+                place(id: "closed", name: "Closed Café", openNow: false),
+            ],
+            favoriteIDs: ["zg", "sb"]
+        )
+        #expect(sorted.map(\.id) == ["sb", "zg", "px"])
+    }
 }
 
 @Suite("CampusTypeFilter")

@@ -279,31 +279,78 @@ struct CampusView: View {
         case .clearCategory:
             let inFilter = CampusCategoryEmptyCopy.places(matching: typeFilter, from: places)
             let hint = openOnly ? CampusNextOpenHint.best(from: inFilter) : nil
-            EmptyStateView(
-                icon: openOnly ? "moon.zzz" : "line.3.horizontal.decrease.circle",
-                title: openOnly
-                    ? "Nothing's open in \(short ?? "this filter")"
-                    : "Nothing in \(short ?? "this filter")",
-                message: CampusCategoryEmptyCopy.message(openOnly: openOnly, hint: hint),
-                actionTitle: "Clear filter",
-                retry: {
-                    withAnimation(.snappy(duration: 0.25)) { typeFilter = .all }
-                    Haptics.selection()
-                }
-            )
-            .zotCard()
-            .accessibilityIdentifier("campus-clear-category")
+            if let hint, let place = places.first(where: { $0.id == hint.placeID }) {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "Nothing's open in \(short ?? "this filter")",
+                    message: CampusCategoryEmptyCopy.message(openOnly: true, hint: hint),
+                    actionTitle: CampusCategoryEmptyCopy.viewNextActionTitle(
+                        shortName: hint.shortName
+                    ),
+                    retry: {
+                        selectedPlace = place
+                        Haptics.selection()
+                    },
+                    secondaryActionTitle: "Clear filter",
+                    secondaryRetry: {
+                        withAnimation(.snappy(duration: 0.25)) { typeFilter = .all }
+                        Haptics.selection()
+                    }
+                )
+                .zotCard()
+                .accessibilityIdentifier("campus-clear-category")
+            } else {
+                EmptyStateView(
+                    icon: openOnly ? "moon.zzz" : "line.3.horizontal.decrease.circle",
+                    title: openOnly
+                        ? "Nothing's open in \(short ?? "this filter")"
+                        : "Nothing in \(short ?? "this filter")",
+                    message: CampusCategoryEmptyCopy.message(openOnly: openOnly, hint: hint),
+                    actionTitle: "Clear filter",
+                    retry: {
+                        withAnimation(.snappy(duration: 0.25)) { typeFilter = .all }
+                        Haptics.selection()
+                    }
+                )
+                .zotCard()
+                .accessibilityIdentifier("campus-clear-category")
+            }
         case .showClosed:
             let hint = CampusNextOpenHint.best(from: places)
-            EmptyStateView(
-                icon: "moon.zzz",
-                title: "Nothing's open right now",
-                message: hint?.line
-                    ?? "Every campus spot is closed at the moment.",
-                actionTitle: "Show closed spots",
-                retry: { withAnimation(.snappy(duration: 0.25)) { openOnly = false } }
-            )
-            .zotCard()
+            if let hint, let place = places.first(where: { $0.id == hint.placeID }) {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "Nothing's open right now",
+                    message: hint.line,
+                    actionTitle: CampusCategoryEmptyCopy.viewNextActionTitle(
+                        shortName: hint.shortName
+                    ),
+                    retry: {
+                        selectedPlace = place
+                        Haptics.selection()
+                    },
+                    secondaryActionTitle: "Show closed spots",
+                    secondaryRetry: {
+                        withAnimation(.snappy(duration: 0.25)) { openOnly = false }
+                        Haptics.selection()
+                    }
+                )
+                .zotCard()
+                .accessibilityIdentifier("campus-show-closed")
+            } else {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "Nothing's open right now",
+                    message: "Every campus spot is closed at the moment.",
+                    actionTitle: "Show closed spots",
+                    retry: {
+                        withAnimation(.snappy(duration: 0.25)) { openOnly = false }
+                        Haptics.selection()
+                    }
+                )
+                .zotCard()
+                .accessibilityIdentifier("campus-show-closed")
+            }
         case .none:
             EmptyStateView(
                 icon: "cup.and.saucer",

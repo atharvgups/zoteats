@@ -246,6 +246,9 @@ struct EmptyStateView: View {
     let message: String
     var actionTitle = "Try Again"
     var retry: (() -> Void)?
+    /// Optional second CTA (e.g. Campus Open Now: View next place + Show closed).
+    var secondaryActionTitle: String? = nil
+    var secondaryRetry: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 10) {
@@ -258,11 +261,20 @@ struct EmptyStateView: View {
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            if let retry {
-                Button(actionTitle, action: retry)
-                    .buttonStyle(.bordered)
-                    .tint(.uciBlue)
-                    .padding(.top, 4)
+            if retry != nil || secondaryRetry != nil {
+                VStack(spacing: 8) {
+                    if let retry {
+                        Button(actionTitle, action: retry)
+                            .buttonStyle(.bordered)
+                            .tint(.uciBlue)
+                    }
+                    if let secondaryRetry, let secondaryActionTitle {
+                        Button(secondaryActionTitle, action: secondaryRetry)
+                            .buttonStyle(.bordered)
+                            .tint(.secondary)
+                    }
+                }
+                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
