@@ -7,6 +7,7 @@ struct DiningStatusLayoutTests {
     @Test func bothFamiliesShowUpToThreeHalls() {
         #expect(DiningStatusLayout.hallLimit(isCompact: true) == 3)
         #expect(DiningStatusLayout.hallLimit(isCompact: false) == 3)
+        #expect(DiningStatusLayout.hallLimit(isCompact: false, isLarge: true) == 6)
     }
 
     @Test func densityKicksInAtThreeHalls() {

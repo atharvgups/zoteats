@@ -176,8 +176,13 @@ final class CampusStore {
         if forceRefresh || menus[placeID]?.value == nil {
             menus[placeID] = .loading
         }
+        let placeName = places.value?.first(where: { $0.id == placeID })?.name
         do {
-            let next = try await service.menu(for: placeID, forceRefresh: forceRefresh)
+            let next = try await service.menu(
+                for: placeID,
+                placeName: placeName,
+                forceRefresh: forceRefresh
+            )
             if menus[placeID]?.value != next {
                 menus[placeID] = .loaded(next)
             } else if case .loading = menus[placeID] {

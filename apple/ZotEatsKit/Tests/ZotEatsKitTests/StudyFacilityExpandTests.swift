@@ -24,13 +24,14 @@ struct StudyFacilityExpandTests {
         )
     }
 
-    @Test func fallsBackToQuietest() {
+    @Test("Quietest never auto-expands — Study opens collapsed")
+    func quietestDoesNotAutoExpand() {
         #expect(
             StudyFacilityExpand.targetID(
                 pendingFacilityID: nil,
                 deepLinkFacilityID: nil,
                 quietestFacilityID: 1
-            ) == 1
+            ) == nil
         )
     }
 
@@ -47,7 +48,6 @@ struct StudyFacilityExpandTests {
     func nilFacilityClearsPin() {
         #expect(StudyFacilityExpand.pinAfterApplying(linkFacilityID: nil) == nil)
         #expect(!StudyFacilityExpand.shouldExpandPulse(linkFacilityID: nil))
-        // After clear, target falls through to quietest (nil overnight).
         #expect(
             StudyFacilityExpand.targetID(
                 pendingFacilityID: nil,

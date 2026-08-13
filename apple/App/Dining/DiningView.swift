@@ -315,47 +315,47 @@ struct DiningView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                DayStrip(
-                    days: upcomingDays,
-                    selection: Binding(
-                        get: { selectedDate ?? upcomingDays.first?.isoDate },
-                        set: { newValue in
-                            let today = upcomingDays.first?.isoDate
-                            let next = (newValue == today) ? nil : newValue
-                            // User DayStrip tap — drop deep-link meal pin.
-                            if next != selectedDate {
-                                pinnedDeepLinkPeriod = nil
-                            }
-                            selectedDate = next
+            // Dates alone — never share a row with Plate/Filters (Atharv: less chrome).
+            DayStrip(
+                days: upcomingDays,
+                selection: Binding(
+                    get: { selectedDate ?? upcomingDays.first?.isoDate },
+                    set: { newValue in
+                        let today = upcomingDays.first?.isoDate
+                        let next = (newValue == today) ? nil : newValue
+                        // User DayStrip tap — drop deep-link meal pin.
+                        if next != selectedDate {
+                            pinnedDeepLinkPeriod = nil
                         }
-                    )
+                        selectedDate = next
+                    }
                 )
-                Spacer(minLength: 8)
-                HStack(spacing: 8) {
-                    // Empty plate: chip opens My Plate. Filled today uses the tally bar;
-                    // filled + browsing ahead uses the quiet "Today's plate" bar.
-                    if plate.isEmpty {
-                        myPlateChip
-                    }
-                    filterChip
-                    if prefs.hasActiveMenuFilters {
-                        Button {
-                            prefs.clearMenuFilters()
-                            Haptics.selection()
-                        } label: {
-                            Text("Clear")
-                                .font(ZotFont.pill.weight(.semibold))
-                                .foregroundStyle(Color.uciBlue)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(Color.uciBlue.opacity(0.08), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("diet-filter-clear")
-                        .accessibilityLabel("Clear all filters")
-                    }
+            )
+            .padding(.horizontal, 20)
+
+            // Full “My Plate” / “Filters” labels — own row so nothing truncates to “My…”.
+            HStack(spacing: 8) {
+                if plate.isEmpty {
+                    myPlateChip
                 }
+                filterChip
+                if prefs.hasActiveMenuFilters {
+                    Button {
+                        prefs.clearMenuFilters()
+                        Haptics.selection()
+                    } label: {
+                        Text("Clear")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .foregroundStyle(Color.uciBlue)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(Color.uciBlue.opacity(0.08), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("diet-filter-clear")
+                    .accessibilityLabel("Clear all filters")
+                }
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 20)
 
@@ -1404,10 +1404,9 @@ private struct HallCard: View {
                 }
             }
             .padding(14)
-            // Fixed height keeps the two hall cards identical regardless of
-            // how long each status line runs.
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 82, alignment: .top)
+            // Min height keeps Anteatery/Brandywine aligned; grow when status
+            // lines wrap so cards don’t feel one rigid size.
+            .frame(maxWidth: .infinity, minHeight: 82, alignment: .top)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)

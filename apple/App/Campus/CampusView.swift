@@ -367,10 +367,13 @@ struct CampusView: View {
                 .font(ZotFont.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
 
-            VStack(spacing: 6) {
+            // Same full-height CampusPlaceRow as the main list — never mini-rows.
+            VStack(spacing: 14) {
                 ForEach(favorites) { place in
-                    CampusFavoriteShelfRow(
+                    CampusPlaceRow(
                         place: place,
+                        showBrandOnly: false,
+                        isFavorite: true,
                         onToggleFavorite: { prefs.toggleCampusFavorite(place.id) }
                     ) {
                         selectedPlace = place
@@ -389,57 +392,6 @@ struct CampusView: View {
             filtered = filtered.filter(\.openNow)
         }
         return filtered
-    }
-}
-
-// MARK: - Compact Favorites shelf
-
-private struct CampusFavoriteShelfRow: View {
-    let place: CampusPlace
-    let onToggleFavorite: () -> Void
-    let onOpen: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Button(action: onOpen) {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(place.name)
-                            .font(ZotFont.caption.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        Text(place.hoursLine)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 6)
-                    StatusPill(isOpen: place.openNow)
-                    // Always surface Menu — tap opens the sheet (or honest empty).
-                    Text("Menu")
-                        .font(ZotFont.pill.weight(.semibold))
-                        .foregroundStyle(Color.uciBlue)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Button(action: onToggleFavorite) {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.uciBlue)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove from Favorites")
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .opacity(place.openNow ? 1 : 0.72)
-        .zotCard()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("campus-favorite-\(place.id)")
     }
 }
 
@@ -479,10 +431,10 @@ private struct CampusBrandGroupRow: View {
                         openText: openCount == places.count ? "Open" : "\(openCount) open",
                         closedText: "Closed"
                     )
-                    Image(systemName: "chevron.down")
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .frame(width: 18, height: 18)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
@@ -770,50 +722,73 @@ struct CampusMenuSheet: View {
 
     @ViewBuilder
     private func stationBlock(_ station: MenuStation) -> some View {
-        let isAllDay = CampusMenuNormalize.isAvailableAllDay(station.name)
-        VStack(alignment: .leading, spacing: 8) {
-            if isAllDay {
-                Button {
-                    withAnimation(.snappy(duration: 0.25)) {
-                        allDayExpanded.toggle()
+        if station.name == CampusTypicalMenus.bannerStationName {
+            typicalMenuBanner(station)
+        } else {
+            let isAllDay = CampusMenuNormalize.isAvailableAllDay(station.name)
+            VStack(alignment: .leading, spacing: 8) {
+                if isAllDay {
+                    Button {
+                        withAnimation(.snappy(duration: 0.25)) {
+                            allDayExpanded.toggle()
+                        }
+                        Haptics.selection()
+                    } label: {
+                        HStack {
+                            Text(station.name)
+                                .font(ZotFont.sectionTitle)
+                            Spacer()
+                            Text("\(station.items.count)")
+                                .font(ZotFont.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: allDayExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 18, height: 18)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    Haptics.selection()
-                } label: {
-                    HStack {
-                        Text(station.name)
-                            .font(ZotFont.sectionTitle)
-                        Spacer()
-                        Text("\(station.items.count)")
-                            .font(ZotFont.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .rotationEffect(.degrees(allDayExpanded ? 180 : 0))
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(station.name), \(station.items.count) items")
-                .accessibilityHint(allDayExpanded ? "Hides items" : "Shows items")
-                .accessibilityAddTraits(.isHeader)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(station.name), \(station.items.count) items")
+                    .accessibilityHint(allDayExpanded ? "Hides items" : "Shows items")
+                    .accessibilityAddTraits(.isHeader)
 
-                if allDayExpanded {
+                    if allDayExpanded {
+                        ForEach(station.items) { item in
+                            CampusMenuItemRow(item: item)
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                } else {
+                    Text(station.name)
+                        .font(ZotFont.sectionTitle)
+                        .accessibilityAddTraits(.isHeader)
                     ForEach(station.items) { item in
                         CampusMenuItemRow(item: item)
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            } else {
-                Text(station.name)
-                    .font(ZotFont.sectionTitle)
-                    .accessibilityAddTraits(.isHeader)
-                ForEach(station.items) { item in
-                    CampusMenuItemRow(item: item)
                 }
             }
+            .padding(.horizontal, 20)
         }
+    }
+
+    /// Honest label when Hub had no live SKUs and we filled a typical brand pack.
+    private func typicalMenuBanner(_ station: MenuStation) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(CampusTypicalMenus.bannerStationName)
+                .font(ZotFont.sectionTitle)
+            if let note = station.items.first?.name {
+                Text(note)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.uciBlue.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.horizontal, 20)
+        .accessibilityElement(children: .combine)
     }
 
     /// Same Filters chip language as Eat — shared prefs, not a local single-select.
@@ -871,11 +846,14 @@ struct CampusMenuSheet: View {
     }
 
     private func filteredStations(_ stations: [MenuStation]) -> [MenuStation] {
-        MenuFilterMatching.filterStations(
-            stations,
+        let banner = stations.filter { $0.name == CampusTypicalMenus.bannerStationName }
+        let rest = stations.filter { $0.name != CampusTypicalMenus.bannerStationName }
+        let filtered = MenuFilterMatching.filterStations(
+            rest,
             dietFilters: prefs.dietFilters,
             allergenAvoids: prefs.allergenAvoids
         )
+        return banner + filtered
     }
 }
 

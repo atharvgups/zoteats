@@ -262,6 +262,7 @@ public struct CampusService: Sendable {
     /// doesn't keep saying "not posted" after Hub publishes.
     public func menu(
         for placeID: String,
+        placeName: String? = nil,
         date: String? = nil,
         forceRefresh: Bool = false
     ) async throws -> [MenuStation] {
@@ -270,6 +271,7 @@ public struct CampusService: Sendable {
         if forceRefresh {
             await cache.invalidate(key)
         }
+        let displayName = placeName ?? placeID
         return try await cache.remember(key, ttl: Self.menuTTL) {
             let query = """
             query($campusUrlKey:String!,$locationUrlKey:String!,$date:String!){\
@@ -279,23 +281,29 @@ public struct CampusService: Sendable {
             """
             let variables = #"{"campusUrlKey":"campus","locationUrlKey":"\#(placeID)","date":"\#(dateISO)"}"#
             let data = try await graphQL(MenuData.self, query: query, variables: variables)
-            guard let menu = data.getLocationMealPeriodRecipes else { return [] }
+            let live: [MenuStation]
+            if let menu = data.getLocationMealPeriodRecipes {
+                var products: [String: MenuItem] = [:]
+                for raw in menu.products ?? [] {
+                    guard let sku = raw.sku, let item = Self.menuItem(from: raw) else { continue }
+                    products[sku] = item
+                }
 
-            var products: [String: MenuItem] = [:]
-            for raw in menu.products ?? [] {
-                guard let sku = raw.sku, let item = Self.menuItem(from: raw) else { continue }
-                products[sku] = item
+                let raw = (menu.locationMealPeriodRecipesData?.mealPeriodSkuMap ?? []).compactMap { period -> MenuStation? in
+                    guard let name = period.name else { return nil }
+                    var seen = Set<String>()
+                    let items = (period.skus ?? [])
+                        .compactMap { products[$0] }
+                        .filter { seen.insert($0.name.lowercased()).inserted }
+                    return items.isEmpty ? nil : MenuStation(name: name, items: items)
+                }
+                live = CampusMenuNormalize.stations(raw)
+            } else {
+                live = []
             }
-
-            let raw = (menu.locationMealPeriodRecipesData?.mealPeriodSkuMap ?? []).compactMap { period -> MenuStation? in
-                guard let name = period.name else { return nil }
-                var seen = Set<String>()
-                let items = (period.skus ?? [])
-                    .compactMap { products[$0] }
-                    .filter { seen.insert($0.name.lowercased()).inserted }
-                return items.isEmpty ? nil : MenuStation(name: name, items: items)
-            }
-            return CampusMenuNormalize.stations(raw)
+            if !live.isEmpty { return live }
+            // Honest typical pack for common chains when Hub has no SKUs today.
+            return CampusTypicalMenus.stations(forPlaceID: placeID, placeName: displayName) ?? []
         }
     }
 

@@ -559,14 +559,18 @@ struct BusynessFacilityCard: View {
             }
             Haptics.selection()
         } label: {
-            HStack(spacing: 5) {
+            // Collapsed = chevron.down (“more”); expanded = chevron.up. No
+            // rotation games — and this toggle only renders when expandable.
+            HStack(spacing: 6) {
                 Text(isExpanded ? "Hide floors" : "\(floors.count) floors")
-                    .font(ZotFont.pill)
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.semibold))
-                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .font(ZotFont.pill.weight(.semibold))
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 18, height: 18)
             }
             .foregroundStyle(Color.uciBlue)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(

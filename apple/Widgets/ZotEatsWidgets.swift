@@ -457,7 +457,8 @@ struct DiningStatusWidget: Widget {
         }
         .configurationDisplayName("Dining Halls")
         .description("Open halls, closes-in, and next meal — glanceable like Nom.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        // Small + medium cover the job; large only when more halls earn the height.
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -475,8 +476,9 @@ struct DiningStatusView: View {
     private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
 
     private var isCompact: Bool { family == .systemSmall }
+    private var isLarge: Bool { family == .systemLarge }
     private var visibleHalls: ArraySlice<DiningStatusEntry.HallStatus> {
-        entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact))
+        entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact, isLarge: isLarge))
     }
     private var hallCount: Int { visibleHalls.count }
     private var openCount: Int { entry.halls.filter(\.isOpen).count }
