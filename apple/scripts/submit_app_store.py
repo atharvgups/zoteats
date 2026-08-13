@@ -1220,6 +1220,10 @@ def main() -> None:
     build_ver = (build.get("attributes") or {}).get("version")
     info(f"Using build CFBundleVersion={build_ver} id={build_id}")
 
+    # Cancel WAITING_FOR_REVIEW before version create/reuse — ASC blocks a new
+    # appStoreVersion (and leaves no editable draft) while a submission is live.
+    cancel_in_flight_review_submissions(token, app_id)
+
     version = get_or_create_version(token, app_id, version_string)
     version_id = version["id"]
     attach_build(token, version_id, build_id)
