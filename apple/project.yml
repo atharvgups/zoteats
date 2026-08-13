@@ -92,6 +92,10 @@ targets:
       path: Widgets/Info.plist
       properties:
         CFBundleDisplayName: Anteats
+        # Must match the host app — a stale CFBundleVersion=1 left Home Screen
+        # widgets on an old/broken extension while TestFlight bumped the app.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
@@ -103,6 +107,7 @@ targets:
         CODE_SIGNING_ALLOWED: "NO"
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: Widgets/ZotEatsWidgets.entitlements
+        # Inherit project MARKETING_VERSION / CURRENT_PROJECT_VERSION from archive.
 
   ZotEatsUITests:
     type: bundle.ui-testing
