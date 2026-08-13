@@ -86,6 +86,12 @@ final class DiningStore {
         } else if locations.value != result {
             locations = .loaded(result)
         }
+        // App Group snapshot so Home Screen widgets show real text without
+        // waiting on a cold network fetch inside the extension process.
+        if let loaded = locations.value, !loaded.isEmpty {
+            WidgetSnapshotStore.saveDiningLocations(loaded)
+            WidgetReloader.reloadEatWidgets()
+        }
     }
 
     func menuState(hall: String, period: String, date: String? = nil) -> LoadState<DiningMenu> {
@@ -153,6 +159,10 @@ final class CampusStore {
             if places.value != next {
                 places = .loaded(next)
             }
+            if let loaded = places.value, !loaded.isEmpty {
+                WidgetSnapshotStore.saveCampusPlaces(loaded)
+                WidgetReloader.reloadCampusOpen()
+            }
         } catch {
             places = .failed(error.localizedDescription)
         }
@@ -210,6 +220,10 @@ final class BusynessStore {
             } ?? false
             if !unchanged {
                 facilities = .loaded(next)
+            }
+            if let loaded = facilities.value, !loaded.isEmpty {
+                WidgetSnapshotStore.saveBusynessPlaces(loaded)
+                WidgetReloader.reloadStudyWidgets()
             }
         } catch {
             facilities = .failed(error.localizedDescription)

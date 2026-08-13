@@ -4,23 +4,33 @@ import ActivityKit
 import AppIntents
 import ZotEatsKit
 
-// Home-screen + lock-screen widgets for Anteats:
-// dining status, today's menu (pick a hall), favorites on this meal,
-// campus open now / next open, and quietest library.
-// ARC Gym widget is parked (`#if ANTEATS_ENABLE_GYM`) until live sensors exist.
+// Home-screen + lock-screen widgets for Anteats.
+// Focused gallery (no Gym/ARC): Dining Status, Today's Menu, Favorites Today,
+// Campus Open Now, Quietest Library + Meal Live Activity.
+//
+// CRITICAL: every glance root uses `.unredacted()`. Without it, WidgetKit can
+// leave Home Screen widgets stuck on system redacted placeholder bars (colored
+// dots visible, hall names / menus barred) — especially after cold install
+// while the timeline is still loading. Pair with App Group `WidgetSnapshotStore`
+// so timelines paint real strings immediately after the user opens the app once.
 
 @main
 struct ZotEatsWidgetBundle: WidgetBundle {
     var body: some Widget {
-        // Keep flat — nested WidgetBundles no longer type-check as Widget
-        // expressions on current SDKs (WidgetBundleBuilder arity is fine ≤10).
+        // Keep flat — nested WidgetBundles no longer type-check as Widget.
         DiningStatusWidget()
         TodaysMenuWidget()
         FavoritesTodayWidget()
         CampusOpenWidget()
-        CampusNextWidget()
         QuietestLibraryWidget()
         MealCountdownActivity()
+    }
+}
+
+/// Forces readable strings on Home Screen — see file header.
+private extension View {
+    func anteatsWidgetContent() -> some View {
+        self.unredacted()
     }
 }
 
@@ -96,6 +106,7 @@ struct MealCountdownActivity: Widget {
                 )
             )
             .widgetURL(deepLink.url)
+            .unredacted()
         } dynamicIsland: { context in
             let ended = MealCountdownChrome.hasEnded(endsAt: context.state.endsAt)
             let deepLink = MealActivityDeepLink.link(
@@ -204,6 +215,20 @@ struct DiningStatusEntry: TimelineEntry {
     let halls: [HallStatus]
     /// Medium tip — open quietest floor or overnight "Libraries closed".
     let quietest: QuietestLibraryGlance.DiningStatusTip?
+    /// True when we have no halls to show — render honest refresh copy (never skeleton).
+    let needsAppRefresh: Bool
+
+    init(
+        date: Date,
+        halls: [HallStatus],
+        quietest: QuietestLibraryGlance.DiningStatusTip? = nil,
+        needsAppRefresh: Bool = false
+    ) {
+        self.date = date
+        self.halls = halls
+        self.quietest = quietest
+        self.needsAppRefresh = needsAppRefresh
+    }
 
     struct HallStatus {
         /// Anteater API hall id for deep links.
@@ -308,8 +333,32 @@ struct DiningStatusProvider: TimelineProvider {
         libraryReopenMinutes: [Int],
         libraryCloseMinutes: [Int]
     ) {
-        let locations = await DiningService().locations()
+        // Cache-first: App Group snapshot from the main app paints real hall
+        // names immediately; network refreshes when the extension budget allows.
+        let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
+        let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
+        let networkLooksLive = networked.contains {
+            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
+        }
+        let locations: [DiningLocation]
+        if networkLooksLive {
+            WidgetSnapshotStore.saveDiningLocations(networked)
+            locations = networked
+        } else if !cached.isEmpty {
+            locations = cached
+        } else {
+            locations = networked
+        }
+
         let nowMinutes = UCITime.nowMinutes()
+        guard !locations.isEmpty else {
+            return (
+                DiningStatusEntry(date: .now, halls: [], needsAppRefresh: true),
+                [],
+                [],
+                []
+            )
+        }
 
         let halls = locations.map { location -> DiningStatusEntry.HallStatus in
             let state = location.openState(nowMinutes: nowMinutes)
@@ -362,7 +411,13 @@ struct DiningStatusProvider: TimelineProvider {
         let quietest: QuietestLibraryGlance.DiningStatusTip?
         let libraryReopenMinutes: [Int]
         let libraryCloseMinutes: [Int]
-        if let places = try? await BusynessService().all() {
+        let busynessCached = WidgetSnapshotStore.loadBusynessPlaces()
+        if let places = try? await BusynessService(http: HTTPClient(timeout: 6)).all() {
+            WidgetSnapshotStore.saveBusynessPlaces(places)
+            quietest = QuietestLibraryGlance.diningStatusTip(from: places)
+            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
+            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: places)
+        } else if let places = busynessCached {
             quietest = QuietestLibraryGlance.diningStatusTip(from: places)
             libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
             libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: places)
@@ -394,13 +449,14 @@ struct DiningStatusWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ZotEatsDiningStatus", provider: DiningStatusProvider()) { entry in
             DiningStatusView(entry: entry)
+                .anteatsWidgetContent()
                 .containerBackground(for: .widget) {
                     Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
                 }
                 .widgetURL(AnteatsWidgetURL.eat)
         }
         .configurationDisplayName("Dining Halls")
-        .description("Open status and when halls open or close.")
+        .description("Open halls, closes-in, and next meal — glanceable like Nom.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -409,7 +465,6 @@ struct DiningStatusWidget: Widget {
 private enum AnteatsWidgetURL {
     static let eat = AnteatsDeepLink.eat().url
     static let campus = AnteatsDeepLink.campus(placeID: nil).url
-    static let gym = AnteatsDeepLink.gym().url
     static let study = AnteatsDeepLink.study().url
 }
 
@@ -424,78 +479,99 @@ struct DiningStatusView: View {
         entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact))
     }
     private var hallCount: Int { visibleHalls.count }
+    private var openCount: Int { entry.halls.filter(\.isOpen).count }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DiningStatusLayout.rowSpacing(isCompact: isCompact, hallCount: hallCount)) {
+        VStack(alignment: .leading, spacing: DiningStatusLayout.rowSpacing(isCompact: isCompact, hallCount: max(hallCount, 1))) {
             HStack(spacing: 4) {
                 Image(systemName: "fork.knife")
                     .font(.system(size: 10, weight: .bold))
-                Text("ANTEATS")
+                Text("DINING")
                     .font(.system(size: 10, weight: .heavy))
                     .tracking(0.8)
                 Spacer()
+                if !entry.needsAppRefresh {
+                    Text(openCount == 0 ? "Closed" : "\(openCount) open")
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(gold.opacity(0.22), in: Capsule())
+                        .foregroundStyle(gold)
+                }
             }
             .foregroundStyle(gold)
 
-            ForEach(Array(visibleHalls), id: \.id) { hall in
-                Link(destination: AnteatsDeepLink.eat(
-                    hall: hall.id,
-                    period: hall.deepLinkPeriod,
-                    date: hall.deepLinkDate
-                ).url) {
-                    hallRow(hall)
-                }
-            }
-
-            if family == .systemMedium, let tip = entry.quietest {
-                Divider()
-                    .overlay(.white.opacity(0.25))
-                switch tip {
-                case .open(let name, let percent, let facilityID, _):
-                    Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "books.vertical.fill")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(gold)
-                            Text("Quietest: \(name)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.9))
-                                .lineLimit(1)
-                            Spacer()
-                            Text("\(percent)%")
-                                .font(.system(size: 11, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(gold)
-                        }
+            if entry.needsAppRefresh || entry.halls.isEmpty {
+                Spacer(minLength: 0)
+                Text(WidgetLoadEmptyCopy.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text(WidgetLoadEmptyCopy.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(3)
+                Spacer(minLength: 0)
+            } else {
+                ForEach(Array(visibleHalls), id: \.id) { hall in
+                    Link(destination: AnteatsDeepLink.eat(
+                        hall: hall.id,
+                        period: hall.deepLinkPeriod,
+                        date: hall.deepLinkDate
+                    ).url) {
+                        hallRow(hall)
                     }
-                    .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
-                case .librariesClosed(let reopenMinutes):
-                    Link(destination: AnteatsDeepLink.study().url) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "moon.zzz.fill")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(gold.opacity(0.85))
-                            Text(QuietestLibraryGlance.closedTitle)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.9))
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                            if let line = QuietestLibraryGlance.diningStatusClosedSecondary(
-                                reopenMinutes: reopenMinutes
-                            ) {
-                                Text(line)
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(gold.opacity(0.9))
+                }
+
+                if family == .systemMedium, let tip = entry.quietest {
+                    Divider()
+                        .overlay(.white.opacity(0.25))
+                    switch tip {
+                    case .open(let name, let percent, let facilityID, _):
+                        Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "books.vertical.fill")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(gold)
+                                Text("Quietest: \(name)")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.9))
                                     .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
+                                Spacer()
+                                Text("\(percent)%")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(gold)
                             }
                         }
+                        .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
+                    case .librariesClosed(let reopenMinutes):
+                        Link(destination: AnteatsDeepLink.study().url) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "moon.zzz.fill")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(gold.opacity(0.85))
+                                Text(QuietestLibraryGlance.closedTitle)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.9))
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                                if let line = QuietestLibraryGlance.diningStatusClosedSecondary(
+                                    reopenMinutes: reopenMinutes
+                                ) {
+                                    Text(line)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(gold.opacity(0.9))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                }
+                            }
+                        }
+                        .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
                     }
-                    .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
                 }
-            }
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -506,37 +582,36 @@ struct DiningStatusView: View {
             HStack(spacing: 5) {
                 Circle()
                     .fill(hall.isOpen ? Color.green : Color.white.opacity(0.35))
-                    .frame(width: 5, height: 5)
+                    .frame(width: 6, height: 6)
                 Text(shortName(hall.name))
                     .font(.system(size: nameSize, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 3)
-                if let occupancy = hall.occupancy {
+                if let end = hall.countdownEnd, let kind = hall.countdownKind, end > Date() {
+                    Text(
+                        kind == .closes
+                            ? WidgetCountdownCopy.closesLine(until: end)
+                            : WidgetCountdownCopy.opensLine(until: end)
+                    )
+                    .font(.system(size: nameSize - 1, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(gold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                } else if let occupancy = hall.occupancy {
                     Text("\(occupancy)%")
                         .font(.system(size: nameSize, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(gold)
                 }
             }
-            HStack(spacing: 4) {
-                Text(hall.statusText)
-                    .font(.system(size: statusSize))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(1)
-                if let end = hall.countdownEnd, let kind = hall.countdownKind, end > Date() {
-                    Text(kind == .closes ? "· closes" : "· opens")
-                        .font(.system(size: statusSize))
-                        .foregroundStyle(.white.opacity(0.55))
-                    Text(timerInterval: Date.now...end, countsDown: true)
-                        .font(.system(size: statusSize, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(gold)
-                        .multilineTextAlignment(.leading)
-                }
-            }
-            .padding(.leading, 10)
+            Text(hall.statusText)
+                .font(.system(size: statusSize, weight: .medium))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(1)
+                .padding(.leading, 11)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -778,8 +853,14 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
     }
 
     private func fetchEntry(for configuration: TodaysMenuConfigurationIntent) async -> TodaysMenuEntry {
-        let service = DiningService()
-        let locations = await service.locations()
+        let service = DiningService(http: HTTPClient(timeout: 8))
+        let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
+        let networked = await service.locations()
+        let networkLooksLive = networked.contains {
+            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
+        }
+        let locations = networkLooksLive ? networked : (cached.isEmpty ? networked : cached)
+        if networkLooksLive { WidgetSnapshotStore.saveDiningLocations(networked) }
         let nowMinutes = UCITime.nowMinutes()
 
         let hall: DiningLocation?
@@ -789,7 +870,14 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             hall = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes)
         }
         guard let hall else {
-            return TodaysMenuEntry(date: .now, hallName: "UCI Dining", period: "", dishes: [], favorited: [], periodEndsAt: nil)
+            return TodaysMenuEntry(
+                date: .now,
+                hallName: WidgetLoadEmptyCopy.title,
+                period: "",
+                dishes: [],
+                favorited: [],
+                periodEndsAt: nil
+            )
         }
 
         let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
@@ -893,13 +981,14 @@ struct TodaysMenuWidget: Widget {
             provider: TodaysMenuProvider()
         ) { entry in
             TodaysMenuView(entry: entry)
+                .anteatsWidgetContent()
                 .containerBackground(for: .widget) {
                     Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
                 }
                 .widgetURL(entry.deepLinkURL)
         }
         .configurationDisplayName("Today's Menu")
-        .description("What's being served — Eat Filters + favorites from the app. Pick a hall or auto.")
+        .description("Today's meal at a glance — Eat Filters hint + favorites. Pick a hall or auto.")
         // system* for Home Screen; accessoryRectangular for Lock Screen / StandBy glance.
         .supportedFamilies([.systemMedium, .systemLarge, .accessoryRectangular])
     }
@@ -1048,18 +1137,17 @@ struct TodaysMenuView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
                         } else if let end = entry.periodEndsAt, end > Date() {
-                            Text(timerInterval: Date.now...end, countsDown: true)
+                            Text(WidgetCountdownCopy.closesLine(until: end))
                                 .font(.system(size: 10, weight: .bold))
                                 .monospacedDigit()
                                 .foregroundStyle(gold)
+                                .lineLimit(1)
                         } else if let open = entry.periodOpensAt, open > Date() {
-                            Text("· opens")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.75))
-                            Text(timerInterval: Date.now...open, countsDown: true)
+                            Text(WidgetCountdownCopy.opensLine(until: open))
                                 .font(.system(size: 10, weight: .bold))
                                 .monospacedDigit()
                                 .foregroundStyle(gold)
+                                .lineLimit(1)
                         }
                     }
                     .padding(.horizontal, 7)
@@ -1288,10 +1376,17 @@ struct FavoritesTodayProvider: TimelineProvider {
             dietFilters: SharedDefaults.dietFilters(),
             allergenAvoids: SharedDefaults.allergenAvoids()
         )
-        let reloadBoundaries: [Date]
-        let locations = await DiningService().locations()
+        // One Auto hall only — multi-hall menu fan-out was blowing the widget
+        // timeline budget and left sibling glances stuck on placeholders.
+        let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
+        let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
+        let networkLooksLive = networked.contains {
+            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
+        }
+        let locations = networkLooksLive ? networked : (cached.isEmpty ? networked : cached)
+        if networkLooksLive { WidgetSnapshotStore.saveDiningLocations(networked) }
         let nowMinutes = UCITime.nowMinutes()
-        reloadBoundaries = TodaysMenuReload.boundaries(
+        let reloadBoundaries = TodaysMenuReload.boundaries(
             locations: locations,
             nowMinutes: nowMinutes
         )
@@ -1311,48 +1406,12 @@ struct FavoritesTodayProvider: TimelineProvider {
             )
         }
 
-        let service = DiningService()
-        var boards: [FavoritesOnMenuPick.Board] = []
-        // Prefer Auto hall first, then remaining commons — same usefulness order.
-        let ordered: [DiningLocation] = {
-            guard let auto = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes) else {
-                return locations
-            }
-            return [auto] + locations.filter { $0.id != auto.id }
-        }()
-
-        for hall in ordered {
-            let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
-            let choice = TodaysMenuPeriodPick.choose(
-                timedPeriods: timed,
-                availablePeriods: hall.availablePeriods,
-                nowMinutes: nowMinutes
-            )
-            let pill = choice.period
-            guard !pill.isEmpty, let menu = try? await service.menu(for: hall.id, period: pill) else {
-                continue
-            }
-            let displayPeriod = MealPeriodDisplay.label(
-                live: choice.livePeriodName,
-                pill: choice.period
-            )
-            boards.append(
-                FavoritesOnMenuPick.Board(
-                    hallID: hall.id,
-                    hallName: hall.name,
-                    period: displayPeriod,
-                    stations: menu.stations
-                )
-            )
-        }
-
-        guard let pick = FavoritesOnMenuPick.best(favorites: favorites, boards: boards) else {
-            let auto = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes)
+        guard let hall = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes) else {
             return FavoritesTodayEntry(
                 date: .now,
                 hasFavorites: true,
-                hallName: auto?.name,
-                hallID: auto?.id,
+                hallName: nil,
+                hallID: nil,
                 period: nil,
                 dishes: [],
                 filterHint: filterHint,
@@ -1362,15 +1421,41 @@ struct FavoritesTodayProvider: TimelineProvider {
             )
         }
 
+        let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+        let choice = TodaysMenuPeriodPick.choose(
+            timedPeriods: timed,
+            availablePeriods: hall.availablePeriods,
+            nowMinutes: nowMinutes
+        )
+        let pill = choice.period
+        let service = DiningService(http: HTTPClient(timeout: 8))
+        let stations: [MenuStation]
+        if !pill.isEmpty, let menu = try? await service.menu(for: hall.id, period: pill) {
+            stations = menu.stations
+        } else {
+            stations = []
+        }
+        let displayPeriod = MealPeriodDisplay.label(
+            live: choice.livePeriodName,
+            pill: choice.period
+        )
+        let rows = FavoritesOnMenuPick.rows(
+            favorites: favorites,
+            stations: stations,
+            hallID: hall.id,
+            hallName: hall.name,
+            period: displayPeriod
+        )
+
         return FavoritesTodayEntry(
             date: .now,
             hasFavorites: true,
-            hallName: pick.hallName,
-            hallID: pick.hallID,
-            period: pick.period,
-            dishes: pick.rows.map(\.dishName),
+            hallName: hall.name,
+            hallID: hall.id,
+            period: rows.isEmpty ? nil : displayPeriod,
+            dishes: rows.map(\.dishName),
             filterHint: filterHint,
-            deepLinkPeriod: pick.period.isEmpty ? nil : pick.period,
+            deepLinkPeriod: displayPeriod.isEmpty ? nil : displayPeriod,
             deepLinkDate: nil,
             reloadBoundaries: reloadBoundaries
         )
@@ -1384,13 +1469,14 @@ struct FavoritesTodayWidget: Widget {
             provider: FavoritesTodayProvider()
         ) { entry in
             FavoritesTodayView(entry: entry)
+                .anteatsWidgetContent()
                 .containerBackground(for: .widget) {
                     Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
                 }
                 .widgetURL(entry.deepLinkURL)
         }
         .configurationDisplayName("Favorites Today")
-        .description("Which hearted dishes are on a live dining board right now.")
+        .description("Hearted dishes on today's board — open Anteats once if empty.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -1509,17 +1595,21 @@ struct CampusOpenEntry: TimelineEntry {
     let totalOpen: Int
     /// When nothing is open — soonest reopen for empty-state copy / deep link.
     let nextOpen: CampusNextOpenHint.Hint?
+    /// No places at all (cache + network empty) — honest refresh copy.
+    let needsAppRefresh: Bool
 
     init(
         date: Date,
         openPlaces: [(id: String, name: String, hours: String)],
         totalOpen: Int,
-        nextOpen: CampusNextOpenHint.Hint? = nil
+        nextOpen: CampusNextOpenHint.Hint? = nil,
+        needsAppRefresh: Bool = false
     ) {
         self.date = date
         self.openPlaces = openPlaces
         self.totalOpen = totalOpen
         self.nextOpen = nextOpen
+        self.needsAppRefresh = needsAppRefresh
     }
 }
 
@@ -1548,7 +1638,7 @@ struct CampusOpenProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<CampusOpenEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let places = (try? await CampusService().places()) ?? []
+            let places = await loadPlaces()
             let entry = entry(from: places)
             let reload = CampusOpenReload.nextReload(now: .now, places: places)
             deliver.value(Timeline(entries: [entry], policy: .after(reload)))
@@ -1556,11 +1646,28 @@ struct CampusOpenProvider: TimelineProvider {
     }
 
     private func fetchEntry() async -> CampusOpenEntry {
-        let places = (try? await CampusService().places()) ?? []
-        return entry(from: places)
+        entry(from: await loadPlaces())
+    }
+
+    private func loadPlaces() async -> [CampusPlace] {
+        let cached = WidgetSnapshotStore.loadCampusPlaces() ?? []
+        if let networked = try? await CampusService(http: HTTPClient(timeout: 8)).places(),
+           !networked.isEmpty {
+            WidgetSnapshotStore.saveCampusPlaces(networked)
+            return networked
+        }
+        return cached
     }
 
     private func entry(from places: [CampusPlace]) -> CampusOpenEntry {
+        guard !places.isEmpty else {
+            return CampusOpenEntry(
+                date: .now,
+                openPlaces: [],
+                totalOpen: 0,
+                needsAppRefresh: true
+            )
+        }
         let favoriteIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
         let open = CampusPlaceSort.sortOpenForWidget(
             places: places,
@@ -1588,6 +1695,7 @@ struct CampusOpenWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ZotEatsCampusOpen", provider: CampusOpenProvider()) { entry in
             CampusOpenView(entry: entry)
+                .anteatsWidgetContent()
                 .containerBackground(for: .widget) {
                     Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
                 }
@@ -1623,7 +1731,17 @@ struct CampusOpenView: View {
             }
             .foregroundStyle(gold)
 
-            if entry.openPlaces.isEmpty {
+            if entry.needsAppRefresh {
+                Spacer()
+                Text(WidgetLoadEmptyCopy.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text(WidgetLoadEmptyCopy.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(3)
+                Spacer()
+            } else if entry.openPlaces.isEmpty {
                 Spacer()
                 if let hint = entry.nextOpen {
                     Link(destination: AnteatsDeepLink.campus(placeID: hint.placeID).url) {
@@ -1715,435 +1833,7 @@ struct CampusOpenView: View {
     )
 }
 
-// MARK: - Campus Next (open-now count + next open / favorite open)
 
-struct CampusNextEntry: TimelineEntry {
-    let date: Date
-    let openCount: Int
-    let headline: String
-    let detail: String
-    let deepLinkPlaceID: String?
-    let reloadAt: Date?
-
-    var deepLinkURL: URL {
-        AnteatsDeepLink.campus(placeID: deepLinkPlaceID).url
-    }
-}
-
-struct CampusNextProvider: TimelineProvider {
-    func placeholder(in context: Context) -> CampusNextEntry {
-        CampusNextEntry(
-            date: .now,
-            openCount: 4,
-            headline: "4 spots open",
-            detail: "Starbucks @ Student Center",
-            deepLinkPlaceID: "starbucks-at-student-center",
-            reloadAt: nil
-        )
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (CampusNextEntry) -> Void) {
-        if context.isPreview {
-            completion(placeholder(in: context))
-            return
-        }
-        let deliver = UncheckedSendableBox(completion)
-        Task { deliver.value(await fetchEntry()) }
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<CampusNextEntry>) -> Void) {
-        let deliver = UncheckedSendableBox(completion)
-        Task {
-            let places = (try? await CampusService().places()) ?? []
-            let entry = entry(from: places)
-            let reload = CampusOpenReload.nextReload(now: .now, places: places)
-            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
-        }
-    }
-
-    private func fetchEntry() async -> CampusNextEntry {
-        let places = (try? await CampusService().places()) ?? []
-        return entry(from: places)
-    }
-
-    private func entry(from places: [CampusPlace]) -> CampusNextEntry {
-        let favoriteIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
-        let glance = NextCampusOpenPick.glance(places: places, favoriteIDs: favoriteIDs)
-        let deepLink: String? = {
-            if glance.openCount > 0 {
-                return glance.favoriteOpenID
-                    ?? CampusPlaceSort.sortOpenForWidget(
-                        places: places,
-                        favoriteIDs: favoriteIDs
-                    ).first?.id
-            }
-            return glance.nextOpen?.placeID
-        }()
-        return CampusNextEntry(
-            date: .now,
-            openCount: glance.openCount,
-            headline: NextCampusOpenPick.headline(for: glance),
-            detail: NextCampusOpenPick.detail(for: glance),
-            deepLinkPlaceID: deepLink,
-            reloadAt: CampusOpenReload.nextReload(now: .now, places: places)
-        )
-    }
-}
-
-struct CampusNextWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(
-            kind: WidgetTimelineKinds.campusNext,
-            provider: CampusNextProvider()
-        ) { entry in
-            CampusNextView(entry: entry)
-                .widgetURL(entry.deepLinkURL)
-        }
-        .configurationDisplayName("Campus Open Count")
-        .description("How many campus spots are open — or what opens next. Hearts lead when open.")
-        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
-    }
-}
-
-struct CampusNextView: View {
-    let entry: CampusNextEntry
-    @Environment(\.widgetFamily) private var family
-
-    private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
-    private let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
-
-    var body: some View {
-        Group {
-            switch family {
-            case .accessoryCircular:
-                VStack(spacing: 1) {
-                    Text(entry.openCount > 0 ? "\(entry.openCount)" : "—")
-                        .font(.system(size: 20, weight: .bold))
-                        .monospacedDigit()
-                    Text(entry.openCount > 0 ? "open" : "next")
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .accessibilityLabel("\(entry.headline). \(entry.detail)")
-            case .accessoryRectangular:
-                HStack(spacing: 8) {
-                    Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(entry.headline)
-                            .font(.system(size: 13, weight: .semibold))
-                            .lineLimit(1)
-                        Text(entry.detail)
-                            .font(.system(size: 11))
-                            .opacity(0.8)
-                            .lineLimit(2)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(entry.headline). \(entry.detail)")
-            default:
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("CAMPUS")
-                            .font(.system(size: 10, weight: .heavy))
-                            .tracking(0.8)
-                        Spacer()
-                    }
-                    .foregroundStyle(gold)
-
-                    Text(entry.headline)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
-
-                    Text(entry.detail)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(gold)
-                        .lineLimit(3)
-
-                    Spacer(minLength: 0)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(entry.headline). \(entry.detail)")
-            }
-        }
-        .containerBackground(for: .widget) {
-            switch family {
-            case .accessoryCircular, .accessoryRectangular:
-                Color.clear
-            default:
-                uciBlue
-            }
-        }
-    }
-}
-
-#Preview(as: .systemSmall) {
-    CampusNextWidget()
-} timeline: {
-    CampusNextEntry(
-        date: .now,
-        openCount: 0,
-        headline: "Nothing open",
-        detail: "Starbucks opens at 7:30 AM",
-        deepLinkPlaceID: "starbucks-at-student-center",
-        reloadAt: nil
-    )
-}
-
-#if ANTEATS_ENABLE_GYM
-// Parked: ARC Gym widget (typical/fake busy) until live Occuspace sensors.
-// MARK: - ARC gym status
-
-struct ArcStatusEntry: TimelineEntry {
-    let date: Date
-    let isOpen: Bool
-    let hoursLine: String
-    /// Live Waitz % or typical-pattern estimate (see `isTypical`).
-    let percent: Int?
-    let isTypical: Bool
-    /// True when hours come from the maintained schedule (Waitz hours missing).
-    let hoursApproximate: Bool
-    /// Waitz snapshot time for live crowding VoiceOver freshness (nil when typical / none).
-    let liveUpdatedAt: Date?
-
-    init(
-        date: Date,
-        isOpen: Bool,
-        hoursLine: String,
-        percent: Int?,
-        isTypical: Bool = false,
-        hoursApproximate: Bool = false,
-        liveUpdatedAt: Date? = nil
-    ) {
-        self.date = date
-        self.isOpen = isOpen
-        self.hoursLine = hoursLine
-        self.percent = percent
-        self.isTypical = isTypical
-        self.hoursApproximate = hoursApproximate
-        self.liveUpdatedAt = liveUpdatedAt
-    }
-}
-
-struct ArcStatusProvider: TimelineProvider {
-    func placeholder(in context: Context) -> ArcStatusEntry {
-        ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12 AM", percent: 42)
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (ArcStatusEntry) -> Void) {
-        if context.isPreview {
-            completion(placeholder(in: context))
-            return
-        }
-        let deliver = UncheckedSendableBox(completion)
-        Task { deliver.value(await fetchEntry()) }
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<ArcStatusEntry>) -> Void) {
-        let deliver = UncheckedSendableBox(completion)
-        Task {
-            let status = await GymService().status()
-            let entry = Self.entry(from: status)
-            let reload = GymBoundaryRefresh.nextFire(
-                now: .now,
-                reopenMinutes: status.waitzReopenMinutes,
-                closeMinutes: status.waitzCloseMinutes
-            )
-            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
-        }
-    }
-
-    private func fetchEntry() async -> ArcStatusEntry {
-        Self.entry(from: await GymService().status())
-    }
-
-    private static func entry(from status: GymStatus) -> ArcStatusEntry {
-        let nowMinutes = UCITime.nowMinutes()
-        let weekday = UCITime.weekdayName()
-        let hoursLine = ArcIdleCopy.hoursLine(
-            openNow: status.openNow,
-            todayHours: status.todayHours,
-            nowMinutes: nowMinutes,
-            opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
-                weekday: weekday,
-                openNow: status.openNow,
-                waitzReopenMinutes: status.waitzReopenMinutes
-            ),
-            closesAtMinutesToday: ArcIdleCopy.closesAtMinutesToday(
-                weekday: weekday,
-                openNow: status.openNow,
-                nowMinutes: nowMinutes,
-                waitzCloseMinutes: status.waitzCloseMinutes,
-                waitzReopenMinutes: status.waitzReopenMinutes
-            ),
-            opensAtMinutesTomorrow: ArcIdleCopy.opensAtMinutesTomorrow(
-                weekday: weekday,
-                openNow: status.openNow,
-                nowMinutes: nowMinutes,
-                waitzReopenMinutes: status.waitzReopenMinutes
-            )
-        )
-        let crowding = ArcWidgetGlance.crowding(from: status)
-        let isTypical = crowding?.isTypical ?? false
-        let liveUpdatedAt: Date? = {
-            guard crowding != nil, !isTypical else { return nil }
-            return status.busyness?.updatedAt
-        }()
-        return ArcStatusEntry(
-            date: .now,
-            isOpen: status.openNow,
-            hoursLine: hoursLine,
-            percent: crowding?.percent,
-            isTypical: isTypical,
-            hoursApproximate: status.hoursApproximate,
-            liveUpdatedAt: liveUpdatedAt
-        )
-    }
-}
-
-struct ArcStatusWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ZotEatsArcStatus", provider: ArcStatusProvider()) { entry in
-            ArcStatusView(entry: entry)
-                .widgetURL(AnteatsWidgetURL.gym)
-        }
-        .configurationDisplayName("ARC Gym")
-        .description("Is the ARC open — and how full is it (live sensors, or typical when Waitz is quiet).")
-        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
-    }
-}
-
-struct ArcStatusView: View {
-    let entry: ArcStatusEntry
-    @Environment(\.widgetFamily) private var family
-
-    private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
-    private let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
-
-    var body: some View {
-        Group {
-            switch family {
-            case .accessoryCircular:
-                if let percent = entry.percent {
-                    Gauge(value: Double(percent), in: 0...100) {
-                        Text("ARC")
-                    } currentValueLabel: {
-                        Text("\(percent)%")
-                            .font(.system(size: 14, weight: .bold))
-                            .monospacedDigit()
-                    }
-                    .gaugeStyle(.accessoryCircular)
-                    .accessibilityLabel(arcAccessibilityLabel)
-                } else {
-                    VStack(spacing: 2) {
-                        Image(systemName: "dumbbell.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text(entry.isOpen ? "Open" : "Closed")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .accessibilityLabel(arcAccessibilityLabel)
-                }
-            case .accessoryRectangular:
-                HStack(spacing: 8) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("ARC")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(rectangularDetail)
-                            .font(.system(size: 11))
-                            .opacity(0.8)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .accessibilityLabel(arcAccessibilityLabel)
-            default:
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "dumbbell.fill")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("ARC")
-                            .font(.system(size: 10, weight: .heavy))
-                            .tracking(0.8)
-                        Spacer()
-                        Circle()
-                            .fill(entry.isOpen ? Color.green : Color.white.opacity(0.35))
-                            .frame(width: 6, height: 6)
-                    }
-                    .foregroundStyle(gold)
-
-                    if let percent = entry.percent {
-                        Text("\(percent)%")
-                            .font(.system(size: 34, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundStyle(.white)
-                        Text("full · \(entry.isTypical ? "typical" : "live")")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.75))
-                    } else {
-                        Text(entry.isOpen ? "Open" : "Closed")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    Text(displayHoursLine)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.75))
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
-                }
-                .accessibilityLabel(arcAccessibilityLabel)
-            }
-        }
-        .containerBackground(for: .widget) {
-            switch family {
-            case .accessoryCircular, .accessoryRectangular:
-                Color.clear
-            default:
-                uciBlue
-            }
-        }
-    }
-
-    /// Sighted cue when hours are schedule-maintained (widget has no footnote).
-    private var displayHoursLine: String {
-        guard entry.hoursApproximate,
-              !entry.hoursLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return entry.hoursLine }
-        return "\(entry.hoursLine) · approx"
-    }
-
-    private var rectangularDetail: String {
-        guard let percent = entry.percent else { return displayHoursLine }
-        let source = entry.isTypical ? "typical" : "live"
-        return "\(percent)% · \(source) · \(displayHoursLine)"
-    }
-
-    private var arcAccessibilityLabel: String {
-        let updatedRelative = entry.liveUpdatedAt.map { UpdatedAgoCopy.relative(from: $0) }
-        return ArcWidgetAccessibilityLabel.label(
-            isOpen: entry.isOpen,
-            hoursLine: entry.hoursLine,
-            percent: entry.percent,
-            isTypical: entry.isTypical,
-            hoursApproximate: entry.hoursApproximate,
-            updatedRelative: updatedRelative
-        )
-    }
-}
-
-#Preview(as: .systemSmall) {
-    ArcStatusWidget()
-} timeline: {
-    ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", percent: 38)
-    ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", percent: 55, isTypical: true)
-}
-
-#endif
 
 // MARK: - Quietest library (home + lock screen)
 
@@ -2191,8 +1881,8 @@ struct QuietestLibraryProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuietestLibraryEntry>) -> Void) {
         let deliver = UncheckedSendableBox(completion)
         Task {
-            let facilities = (try? await BusynessService().all()) ?? []
-            let entry = Self.entry(from: facilities)
+            let entry = await fetchEntry()
+            let facilities = WidgetSnapshotStore.loadBusynessPlaces() ?? []
             let nowMinutes = UCITime.nowMinutes()
             let anyOpen = StudyBoundaryRefresh.anyLibraryOpen(
                 from: facilities,
@@ -2212,11 +1902,23 @@ struct QuietestLibraryProvider: TimelineProvider {
     }
 
     private func fetchEntry() async -> QuietestLibraryEntry {
-        let facilities = (try? await BusynessService().all()) ?? []
-        return Self.entry(from: facilities)
+        let cached = WidgetSnapshotStore.loadBusynessPlaces() ?? []
+        if let networked = try? await BusynessService(http: HTTPClient(timeout: 6)).all(),
+           !networked.isEmpty {
+            WidgetSnapshotStore.saveBusynessPlaces(networked)
+            return Self.entry(from: networked)
+        }
+        return Self.entry(from: cached)
     }
 
     private static func entry(from facilities: [BusynessPoint]) -> QuietestLibraryEntry {
+        if facilities.isEmpty {
+            return QuietestLibraryEntry(
+                date: .now,
+                name: WidgetLoadEmptyCopy.title,
+                percent: nil
+            )
+        }
         if let pick = QuietestLibraryPick.best(from: facilities) {
             return QuietestLibraryEntry(
                 date: .now,
@@ -2239,6 +1941,7 @@ struct QuietestLibraryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ZotEatsQuietestLibrary", provider: QuietestLibraryProvider()) { entry in
             QuietestLibraryView(entry: entry)
+                .anteatsWidgetContent()
                 .widgetURL(AnteatsDeepLink.study(facilityID: entry.facilityID).url)
         }
         .configurationDisplayName("Quietest Library")

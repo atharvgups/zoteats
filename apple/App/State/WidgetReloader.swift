@@ -25,6 +25,12 @@ enum WidgetReloader {
         }
     }
 
+    /// Study / Quietest (+ Dining Status tip that embeds quietest).
+    static func reloadStudyWidgets() {
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.quietestLibrary)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.diningStatus)
+    }
+
     /// Refresh every Anteats widget after BG alert checks so Open Now / menus
     /// aren't stuck on a stale timeline until the next cadence fires.
     static func reloadAll() {

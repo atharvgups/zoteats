@@ -273,13 +273,17 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 6) {
-                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Live hall + Eat Filters hint")
-                widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on a live board")
+                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open halls + closes-in countdown")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Meal glance + Eat Filters hint")
+                widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on today’s board")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets open now")
-                widgetTip(icon: "number", title: "Campus Open Count", detail: "Open-now count or what opens next")
                 widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
             }
+
+            Text("Tip: open Anteats once after install so widgets can load menus, then long-press a widget → Edit Widget / Remove and re-add if it still looks blank.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
             .padding(.top, 2)
         }
         .padding(14)
