@@ -214,27 +214,30 @@ struct SettingsView: View {
                 Haptics.selection()
             }
 
-            Button {
-                Task {
-                    let granted = await FavoriteAlerts.requestPermission()
-                    if granted {
-                        alertsDenied = false
-                        await FavoriteAlerts.sendTestNotification()
-                        withAnimation { testPingSent = true }
-                    } else {
-                        alertsDenied = true
+            // Dogfood verify only when an alert path is actually on — keep
+            // Notifications from feeling like a permanent QA panel.
+            if alertsEnabled || menuDropEnabled || !watchedPlaces.isEmpty {
+                Button {
+                    Task {
+                        let granted = await FavoriteAlerts.requestPermission()
+                        if granted {
+                            alertsDenied = false
+                            await FavoriteAlerts.sendTestNotification()
+                            withAnimation { testPingSent = true }
+                        } else {
+                            alertsDenied = true
+                        }
                     }
+                } label: {
+                    Text(testPingSent ? "Test ping sent" : "Send test notification")
+                        .font(ZotFont.caption.weight(.semibold))
+                        .foregroundStyle(Color.uciBlue)
                 }
-            } label: {
-                Text(testPingSent ? "Test ping sent" : "Send test notification")
-                    .font(ZotFont.pill.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.primary.opacity(0.05), in: Capsule())
-                    .foregroundStyle(.primary)
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 2)
+                .accessibilityIdentifier("test-notification-button")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("test-notification-button")
 
             if alertsDenied {
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
