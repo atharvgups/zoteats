@@ -549,7 +549,7 @@ struct BusynessFacilityCard: View {
                 BusynessFloorBlock(floor: floor)
             }
         }
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        .transition(.opacity)
     }
 
     private var expandToggle: some View {

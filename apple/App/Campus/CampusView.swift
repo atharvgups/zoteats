@@ -518,7 +518,7 @@ private struct CampusBrandGroupRow: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity)
             }
         }
         .zotCard()
@@ -757,7 +757,7 @@ struct CampusMenuSheet: View {
                         ForEach(station.items) { item in
                             CampusMenuItemRow(item: item)
                         }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .transition(.opacity)
                     }
                 } else {
                     Text(station.name)

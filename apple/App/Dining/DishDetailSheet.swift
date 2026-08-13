@@ -293,10 +293,10 @@ private struct NutritionDetailsCard: View {
                         .font(ZotFont.sectionTitle)
                         .foregroundStyle(Color.uciBlue)
                     Spacer()
-                    Image(systemName: "chevron.down")
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                        .frame(width: 18, height: 18)
                 }
                 .contentShape(Rectangle())
             }

@@ -400,6 +400,9 @@ struct HallDirectoryTests {
     @Test func knownHallsKeepCuratedNames() {
         #expect(HallDirectory.displayName(for: "anteatery") == "The Anteatery")
         #expect(HallDirectory.area(for: "brandywine") == "Middle Earth")
+        #expect(HallDirectory.compactName(for: "anteatery") == "Anteatery")
+        #expect(HallDirectory.compactName(for: "brandywine") == "Brandywine")
+        #expect(HallDirectory.compactName(for: "oasis") == "Oasis")
     }
 
     @Test func thirdCommonsAliasesAreCuratedForSeptember() {

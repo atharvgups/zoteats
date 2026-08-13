@@ -315,8 +315,9 @@ struct DiningView: View {
                 .accessibilityLabel("Meal period")
                 .accessibilityHint("Peek Lunch or Dinner even before that meal is posted")
 
-                // Compact chrome: dates + Plate/Filters stacked, full labels, no crunch.
-                VStack(alignment: .leading, spacing: 8) {
+                // Dates + Plate + Filters on one row — actions stay fixedSize so
+                // they never truncate to "My…" / "Fil…" while dates scroll.
+                HStack(alignment: .center, spacing: 8) {
                     DayStrip(
                         days: upcomingDays,
                         selection: Binding(
@@ -332,8 +333,9 @@ struct DiningView: View {
                             }
                         )
                     )
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         if plate.isEmpty {
                             myPlateChip
                         }
@@ -346,16 +348,17 @@ struct DiningView: View {
                                 Text("Clear")
                                     .font(ZotFont.pill.weight(.semibold))
                                     .foregroundStyle(Color.uciBlue)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
                                     .background(Color.uciBlue.opacity(0.08), in: Capsule())
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("diet-filter-clear")
                             .accessibilityLabel("Clear all filters")
                         }
-                        Spacer(minLength: 0)
                     }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
                 }
                 .padding(.horizontal, 20)
 
@@ -378,21 +381,20 @@ struct DiningView: View {
         )
     }
 
-    /// Always-on when the floating tally isn't up — empty plate + browse-ahead.
+    /// Compact inline chip — short "Plate" label so the dates row never clips.
     private var myPlateChip: some View {
         Button {
             showPlate = true
             Haptics.selection()
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: plate.isEmpty ? "fork.knife.circle" : "fork.knife.circle.fill")
+            HStack(spacing: 4) {
+                Image(systemName: "fork.knife.circle")
                     .font(.system(size: 13, weight: .semibold))
-                Text(PlateTallyCopy.chipTitle(count: plate.entries.count))
+                Text("Plate")
                     .font(ZotFont.pill.weight(.semibold))
-                    .lineLimit(1)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
             .background(Color.uciBlue.opacity(0.1), in: Capsule())
             .foregroundStyle(Color.uciBlue)
             .overlay(
@@ -400,36 +402,28 @@ struct DiningView: View {
             )
         }
         .buttonStyle(.plain)
+        .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
         .accessibilityIdentifier("my-plate-chip")
-        .accessibilityLabel(
-            plate.isEmpty
-                ? "My Plate, empty"
-                : "My Plate, \(plate.entries.count) dishes"
-        )
+        .accessibilityLabel("My Plate, empty")
     }
 
-    /// Compact chip summarizing dietary + allergen filters; opens the picker sheet.
+    /// Inline Filters chip — always says "Filters" (details in VoiceOver / help).
     private var filterChip: some View {
         let diets = prefs.dietFilters.sorted()
         let allergens = prefs.allergenAvoids.sorted()
-        let label = MenuFiltersChipAccessibility.title(
-            dietFilters: diets,
-            allergenAvoids: allergens
-        )
         let active = prefs.hasActiveMenuFilters
         return Button {
             showDietFilters = true
             Haptics.selection()
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: "line.3.horizontal.decrease.circle\(active ? ".fill" : "")")
                     .font(.system(size: 13, weight: .semibold))
-                Text(label)
+                Text("Filters")
                     .font(ZotFont.pill.weight(active ? .semibold : .medium))
-                    .lineLimit(1)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
             .background(
                 active ? Color.uciBlue.opacity(0.12) : Color.card,
                 in: Capsule()
@@ -443,6 +437,12 @@ struct DiningView: View {
             )
         }
         .buttonStyle(.plain)
+        .help(
+            MenuFiltersChipAccessibility.accessibilityLabel(
+                dietFilters: diets,
+                allergenAvoids: allergens
+            )
+        )
         .accessibilityIdentifier("diet-filter-chip")
         .accessibilityLabel(
             MenuFiltersChipAccessibility.accessibilityLabel(
@@ -452,47 +452,78 @@ struct DiningView: View {
         )
     }
 
-    /// Hall cards from the live API (+ Coming Soon Oasis). Keep them compact so
-    /// meal chips / dates stay the primary chrome (Nom-ish density).
+    /// Equal-width segmented hall control — all halls visible, no sideways scroll.
+    /// Status (starts in / closes in / Coming Soon) sits under the selection.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        if let locations, locations.count > 2 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(locations) { location in
-                        hallCard(for: location)
-                            .frame(width: 148)
-                    }
-                }
-            }
-        } else {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
                 if let locations, !locations.isEmpty {
                     ForEach(locations) { location in
-                        hallCard(for: location)
+                        hallSegment(for: location)
                     }
                 } else {
-                    SkeletonCard(height: 58)
-                    SkeletonCard(height: 58)
+                    SkeletonCard(height: 34)
+                    SkeletonCard(height: 34)
+                    SkeletonCard(height: 34)
                 }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Dining hall")
+
+            if let selected = selectedLocation {
+                let status = HallChromeStatus.resolve(for: selected)
+                Text(status.text)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(status.tint)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .accessibilityLabel(
+                        DiningHallCardAccessibilityLabel.label(
+                            name: selected.name,
+                            isOpen: selected.isServing(nowMinutes: UCITime.nowMinutes()),
+                            statusLine: status.text,
+                            occupancyPercent: nil
+                        )
+                    )
             }
         }
     }
 
-    private func hallCard(for location: DiningLocation) -> some View {
-        HallCard(
-            location: location,
-            isSelected: location.id == selectedHall
-        ) {
+    private func hallSegment(for location: DiningLocation) -> some View {
+        let isSelected = location.id == selectedHall
+        return Button {
             guard location.id != selectedHall else { return }
-            // User hall tap — drop deep-link meal pin so snap matches this board.
             pinnedDeepLinkPeriod = nil
-            withAnimation(.snappy(duration: 0.3)) {
+            withAnimation(.snappy(duration: 0.25)) {
                 selectedHall = location.id
             }
             Haptics.selection()
+        } label: {
+            Text(HallDirectory.compactName(for: location.id))
+                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
+                    in: RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous)
+                        .strokeBorder(
+                            isSelected ? Color.uciBlue.opacity(0.4) : Color.cardBorder,
+                            lineWidth: isSelected ? 1.5 : 1
+                        )
+                )
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(location.name)
+        .accessibilityHint("Shows this dining hall's menu")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     @ViewBuilder
@@ -670,10 +701,10 @@ struct DiningView: View {
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 2)
                                     .background(.quaternary, in: Capsule())
-                                Image(systemName: "chevron.down")
+                                Image(systemName: allDayExpanded ? "chevron.up" : "chevron.down")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.tertiary)
-                                    .rotationEffect(.degrees(allDayExpanded ? 180 : 0))
+                                    .frame(width: 18, height: 18)
                             }
                             .contentShape(Rectangle())
                         }
@@ -689,7 +720,7 @@ struct DiningView: View {
                             ForEach(station.items) { item in
                                 dishRow(item)
                             }
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .transition(.opacity)
                         }
                     } else {
                         sectionHeader(title: station.name, count: station.items.count)
@@ -1366,138 +1397,44 @@ struct DietFilterSheet: View {
     }
 }
 
-// MARK: - Hall hero card
+// MARK: - Hall status under the segmented control
 
-private struct HallCard: View {
-    let location: DiningLocation
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    // Deliberately minimal: name + open state, then one "when" line and the
-    // occupancy number. No icons, no location subtitle — just what decides
-    // "which hall do I go to".
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 4) {
-                // No status pill: the countdown line below already reads
-                // open/closed in words and color, and the name needs the width.
-                Text(location.name)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if let comingSoon = location.comingSoonSubtitle {
-                        Text(comingSoon)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.75)
-                    } else if let statusLine {
-                        Text(statusLine.text)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(statusLine.tint)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.75)
-                    } else {
-                        // Empty board before Lunch probe (`.unknown`) — hoursLine
-                        // says "Menu not posted yet"; never echo stale todayHours.
-                        Text(location.hoursLine())
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    Spacer(minLength: 4)
-                    if FeatureFlags.diningHallOccupancy, let occupancy {
-                        Text("\(occupancy.percent)%")
-                            .font(.system(size: 13, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundStyle(occupancy.tint)
-                            .accessibilityHidden(true)
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .top)
-            .background(
-                isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
-                in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.45) : Color.cardBorder,
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
+/// Status copy for the selected hall — lives under the 3-up segments, not
+/// inside giant cards (Atharv: kill the carousel).
+private enum HallChromeStatus {
+    static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
+        if let comingSoon = location.comingSoonSubtitle {
+            return (comingSoon, .secondary)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            DiningHallCardAccessibilityLabel.label(
-                name: location.name,
-                isOpen: location.isServing(nowMinutes: UCITime.nowMinutes()),
-                statusLine: location.comingSoonSubtitle ?? statusLine?.text,
-                occupancyPercent: occupancy?.percent
-            )
-        )
-        .accessibilityHint("Shows this dining hall's menu")
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-    }
-
-    /// Nom-style typical occupancy percent, shown only while the hall is serving.
-    private var occupancy: (percent: Int, tint: Color)? {
-        let now = UCITime.nowMinutes()
-        guard location.isServing(nowMinutes: now), !location.periods.isEmpty else { return nil }
-        let estimate = TypicalBusyness.dining(periods: location.periods)
-        guard estimate.percentNow > 0 else { return nil }
-        return (estimate.percentNow, estimate.levelNow.color)
-    }
-
-    /// Live "when" intelligence. Countdowns read best when the moment is close;
-    /// beyond 90 minutes a clock time ("until 2:00 PM") is clearer than math.
-    private var statusLine: (text: String, icon: String, tint: Color)? {
-        let now = UCITime.nowMinutes()
-        switch location.openState(nowMinutes: now) {
+        switch location.openState(nowMinutes: nowMinutes) {
         case .open(let period, let closesAt):
-            let text = closesAt - now <= 90
-                ? "\(period) · closes in \(UCITime.countdown(from: now, to: closesAt))"
+            let text = closesAt - nowMinutes <= 90
+                ? "\(period) · closes in \(UCITime.countdown(from: nowMinutes, to: closesAt))"
                 : "\(period) · until \(UCITime.format(minutes: closesAt % (24 * 60)))"
-            return (text, "clock.badge.checkmark", .openGreen)
+            return (text, .openGreen)
         case .openingLater(let period, let opensAt):
-            let text = opensAt - now <= 90
-                ? "\(period) starts in \(UCITime.countdown(from: now, to: opensAt))"
+            let text = opensAt - nowMinutes <= 90
+                ? "\(period) starts in \(UCITime.countdown(from: nowMinutes, to: opensAt))"
                 : "\(period) at \(UCITime.format(minutes: opensAt))"
-            return (text, "clock.arrow.circlepath", .busyOrange)
+            return (text, .busyOrange)
         case .awaitingMoreMeals:
-            return ("More meals post later", "clock.badge.questionmark", .busyOrange)
+            return ("More meals post later", .busyOrange)
         case .closedForToday:
             if let open = location.opensTomorrowAtMinutes {
                 let meal = location.opensTomorrowPeriod ?? "Opens"
-                return (
-                    "\(meal) tomorrow · \(UCITime.format(minutes: open))",
-                    "moon.zzz",
-                    .secondary
-                )
+                return ("\(meal) tomorrow · \(UCITime.format(minutes: open))", .secondary)
             }
             if let open = location.opensNextAtMinutes,
                let weekday = location.opensNextWeekday,
                !weekday.isEmpty {
                 let meal = location.opensNextPeriod ?? "Opens"
-                return (
-                    "\(meal) \(weekday) · \(UCITime.format(minutes: open))",
-                    "moon.zzz",
-                    .secondary
-                )
+                return ("\(meal) \(weekday) · \(UCITime.format(minutes: open))", .secondary)
             }
-            return ("Closed for today", "moon.zzz", .secondary)
+            return ("Closed for today", .secondary)
         case .unknown:
-            return nil
+            return (location.hoursLine(nowMinutes: nowMinutes), .secondary)
         }
     }
-
 }
 
 // MARK: - Dish row card

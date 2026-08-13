@@ -71,6 +71,19 @@ public enum HallDirectory {
         known[id]?.name ?? prettify(id)
     }
 
+    /// Short Eat segment label so three halls fit without a horizontal carousel.
+    public static func compactName(for id: String) -> String {
+        switch id.lowercased() {
+        case "anteatery": return "Anteatery"
+        case "brandywine": return "Brandywine"
+        case "oasis", "the-oasis", "the-oasis-dining-hall": return "Oasis"
+        default:
+            let full = displayName(for: id)
+            if full.hasPrefix("The ") { return String(full.dropFirst(4)) }
+            return full
+        }
+    }
+
     public static func area(for id: String) -> String {
         known[id]?.area ?? "UCI Campus"
     }

@@ -322,10 +322,10 @@ struct GymHoursCard: View {
                         .font(ZotFont.sectionTitle)
                         .foregroundStyle(.primary)
                     Spacer()
-                    Image(systemName: "chevron.down")
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .frame(width: 18, height: 18)
                 }
                 .contentShape(Rectangle())
             }
