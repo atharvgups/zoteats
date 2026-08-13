@@ -280,11 +280,10 @@ struct SettingsView: View {
                 widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
             }
 
-            Text("Tip: open Anteats once after install so widgets can load menus, then long-press a widget → Edit Widget / Remove and re-add if it still looks blank.")
+            Text("Tip: open Eat once after install so Today’s Menu / Favorites can read today’s board from the app, then long-press a blank widget → Edit Widget / Remove and re-add if it still looks redacted.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
-            .padding(.top, 2)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

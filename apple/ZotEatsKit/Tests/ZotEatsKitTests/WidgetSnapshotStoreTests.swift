@@ -43,8 +43,55 @@ struct WidgetSnapshotStoreTests {
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
     }
 
+    @Test func diningMenuRoundTripViaSuite() {
+        let key = WidgetSnapshotStore.diningMenusKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-08-13",
+            period: "Brunch",
+            stations: [
+                MenuStation(
+                    name: "Home",
+                    items: [
+                        MenuItem(
+                            id: "1",
+                            name: "Scrambled Eggs",
+                            description: nil,
+                            calories: 142,
+                            servingSize: nil,
+                            allergens: [],
+                            dietaryTags: []
+                        ),
+                    ]
+                ),
+            ]
+        )
+        WidgetSnapshotStore.saveDiningMenu(menu)
+        // Brunch stores under Breakfast pill — widget peeks with primary name.
+        let loaded = WidgetSnapshotStore.loadDiningMenu(
+            hall: "anteatery",
+            period: "Breakfast",
+            dateISO: "2026-08-13"
+        )
+        #expect(loaded?.stations.first?.items.first?.name == "Scrambled Eggs")
+        #expect(
+            WidgetSnapshotStore.diningMenuEntryKey(
+                hall: "anteatery",
+                period: "Brunch",
+                dateISO: "2026-08-13"
+            ) == "anteatery|breakfast|2026-08-13"
+        )
+        #expect(WidgetSnapshotStore.savedAt(for: key) != nil)
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+    }
+
     @Test func emptyCopyIsReadable() {
         #expect(!WidgetLoadEmptyCopy.title.isEmpty)
-        #expect(WidgetLoadEmptyCopy.detail.contains("app"))
+        #expect(WidgetLoadEmptyCopy.detail.localizedCaseInsensitiveContains("eat"))
     }
 }

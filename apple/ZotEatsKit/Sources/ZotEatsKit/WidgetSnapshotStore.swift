@@ -7,6 +7,7 @@ import Foundation
 /// read first, then refresh.
 public enum WidgetSnapshotStore {
     public static let diningLocationsKey = "zoteats.widget.diningLocations.v1"
+    public static let diningMenusKey = "zoteats.widget.diningMenus.v1"
     public static let campusPlacesKey = "zoteats.widget.campusPlaces.v1"
     public static let busynessPlacesKey = "zoteats.widget.busynessPlaces.v1"
     public static let savedAtSuffix = ".savedAt"
@@ -21,6 +22,38 @@ public enum WidgetSnapshotStore {
 
     public static func loadDiningLocations() -> [DiningLocation]? {
         load(key: diningLocationsKey)
+    }
+
+    /// Stable App Group key — primary pill (Breakfast/Lunch/Dinner), not Brunch.
+    public static func diningMenuEntryKey(hall: String, period: String, dateISO: String) -> String {
+        let pill = MealPeriodPill.canonical(period).lowercased()
+        return "\(hall.lowercased())|\(pill)|\(dateISO)"
+    }
+
+    /// Persist a board the main app just loaded so Today's Menu / Favorites
+    /// can paint without a cold extension network fetch.
+    public static func saveDiningMenu(_ menu: DiningMenu) {
+        var all = loadDiningMenus() ?? [:]
+        let key = diningMenuEntryKey(hall: menu.locationId, period: menu.period, dateISO: menu.date)
+        all[key] = menu
+        // Drop other days so the suite doesn't grow forever across rollovers.
+        all = all.filter { entryKey, _ in
+            entryKey.hasSuffix("|\(menu.date)") || entryKey == key
+        }
+        save(all, key: diningMenusKey)
+    }
+
+    public static func loadDiningMenu(
+        hall: String,
+        period: String,
+        dateISO: String
+    ) -> DiningMenu? {
+        let key = diningMenuEntryKey(hall: hall, period: period, dateISO: dateISO)
+        return loadDiningMenus()?[key]
+    }
+
+    public static func loadDiningMenus() -> [String: DiningMenu]? {
+        load(key: diningMenusKey)
     }
 
     // MARK: - Campus
@@ -89,5 +122,5 @@ public enum WidgetCountdownCopy {
 /// Honest empty copy when the widget has no App Group snapshot and network failed.
 public enum WidgetLoadEmptyCopy {
     public static let title = "Open Anteats to refresh"
-    public static let detail = "Menus load in the app, then show up here."
+    public static let detail = "Open Eat once so today’s menus show up here."
 }

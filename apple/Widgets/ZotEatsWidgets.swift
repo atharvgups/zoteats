@@ -899,16 +899,29 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
         var dishes: [String] = []
         var favorited: Set<String> = []
         var filtersEmptiedMenu = false
-        if !pill.isEmpty, let menu = try? await service.menu(for: hall.id, period: pill) {
-            let built = SharedDefaults.todaysMenuDishes(
-                stations: menu.stations,
-                dietFilters: Set(SharedDefaults.dietFilters()),
-                allergenAvoids: Set(SharedDefaults.allergenAvoids()),
-                favorites: SharedDefaults.favoriteDishNames()
+        if !pill.isEmpty {
+            let todayISO = UCITime.todayISO()
+            let cachedMenu = WidgetSnapshotStore.loadDiningMenu(
+                hall: hall.id,
+                period: pill,
+                dateISO: todayISO
             )
-            dishes = built.ordered
-            favorited = built.favorited
-            filtersEmptiedMenu = built.filtersEmptiedMenu
+            let networkedMenu = try? await service.menu(for: hall.id, period: pill)
+            if let networkedMenu {
+                WidgetSnapshotStore.saveDiningMenu(networkedMenu)
+            }
+            let menu = networkedMenu ?? cachedMenu
+            if let menu {
+                let built = SharedDefaults.todaysMenuDishes(
+                    stations: menu.stations,
+                    dietFilters: Set(SharedDefaults.dietFilters()),
+                    allergenAvoids: Set(SharedDefaults.allergenAvoids()),
+                    favorites: SharedDefaults.favoriteDishNames()
+                )
+                dishes = built.ordered
+                favorited = built.favorited
+                filtersEmptiedMenu = built.filtersEmptiedMenu
+            }
         }
 
         let chrome = TodaysMenuPeriodChrome.resolve(
@@ -1431,12 +1444,17 @@ struct FavoritesTodayProvider: TimelineProvider {
         )
         let pill = choice.period
         let service = DiningService(http: HTTPClient(timeout: 8))
-        let stations: [MenuStation]
-        if !pill.isEmpty, let menu = try? await service.menu(for: hall.id, period: pill) {
-            stations = menu.stations
-        } else {
-            stations = []
+        let todayISO = UCITime.todayISO()
+        let cachedMenu = pill.isEmpty
+            ? nil
+            : WidgetSnapshotStore.loadDiningMenu(hall: hall.id, period: pill, dateISO: todayISO)
+        let networkedMenu = (!pill.isEmpty)
+            ? try? await service.menu(for: hall.id, period: pill)
+            : nil
+        if let networkedMenu {
+            WidgetSnapshotStore.saveDiningMenu(networkedMenu)
         }
+        let stations = (networkedMenu ?? cachedMenu)?.stations ?? []
         let displayPeriod = MealPeriodDisplay.label(
             live: choice.livePeriodName,
             pill: choice.period

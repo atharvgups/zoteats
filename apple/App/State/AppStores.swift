@@ -112,6 +112,12 @@ final class DiningStore {
             if menus[key]?.value != next {
                 menus[key] = .loaded(next)
             }
+            // Today's board → App Group so Home Screen widgets paint without a
+            // cold extension menu fetch (Atharv: open app, still empty glance).
+            if date == nil {
+                WidgetSnapshotStore.saveDiningMenu(next)
+                WidgetReloader.reloadEatWidgets()
+            }
         } catch {
             menus[key] = .failed(error.localizedDescription)
         }
