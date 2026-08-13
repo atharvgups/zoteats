@@ -24,6 +24,24 @@ struct DiningMenuIdleActionTests {
         )
     }
 
+    @Test func selectedUnpostedMealKeepsLoadingNotHallEmpty() {
+        // Peek Lunch on an empty / breakfast-only board — load honest empty.
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: ["Breakfast"],
+                selectedPeriod: "Lunch"
+            ) == .loading
+        )
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: [],
+                selectedPeriod: "Dinner"
+            ) == .loading
+        )
+    }
+
     @Test func allDayOnlyMeansNoMenu() {
         #expect(
             DiningMenuIdleAction.resolve(

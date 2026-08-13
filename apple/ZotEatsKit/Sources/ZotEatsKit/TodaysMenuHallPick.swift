@@ -9,11 +9,15 @@ public enum TodaysMenuHallPick {
         from locations: [DiningLocation],
         nowMinutes: Int
     ) -> DiningLocation? {
-        if let serving = locations.first(where: { $0.isServing(nowMinutes: nowMinutes) }) {
+        // Skip Coming Soon placeholders (Oasis) — no live board to auto-pick.
+        let live = locations.filter { !$0.isComingSoon }
+        guard !live.isEmpty else { return locations.first }
+
+        if let serving = live.first(where: { $0.isServing(nowMinutes: nowMinutes) }) {
             return serving
         }
 
-        let upcoming = locations.compactMap { hall -> (hall: DiningLocation, opensAt: Int)? in
+        let upcoming = live.compactMap { hall -> (hall: DiningLocation, opensAt: Int)? in
             guard case .openingLater(_, let opensAt) = hall.openState(nowMinutes: nowMinutes) else {
                 return nil
             }
@@ -23,7 +27,7 @@ public enum TodaysMenuHallPick {
             return soonest.hall
         }
 
-        let tomorrow = locations.compactMap { hall -> (hall: DiningLocation, opensAt: Int, dayOffset: Int)? in
+        let tomorrow = live.compactMap { hall -> (hall: DiningLocation, opensAt: Int, dayOffset: Int)? in
             guard hall.openState(nowMinutes: nowMinutes) == .closedForToday else { return nil }
             if let opensAt = hall.opensTomorrowAtMinutes {
                 return (hall, opensAt, 1)
@@ -42,6 +46,6 @@ public enum TodaysMenuHallPick {
             return soonest.hall
         }
 
-        return locations.first
+        return live.first
     }
 }

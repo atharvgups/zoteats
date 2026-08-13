@@ -13,10 +13,12 @@ struct DiningServiceTests {
 
     @Test func locationsIncludeBothHallsInStableOrder() async {
         let locations = await service().locations()
-        #expect(locations.map(\.id) == ["anteatery", "brandywine"])
+        #expect(locations.map(\.id) == ["anteatery", "brandywine", "oasis"])
         #expect(locations[0].name == "The Anteatery")
         #expect(locations[0].area == "Mesa Court")
         #expect(locations[1].name == "Brandywine")
+        #expect(locations[2].isComingSoon)
+        #expect(locations[2].name == "The Oasis")
     }
 
     @Test func locationsExposeHoursAndPeriods() async {
@@ -67,8 +69,11 @@ struct DiningServiceTests {
     @Test func networkFailureDegradesToClosedLocations() async {
         let service = DiningService(http: FailingHTTP(), now: { fixtureNoon })
         let locations = await service.locations()
-        #expect(locations.count == 2)
-        #expect(locations.allSatisfy { !$0.openNow && $0.todayHours == nil && $0.availablePeriods.isEmpty })
+        // Anteatery + Brandywine fallbacks, plus Coming Soon Oasis.
+        #expect(locations.count == 3)
+        #expect(locations.filter { !$0.isComingSoon }.count == 2)
+        #expect(locations.contains { $0.isComingSoon && HallDirectory.isOasis($0.id) })
+        #expect(locations.allSatisfy { !$0.openNow && $0.availablePeriods.isEmpty })
     }
 
     @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
@@ -76,6 +81,16 @@ struct DiningServiceTests {
         #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
+        #expect(DiningService.mealSelectorPills == ["Breakfast", "Lunch", "Dinner"])
+    }
+
+    @Test func oasisComingSoonHasNoInventedMenu() {
+        let oasis = DiningService.oasisComingSoonLocation()
+        #expect(oasis.isComingSoon)
+        #expect(oasis.availablePeriods.isEmpty)
+        #expect(oasis.periods.isEmpty)
+        #expect(oasis.comingSoonSubtitle?.contains("Coming Soon") == true)
+        #expect(HallDirectory.campusHubKey(for: oasis.id) == "the-oasis-dining-hall")
     }
 
     @Test func resolvePeriodMapsBreakfastToBrunch() {
@@ -391,6 +406,9 @@ struct HallDirectoryTests {
         #expect(HallDirectory.displayName(for: "mesa-commons") == "Mesa Commons")
         #expect(HallDirectory.area(for: "mesa-commons") == "Mesa Court")
         #expect(HallDirectory.displayName(for: "middle-earth-towers") == "Middle Earth Towers Dining")
+        #expect(HallDirectory.displayName(for: "oasis") == "The Oasis")
+        #expect(HallDirectory.area(for: "oasis") == "Mesa Court")
+        #expect(HallDirectory.isOasis("the-oasis-dining-hall"))
         #expect(HallDirectory.campusHubKey(for: "anteatery") == "the-anteatery")
         #expect(HallDirectory.fallbackIDs == ["anteatery", "brandywine"])
     }

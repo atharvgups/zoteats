@@ -108,7 +108,7 @@ struct PillRow<Item: Hashable>: View {
                 .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .padding(.horizontal, fillsWidth ? 8 : 14)
-                .padding(.vertical, 8)
+                .padding(.vertical, fillsWidth ? 7 : 8)
                 .background(
                     isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
                     in: Capsule()

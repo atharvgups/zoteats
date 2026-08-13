@@ -53,4 +53,24 @@ struct TodaysMenuHallChoicesTests {
         ])
         #expect(options.last?.title == "Mesa Commons")
     }
+
+    @Test func comingSoonOasisOmittedFromWidgetPicker() {
+        let oasis = DiningLocation(
+            id: "oasis",
+            name: "The Oasis",
+            area: "Mesa Court",
+            openNow: false,
+            todayHours: nil,
+            availablePeriods: [],
+            periods: [],
+            hoursApproximate: true,
+            comingSoonSubtitle: "Coming Soon · Opens Sept 21"
+        )
+        let options = TodaysMenuHallChoices.options(from: [
+            hall(id: "anteatery", name: "The Anteatery"),
+            hall(id: "brandywine", name: "Brandywine"),
+            oasis,
+        ])
+        #expect(options.map(\.id) == ["auto", "anteatery", "brandywine"])
+    }
 }

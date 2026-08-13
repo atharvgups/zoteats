@@ -155,6 +155,31 @@ struct EatPeriodSelectionTests {
         #expect(snapped == "Dinner")
     }
 
+    @Test func breakfastOnlyBoardKeepsLunchPeekAt7am() {
+        // Atharv regression: Lunch/Dinner chips must stay selectable before they post.
+        let morning = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Lunch",
+                availablePeriods: ["Breakfast"],
+                timedPeriods: morning,
+                nowMinutes: 433, // 7:13 AM — Breakfast starts in 2m
+                browsingFutureDay: false
+            ) == "Lunch"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Dinner",
+                availablePeriods: ["Breakfast"],
+                timedPeriods: morning,
+                nowMinutes: 433,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+    }
+
     @Test func partialBoardAwaitingKeepsLastPostedBreakfast() {
         let partial = [
             MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),

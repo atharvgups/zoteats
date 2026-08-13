@@ -16,11 +16,16 @@ public enum EatPeriodSelection {
         nowMinutes: Int,
         browsingFutureDay: Bool
     ) -> String? {
-        let pills = DiningService.primaryPeriods(from: availablePeriods)
-        guard !pills.isEmpty else { return nil }
+        // Eat chips are always Breakfast / Lunch / Dinner — not only what's posted.
+        let pills = DiningService.mealSelectorPills
+        // Board-backed pills for window matching (Brunch → Breakfast, etc.).
+        let boardPills = DiningService.primaryPeriods(from: availablePeriods)
+        let matchPills = boardPills.isEmpty ? pills : boardPills
 
         if browsingFutureDay {
             if let current, pills.contains(current) { return current }
+            // Prefer a period that day actually published; else first chip.
+            if let firstBoard = boardPills.first { return firstBoard }
             return pills.first
         }
 
@@ -36,12 +41,14 @@ public enum EatPeriodSelection {
             return nil
         }
 
+        // Keep a user/deeplink peek unless that meal's window has already ended.
+        // Unposted Lunch/Dinner (no window yet) stay sticky at 7am.
         if let current,
            pills.contains(current),
-           MealPillLiveness.isLiveOrUpcoming(
+           !MealPillLiveness.hasEnded(
             pill: current,
             timedPeriods: timedPeriods,
-            pills: pills,
+            pills: matchPills,
             nowMinutes: nowMinutes
            ) {
             return current

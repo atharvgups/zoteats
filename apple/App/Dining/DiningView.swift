@@ -75,7 +75,7 @@ struct DiningView: View {
         let _ = boundaryEpoch
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
                     ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
 
                     hallSelector
@@ -83,8 +83,8 @@ struct DiningView: View {
 
                     content
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+                .padding(.top, 4)
+                .padding(.bottom, 32)
             }
             .statusBarBackdrop()
             .navigationTitle("")
@@ -300,67 +300,82 @@ struct DiningView: View {
                 Task { await refresh() }
             }
         case .loaded:
-            // Breakfast / Lunch / Dinner only — Brunch and All Day aren't useful pills.
-            if let available = boardAvailablePeriods {
-                let pills = DiningService.primaryPeriods(from: available)
-                if !pills.isEmpty {
-                    PillRow(
-                        items: pills,
-                        title: { $0 },
-                        selection: $selectedPeriod,
-                        fillsWidth: true
-                    )
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Meal period")
-                }
-            }
-
-            // Dates alone — never share a row with Plate/Filters (Atharv: less chrome).
-            DayStrip(
-                days: upcomingDays,
-                selection: Binding(
-                    get: { selectedDate ?? upcomingDays.first?.isoDate },
-                    set: { newValue in
-                        let today = upcomingDays.first?.isoDate
-                        let next = (newValue == today) ? nil : newValue
-                        // User DayStrip tap — drop deep-link meal pin.
-                        if next != selectedDate {
-                            pinnedDeepLinkPeriod = nil
-                        }
-                        selectedDate = next
-                    }
+            if selectedLocation?.isComingSoon == true {
+                comingSoonHallEmpty
+            } else {
+                // Always show Breakfast / Lunch / Dinner — never hide unposted meals.
+                // (Breakfast-only boards used to render a giant single pill.)
+                PillRow(
+                    items: DiningService.mealSelectorPills,
+                    title: { $0 },
+                    selection: $selectedPeriod,
+                    fillsWidth: true
                 )
-            )
-            .padding(.horizontal, 20)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Meal period")
+                .accessibilityHint("Peek Lunch or Dinner even before that meal is posted")
 
-            // Full “My Plate” / “Filters” labels — own row so nothing truncates to “My…”.
-            HStack(spacing: 8) {
-                if plate.isEmpty {
-                    myPlateChip
-                }
-                filterChip
-                if prefs.hasActiveMenuFilters {
-                    Button {
-                        prefs.clearMenuFilters()
-                        Haptics.selection()
-                    } label: {
-                        Text("Clear")
-                            .font(ZotFont.pill.weight(.semibold))
-                            .foregroundStyle(Color.uciBlue)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(Color.uciBlue.opacity(0.08), in: Capsule())
+                // Compact chrome: dates + Plate/Filters stacked, full labels, no crunch.
+                VStack(alignment: .leading, spacing: 8) {
+                    DayStrip(
+                        days: upcomingDays,
+                        selection: Binding(
+                            get: { selectedDate ?? upcomingDays.first?.isoDate },
+                            set: { newValue in
+                                let today = upcomingDays.first?.isoDate
+                                let next = (newValue == today) ? nil : newValue
+                                // User DayStrip tap — drop deep-link meal pin.
+                                if next != selectedDate {
+                                    pinnedDeepLinkPeriod = nil
+                                }
+                                selectedDate = next
+                            }
+                        )
+                    )
+
+                    HStack(spacing: 8) {
+                        if plate.isEmpty {
+                            myPlateChip
+                        }
+                        filterChip
+                        if prefs.hasActiveMenuFilters {
+                            Button {
+                                prefs.clearMenuFilters()
+                                Haptics.selection()
+                            } label: {
+                                Text("Clear")
+                                    .font(ZotFont.pill.weight(.semibold))
+                                    .foregroundStyle(Color.uciBlue)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.uciBlue.opacity(0.08), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("diet-filter-clear")
+                            .accessibilityLabel("Clear all filters")
+                        }
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("diet-filter-clear")
-                    .accessibilityLabel("Clear all filters")
                 }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 20)
+                .padding(.horizontal, 20)
 
-            menuContent
+                menuContent
+            }
         }
+    }
+
+    /// Honest Oasis / future-hall card — Hub facts only, no invented menu.
+    private var comingSoonHallEmpty: some View {
+        let name = selectedLocation?.name ?? "This hall"
+        return EmptyStateView(
+            icon: "building.2",
+            title: "\(name) · Coming Soon",
+            message: """
+            Newest meal-plan dining hall at Mesa Court. Lunch and Dinner Mon–Fri \
+            (no breakfast, no to-go). Meal plans start Sept 21, 2026 — menus will \
+            appear here when UCI publishes them.
+            """
+        )
     }
 
     /// Always-on when the floating tally isn't up — empty plate + browse-ahead.
@@ -371,13 +386,13 @@ struct DiningView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: plate.isEmpty ? "fork.knife.circle" : "fork.knife.circle.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                 Text(PlateTallyCopy.chipTitle(count: plate.entries.count))
                     .font(ZotFont.pill.weight(.semibold))
                     .lineLimit(1)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
             .background(Color.uciBlue.opacity(0.1), in: Capsule())
             .foregroundStyle(Color.uciBlue)
             .overlay(
@@ -408,13 +423,13 @@ struct DiningView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "line.3.horizontal.decrease.circle\(active ? ".fill" : "")")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                 Text(label)
                     .font(ZotFont.pill.weight(active ? .semibold : .medium))
                     .lineLimit(1)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
             .background(
                 active ? Color.uciBlue.opacity(0.12) : Color.card,
                 in: Capsule()
@@ -437,29 +452,29 @@ struct DiningView: View {
         )
     }
 
-    /// Hall cards straight from the live API — a third commons appears here
-    /// automatically. Two halls share the width; more become a scrollable row.
+    /// Hall cards from the live API (+ Coming Soon Oasis). Keep them compact so
+    /// meal chips / dates stay the primary chrome (Nom-ish density).
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
         if let locations, locations.count > 2 {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     ForEach(locations) { location in
                         hallCard(for: location)
-                            .frame(width: 172)
+                            .frame(width: 148)
                     }
                 }
             }
         } else {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 if let locations, !locations.isEmpty {
                     ForEach(locations) { location in
                         hallCard(for: location)
                     }
                 } else {
-                    SkeletonCard(height: 88)
-                    SkeletonCard(height: 88)
+                    SkeletonCard(height: 58)
+                    SkeletonCard(height: 58)
                 }
             }
         }
@@ -1159,7 +1174,7 @@ private struct DayStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: 14) {
                     ForEach(days, id: \.isoDate) { day in
                         let isSelected = selection == day.isoDate
                         Button {
@@ -1168,13 +1183,13 @@ private struct DayStrip: View {
                             }
                             Haptics.selection()
                         } label: {
-                            VStack(spacing: 3) {
+                            VStack(spacing: 2) {
                                 Text(day.label)
-                                    .font(.system(size: 14, weight: isSelected ? .bold : .medium))
+                                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                                     .foregroundStyle(isSelected ? Color.uciBlue : .secondary)
                                 Capsule()
                                     .fill(isSelected ? Color.uciBlue : .clear)
-                                    .frame(height: 3)
+                                    .frame(height: 2.5)
                             }
                             .fixedSize()
                         }
@@ -1363,17 +1378,23 @@ private struct HallCard: View {
     // "which hall do I go to".
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
                 // No status pill: the countdown line below already reads
                 // open/closed in words and color, and the name needs the width.
                 Text(location.name)
-                    .font(ZotFont.cardTitle)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(isSelected ? Color.uciBlue : .primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
 
-                HStack(alignment: .bottom, spacing: 6) {
-                    if let statusLine {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let comingSoon = location.comingSoonSubtitle {
+                        Text(comingSoon)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
+                    } else if let statusLine {
                         Text(statusLine.text)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(statusLine.tint)
@@ -1390,23 +1411,17 @@ private struct HallCard: View {
                     }
                     Spacer(minLength: 4)
                     if FeatureFlags.diningHallOccupancy, let occupancy {
-                        VStack(alignment: .trailing, spacing: 0) {
-                            Text("\(occupancy.percent)%")
-                                .font(.system(size: 16, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(occupancy.tint)
-                            Text("occupancy")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .accessibilityHidden(true)
+                        Text("\(occupancy.percent)%")
+                            .font(.system(size: 13, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(occupancy.tint)
+                            .accessibilityHidden(true)
                     }
                 }
             }
-            .padding(14)
-            // Min height keeps Anteatery/Brandywine aligned; grow when status
-            // lines wrap so cards don’t feel one rigid size.
-            .frame(maxWidth: .infinity, minHeight: 82, alignment: .top)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .top)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
@@ -1418,14 +1433,13 @@ private struct HallCard: View {
                         lineWidth: isSelected ? 1.5 : 1
                     )
             )
-            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
             DiningHallCardAccessibilityLabel.label(
                 name: location.name,
                 isOpen: location.isServing(nowMinutes: UCITime.nowMinutes()),
-                statusLine: statusLine?.text,
+                statusLine: location.comingSoonSubtitle ?? statusLine?.text,
                 occupancyPercent: occupancy?.percent
             )
         )

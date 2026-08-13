@@ -9,9 +9,10 @@ struct LiveAPITests {
     @Test func diningLocationsAndMenuFromLiveAPI() async throws {
         let service = DiningService()
         let locations = await service.locations()
-        #expect(locations.count == 2)
+        #expect(locations.filter { !$0.isComingSoon }.count == 2)
+        #expect(locations.contains { $0.isComingSoon && HallDirectory.isOasis($0.id) })
 
-        if let hall = locations.first(where: { !$0.availablePeriods.isEmpty }) {
+        if let hall = locations.first(where: { !$0.isComingSoon && !$0.availablePeriods.isEmpty }) {
             let menu = try await service.menu(for: hall.id, period: hall.availablePeriods[0])
             #expect(!menu.stations.isEmpty)
             let items = menu.stations.flatMap(\.items)
@@ -25,7 +26,7 @@ struct LiveAPITests {
         let dining = DiningService()
         let campus = CampusService()
 
-        for location in await dining.locations() {
+        for location in await dining.locations() where !location.isComingSoon {
             let primary = DiningService.primaryPeriods(from: location.availablePeriods)
             #expect(primary == ["Breakfast", "Lunch", "Dinner"] || primary.allSatisfy {
                 ["Breakfast", "Lunch", "Dinner"].contains($0)

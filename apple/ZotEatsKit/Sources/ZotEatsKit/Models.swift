@@ -19,9 +19,12 @@ public enum HallDirectory {
     static let known: [String: (name: String, area: String)] = [
         "anteatery": ("The Anteatery", "Mesa Court"),
         "brandywine": ("Brandywine", "Middle Earth"),
-        // Third residential dining commons — expected around Fall / September.
-        // Anteater API `/restaurants` will list the real id when it opens; these
-        // aliases only beautify likely keys. Unknown ids still use `prettify`.
+        // Third residential dining commons — Hub lists The Oasis as Coming Soon
+        // (meal-plan only, Lunch/Dinner, no breakfast). Anteater API `/restaurants`
+        // will list a live id when menus exist; until then Eat injects a Coming Soon card.
+        "oasis": ("The Oasis", "Mesa Court"),
+        "the-oasis": ("The Oasis", "Mesa Court"),
+        "the-oasis-dining-hall": ("The Oasis", "Mesa Court"),
         "mesa-commons": ("Mesa Commons", "Mesa Court"),
         "mesa-court-commons": ("Mesa Court Commons", "Mesa Court"),
         "mesa-court-dining": ("Mesa Court Dining", "Mesa Court"),
@@ -32,9 +35,13 @@ public enum HallDirectory {
     /// Offline fallback — live halls only (don't invent an unopened third).
     public static let fallbackIDs = ["anteatery", "brandywine"]
 
+    /// Stable id for the Coming Soon Oasis card until `/restaurants` lists it.
+    public static let oasisComingSoonID = "oasis"
+
     /// Dining-hub `url_key`s that belong on Eat, not Campus retail.
     public static let campusHubExcludedKeys: Set<String> = [
         "the-anteatery", "brandywine",
+        "the-oasis-dining-hall", "the-oasis", "oasis",
         "mesa-commons", "mesa-court-commons", "mesa-court-dining",
         "middle-earth-towers", "middle-earth-commons",
     ]
@@ -44,9 +51,19 @@ public enum HallDirectory {
         switch hallID.lowercased() {
         case "anteatery": return "the-anteatery"
         case "brandywine": return "brandywine"
+        case "oasis", "the-oasis", "the-oasis-dining-hall":
+            return "the-oasis-dining-hall"
         default:
             // Future halls often share the same slug on both feeds.
             return campusHubExcludedKeys.contains(hallID) ? hallID : nil
+        }
+    }
+
+    /// True when this id is Oasis (live or Coming Soon placeholder).
+    public static func isOasis(_ id: String) -> Bool {
+        switch id.lowercased() {
+        case "oasis", "the-oasis", "the-oasis-dining-hall": return true
+        default: return false
         }
     }
 
@@ -115,6 +132,9 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let opensNextPeriod: String?
     /// Irvine ISO for `opensNext*` (deep links / See-next CTA).
     public let opensNextDateISO: String?
+    /// Non-nil for halls Hub lists before menus exist (e.g. The Oasis).
+    /// Never invent a live board for these — Eat shows Coming Soon copy only.
+    public let comingSoonSubtitle: String?
 
     public init(
         id: String,
@@ -131,7 +151,8 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         opensNextDayOffset: Int? = nil,
         opensNextWeekday: String? = nil,
         opensNextPeriod: String? = nil,
-        opensNextDateISO: String? = nil
+        opensNextDateISO: String? = nil,
+        comingSoonSubtitle: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -148,7 +169,10 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
         self.opensNextWeekday = opensNextWeekday
         self.opensNextPeriod = opensNextPeriod
         self.opensNextDateISO = opensNextDateISO
+        self.comingSoonSubtitle = comingSoonSubtitle
     }
+
+    public var isComingSoon: Bool { comingSoonSubtitle != nil }
 }
 
 /// The hall's live state relative to today's meal windows — the "when" intelligence

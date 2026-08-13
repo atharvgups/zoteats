@@ -26,7 +26,7 @@ public enum TodaysMenuHallChoices {
             }
             return result
         }
-        for hall in locations {
+        for hall in locations where !hall.isComingSoon {
             let title = hall.name.trimmingCharacters(in: .whitespacesAndNewlines)
             result.append(Option(
                 id: hall.id,

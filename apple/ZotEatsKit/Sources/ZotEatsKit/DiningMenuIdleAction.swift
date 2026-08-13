@@ -16,6 +16,14 @@ public enum DiningMenuIdleAction: Equatable, Sendable {
         guard locationsLoaded else { return .loading }
         // Future-day board still fetching that day's periods — keep skeletons.
         if browseDayPeriodsPending { return .loading }
+        // A selected meal chip (including unposted Lunch/Dinner) loads that board
+        // — honest empty, not the hall-level "no menu" idle.
+        if let selected = selectedPeriod,
+           DiningService.mealSelectorPills.contains(where: {
+               $0.caseInsensitiveCompare(selected) == .orderedSame
+           }) {
+            return .loading
+        }
         let periods = availablePeriods ?? []
         let primary = DiningService.primaryPeriods(from: periods)
         if periods.isEmpty || primary.isEmpty || selectedPeriod == nil {

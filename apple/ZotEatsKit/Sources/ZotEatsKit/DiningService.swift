@@ -440,7 +440,29 @@ public struct DiningService: Sendable {
             }
         }
         // TaskGroup completion order is nondeterministic; present halls in a stable order.
-        return hallIDs.compactMap { id in results.first { $0.id == id } }
+        var ordered = hallIDs.compactMap { id in results.first { $0.id == id } }
+        // Hub already advertises The Oasis (Coming Soon) while Anteater API still
+        // only lists Anteatery + Brandywine — surface an honest card, no fake menu.
+        if !ordered.contains(where: { HallDirectory.isOasis($0.id) }) {
+            ordered.append(Self.oasisComingSoonLocation())
+        }
+        return ordered
+    }
+
+    /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
+    /// Mon–Fri; meal plans start Sept 21 2026. No invented live board.
+    public static func oasisComingSoonLocation() -> DiningLocation {
+        DiningLocation(
+            id: HallDirectory.oasisComingSoonID,
+            name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+            area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
+            openNow: false,
+            todayHours: nil,
+            availablePeriods: [],
+            periods: [],
+            hoursApproximate: true,
+            comingSoonSubtitle: "Coming Soon · Opens Sept 21"
+        )
     }
 
     /// Meal-period windows for a hall on a specific Irvine ISO date.
@@ -583,8 +605,13 @@ public struct DiningService: Sendable {
         return (minutes, period)
     }
 
-    /// Primary meal pills students actually use. Brunch maps into Breakfast;
+    /// Always-visible Eat meal chips. Breakfast / Lunch / Dinner stay on screen
+    /// even when the live board has only posted one period (Atharv 7am peek).
+    public static let mealSelectorPills = ["Breakfast", "Lunch", "Dinner"]
+
+    /// Primary meal pills present on a board. Brunch maps into Breakfast;
     /// All Day is folded into each meal as "Available all day" (no own pill).
+    /// Prefer `mealSelectorPills` for the Eat chip row so unposted meals stay tappable.
     public static func primaryPeriods(from available: [String]) -> [String] {
         var result: [String] = []
         if available.contains(where: { $0.caseInsensitiveCompare("Breakfast") == .orderedSame })
