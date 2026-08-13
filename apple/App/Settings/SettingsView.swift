@@ -214,6 +214,15 @@ struct SettingsView: View {
                 Haptics.selection()
             }
 
+            if !MealActivityManager.systemActivitiesEnabled {
+                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+                    Text("Live Activities are off — open iOS Settings for Anteats")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(TagPalette.terracotta)
+                }
+                .accessibilityIdentifier("live-activities-off-link")
+            }
+
             // Dogfood verify only when an alert path is actually on — keep
             // Notifications from feeling like a permanent QA panel.
             if alertsEnabled || menuDropEnabled || !watchedPlaces.isEmpty {

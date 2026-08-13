@@ -28,7 +28,7 @@ enum MealActivityAutoStartRunner {
             opensNextDayOffset: pick.opensNextDayOffset,
             opensNextDateISO: pick.opensNextDateISO
         )
-        manager.autoStartIfNeeded(
+        _ = await manager.autoStartIfNeeded(
             hallName: pick.hallName,
             hallID: pick.hallID,
             period: pick.livePeriodName,

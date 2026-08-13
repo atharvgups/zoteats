@@ -708,7 +708,6 @@ struct DiningView: View {
     private func trackMealButton(menu: DiningMenu) -> some View {
         if selectedDate == nil,
            let location = selectedLocation,
-           mealActivity.isAvailable,
            let window = location.periods.first(where: {
                $0.name.caseInsensitiveCompare(menu.period) == .orderedSame
            }),
@@ -716,59 +715,77 @@ struct DiningView: View {
            let start = window.startMinutes {
             let now = UCITime.nowMinutes()
             if now >= start && now < end {
-                let tracking = mealActivity.isTracking(hall: location.id, period: menu.period)
-                Button {
-                    if tracking {
-                        mealActivity.endAll()
-                    } else {
-                        let postClose = MealActivityPostClose.destination(
-                            currentPeriodEndMinutes: end,
-                            timedPeriods: location.periods,
-                            opensTomorrowPeriod: location.opensTomorrowPeriod,
-                            opensNextPeriod: location.opensNextPeriod,
-                            opensNextDayOffset: location.opensNextDayOffset,
-                            opensNextDateISO: location.opensNextDateISO
+                if mealActivity.isAvailable {
+                    let tracking = mealActivity.isTracking(hall: location.id, period: menu.period)
+                    Button {
+                        Task {
+                            if tracking {
+                                await mealActivity.endAll()
+                                Haptics.selection()
+                            } else {
+                                let postClose = MealActivityPostClose.destination(
+                                    currentPeriodEndMinutes: end,
+                                    timedPeriods: location.periods,
+                                    opensTomorrowPeriod: location.opensTomorrowPeriod,
+                                    opensNextPeriod: location.opensNextPeriod,
+                                    opensNextDayOffset: location.opensNextDayOffset,
+                                    opensNextDateISO: location.opensNextDateISO
+                                )
+                                _ = await mealActivity.track(
+                                    hallName: location.name,
+                                    hallID: location.id,
+                                    period: menu.period,
+                                    endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
+                                    postClosePeriod: postClose.period,
+                                    postCloseDate: postClose.date,
+                                    opensTomorrowPeriod: MealActivityPostClose
+                                        .contentOpensTomorrowPeriod(
+                                            postClose: postClose,
+                                            hallOpensTomorrowPeriod: location.opensTomorrowPeriod
+                                        )
+                                )
+                            }
+                        }
+                    } label: {
+                        Label(
+                            tracking ? "Tracking" : "Track meal",
+                            systemImage: tracking ? "timer.circle.fill" : "timer"
                         )
-                        mealActivity.track(
-                            hallName: location.name,
-                            hallID: location.id,
-                            period: menu.period,
-                            endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
-                            postClosePeriod: postClose.period,
-                            postCloseDate: postClose.date,
-                            opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
-                                postClose: postClose,
-                                hallOpensTomorrowPeriod: location.opensTomorrowPeriod
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            tracking ? Color.uciBlue.opacity(0.12) : Color.card,
+                            in: Capsule()
+                        )
+                        .foregroundStyle(tracking ? Color.uciBlue : .secondary)
+                        .overlay(
+                            Capsule().strokeBorder(
+                                tracking ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                lineWidth: 1
                             )
                         )
                     }
-                    Haptics.selection()
-                } label: {
-                    Label(
-                        tracking ? "Tracking" : "Track meal",
-                        systemImage: tracking ? "timer.circle.fill" : "timer"
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        tracking
+                            ? "Stop tracking \(menu.period)"
+                            : "Track \(menu.period) — live countdown on your lock screen"
                     )
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        tracking ? Color.uciBlue.opacity(0.12) : Color.card,
-                        in: Capsule()
-                    )
-                    .foregroundStyle(tracking ? Color.uciBlue : .secondary)
-                    .overlay(
-                        Capsule().strokeBorder(
-                            tracking ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                            lineWidth: 1
+                } else {
+                    // Honest affordance — don't hide Track when the meal is live
+                    // but system Live Activities are off.
+                    Label("Live Activities off", systemImage: "timer")
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.card, in: Capsule())
+                        .foregroundStyle(.tertiary)
+                        .overlay(Capsule().strokeBorder(Color.cardBorder, lineWidth: 1))
+                        .accessibilityLabel(
+                            "Live Activities are off — enable them in iOS Settings to track \(menu.period)"
                         )
-                    )
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    tracking
-                        ? "Stop tracking \(menu.period)"
-                        : "Track \(menu.period) — live countdown on your lock screen"
-                )
             }
         }
     }
@@ -936,19 +953,21 @@ struct DiningView: View {
             opensNextDayOffset: pick.opensNextDayOffset,
             opensNextDateISO: pick.opensNextDateISO
         )
-        mealActivity.autoStartIfNeeded(
-            hallName: pick.hallName,
-            hallID: pick.hallID,
-            period: pick.livePeriodName,
-            startMinutes: pick.startMinutes,
-            endMinutes: pick.endMinutes,
-            postClosePeriod: postClose.period,
-            postCloseDate: postClose.date,
-            opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
-                postClose: postClose,
-                hallOpensTomorrowPeriod: pick.opensTomorrowPeriod
+        Task {
+            await mealActivity.autoStartIfNeeded(
+                hallName: pick.hallName,
+                hallID: pick.hallID,
+                period: pick.livePeriodName,
+                startMinutes: pick.startMinutes,
+                endMinutes: pick.endMinutes,
+                postClosePeriod: postClose.period,
+                postCloseDate: postClose.date,
+                opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
+                    postClose: postClose,
+                    hallOpensTomorrowPeriod: pick.opensTomorrowPeriod
+                )
             )
-        )
+        }
     }
 
     /// Notification / widget taps: select hall, period, date; stash dish for after load.

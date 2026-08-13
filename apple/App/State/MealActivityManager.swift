@@ -4,7 +4,7 @@ import ZotEatsKit
 
 /// Starts and stops the "meal ends soon" Live Activity (lock screen +
 /// Dynamic Island countdown). One meal tracked at a time — tracking a new
-/// one replaces the old.
+/// one replaces the old (end completes before the next request).
 @MainActor
 @Observable
 final class MealActivityManager {
@@ -23,8 +23,13 @@ final class MealActivityManager {
         set { UserDefaults.standard.set(newValue, forKey: autoEnabledKey) }
     }
 
-    var isAvailable: Bool {
+    /// System Live Activities switch (Settings → Face ID & Passcode / app Live Activities).
+    static var systemActivitiesEnabled: Bool {
         ActivityAuthorizationInfo().areActivitiesEnabled
+    }
+
+    var isAvailable: Bool {
+        Self.systemActivitiesEnabled
     }
 
     func isTracking(hall: String, period: String) -> Bool {
@@ -40,8 +45,7 @@ final class MealActivityManager {
     /// overnight Islands don't sit on “has ended” forever.
     func syncFromSystem(now: Date = Date()) {
         let activities = Activity<MealActivityAttributes>.activities
-        // Same Task pattern as `endAll` — Activity.end is nonisolated; keep
-        // final content (nil) so Swift 6 doesn't send ActivityContent.
+        // Linger cleanup is best-effort; Tracking UI only needs the live set.
         Task {
             for activity in activities {
                 let endsAt = activity.content.state.endsAt
@@ -76,6 +80,10 @@ final class MealActivityManager {
         }
     }
 
+    /// Start (or replace) a meal countdown. Awaits ending any prior activity
+    /// before requesting so replace doesn't silently no-op. Returns whether
+    /// ActivityKit accepted the new activity.
+    @discardableResult
     func track(
         hallName: String,
         hallID: String,
@@ -85,9 +93,12 @@ final class MealActivityManager {
         postCloseDate: String? = nil,
         opensTomorrowPeriod: String? = nil,
         haptic: Bool = true
-    ) {
-        guard isAvailable else { return }
-        endAll()
+    ) async -> Bool {
+        guard isAvailable else {
+            trackedKey = nil
+            return false
+        }
+        await endAll()
 
         let attributes = MealActivityAttributes(hallName: hallName, period: period, hallID: hallID)
         let state = MealActivityAttributes.ContentState(
@@ -105,8 +116,10 @@ final class MealActivityManager {
             )
             trackedKey = MealTrackMath.key(hallID: hallID, period: period)
             if haptic { Haptics.soft() }
+            return true
         } catch {
             trackedKey = nil
+            return false
         }
     }
 
@@ -123,7 +136,7 @@ final class MealActivityManager {
         opensTomorrowPeriod: String? = nil,
         nowMinutes: Int = UCITime.nowMinutes(),
         now: Date = Date()
-    ) -> Bool {
+    ) async -> Bool {
         guard isAvailable else { return false }
         guard MealTrackMath.shouldAutoStart(
             nowMinutes: nowMinutes,
@@ -141,7 +154,7 @@ final class MealActivityManager {
             nowMinutes: nowMinutes,
             now: now
         )
-        track(
+        return await track(
             hallName: hallName,
             hallID: hallID,
             period: period,
@@ -151,7 +164,6 @@ final class MealActivityManager {
             opensTomorrowPeriod: opensTomorrowPeriod,
             haptic: false
         )
-        return trackedKey != nil
     }
 
     /// Recompute post-close from fresh hall boards while a Live Activity is
@@ -212,14 +224,12 @@ final class MealActivityManager {
         }
     }
 
-    func endAll() {
+    func endAll() async {
         trackedKey = nil
         let activities = Activity<MealActivityAttributes>.activities
         guard !activities.isEmpty else { return }
-        Task {
-            for activity in activities {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
+        for activity in activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
 
