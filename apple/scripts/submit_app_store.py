@@ -178,14 +178,15 @@ def wait_for_build(token: str, app_id: str) -> dict:
                     chosen = b
                     break
         else:
+            # Newest non-expired first (`sort=-uploadedDate`). Do not fall through
+            # to an older VALID build while the latest is still PROCESSING — that
+            # can re-submit a stale Gym binary after a Gym-free TestFlight upload.
             for b in builds:
                 attrs = b.get("attributes") or {}
                 if attrs.get("expired"):
                     continue
-                if attrs.get("processingState") in {"VALID", "PROCESSING", "PROCESSING_EXCEPTION", None, "VALIDATING"}:
-                    chosen = b
-                    if attrs.get("processingState") == "VALID":
-                        break
+                chosen = b
+                break
         if chosen:
             state = (chosen.get("attributes") or {}).get("processingState")
             ver = (chosen.get("attributes") or {}).get("version")
