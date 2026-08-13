@@ -8,22 +8,32 @@ struct WidgetTimelineKindsTests {
         #expect(WidgetTimelineKinds.all == [
             "ZotEatsDiningStatus",
             "ZotEatsTodaysMenu",
+            "ZotEatsFavoritesToday",
             "ZotEatsCampusOpen",
-            "ZotEatsArcStatus",
+            "ZotEatsCampusNext",
             "ZotEatsQuietestLibrary",
         ])
         #expect(Set(WidgetTimelineKinds.all).count == WidgetTimelineKinds.all.count)
+        #expect(!WidgetTimelineKinds.all.contains(WidgetTimelineKinds.arcStatus))
     }
 
-    @Test("Eat reload group is Dining Status + Today's Menu only")
+    @Test("Eat reload group includes Favorites Today")
     func eatGroupTargetsDiningGlancesOnly() {
         #expect(WidgetTimelineKinds.eat == [
             WidgetTimelineKinds.diningStatus,
             WidgetTimelineKinds.todaysMenu,
+            WidgetTimelineKinds.favoritesToday,
         ])
         #expect(Set(WidgetTimelineKinds.eat).isSubset(of: Set(WidgetTimelineKinds.all)))
         #expect(!WidgetTimelineKinds.eat.contains(WidgetTimelineKinds.campusOpen))
-        #expect(!WidgetTimelineKinds.eat.contains(WidgetTimelineKinds.arcStatus))
         #expect(!WidgetTimelineKinds.eat.contains(WidgetTimelineKinds.quietestLibrary))
+    }
+
+    @Test func campusGroupCoversOpenAndNext() {
+        #expect(WidgetTimelineKinds.campus == [
+            WidgetTimelineKinds.campusOpen,
+            WidgetTimelineKinds.campusNext,
+        ])
+        #expect(Set(WidgetTimelineKinds.campus).isSubset(of: Set(WidgetTimelineKinds.all)))
     }
 }

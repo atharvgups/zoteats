@@ -162,6 +162,9 @@ jobs:
       - name: Prepare listing and submit for review
         env:
           SUBMIT_FOR_REVIEW: ${{ env.SUBMIT_FOR_REVIEW }}
+          # Cancel WAITING_FOR_REVIEW / IN_REVIEW so a replacement build can ship
+          # (Gym cut). If ASC refuses, the script prints the UI cancel path.
+          CANCEL_IN_FLIGHT_REVIEW: "true"
         run: |
           python3 -m venv "$RUNNER_TEMP/asc-venv"
           # shellcheck disable=SC1091

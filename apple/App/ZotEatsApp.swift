@@ -94,6 +94,7 @@ struct ZotEatsApp: App {
 }
 
 enum AppTab: String, Hashable {
+    /// `gym` kept for deep-link / CI arg compatibility — not a shipping tab.
     case dining, campus, gym, busyness
 }
 
@@ -121,7 +122,6 @@ struct RootTabView: View {
     // switch. Owning them here makes switching instant after the first load.
     @State private var diningStore = DiningStore()
     @State private var campusStore = CampusStore()
-    @State private var gymStore = GymStore()
     @State private var busynessStore = BusynessStore()
     @State private var preferences = Preferences()
     @State private var plate = PlateStore()
@@ -158,8 +158,7 @@ struct RootTabView: View {
                     preferences.reloadMenuFiltersFromSharedDefaults()
                     // Recompute Campus open/close from cached schedules (not a full network wait).
                     Task { await campusStore.loadPlaces() }
-                    // Gym + Study are app-lifetime stores — refresh Waitz / ARC open on warm resume.
-                    Task { await gymStore.load() }
+                    // Study is an app-lifetime store — refresh Waitz on warm resume.
                     Task { await busynessStore.load() }
                     // Purge live "today" menus after Irvine midnight, then always
                     // recompute hall open state from cached meal windows (Campus parity).
@@ -178,7 +177,7 @@ struct RootTabView: View {
     }
 
     /// Sleep until the next hall meal wrap-up (T−45), then auto-start Island
-    /// even when Eat is unloaded (Campus / Gym / Study).
+    /// even when Eat is unloaded (Campus / Study).
     private func watchMealWrapUps() async {
         guard let locations = diningStore.locations.value, !locations.isEmpty else { return }
         let fire = MealActivityWrapUpRefresh.nextFire(locations: locations)
@@ -195,14 +194,16 @@ struct RootTabView: View {
         switch link.tab {
         case .eat: selection = .dining
         case .campus: selection = .campus
-        case .gym: selection = .gym
+        // Gym cut from shipping IA until live ARC sensors exist — land on Eat.
+        case .gym: selection = .dining
         case .study: selection = .busyness
         }
-        pendingDeepLink = link
+        pendingDeepLink = link.tab == .gym ? nil : link
     }
 
-    // Visible labels are Eat / Campus / Gym / Study; internal AppTab ids and
-    // the -initialTab launch args keep their historical names for CI stability.
+    // Visible labels are Eat / Campus / Study. Gym is parked (no tab) until
+    // UCI/Occuspace confirms ARC sensors. Internal AppTab ids and -initialTab
+    // launch args keep historical names for CI; `gym` maps to Eat.
     // Modern Tab syntax (iOS 18+) is required for Liquid Glass tab bar
     // behaviors like minimize-on-scroll.
     private var tabs: some View {
@@ -222,9 +223,6 @@ struct RootTabView: View {
                     pendingDeepLink: $pendingDeepLink
                 )
             }
-            Tab("Gym", systemImage: "dumbbell.fill", value: AppTab.gym) {
-                GymView(store: gymStore)
-            }
             Tab("Study", systemImage: "books.vertical.fill", value: AppTab.busyness) {
                 BusynessView(store: busynessStore, pendingDeepLink: $pendingDeepLink)
             }
@@ -236,7 +234,8 @@ struct RootTabView: View {
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "-initialTab"), index + 1 < args.count,
            let tab = AppTab(rawValue: args[index + 1]) {
-            return tab
+            // Gym tab removed from shipping — CI gym shots redirect to Eat.
+            return tab == .gym ? .dining : tab
         }
         return .dining
     }

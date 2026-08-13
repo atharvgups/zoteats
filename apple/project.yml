@@ -39,6 +39,8 @@ targets:
       - path: App
         excludes:
           - PrivacyInfo.xcprivacy
+          # Gym parked until UCI/Occuspace confirms live ARC sensors.
+          - Gym/**
       - path: App/PrivacyInfo.xcprivacy
         buildPhase: resources
     dependencies:

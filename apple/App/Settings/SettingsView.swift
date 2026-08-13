@@ -274,9 +274,10 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open/closed + closes-in")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Live hall + Eat Filters")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Live hall + Eat Filters hint")
+                widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on a live board")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets open now")
-                widgetTip(icon: "dumbbell.fill", title: "ARC Gym", detail: "Hours + busyness")
+                widgetTip(icon: "number", title: "Campus Open Count", detail: "Open-now count or what opens next")
                 widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
             }
             .padding(.top, 2)
@@ -309,7 +310,7 @@ struct SettingsView: View {
             Text("About")
                 .font(ZotFont.sectionTitle)
 
-            Text("Anteats is an unofficial student project for UC Irvine — dining menus, gym hours, and live campus busyness in one place. Not affiliated with UC Irvine.")
+            Text("Anteats is an unofficial student project for UC Irvine — dining menus, campus food hours, and live library busyness in one place. Not affiliated with UC Irvine.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
 
@@ -378,26 +379,11 @@ struct SettingsView: View {
                 subtitle: "Official Langson + Science building hours",
                 url: "https://www.lib.uci.edu/hours"
             )
-            Divider()
-            sourceRow(
-                icon: "dumbbell.fill",
-                title: "ARC hours — UCI Campus Rec",
-                subtitle: "Verify seasonal changes on the official page",
-                url: "https://www.campusrec.uci.edu/arc/hours.html"
-            )
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    TypicalTag()
-                    Text("ARC busyness is a typical-pattern estimate based on usual gym rushes — not a live measurement — and may not match actual crowds. Library busyness is live sensor data.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text("All data comes from public, community sources and may change without notice.")
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.top, 4)
+            Text("All data comes from public, community sources and may change without notice. Library busyness is live sensor data.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 4)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

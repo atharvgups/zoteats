@@ -31,14 +31,10 @@ identifiers or personal data attached. Sources:
 - `api.elevate-dxp.com` — UCI Dining Hub campus food hours and retail menus
 - `waitz.io` — public live occupancy for UCI libraries (and related facilities)
 - `uci.libcal.com` — official Langson + Science library building hours
-- `campusrec.uci.edu` — ARC hours reference page (linked from Settings; seasonal hours)
 
 Like any web request, the operators of those services may see your IP address as
 part of serving the request; Anteats sends nothing else. We do not operate those
 services — see their own policies for details.
-
-ARC busyness shown in the app is a typical-pattern estimate when live sensors are
-unavailable — not a personal measurement. Library busyness uses live Waitz data.
 
 ## App Store Connect "App Privacy" answers
 

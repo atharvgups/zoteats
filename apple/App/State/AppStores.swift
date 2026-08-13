@@ -112,6 +112,7 @@ final class DiningStore {
     }
 }
 
+#if ANTEATS_ENABLE_GYM
 @MainActor
 @Observable
 final class GymStore {
@@ -128,6 +129,7 @@ final class GymStore {
         status = .loaded(await service.status())
     }
 }
+#endif
 
 @MainActor
 @Observable

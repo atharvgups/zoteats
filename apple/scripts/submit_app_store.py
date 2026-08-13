@@ -53,6 +53,14 @@ BUILD_NUMBER = os.environ.get("BUILD_NUMBER", "").strip()
 METADATA_PATH = Path(os.environ.get("METADATA_PATH", "apple/AppStore/metadata.json"))
 SCREENSHOT_ROOT = Path(os.environ.get("SCREENSHOT_ROOT", ".")).resolve()
 SUBMIT = os.environ.get("SUBMIT_FOR_REVIEW", "true").lower() not in {"0", "false", "no"}
+# When true, PATCH canceled=true on WAITING_FOR_REVIEW / IN_REVIEW before
+# creating a new submission (Atharv cancel/replace flow). If ASC refuses,
+# die with the App Store Connect UI cancel path.
+CANCEL_IN_FLIGHT = os.environ.get("CANCEL_IN_FLIGHT_REVIEW", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 MAX_WAIT = int(os.environ.get("BUILD_WAIT_SECONDS", "2400"))
 
 # iPhone 6.7" App Store slot (iPhone 15 Pro Max / similar).
@@ -972,7 +980,76 @@ def wait_for_screenshot_processing(token: str, localization_id: str, timeout_s: 
     warn("Timed out waiting for screenshot processing; continuing submit.")
 
 
+def cancel_in_flight_review_submissions(token: str, app_id: str) -> None:
+    """Cancel WAITING_FOR_REVIEW / IN_REVIEW so a Gym-free build can replace them."""
+    q = urllib.parse.urlencode(
+        {
+            "filter[app]": app_id,
+            "filter[platform]": "IOS",
+            "limit": "10",
+        }
+    )
+    existing = api("GET", f"/v1/reviewSubmissions?{q}", token).get("data") or []
+    in_flight = [
+        sub
+        for sub in existing
+        if (sub.get("attributes") or {}).get("state")
+        in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW", "CANCELING"}
+    ]
+    if not in_flight:
+        return
+    if not CANCEL_IN_FLIGHT:
+        die(
+            "An App Review submission is still WAITING_FOR_REVIEW / IN_REVIEW. "
+            "Cancel it in App Store Connect → Anteats → App Review → Cancel Submission, "
+            "then re-run. Or set CANCEL_IN_FLIGHT_REVIEW=true."
+        )
+    for sub in in_flight:
+        sid = sub["id"]
+        state = (sub.get("attributes") or {}).get("state")
+        info(f"Canceling in-flight reviewSubmission {sid} (state={state})…")
+        result = api(
+            "PATCH",
+            f"/v1/reviewSubmissions/{sid}",
+            token,
+            {
+                "data": {
+                    "type": "reviewSubmissions",
+                    "id": sid,
+                    "attributes": {"canceled": True},
+                }
+            },
+            ok_codes={200, 409, 422},
+        )
+        if result.get("errors") and not result.get("data"):
+            die(
+                "ASC refused to cancel the in-flight review submission via API. "
+                "Do this once in the UI: App Store Connect → Anteats → App Review → "
+                "Cancel Submission (or remove this version from review), then re-run "
+                f"appstore-*. Detail: {json.dumps(result)[:1500]}"
+            )
+        # Poll until COMPLETE / CANCELED so create isn't blocked.
+        deadline = time.time() + 180
+        while time.time() < deadline:
+            detail = api("GET", f"/v1/reviewSubmissions/{sid}", token, ok_codes={200, 404})
+            new_state = ((detail.get("data") or {}).get("attributes") or {}).get("state")
+            info(f"Cancel poll: {sid} → {new_state}")
+            if new_state in {"COMPLETE", "COMPLETED", "CANCELED", "CANCELLED", None}:
+                break
+            if new_state == "CANCELING":
+                time.sleep(5)
+                continue
+            time.sleep(5)
+        else:
+            warn(
+                f"Cancel of {sid} still settling — continuing; create may need a UI cancel "
+                "if ASC returns CONCURRENT_REVIEW_SUBMISSION_LIMIT_EXCEEDED."
+            )
+
+
 def submit_for_review(token: str, app_id: str, version_id: str) -> None:
+    cancel_in_flight_review_submissions(token, app_id)
+
     q = urllib.parse.urlencode(
         {
             "filter[app]": app_id,
@@ -986,8 +1063,10 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
         state = (sub.get("attributes") or {}).get("state")
         info(f"Existing reviewSubmission state={state}")
         if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
-            info(f"Already in review (state={state}). Nothing to do.")
-            return
+            die(
+                f"Still in review after cancel attempt (state={state}). "
+                "App Store Connect → Anteats → App Review → Cancel Submission, then re-run."
+            )
         if state in {"READY_FOR_REVIEW", "UNRESOLVED_ISSUES"} and reusable_id is None:
             # Prefer reuse — ASC often refuses cancel ("not cancellable") and then
             # blocks create with CONCURRENT_REVIEW_SUBMISSION_LIMIT_EXCEEDED.

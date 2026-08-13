@@ -3,7 +3,7 @@ import ActivityKit
 import ZotEatsKit
 
 /// App-level Live Activity auto-start — runs on foreground / BG so Settings
-/// “Auto meal countdown” works when Eat is unloaded (Campus / Gym / Study).
+/// “Auto meal countdown” works when Eat is unloaded (Campus / Study).
 @MainActor
 enum MealActivityAutoStartRunner {
     static func run(service: DiningService = DiningService()) async {

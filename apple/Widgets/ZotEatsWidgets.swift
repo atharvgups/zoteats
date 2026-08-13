@@ -5,18 +5,20 @@ import AppIntents
 import ZotEatsKit
 
 // Home-screen + lock-screen widgets for Anteats:
-// dining status, today's menu (pick a hall), campus spots open now,
-// ARC gym status, and quietest library (with floor when available).
+// dining status, today's menu (pick a hall), favorites on this meal,
+// campus open now / next open, and quietest library.
+// ARC Gym widget is parked (`#if ANTEATS_ENABLE_GYM`) until live sensors exist.
 
 @main
 struct ZotEatsWidgetBundle: WidgetBundle {
     var body: some Widget {
         // Keep flat — nested WidgetBundles no longer type-check as Widget
-        // expressions on current SDKs (WidgetBundleBuilder arity is fine at 6).
+        // expressions on current SDKs (WidgetBundleBuilder arity is fine ≤10).
         DiningStatusWidget()
         TodaysMenuWidget()
+        FavoritesTodayWidget()
         CampusOpenWidget()
-        ArcStatusWidget()
+        CampusNextWidget()
         QuietestLibraryWidget()
         MealCountdownActivity()
     }
@@ -671,6 +673,8 @@ struct TodaysMenuEntry: TimelineEntry {
     let isAfterHours: Bool
     /// No timed windows today — after-hours copy must not say Dinner's done.
     let isEmptyBoard: Bool
+    /// Compact Eat Filters hint (e.g. "Vegan · −Peanuts") when filters are on.
+    let filterHint: String?
 
     init(
         date: Date,
@@ -693,7 +697,8 @@ struct TodaysMenuEntry: TimelineEntry {
         opensNextWeekday: String? = nil,
         opensNextPeriod: String? = nil,
         isAfterHours: Bool = false,
-        isEmptyBoard: Bool = false
+        isEmptyBoard: Bool = false,
+        filterHint: String? = nil
     ) {
         self.date = date
         self.hallName = hallName
@@ -716,6 +721,7 @@ struct TodaysMenuEntry: TimelineEntry {
         self.opensNextPeriod = opensNextPeriod
         self.isAfterHours = isAfterHours
         self.isEmptyBoard = isEmptyBoard
+        self.filterHint = filterHint
     }
 
     /// Opens Eat on the hall + meal this glance is showing (tomorrow after hours).
@@ -847,6 +853,11 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             )
         }
 
+        let filterHint = EatFilterHint.label(
+            dietFilters: SharedDefaults.dietFilters(),
+            allergenAvoids: SharedDefaults.allergenAvoids()
+        )
+
         return TodaysMenuEntry(
             date: .now,
             hallName: hall.name,
@@ -868,7 +879,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
             opensNextWeekday: choice.isAfterHours ? hall.opensNextWeekday : nil,
             opensNextPeriod: choice.isAfterHours ? hall.opensNextPeriod : nil,
             isAfterHours: choice.isAfterHours,
-            isEmptyBoard: choice.isEmptyBoard
+            isEmptyBoard: choice.isEmptyBoard,
+            filterHint: filterHint
         )
     }
 }
@@ -903,6 +915,7 @@ struct ClearEatFiltersIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         SharedDefaults.clearMenuFilters()
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.todaysMenu)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.favoritesToday)
         return .result(dialog: "Eat Filters cleared")
     }
 }
@@ -1066,6 +1079,14 @@ struct TodaysMenuView: View {
             }
             .foregroundStyle(gold)
 
+            if let hint = entry.filterHint, !entry.filtersEmptiedMenu {
+                Text(hint)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
             let dishes = Array(entry.dishes.prefix(dishLimit))
             if dishes.isEmpty {
                 Spacer()
@@ -1074,6 +1095,12 @@ struct TodaysMenuView: View {
                         Text("Nothing matches your Eat Filters.")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.8))
+                        if let hint = entry.filterHint {
+                            Text(hint)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(gold.opacity(0.9))
+                                .lineLimit(1)
+                        }
                         Button(intent: ClearEatFiltersIntent()) {
                             Text("Clear filters")
                                 .font(.system(size: 12, weight: .bold))
@@ -1182,6 +1209,295 @@ struct TodaysMenuView: View {
         dishes: ["Crispy Okra", "Grilled BBQ Pork Chops", "Elbow Macaroni"],
         favorited: ["Crispy Okra"],
         periodEndsAt: .now.addingTimeInterval(45 * 60)
+    )
+}
+
+// MARK: - Favorites Today (hearted dishes on a live board)
+
+struct FavoritesTodayEntry: TimelineEntry {
+    let date: Date
+    let hasFavorites: Bool
+    let hallName: String?
+    let hallID: String?
+    let period: String?
+    let dishes: [String]
+    let filterHint: String?
+    let deepLinkPeriod: String?
+    let deepLinkDate: String?
+    let reloadBoundaries: [Date]
+
+    var deepLinkURL: URL {
+        AnteatsDeepLink.eat(
+            hall: hallID,
+            period: deepLinkPeriod ?? period,
+            date: deepLinkDate
+        ).url
+    }
+
+    func dishDeepLinkURL(_ dish: String) -> URL {
+        AnteatsDeepLink.eat(
+            hall: hallID,
+            period: deepLinkPeriod ?? period,
+            dish: dish,
+            date: deepLinkDate
+        ).url
+    }
+}
+
+struct FavoritesTodayProvider: TimelineProvider {
+    func placeholder(in context: Context) -> FavoritesTodayEntry {
+        FavoritesTodayEntry(
+            date: .now,
+            hasFavorites: true,
+            hallName: "The Anteatery",
+            hallID: "anteatery",
+            period: "Lunch",
+            dishes: ["Crispy Okra", "Farro Salad"],
+            filterHint: nil,
+            deepLinkPeriod: "Lunch",
+            deepLinkDate: nil,
+            reloadBoundaries: []
+        )
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (FavoritesTodayEntry) -> Void) {
+        if context.isPreview {
+            completion(placeholder(in: context))
+            return
+        }
+        let deliver = UncheckedSendableBox(completion)
+        Task { deliver.value(await fetchEntry()) }
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<FavoritesTodayEntry>) -> Void) {
+        let deliver = UncheckedSendableBox(completion)
+        Task {
+            let entry = await fetchEntry()
+            let reload = WidgetRefreshMath.nextReload(
+                now: .now,
+                boundaries: entry.reloadBoundaries,
+                maxInterval: 30 * 60
+            )
+            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
+        }
+    }
+
+    private func fetchEntry() async -> FavoritesTodayEntry {
+        let favorites = SharedDefaults.favoriteDishNames()
+        let filterHint = EatFilterHint.label(
+            dietFilters: SharedDefaults.dietFilters(),
+            allergenAvoids: SharedDefaults.allergenAvoids()
+        )
+        let reloadBoundaries: [Date]
+        let locations = await DiningService().locations()
+        let nowMinutes = UCITime.nowMinutes()
+        reloadBoundaries = TodaysMenuReload.boundaries(
+            locations: locations,
+            nowMinutes: nowMinutes
+        )
+
+        guard !favorites.isEmpty else {
+            return FavoritesTodayEntry(
+                date: .now,
+                hasFavorites: false,
+                hallName: nil,
+                hallID: nil,
+                period: nil,
+                dishes: [],
+                filterHint: filterHint,
+                deepLinkPeriod: nil,
+                deepLinkDate: nil,
+                reloadBoundaries: reloadBoundaries
+            )
+        }
+
+        let service = DiningService()
+        var boards: [FavoritesOnMenuPick.Board] = []
+        // Prefer Auto hall first, then remaining commons — same usefulness order.
+        let ordered: [DiningLocation] = {
+            guard let auto = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes) else {
+                return locations
+            }
+            return [auto] + locations.filter { $0.id != auto.id }
+        }()
+
+        for hall in ordered {
+            let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+            let choice = TodaysMenuPeriodPick.choose(
+                timedPeriods: timed,
+                availablePeriods: hall.availablePeriods,
+                nowMinutes: nowMinutes
+            )
+            let pill = choice.period
+            guard !pill.isEmpty, let menu = try? await service.menu(for: hall.id, period: pill) else {
+                continue
+            }
+            let displayPeriod = MealPeriodDisplay.label(
+                live: choice.livePeriodName,
+                pill: choice.period
+            )
+            boards.append(
+                FavoritesOnMenuPick.Board(
+                    hallID: hall.id,
+                    hallName: hall.name,
+                    period: displayPeriod,
+                    stations: menu.stations
+                )
+            )
+        }
+
+        guard let pick = FavoritesOnMenuPick.best(favorites: favorites, boards: boards) else {
+            let auto = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes)
+            return FavoritesTodayEntry(
+                date: .now,
+                hasFavorites: true,
+                hallName: auto?.name,
+                hallID: auto?.id,
+                period: nil,
+                dishes: [],
+                filterHint: filterHint,
+                deepLinkPeriod: nil,
+                deepLinkDate: nil,
+                reloadBoundaries: reloadBoundaries
+            )
+        }
+
+        return FavoritesTodayEntry(
+            date: .now,
+            hasFavorites: true,
+            hallName: pick.hallName,
+            hallID: pick.hallID,
+            period: pick.period,
+            dishes: pick.rows.map(\.dishName),
+            filterHint: filterHint,
+            deepLinkPeriod: pick.period.isEmpty ? nil : pick.period,
+            deepLinkDate: nil,
+            reloadBoundaries: reloadBoundaries
+        )
+    }
+}
+
+struct FavoritesTodayWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: WidgetTimelineKinds.favoritesToday,
+            provider: FavoritesTodayProvider()
+        ) { entry in
+            FavoritesTodayView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
+                }
+                .widgetURL(entry.deepLinkURL)
+        }
+        .configurationDisplayName("Favorites Today")
+        .description("Which hearted dishes are on a live dining board right now.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+struct FavoritesTodayView: View {
+    let entry: FavoritesTodayEntry
+    @Environment(\.widgetFamily) private var family
+
+    private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
+    private var dishLimit: Int { family == .systemSmall ? 2 : 5 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text("FAVORITES")
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(0.8)
+                Spacer()
+                if let period = entry.period, !period.isEmpty {
+                    Text(period)
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.16), in: Capsule())
+                        .foregroundStyle(.white)
+                }
+            }
+            .foregroundStyle(gold)
+
+            if let hall = entry.hallName, !entry.dishes.isEmpty {
+                Text(hall.hasPrefix("The ") ? String(hall.dropFirst(4)) : hall)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+            }
+
+            if let hint = entry.filterHint {
+                Text(hint)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
+            }
+
+            if entry.dishes.isEmpty {
+                Spacer()
+                Text(FavoritesOnMenuPick.emptyTitle(hasFavorites: entry.hasFavorites))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                Text(FavoritesOnMenuPick.emptyMessage(hasFavorites: entry.hasFavorites))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(3)
+                Spacer()
+            } else {
+                ForEach(Array(entry.dishes.prefix(dishLimit)), id: \.self) { dish in
+                    Link(destination: entry.dishDeepLinkURL(dish)) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(gold)
+                            Text(dish)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                if entry.dishes.count > dishLimit {
+                    Text("+\(entry.dishes.count - dishLimit) more")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(favoritesAccessibilityLabel)
+    }
+
+    private var favoritesAccessibilityLabel: String {
+        if entry.dishes.isEmpty {
+            return FavoritesOnMenuPick.emptyTitle(hasFavorites: entry.hasFavorites)
+        }
+        let hall = entry.hallName ?? "Dining"
+        let period = entry.period ?? "meal"
+        let listed = entry.dishes.prefix(dishLimit).joined(separator: ", ")
+        return "Favorites for \(period) at \(hall): \(listed)"
+    }
+}
+
+#Preview(as: .systemMedium) {
+    FavoritesTodayWidget()
+} timeline: {
+    FavoritesTodayEntry(
+        date: .now,
+        hasFavorites: true,
+        hallName: "The Anteatery",
+        hallID: "anteatery",
+        period: "Lunch",
+        dishes: ["Crispy Okra", "Farro Salad", "Teriyaki"],
+        filterHint: "Vegan",
+        deepLinkPeriod: "Lunch",
+        deepLinkDate: nil,
+        reloadBoundaries: []
     )
 }
 
@@ -1399,6 +1715,187 @@ struct CampusOpenView: View {
     )
 }
 
+// MARK: - Campus Next (open-now count + next open / favorite open)
+
+struct CampusNextEntry: TimelineEntry {
+    let date: Date
+    let openCount: Int
+    let headline: String
+    let detail: String
+    let deepLinkPlaceID: String?
+    let reloadAt: Date?
+
+    var deepLinkURL: URL {
+        AnteatsDeepLink.campus(placeID: deepLinkPlaceID).url
+    }
+}
+
+struct CampusNextProvider: TimelineProvider {
+    func placeholder(in context: Context) -> CampusNextEntry {
+        CampusNextEntry(
+            date: .now,
+            openCount: 4,
+            headline: "4 spots open",
+            detail: "Starbucks @ Student Center",
+            deepLinkPlaceID: "starbucks-at-student-center",
+            reloadAt: nil
+        )
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (CampusNextEntry) -> Void) {
+        if context.isPreview {
+            completion(placeholder(in: context))
+            return
+        }
+        let deliver = UncheckedSendableBox(completion)
+        Task { deliver.value(await fetchEntry()) }
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CampusNextEntry>) -> Void) {
+        let deliver = UncheckedSendableBox(completion)
+        Task {
+            let places = (try? await CampusService().places()) ?? []
+            let entry = entry(from: places)
+            let reload = CampusOpenReload.nextReload(now: .now, places: places)
+            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
+        }
+    }
+
+    private func fetchEntry() async -> CampusNextEntry {
+        let places = (try? await CampusService().places()) ?? []
+        return entry(from: places)
+    }
+
+    private func entry(from places: [CampusPlace]) -> CampusNextEntry {
+        let favoriteIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
+        let glance = NextCampusOpenPick.glance(places: places, favoriteIDs: favoriteIDs)
+        let deepLink: String? = {
+            if glance.openCount > 0 {
+                return glance.favoriteOpenID
+                    ?? CampusPlaceSort.sortOpenForWidget(
+                        places: places,
+                        favoriteIDs: favoriteIDs
+                    ).first?.id
+            }
+            return glance.nextOpen?.placeID
+        }()
+        return CampusNextEntry(
+            date: .now,
+            openCount: glance.openCount,
+            headline: NextCampusOpenPick.headline(for: glance),
+            detail: NextCampusOpenPick.detail(for: glance),
+            deepLinkPlaceID: deepLink,
+            reloadAt: CampusOpenReload.nextReload(now: .now, places: places)
+        )
+    }
+}
+
+struct CampusNextWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: WidgetTimelineKinds.campusNext,
+            provider: CampusNextProvider()
+        ) { entry in
+            CampusNextView(entry: entry)
+                .widgetURL(entry.deepLinkURL)
+        }
+        .configurationDisplayName("Campus Open Count")
+        .description("How many campus spots are open — or what opens next. Hearts lead when open.")
+        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+struct CampusNextView: View {
+    let entry: CampusNextEntry
+    @Environment(\.widgetFamily) private var family
+
+    private let gold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
+    private let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
+
+    var body: some View {
+        Group {
+            switch family {
+            case .accessoryCircular:
+                VStack(spacing: 1) {
+                    Text(entry.openCount > 0 ? "\(entry.openCount)" : "—")
+                        .font(.system(size: 20, weight: .bold))
+                        .monospacedDigit()
+                    Text(entry.openCount > 0 ? "open" : "next")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .accessibilityLabel("\(entry.headline). \(entry.detail)")
+            case .accessoryRectangular:
+                HStack(spacing: 8) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(entry.headline)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(1)
+                        Text(entry.detail)
+                            .font(.system(size: 11))
+                            .opacity(0.8)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(entry.headline). \(entry.detail)")
+            default:
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("CAMPUS")
+                            .font(.system(size: 10, weight: .heavy))
+                            .tracking(0.8)
+                        Spacer()
+                    }
+                    .foregroundStyle(gold)
+
+                    Text(entry.headline)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+
+                    Text(entry.detail)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(gold)
+                        .lineLimit(3)
+
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(entry.headline). \(entry.detail)")
+            }
+        }
+        .containerBackground(for: .widget) {
+            switch family {
+            case .accessoryCircular, .accessoryRectangular:
+                Color.clear
+            default:
+                uciBlue
+            }
+        }
+    }
+}
+
+#Preview(as: .systemSmall) {
+    CampusNextWidget()
+} timeline: {
+    CampusNextEntry(
+        date: .now,
+        openCount: 0,
+        headline: "Nothing open",
+        detail: "Starbucks opens at 7:30 AM",
+        deepLinkPlaceID: "starbucks-at-student-center",
+        reloadAt: nil
+    )
+}
+
+#if ANTEATS_ENABLE_GYM
+// Parked: ARC Gym widget (typical/fake busy) until live Occuspace sensors.
 // MARK: - ARC gym status
 
 struct ArcStatusEntry: TimelineEntry {
@@ -1645,6 +2142,8 @@ struct ArcStatusView: View {
     ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", percent: 38)
     ArcStatusEntry(date: .now, isOpen: true, hoursLine: "Open until 12:00 AM", percent: 55, isTypical: true)
 }
+
+#endif
 
 // MARK: - Quietest library (home + lock screen)
 

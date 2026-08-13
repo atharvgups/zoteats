@@ -6,17 +6,19 @@ import ZotEatsKit
 enum WidgetReloader {
     static func reloadTodaysMenu() {
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.todaysMenu)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.favoritesToday)
     }
 
-    /// Wake Campus Open Now after Campus heart toggles so Home Screen order
-    /// matches the in-app Favorites shelf without waiting on WidgetKit cadence.
+    /// Wake Campus Open Now + Campus Next after Campus heart toggles so Home
+    /// Screen order matches the in-app Favorites shelf without waiting on cadence.
     static func reloadCampusOpen() {
-        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.campusOpen)
+        for kind in WidgetTimelineKinds.campus {
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        }
     }
 
-    /// Wake Dining Status + Today's Menu after Eat force-refreshes a dining board
-    /// so Home/Lock glances match the newly posted Lunch/Dinner without waiting
-    /// for the next WidgetKit cadence.
+    /// Wake Dining Status + Today's Menu + Favorites after Eat force-refreshes
+    /// a dining board so Home/Lock glances match the newly posted Lunch/Dinner.
     static func reloadEatWidgets() {
         for kind in WidgetTimelineKinds.eat {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)

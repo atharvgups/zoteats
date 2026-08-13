@@ -126,13 +126,7 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1)
 
-        // ── Gym: busyness hero, rush chart, expandable hours ──────────────
-        tapTab(app, "Gym")
-        pause(3.5)
-        tapFirstMatch(app.buttons, labelPrefixes: ["Show this week's hours"])
-        pause(2.5)
-        app.swipeUp()
-        pause(2)
+        // Gym tab removed from shipping until live ARC sensors exist.
 
         // ── Study ─────────────────────────────────────────────────────────
         tapTab(app, "Study")
@@ -201,15 +195,15 @@ final class DemoTourUITests: XCTestCase {
             }
         }
         // Last resort: Liquid Glass sometimes reports tabs as non-hittable.
+        // Shipping tabs: Eat / Campus / Study (Gym parked).
         let index: CGFloat
         switch name {
         case "Eat": index = 0
         case "Campus": index = 1
-        case "Gym": index = 2
-        case "Study": index = 3
+        case "Study": index = 2
         default: return
         }
-        let x = (index + 0.5) / 4.0
+        let x = (index + 0.5) / 3.0
         let coord = app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.96))
         coord.tap()
     }
