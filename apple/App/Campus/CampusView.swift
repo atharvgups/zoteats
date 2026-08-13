@@ -692,8 +692,17 @@ struct CampusMenuSheet: View {
                 .padding(.horizontal, 20)
 
                 let filtered = filteredStations(stations)
-                if filtered.isEmpty {
-                    // Same Eat Filters prefs as Dining — reuse honest empty copy (no search on Campus menus).
+                let foodStations = filtered.filter {
+                    $0.name != CampusTypicalMenus.bannerStationName
+                }
+                // Typical packs keep the disclaimer banner even when diet filters
+                // wipe every dish — treat “banner only” as a filter empty, not a menu.
+                if foodStations.isEmpty {
+                    if let banner = filtered.first(where: {
+                        $0.name == CampusTypicalMenus.bannerStationName
+                    }) {
+                        typicalMenuBanner(banner)
+                    }
                     if let copy = EatFilterEmptyCopy.resolve(
                         hasSearch: false,
                         hasMenuFilters: prefs.hasActiveMenuFilters

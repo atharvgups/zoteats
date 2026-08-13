@@ -63,9 +63,13 @@ struct CampusMenuEmptyCopyTests {
         #expect(CampusMenuEmptyCopy.kind(hasMenuFlag: true, category: "Coffee & Cafés") == .notPosted)
     }
 
-    @Test func foodCourtsEmptyAreNotPosted() {
-        #expect(CampusMenuEmptyCopy.kind(hasMenuFlag: false, category: "Food Courts") == .notPosted)
-        #expect(CampusMenuEmptyCopy.kind(hasMenuFlag: false, category: "Restaurants & Pubs") == .notPosted)
+    @Test func foodCourtsWithoutHubFlagAreNotPublished() {
+        // Never claim “usually posts” for brands Hub doesn’t mark hasActiveMenus.
+        #expect(CampusMenuEmptyCopy.kind(hasMenuFlag: false, category: "Food Courts") == .notPublished)
+        #expect(
+            CampusMenuEmptyCopy.kind(hasMenuFlag: false, category: "Restaurants & Pubs")
+                == .notPublished
+        )
     }
 
     @Test func brandCoffeeIsNotPublished() {

@@ -49,4 +49,64 @@ struct CampusTypicalMenusTests {
         let note = stations?.first?.items.first?.name ?? ""
         #expect(note.contains("Dining Hub"))
     }
+
+    @Test func matchesPhoenixFoodCourtBrands() {
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "choolaah-at-phoenix-food-court",
+                placeName: "Choolaah"
+            ) == .choolaah
+        )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "wushiland-boba",
+                placeName: "Wushiland Boba"
+            ) == .wushiland
+        )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "tortilla-fresca-at-phoenix-food-court",
+                placeName: "Tortilla Fresca"
+            ) == .tortillaFresca
+        )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "anthill-pub",
+                placeName: "Anthill Pub & Grille"
+            ) == .anthillPub
+        )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "greens-to-go-at-phoenix-food-court",
+                placeName: "Greens to Go"
+            ) == .greensToGo
+        )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "b-f-at-phoenix-food-court",
+                placeName: "B+F"
+            ) == .bAndF
+        )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "java-city-kiosk",
+                placeName: "Java City"
+            ) == .javaCity
+        )
+    }
+
+    @Test func veganTaggedTypicalItemsSurviveDietFilter() {
+        let stations = CampusTypicalMenus.stations(
+            forPlaceID: "subway-at-west-food-court",
+            placeName: "Subway"
+        ) ?? []
+        let food = stations.filter { $0.name != CampusTypicalMenus.bannerStationName }
+        let filtered = MenuFilterMatching.filterStations(
+            food,
+            dietFilters: ["Vegan"],
+            allergenAvoids: []
+        )
+        #expect(!filtered.isEmpty)
+        #expect(filtered.flatMap(\.items).contains { $0.name.contains("Veggie") })
+    }
 }

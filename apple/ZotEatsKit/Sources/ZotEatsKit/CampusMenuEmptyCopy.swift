@@ -10,12 +10,10 @@ public enum CampusMenuEmptyCopy {
     }
 
     public static func kind(hasMenuFlag: Bool, category: String) -> Kind {
+        // Only Hub’s hasActiveMenus flag means “usually posts.” Food courts /
+        // pubs without that flag often never publish — don’t claim they do.
+        _ = category
         if hasMenuFlag { return .notPosted }
-        // Food courts / pubs often rotate Hub menus — treat empty as not-posted
-        // rather than "use the brand app" when the category expects a board.
-        if category == "Food Courts" || category == "Restaurants & Pubs" {
-            return .notPosted
-        }
         return .notPublished
     }
 
