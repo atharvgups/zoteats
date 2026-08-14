@@ -98,7 +98,13 @@ final class DiningStore {
         menus["\(hall)|\(period)|\(date ?? "today")"] ?? .idle
     }
 
-    func loadMenu(hall: String, period: String, date: String? = nil, forceRefresh: Bool = false) async {
+    func loadMenu(
+        hall: String,
+        period: String,
+        date: String? = nil,
+        forceRefresh: Bool = false,
+        reloadWidgets: Bool = true
+    ) async {
         let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
@@ -116,10 +122,64 @@ final class DiningStore {
             // cold extension menu fetch (Atharv: open app, still empty glance).
             if date == nil {
                 WidgetSnapshotStore.saveDiningMenu(next)
-                WidgetReloader.reloadEatWidgets()
+                if reloadWidgets {
+                    WidgetReloader.reloadEatWidgets()
+                }
             }
         } catch {
             menus[key] = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Snapshot today's current meal for sibling live halls into the App Group so
+    /// Favorites Today can scan Anteatery + Brandywine without a cold multi-fetch.
+    /// Preferred hall is assumed already saved by `loadMenu`.
+    func warmWidgetMenusForLiveHalls(
+        preferredHall: String?,
+        preferredPeriod: String?
+    ) async {
+        guard let locations = locations.value else { return }
+        let nowMinutes = UCITime.nowMinutes()
+        let todayISO = UCITime.todayISO()
+        var warmed = false
+        for hall in locations where !hall.isComingSoon {
+            if let preferredHall, hall.id == preferredHall { continue }
+            let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+            let choice = TodaysMenuPeriodPick.choose(
+                timedPeriods: timed,
+                availablePeriods: hall.availablePeriods,
+                nowMinutes: nowMinutes
+            )
+            // Prefer the same meal pill the user is browsing when that meal exists
+            // on the sibling board (peek Lunch at both halls).
+            let pill: String
+            if let preferred = preferredPeriod,
+               !preferred.isEmpty,
+               DiningService.primaryPeriods(from: hall.availablePeriods)
+                .contains(where: { $0.caseInsensitiveCompare(preferred) == .orderedSame }) {
+                pill = preferred
+            } else {
+                pill = choice.period
+            }
+            guard !pill.isEmpty else { continue }
+            if let cached = WidgetSnapshotStore.loadDiningMenu(
+                hall: hall.id,
+                period: pill,
+                dateISO: todayISO
+            ), !cached.stations.isEmpty {
+                continue
+            }
+            await loadMenu(
+                hall: hall.id,
+                period: pill,
+                date: nil,
+                forceRefresh: false,
+                reloadWidgets: false
+            )
+            warmed = true
+        }
+        if warmed {
+            WidgetReloader.reloadEatWidgets()
         }
     }
 }

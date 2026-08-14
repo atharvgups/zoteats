@@ -897,6 +897,13 @@ struct DiningView: View {
             date: selectedDate,
             forceRefresh: forceRefresh
         )
+        // Warm sibling hall boards for Favorites Today (today only).
+        if selectedDate == nil {
+            await store.warmWidgetMenusForLiveHalls(
+                preferredHall: selectedHall,
+                preferredPeriod: selectedPeriod
+            )
+        }
     }
 
     private func refresh() async {

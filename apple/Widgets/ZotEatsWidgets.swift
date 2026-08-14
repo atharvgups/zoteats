@@ -1391,8 +1391,8 @@ struct FavoritesTodayProvider: TimelineProvider {
             dietFilters: SharedDefaults.dietFilters(),
             allergenAvoids: SharedDefaults.allergenAvoids()
         )
-        // One Auto hall only — multi-hall menu fan-out was blowing the widget
-        // timeline budget and left sibling glances stuck on placeholders.
+        // Cache-first multi-hall scan — App Group boards from Eat open; network
+        // only fills gaps so Favorites isn't stuck on Auto hall alone.
         let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
         let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
         let networkLooksLive = networked.contains {
@@ -1421,7 +1421,8 @@ struct FavoritesTodayProvider: TimelineProvider {
             )
         }
 
-        guard let hall = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes) else {
+        let liveHalls = locations.filter { !$0.isComingSoon }
+        guard !liveHalls.isEmpty else {
             return FavoritesTodayEntry(
                 date: .now,
                 hasFavorites: true,
@@ -1436,46 +1437,76 @@ struct FavoritesTodayProvider: TimelineProvider {
             )
         }
 
-        let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
-        let choice = TodaysMenuPeriodPick.choose(
-            timedPeriods: timed,
-            availablePeriods: hall.availablePeriods,
-            nowMinutes: nowMinutes
-        )
-        let pill = choice.period
         let service = DiningService(http: HTTPClient(timeout: 8))
         let todayISO = UCITime.todayISO()
-        let cachedMenu = pill.isEmpty
-            ? nil
-            : WidgetSnapshotStore.loadDiningMenu(hall: hall.id, period: pill, dateISO: todayISO)
-        let networkedMenu = (!pill.isEmpty)
-            ? try? await service.menu(for: hall.id, period: pill)
-            : nil
-        if let networkedMenu {
-            WidgetSnapshotStore.saveDiningMenu(networkedMenu)
-        }
-        let stations = (networkedMenu ?? cachedMenu)?.stations ?? []
-        let displayPeriod = MealPeriodDisplay.label(
-            live: choice.livePeriodName,
-            pill: choice.period
-        )
-        let rows = FavoritesOnMenuPick.rows(
-            favorites: favorites,
-            stations: stations,
-            hallID: hall.id,
-            hallName: hall.name,
-            period: displayPeriod
-        )
+        var boards: [FavoritesOnMenuPick.Board] = []
+        for hall in liveHalls {
+            let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+            let choice = TodaysMenuPeriodPick.choose(
+                timedPeriods: timed,
+                availablePeriods: hall.availablePeriods,
+                nowMinutes: nowMinutes
+            )
+            let pill = choice.period
+            guard !pill.isEmpty else { continue }
 
+            let cachedMenu = WidgetSnapshotStore.loadDiningMenu(
+                hall: hall.id,
+                period: pill,
+                dateISO: todayISO
+            )
+            let menu: DiningMenu?
+            if let cachedMenu, !cachedMenu.stations.isEmpty {
+                menu = cachedMenu
+            } else if let networkedMenu = try? await service.menu(for: hall.id, period: pill) {
+                WidgetSnapshotStore.saveDiningMenu(networkedMenu)
+                menu = networkedMenu
+            } else {
+                menu = cachedMenu
+            }
+            guard let menu, !menu.stations.isEmpty else { continue }
+
+            let displayPeriod = MealPeriodDisplay.label(
+                live: choice.livePeriodName,
+                pill: pill
+            )
+            boards.append(
+                FavoritesOnMenuPick.Board(
+                    hallID: hall.id,
+                    hallName: hall.name,
+                    period: displayPeriod,
+                    stations: menu.stations
+                )
+            )
+        }
+
+        if let pick = FavoritesOnMenuPick.best(favorites: favorites, boards: boards) {
+            let deepLinkPeriod = MealPeriodPill.canonical(pick.period)
+            return FavoritesTodayEntry(
+                date: .now,
+                hasFavorites: true,
+                hallName: pick.hallName,
+                hallID: pick.hallID,
+                period: pick.period,
+                dishes: pick.rows.map(\.dishName),
+                filterHint: filterHint,
+                deepLinkPeriod: deepLinkPeriod,
+                deepLinkDate: nil,
+                reloadBoundaries: reloadBoundaries
+            )
+        }
+
+        // No hearts on any live board — keep Auto hall chrome for empty copy.
+        let auto = TodaysMenuHallPick.auto(from: liveHalls, nowMinutes: nowMinutes)
         return FavoritesTodayEntry(
             date: .now,
             hasFavorites: true,
-            hallName: hall.name,
-            hallID: hall.id,
-            period: rows.isEmpty ? nil : displayPeriod,
-            dishes: rows.map(\.dishName),
+            hallName: auto?.name,
+            hallID: auto?.id,
+            period: nil,
+            dishes: [],
             filterHint: filterHint,
-            deepLinkPeriod: displayPeriod.isEmpty ? nil : displayPeriod,
+            deepLinkPeriod: nil,
             deepLinkDate: nil,
             reloadBoundaries: reloadBoundaries
         )

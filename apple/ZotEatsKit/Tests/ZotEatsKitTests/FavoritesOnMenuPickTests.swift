@@ -73,4 +73,27 @@ struct FavoritesOnMenuPickTests {
         #expect(pick?.hallID == "b")
         #expect(pick?.rows.map(\.dishName) == ["Soup", "Rice"])
     }
+
+    @Test func bestPicksSiblingWhenAutoHallHasNoHearts() {
+        // Atharv dogfood: heart only on Brandywine while Auto is Anteatery.
+        let pick = FavoritesOnMenuPick.best(
+            favorites: ["Twisted Root Bowl"],
+            boards: [
+                .init(
+                    hallID: "anteatery",
+                    hallName: "The Anteatery",
+                    period: "Lunch",
+                    stations: [station("Home", items: ["Scrambled Eggs"])]
+                ),
+                .init(
+                    hallID: "brandywine",
+                    hallName: "Brandywine",
+                    period: "Lunch",
+                    stations: [station("Twisted Root", items: ["Twisted Root Bowl"])]
+                ),
+            ]
+        )
+        #expect(pick?.hallID == "brandywine")
+        #expect(pick?.rows.map(\.dishName) == ["Twisted Root Bowl"])
+    }
 }
