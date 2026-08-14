@@ -15,7 +15,6 @@ struct DiningView: View {
     @State private var selectedPeriod: String?
     /// Nil means today; otherwise a future ISO date being browsed.
     @State private var selectedDate: String?
-    @State private var searchText = ""
     @State private var selectedDish: MenuItem?
     @State private var showDietFilters = false
     @State private var showPlate = false
@@ -73,123 +72,114 @@ struct DiningView: View {
     var body: some View {
         // Hall cards / Track meal read wall-clock minutes; re-render after ticks.
         let _ = boundaryEpoch
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
+        // Flat ScrollView (no searchable / empty nav bar) so Eat title sits under
+        // the status bar like Campus — Atharv: kill search + top inset gap.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
 
-                    hallSelector
-                        .padding(.horizontal, 20)
+                hallSelector
+                    .padding(.horizontal, 20)
 
-                    content
-                }
-                .padding(.top, 4)
-                .padding(.bottom, 32)
+                content
             }
-            .statusBarBackdrop()
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.screen, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search today's dishes"
-            )
-            .refreshable { await refresh() }
-            .task {
-                await store.loadLocations()
-                // Failed feeds leave locations.value nil — still settle pending links.
-                applyPendingDeepLinkIfNeeded()
+            .padding(.top, 8)
+            .padding(.bottom, 32)
+        }
+        .statusBarBackdrop()
+        .refreshable { await refresh() }
+        .task {
+            await store.loadLocations()
+            // Failed feeds leave locations.value nil — still settle pending links.
+            applyPendingDeepLinkIfNeeded()
+        }
+        .task(id: menuTaskID) {
+            await loadCurrentMenu()
+            considerAutoMealActivity()
+            applyScreenshotLaunchArgsIfNeeded()
+            openPendingDishIfPossible()
+        }
+        .task(id: browsePeriodsTaskID) {
+            guard let date = selectedDate else { return }
+            await store.loadDayPeriods(hall: selectedHall, dateISO: date)
+            syncPeriodSelection()
+            applyPendingDeepLinkIfNeeded()
+        }
+        .task(id: boundaryWatchID) {
+            await watchMealBoundaries()
+        }
+        .onChange(of: store.locations.value) {
+            syncPeriodSelection()
+            considerAutoMealActivity()
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onChange(of: store.publishedDateRange) { syncDateSelection() }
+        .onChange(of: selectedHall) {
+            // Do not clear pinnedDeepLinkPeriod here — deep-link apply also
+            // sets hall, and deferred onChange would wipe the meal pin and
+            // snap ended Lunch → Dinner. User hall taps clear the pin.
+            allDayExpanded = false
+            syncPeriodSelection()
+            considerAutoMealActivity()
+        }
+        .onChange(of: selectedDate) {
+            // After-hours Today clears the pill; moving to a future day must
+            // snap Breakfast (or first primary) so DayStrip / Menu Drop don't
+            // land on "No menu yet" with selectedPeriod == nil.
+            // Same as hall: deep links force today / future ISO — don't clear
+            // the meal pin from this onChange.
+            allDayExpanded = false
+            syncPeriodSelection()
+        }
+        .onChange(of: selectedPeriod) { _, newPeriod in
+            allDayExpanded = false
+            if let pinned = pinnedDeepLinkPeriod, newPeriod != pinned {
+                pinnedDeepLinkPeriod = nil
             }
-            .task(id: menuTaskID) {
-                await loadCurrentMenu()
-                considerAutoMealActivity()
-                applyScreenshotLaunchArgsIfNeeded()
-                openPendingDishIfPossible()
-            }
-            .task(id: browsePeriodsTaskID) {
-                guard let date = selectedDate else { return }
-                await store.loadDayPeriods(hall: selectedHall, dateISO: date)
-                syncPeriodSelection()
-                applyPendingDeepLinkIfNeeded()
-            }
-            .task(id: boundaryWatchID) {
-                await watchMealBoundaries()
-            }
-            .onChange(of: store.locations.value) {
-                syncPeriodSelection()
-                considerAutoMealActivity()
-                applyPendingDeepLinkIfNeeded()
-            }
-            .onChange(of: store.publishedDateRange) { syncDateSelection() }
-            .onChange(of: selectedHall) {
-                // Do not clear pinnedDeepLinkPeriod here — deep-link apply also
-                // sets hall, and deferred onChange would wipe the meal pin and
-                // snap ended Lunch → Dinner. User hall taps clear the pin.
-                allDayExpanded = false
-                syncPeriodSelection()
-                considerAutoMealActivity()
-            }
-            .onChange(of: selectedDate) {
-                // After-hours Today clears the pill; moving to a future day must
-                // snap Breakfast (or first primary) so DayStrip / Menu Drop don't
-                // land on "No menu yet" with selectedPeriod == nil.
-                // Same as hall: deep links force today / future ISO — don't clear
-                // the meal pin from this onChange.
-                allDayExpanded = false
-                syncPeriodSelection()
-            }
-            .onChange(of: selectedPeriod) { _, newPeriod in
-                allDayExpanded = false
-                if let pinned = pinnedDeepLinkPeriod, newPeriod != pinned {
-                    pinnedDeepLinkPeriod = nil
-                }
-            }
-            .onChange(of: pendingDeepLink) {
-                applyPendingDeepLinkIfNeeded()
-            }
-            .onAppear {
-                syncPeriodSelection()
+        }
+        .onChange(of: pendingDeepLink) {
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onAppear {
+            syncPeriodSelection()
+            syncDateSelection()
+            considerAutoMealActivity()
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Overnight warm launch: drop stale Dinner once Irvine is past last meal.
+            if phase == .active {
                 syncDateSelection()
+                syncPeriodSelection()
                 considerAutoMealActivity()
-                applyPendingDeepLinkIfNeeded()
+                boundaryEpoch += 1
             }
-            .onChange(of: scenePhase) { _, phase in
-                // Overnight warm launch: drop stale Dinner once Irvine is past last meal.
-                if phase == .active {
-                    syncDateSelection()
-                    syncPeriodSelection()
-                    considerAutoMealActivity()
-                    boundaryEpoch += 1
+        }
+        .sheet(item: $selectedDish) { dish in
+            // Plate CTA only for today — future menus are browse-only.
+            DishDetailSheet(
+                dish: dish,
+                prefs: prefs,
+                plate: selectedDate == nil ? plate : nil
+            )
+        }
+        .sheet(isPresented: $showDietFilters) {
+            DietFilterSheet(prefs: prefs)
+        }
+        .sheet(isPresented: $showPlate) {
+            PlateSheet(plate: plate)
+        }
+        // Plate access: full tally on today when filled; quiet chip otherwise;
+        // browse-ahead keeps today's plate visible without implying add works.
+        .safeAreaInset(edge: .bottom) {
+            if selectedDate == nil {
+                if plate.isEmpty {
+                    EmptyView()
+                } else {
+                    plateTallyBar
                 }
-            }
-            .sheet(item: $selectedDish) { dish in
-                // Plate CTA only for today — future menus are browse-only.
-                DishDetailSheet(
-                    dish: dish,
-                    prefs: prefs,
-                    plate: selectedDate == nil ? plate : nil
-                )
-            }
-            .sheet(isPresented: $showDietFilters) {
-                DietFilterSheet(prefs: prefs)
-            }
-            .sheet(isPresented: $showPlate) {
-                PlateSheet(plate: plate)
-            }
-            // Plate access: full tally on today when filled; quiet chip otherwise;
-            // browse-ahead keeps today's plate visible without implying add works.
-            .safeAreaInset(edge: .bottom) {
-                if selectedDate == nil {
-                    if plate.isEmpty {
-                        EmptyView()
-                    } else {
-                        plateTallyBar
-                    }
-                } else if !plate.isEmpty {
-                    browseAheadPlateBar
-                }
+            } else if !plate.isEmpty {
+                browseAheadPlateBar
             }
         }
     }
@@ -272,14 +262,6 @@ struct DiningView: View {
     /// Irvine day-rollover epoch changes.
     private var menuTaskID: String {
         "\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")|\(store.dayEpoch)"
-    }
-
-    private var trimmedQuery: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var hasActiveFilter: Bool {
-        prefs.hasActiveMenuFilters || !trimmedQuery.isEmpty
     }
 
     // MARK: - Sections
@@ -452,47 +434,29 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width segmented hall control — all halls visible, no sideways scroll.
-    /// Status (starts in / closes in / Coming Soon) sits under the selection.
+    /// Equal-width 3-up hall cards — all visible, no sideways scroll.
+    /// Large rounded boxes (old card energy) with status inside each card.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                if let locations, !locations.isEmpty {
-                    ForEach(locations) { location in
-                        hallSegment(for: location)
-                    }
-                } else {
-                    SkeletonCard(height: 34)
-                    SkeletonCard(height: 34)
-                    SkeletonCard(height: 34)
+        HStack(spacing: 8) {
+            if let locations, !locations.isEmpty {
+                ForEach(locations) { location in
+                    hallCard(for: location)
                 }
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Dining hall")
-
-            if let selected = selectedLocation {
-                let status = HallChromeStatus.resolve(for: selected)
-                Text(status.text)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(status.tint)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                    .accessibilityLabel(
-                        DiningHallCardAccessibilityLabel.label(
-                            name: selected.name,
-                            isOpen: selected.isServing(nowMinutes: UCITime.nowMinutes()),
-                            statusLine: status.text,
-                            occupancyPercent: nil
-                        )
-                    )
+            } else {
+                SkeletonCard(height: 78)
+                SkeletonCard(height: 78)
+                SkeletonCard(height: 78)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Dining hall")
     }
 
-    private func hallSegment(for location: DiningLocation) -> some View {
+    private func hallCard(for location: DiningLocation) -> some View {
         let isSelected = location.id == selectedHall
+        let status = HallChromeStatus.resolve(for: location)
         return Button {
             guard location.id != selectedHall else { return }
             pinnedDeepLinkPeriod = nil
@@ -501,27 +465,43 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            Text(HallDirectory.compactName(for: location.id))
-                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(
-                    isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
-                    in: RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous)
-                        .strokeBorder(
-                            isSelected ? Color.uciBlue.opacity(0.4) : Color.cardBorder,
-                            lineWidth: isSelected ? 1.5 : 1
-                        )
-                )
+            VStack(alignment: .leading, spacing: 6) {
+                Text(HallDirectory.compactName(for: location.id))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(status.text)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(status.tint)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
+            .background(
+                isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.uciBlue.opacity(0.45) : Color.cardBorder,
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
+            )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(location.name)
+        .accessibilityLabel(
+            DiningHallCardAccessibilityLabel.label(
+                name: location.name,
+                isOpen: location.isServing(nowMinutes: UCITime.nowMinutes()),
+                statusLine: status.text,
+                occupancyPercent: nil
+            )
+        )
         .accessibilityHint("Shows this dining hall's menu")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
@@ -610,7 +590,7 @@ struct DiningView: View {
             let stations = filteredStations(menu)
             if stations.isEmpty {
                 if let copy = EatFilterEmptyCopy.resolve(
-                    hasSearch: !trimmedQuery.isEmpty,
+                    hasSearch: false,
                     hasMenuFilters: prefs.hasActiveMenuFilters
                 ) {
                     EmptyStateView(
@@ -619,15 +599,7 @@ struct DiningView: View {
                         message: copy.message,
                         actionTitle: copy.actionTitle,
                         retry: {
-                            switch copy.action {
-                            case .clearSearch:
-                                searchText = ""
-                            case .clearFilters:
-                                prefs.clearMenuFilters()
-                            case .clearBoth:
-                                prefs.clearMenuFilters()
-                                searchText = ""
-                            }
+                            prefs.clearMenuFilters()
                             Haptics.selection()
                         }
                     )
@@ -881,11 +853,7 @@ struct DiningView: View {
     // MARK: - Filtering
 
     private func matches(_ item: MenuItem) -> Bool {
-        guard prefs.matchesMenuFilters(item) else { return false }
-        let query = trimmedQuery
-        guard !query.isEmpty else { return true }
-        if item.name.localizedCaseInsensitiveContains(query) { return true }
-        return item.description?.localizedCaseInsensitiveContains(query) ?? false
+        prefs.matchesMenuFilters(item)
     }
 
     private func filteredStations(_ menu: DiningMenu) -> [MenuStation] {
@@ -1110,8 +1078,6 @@ struct DiningView: View {
             $0.name.caseInsensitiveCompare(name) == .orderedSame
         }) {
             selectedDish = item
-        } else {
-            searchText = name
         }
         pendingDishName = nil
     }
@@ -1397,10 +1363,9 @@ struct DietFilterSheet: View {
     }
 }
 
-// MARK: - Hall status under the segmented control
+// MARK: - Hall status inside 3-up cards
 
-/// Status copy for the selected hall — lives under the 3-up segments, not
-/// inside giant cards (Atharv: kill the carousel).
+/// Status copy for each hall card (starts in / closes in / Coming Soon).
 private enum HallChromeStatus {
     static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
         if let comingSoon = location.comingSoonSubtitle {
