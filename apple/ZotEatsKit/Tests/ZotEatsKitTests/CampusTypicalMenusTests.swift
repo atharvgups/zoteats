@@ -24,8 +24,31 @@ struct CampusTypicalMenusTests {
             ) == .zotNGo
         )
         #expect(
-            CampusTypicalMenus.kind(forPlaceID: "halal-shack", placeName: "Halal Shack") == nil
+            CampusTypicalMenus.kind(
+                forPlaceID: "halal-shack",
+                placeName: "Halal Shack"
+            ) == .halalShack
         )
+    }
+
+    @Test func halalShackCarriesHonestBannerAndHalalTags() {
+        let stations = CampusTypicalMenus.stations(
+            forPlaceID: "halal-shack",
+            placeName: "Halal Shack"
+        )
+        #expect(stations != nil)
+        #expect(CampusTypicalMenus.isTypical(stations ?? []))
+        #expect(stations?.first?.name == CampusTypicalMenus.bannerStationName)
+        let food = (stations ?? []).filter { $0.name != CampusTypicalMenus.bannerStationName }
+        let items = food.flatMap(\.items)
+        #expect(items.contains { $0.name.localizedCaseInsensitiveContains("chicken over rice") })
+        #expect(items.contains { $0.dietaryTags.contains("Halal") })
+        let vegan = MenuFilterMatching.filterStations(
+            food,
+            dietFilters: ["Vegan"],
+            allergenAvoids: []
+        )
+        #expect(vegan.flatMap(\.items).contains { $0.name.localizedCaseInsensitiveContains("falafel") })
     }
 
     @Test func stationsCarryHonestBanner() {

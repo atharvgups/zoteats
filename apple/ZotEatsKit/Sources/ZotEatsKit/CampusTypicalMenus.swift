@@ -40,6 +40,7 @@ public enum CampusTypicalMenus {
         case greensToGo
         case bAndF
         case javaCity
+        case halalShack
 
         var stations: [MenuStation] {
             switch self {
@@ -57,6 +58,7 @@ public enum CampusTypicalMenus {
             case .greensToGo: return Self.greensToGoStations
             case .bAndF: return Self.bAndFStations
             case .javaCity: return Self.javaCityStations
+            case .halalShack: return Self.halalShackStations
             }
         }
 
@@ -215,6 +217,26 @@ public enum CampusTypicalMenus {
             ]),
         ]
 
+        private static let halalShackStations: [MenuStation] = [
+            station("Plates", [
+                item("Chicken over rice", tags: ["Halal"]),
+                item("Lamb over rice", tags: ["Halal"]),
+                item("Combo over rice", tags: ["Halal"]),
+                item("Falafel over rice", tags: ["Halal", "Vegan", "Vegetarian"]),
+            ]),
+            station("Wraps & sandwiches", [
+                item("Chicken gyro", tags: ["Halal"]),
+                item("Lamb gyro", tags: ["Halal"]),
+                item("Falafel wrap", tags: ["Halal", "Vegan", "Vegetarian"]),
+                item("Chicken sandwich", tags: ["Halal"]),
+            ]),
+            station("Sides & extras", [
+                item("White sauce"), item("Hot sauce"),
+                item("Side salad", tags: ["Vegan", "Vegetarian"]),
+                item("Fountain drink"),
+            ]),
+        ]
+
         private static func item(_ name: String, tags: [String] = []) -> (String, [String]) {
             (name, tags)
         }
@@ -264,6 +286,7 @@ public enum CampusTypicalMenus {
             return .bAndF
         }
         if hay.contains("java-city") || hay.contains("java city") { return .javaCity }
+        if hay.contains("halal-shack") || hay.contains("halal shack") { return .halalShack }
         return nil
     }
 
