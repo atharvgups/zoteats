@@ -359,9 +359,10 @@ struct DiningView: View {
         )
     }
 
-    /// Compact inline chip — short "Plate" label so the dates row never clips.
+    /// Compact inline chip — idle like Filters; blue only while the plate sheet is open.
     private var myPlateChip: some View {
-        Button {
+        let active = showPlate
+        return Button {
             showPlate = true
             Haptics.selection()
         } label: {
@@ -369,14 +370,20 @@ struct DiningView: View {
                 Image(systemName: "fork.knife.circle")
                     .font(.system(size: 13, weight: .semibold))
                 Text("Plate")
-                    .font(ZotFont.pill.weight(.semibold))
+                    .font(ZotFont.pill.weight(active ? .semibold : .medium))
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Color.uciBlue.opacity(0.1), in: Capsule())
-            .foregroundStyle(Color.uciBlue)
+            .background(
+                active ? Color.uciBlue.opacity(0.12) : Color.card,
+                in: Capsule()
+            )
+            .foregroundStyle(active ? Color.uciBlue : Color.primary)
             .overlay(
-                Capsule().strokeBorder(Color.uciBlue.opacity(0.28), lineWidth: 1)
+                Capsule().strokeBorder(
+                    active ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    lineWidth: 1
+                )
             )
         }
         .buttonStyle(.plain)
@@ -431,19 +438,19 @@ struct DiningView: View {
     }
 
     /// Equal-width 3-up hall cards — all visible, no sideways scroll.
-    /// Large rounded boxes (old card energy) with status inside each card.
+    /// Big presence like the old two-up cards (taller, roomy padding, larger type).
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             if let locations, !locations.isEmpty {
                 ForEach(locations) { location in
                     hallCard(for: location)
                 }
             } else {
-                SkeletonCard(height: 78)
-                SkeletonCard(height: 78)
-                SkeletonCard(height: 78)
+                SkeletonCard(height: 112)
+                SkeletonCard(height: 112)
+                SkeletonCard(height: 112)
             }
         }
         .accessibilityElement(children: .contain)
@@ -461,22 +468,23 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(isSelected ? Color.uciBlue : .primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.7)
                 Text(status.text)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(status.tint)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.75)
+                    .minimumScaleFactor(0.8)
                     .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
             .background(
                 isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
