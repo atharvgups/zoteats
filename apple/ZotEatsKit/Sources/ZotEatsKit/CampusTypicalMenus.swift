@@ -64,17 +64,25 @@ public enum CampusTypicalMenus {
 
         private static let starbucksStations: [MenuStation] = [
             station("Espresso drinks", [
-                item("Caffè Latte"), item("Cappuccino"), item("Americano"),
-                item("Flat White"), item("Espresso"), item("Caffè Mocha"),
+                item("Caffè Latte", tags: ["Vegetarian"]),
+                item("Cappuccino", tags: ["Vegetarian"]),
+                item("Americano", tags: ["Vegan", "Vegetarian"]),
+                item("Flat White", tags: ["Vegetarian"]),
+                item("Espresso", tags: ["Vegan", "Vegetarian"]),
+                item("Caffè Mocha", tags: ["Vegetarian"]),
             ]),
             station("Brewed & iced", [
-                item("Pike Place Roast"), item("Cold Brew"),
-                item("Iced Coffee"), item("Iced Tea"),
+                item("Pike Place Roast", tags: ["Vegan", "Vegetarian"]),
+                item("Cold Brew", tags: ["Vegan", "Vegetarian"]),
+                item("Iced Coffee", tags: ["Vegan", "Vegetarian"]),
+                item("Iced Tea", tags: ["Vegan", "Vegetarian"]),
+                item("Starbucks Refreshers", tags: ["Vegan", "Vegetarian"]),
             ]),
-            station("Other", [
-                item("Hot Chocolate"),
-                item("Refreshers (ask barista)"),
-                item("Bakery case items"),
+            station("Blended & bakery", [
+                item("Frappuccino (ask flavors)", tags: ["Vegetarian"]),
+                item("Hot Chocolate", tags: ["Vegetarian"]),
+                item("Breakfast sandwich"),
+                item("Bakery case (pastries / cake pops)", tags: ["Vegetarian"]),
             ]),
         ]
 
@@ -82,12 +90,14 @@ public enum CampusTypicalMenus {
             station("Entrees", [
                 item("Orange Chicken"), item("Beijing Beef"), item("Broccoli Beef"),
                 item("Kung Pao Chicken"), item("Grilled Teriyaki Chicken"),
-                item("Honey Walnut Shrimp"),
+                item("Honey Walnut Shrimp"), item("Mushroom Chicken"),
+                item("Black Pepper Angus Steak"),
             ]),
             station("Sides", [
                 item("Fried Rice"), item("Chow Mein"),
                 item("Super Greens", tags: ["Vegan", "Vegetarian"]),
                 item("White Steamed Rice", tags: ["Vegan", "Vegetarian"]),
+                item("Brown Steamed Rice", tags: ["Vegan", "Vegetarian"]),
             ]),
             station("Appetizers", [
                 item("Chicken Egg Roll"),
@@ -101,7 +111,13 @@ public enum CampusTypicalMenus {
                 item("Italian B.M.T."), item("Turkey Breast"), item("Tuna"),
                 item("Veggie Delite", tags: ["Vegan", "Vegetarian"]),
                 item("Spicy Italian"), item("Meatball Marinara"),
-                item("Chicken Teriyaki"),
+                item("Chicken Teriyaki"), item("Steak & Cheese"),
+            ]),
+            station("Salads & wraps", [
+                item("Oven-Roasted Turkey Salad"),
+                item("Veggie Delite Salad", tags: ["Vegan", "Vegetarian"]),
+                item("Chicken & Bacon Ranch Wrap"),
+                item("Veggie Wrap", tags: ["Vegan", "Vegetarian"]),
             ]),
             station("Extras", [
                 item("Cookies"), item("Chips"), item("Fountain drink"),
@@ -110,19 +126,32 @@ public enum CampusTypicalMenus {
 
         private static let jambaStations: [MenuStation] = [
             station("Classic smoothies", [
-                item("Strawberries Wild"), item("Orange Dream Machine"),
-                item("Mango-a-go-go"), item("Caribbean Passion"), item("Razzmatazz"),
+                item("Strawberries Wild", tags: ["Vegetarian"]),
+                item("Orange Dream Machine", tags: ["Vegetarian"]),
+                item("Mango-a-go-go", tags: ["Vegan", "Vegetarian"]),
+                item("Caribbean Passion", tags: ["Vegan", "Vegetarian"]),
+                item("Razzmatazz", tags: ["Vegetarian"]),
             ]),
-            station("Other", [
-                item("Bowls (ask for today’s list)"),
-                item("Fresh-squeezed juices"),
+            station("Bowls", [
+                item("Acai Prima Bowl", tags: ["Vegetarian"]),
+                item("Chunky Strawberry Bowl", tags: ["Vegetarian"]),
+                item("Pitaya Island Bowl", tags: ["Vegan", "Vegetarian"]),
+            ]),
+            station("Juices & extras", [
+                item("Fresh-squeezed juices", tags: ["Vegan", "Vegetarian"]),
+                item("Boosts / energy shots"),
             ]),
         ]
 
         private static let zotNGoStations: [MenuStation] = [
             station("Grab & go", [
-                item("Breakfast sandwiches / burritos"), item("Fresh wraps"),
-                item("Sushi packs"), item("Prepared salads"), item("Pastries"),
+                item("Breakfast sandwiches / burritos"),
+                item("Fresh wraps"),
+                item("Veggie wrap", tags: ["Vegetarian"]),
+                item("Sushi packs"),
+                item("Prepared salads", tags: ["Vegetarian"]),
+                item("Yogurt / parfait", tags: ["Vegetarian"]),
+                item("Pastries"),
             ]),
             station("Market", [
                 item("Coffee (50¢ off with reusable cup)"), item("Cold drinks"),

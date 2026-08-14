@@ -132,4 +132,48 @@ struct CampusTypicalMenusTests {
         #expect(!filtered.isEmpty)
         #expect(filtered.flatMap(\.items).contains { $0.name.contains("Veggie") })
     }
+
+    @Test func coreChainPacksCarryLeftoverStationsAndDietTags() {
+        let starbucks = foodItems(
+            forPlaceID: "starbucks-at-student-center",
+            placeName: "Starbucks @ Student Center"
+        )
+        #expect(starbucks.contains { $0.name.localizedCaseInsensitiveContains("Frappuccino") })
+        #expect(starbucks.contains { $0.dietaryTags.contains("Vegan") })
+
+        let panda = foodItems(
+            forPlaceID: "panda-express-at-west-food-court",
+            placeName: "Panda Express"
+        )
+        #expect(panda.contains { $0.name.localizedCaseInsensitiveContains("Mushroom Chicken") })
+        #expect(panda.contains { $0.name.localizedCaseInsensitiveContains("Brown Steamed Rice") })
+
+        let subway = foodItems(
+            forPlaceID: "subway-at-west-food-court",
+            placeName: "Subway"
+        )
+        #expect(subway.contains { $0.name.localizedCaseInsensitiveContains("Salad") })
+        #expect(subway.contains { $0.name.localizedCaseInsensitiveContains("Wrap") })
+
+        let jamba = foodItems(
+            forPlaceID: "jamba-at-east-food-court",
+            placeName: "Jamba"
+        )
+        #expect(jamba.contains { $0.name.localizedCaseInsensitiveContains("Acai") })
+        #expect(jamba.contains { $0.dietaryTags.contains("Vegan") })
+
+        let zot = foodItems(
+            forPlaceID: "zot-n-go-market",
+            placeName: "Zot N Go Market"
+        )
+        #expect(zot.contains { $0.name.localizedCaseInsensitiveContains("parfait") })
+        #expect(zot.contains { $0.name.localizedCaseInsensitiveContains("Veggie wrap") })
+    }
+
+    private func foodItems(forPlaceID placeID: String, placeName: String) -> [MenuItem] {
+        let stations = CampusTypicalMenus.stations(forPlaceID: placeID, placeName: placeName) ?? []
+        return stations
+            .filter { $0.name != CampusTypicalMenus.bannerStationName }
+            .flatMap(\.items)
+    }
 }
