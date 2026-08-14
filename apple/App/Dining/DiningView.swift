@@ -355,11 +355,7 @@ struct DiningView: View {
         return EmptyStateView(
             icon: "building.2",
             title: "\(name) · Coming Soon",
-            message: """
-            Newest meal-plan dining hall at Mesa Court. Lunch and Dinner Mon–Fri \
-            (no breakfast, no to-go). Meal plans start Sept 21, 2026 — menus will \
-            appear here when UCI publishes them.
-            """
+            message: "Opens Sept 21 · Lunch & Dinner"
         )
     }
 
@@ -1365,40 +1361,34 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Status copy for each hall card (starts in / closes in / Coming Soon).
+/// Short card subtext — meal name only (Atharv: no “tomorrow · 7:15 AM” essays).
 private enum HallChromeStatus {
     static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
-        if let comingSoon = location.comingSoonSubtitle {
-            return (comingSoon, .secondary)
+        if location.comingSoonSubtitle != nil {
+            return ("Coming Soon", .secondary)
         }
         switch location.openState(nowMinutes: nowMinutes) {
-        case .open(let period, let closesAt):
-            let text = closesAt - nowMinutes <= 90
-                ? "\(period) · closes in \(UCITime.countdown(from: nowMinutes, to: closesAt))"
-                : "\(period) · until \(UCITime.format(minutes: closesAt % (24 * 60)))"
-            return (text, .openGreen)
-        case .openingLater(let period, let opensAt):
-            let text = opensAt - nowMinutes <= 90
-                ? "\(period) starts in \(UCITime.countdown(from: nowMinutes, to: opensAt))"
-                : "\(period) at \(UCITime.format(minutes: opensAt))"
-            return (text, .busyOrange)
+        case .open(let period, _):
+            return (mealLabel(period), .openGreen)
+        case .openingLater(let period, _):
+            return (mealLabel(period), .busyOrange)
         case .awaitingMoreMeals:
-            return ("More meals post later", .busyOrange)
+            return ("Later", .busyOrange)
         case .closedForToday:
-            if let open = location.opensTomorrowAtMinutes {
-                let meal = location.opensTomorrowPeriod ?? "Opens"
-                return ("\(meal) tomorrow · \(UCITime.format(minutes: open))", .secondary)
+            if let meal = location.opensTomorrowPeriod {
+                return (mealLabel(meal), .secondary)
             }
-            if let open = location.opensNextAtMinutes,
-               let weekday = location.opensNextWeekday,
-               !weekday.isEmpty {
-                let meal = location.opensNextPeriod ?? "Opens"
-                return ("\(meal) \(weekday) · \(UCITime.format(minutes: open))", .secondary)
+            if let meal = location.opensNextPeriod {
+                return (mealLabel(meal), .secondary)
             }
-            return ("Closed for today", .secondary)
+            return ("Closed", .secondary)
         case .unknown:
-            return (location.hoursLine(nowMinutes: nowMinutes), .secondary)
+            return ("Soon", .secondary)
         }
+    }
+
+    private static func mealLabel(_ live: String) -> String {
+        MealPeriodPill.canonical(live)
     }
 }
 

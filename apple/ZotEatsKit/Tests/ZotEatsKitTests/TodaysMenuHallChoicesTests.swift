@@ -64,7 +64,7 @@ struct TodaysMenuHallChoicesTests {
             availablePeriods: [],
             periods: [],
             hoursApproximate: true,
-            comingSoonSubtitle: "Coming Soon · Opens Sept 21"
+            comingSoonSubtitle: "Coming Soon"
         )
         let options = TodaysMenuHallChoices.options(from: [
             hall(id: "anteatery", name: "The Anteatery"),

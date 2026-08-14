@@ -89,7 +89,7 @@ struct DiningServiceTests {
         #expect(oasis.isComingSoon)
         #expect(oasis.availablePeriods.isEmpty)
         #expect(oasis.periods.isEmpty)
-        #expect(oasis.comingSoonSubtitle?.contains("Coming Soon") == true)
+        #expect(oasis.comingSoonSubtitle == "Coming Soon")
         #expect(HallDirectory.campusHubKey(for: oasis.id) == "the-oasis-dining-hall")
     }
 

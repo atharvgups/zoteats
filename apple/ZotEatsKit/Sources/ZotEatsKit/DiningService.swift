@@ -461,7 +461,7 @@ public struct DiningService: Sendable {
             availablePeriods: [],
             periods: [],
             hoursApproximate: true,
-            comingSoonSubtitle: "Coming Soon · Opens Sept 21"
+            comingSoonSubtitle: "Coming Soon"
         )
     }
 
