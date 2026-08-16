@@ -36,7 +36,7 @@ struct CampusView: View {
         let _ = boundaryEpoch
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                ScreenHeader(title: "Campus", subtitle: "Coffee, food, and markets", onSettings: openSettings)
+                ScreenHeader(title: "Campus", subtitle: "Cafés, courts, and markets", onSettings: openSettings)
 
                 filterBar
 

@@ -28,7 +28,7 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    ScreenHeader(title: "Settings", subtitle: "Make Anteats yours")
+                    ScreenHeader(title: "Settings", subtitle: "Appearance, alerts, widgets")
 
                     VStack(alignment: .leading, spacing: 12) {
                         appearanceCard
@@ -264,28 +264,29 @@ struct SettingsView: View {
     // MARK: - Widgets
 
     private var widgetsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Widgets")
                 .font(ZotFont.sectionTitle)
+                .foregroundStyle(Color.ink)
 
-            Text("Home Screen → Edit → Add Widget → Anteats.")
+            Text("Home Screen → Edit → Anteats")
                 .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.inkMuted)
 
-            VStack(alignment: .leading, spacing: 6) {
-                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open halls + closes-in countdown")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Meal glance + Eat Filters hint")
-                widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on today’s board")
-                widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés and markets open now")
-                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy glance")
+            VStack(alignment: .leading, spacing: 8) {
+                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open halls + closes-in")
+                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Meal glance + filters")
+                widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on the board")
+                widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés open right now")
+                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy")
             }
 
-            Text("Tip: open Eat once after install so Today’s Menu / Favorites can read today’s board from the app, then long-press a blank widget → Edit Widget / Remove and re-add if it still looks redacted.")
+            Text("Open Eat once after install so menu widgets can load.")
                 .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                .foregroundStyle(Color.inkMuted)
+                .padding(.top, 2)
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }

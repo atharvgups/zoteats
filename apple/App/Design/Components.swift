@@ -99,7 +99,7 @@ struct PillRow<Item: Hashable>: View {
     private func pill(_ item: Item) -> some View {
         let isSelected = selection == item
         let button = Button {
-            withAnimation(.snappy(duration: 0.25)) {
+            withAnimation(ZotMotion.select) {
                 selection = (isSelected && allowsDeselect) ? nil : item
             }
             Haptics.selection()
@@ -108,15 +108,15 @@ struct PillRow<Item: Hashable>: View {
                 .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .padding(.horizontal, fillsWidth ? 8 : 14)
-                .padding(.vertical, fillsWidth ? 7 : 8)
+                .padding(.vertical, fillsWidth ? 8 : 9)
                 .background(
-                    isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
+                    isSelected ? Color.selectWash : Color.card,
                     in: Capsule()
                 )
-                .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
                 .overlay(
                     Capsule().strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                        isSelected ? Color.uciBlue.opacity(0.28) : Color.cardBorder,
                         lineWidth: 1
                     )
                 )
@@ -251,16 +251,21 @@ struct EmptyStateView: View {
     var secondaryRetry: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 36, weight: .ultraLight, design: .rounded))
+                .foregroundStyle(Color.inkMuted)
+                .frame(width: 64, height: 64)
+                .background(Color.uciGold.opacity(0.14), in: Circle())
             Text(title)
-                .font(ZotFont.sectionTitle)
+                .font(ZotFont.cardTitle)
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.center)
             Text(message)
                 .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.inkMuted)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             if retry != nil || secondaryRetry != nil {
                 VStack(spacing: 8) {
                     if let retry {
@@ -274,12 +279,12 @@ struct EmptyStateView: View {
                             .tint(.secondary)
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
-        .padding(.horizontal, 24)
+        .padding(.vertical, 52)
+        .padding(.horizontal, 28)
     }
 }
 
@@ -292,26 +297,29 @@ struct ScreenHeader: View {
     var onSettings: (() -> Void)?
 
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(ZotFont.hero())
+                    .foregroundStyle(Color.ink)
+                    .tracking(-0.4)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(Color.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             if let onSettings {
                 Button {
                     onSettings()
                     Haptics.selection()
                 } label: {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 34, height: 34)
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.inkMuted)
+                        .frame(width: 36, height: 36)
                         .glassIconCircle()
                 }
                 .buttonStyle(.plain)
@@ -320,6 +328,7 @@ struct ScreenHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
+        .padding(.bottom, 2)
     }
 }
 

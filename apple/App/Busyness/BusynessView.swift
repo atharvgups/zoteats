@@ -32,7 +32,7 @@ struct BusynessView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ScreenHeader(title: "Study", subtitle: "Find a quiet library spot", onSettings: openSettings)
+                    ScreenHeader(title: "Study", subtitle: "Where it’s calm right now", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
@@ -218,45 +218,54 @@ struct QuietestNowCard: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "sparkles")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.uciGold)
-                .frame(width: 38, height: 38)
-                .background(Color.uciGold.opacity(0.14), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+                .frame(width: 40, height: 40)
+                .background(
+                    Color.uciGold.opacity(0.16),
+                    in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("QUIETEST LIBRARY")
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(0.6)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("QUIETEST RIGHT NOW")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .tracking(0.8)
+                    .foregroundStyle(Color.inkMuted)
                 Text(pick.title)
                     .font(ZotFont.cardTitle)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.ink)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
             }
 
             Spacer(minLength: 8)
 
-
-            VStack(spacing: 0) {
+            VStack(spacing: 1) {
                 Text("\(pick.percent)%")
-                    .font(.system(size: 21, weight: .bold))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(Color.uciBlue)
                 Text("full")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.inkMuted)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            Color.uciBlue.opacity(0.06),
+            LinearGradient(
+                colors: [
+                    Color.uciBlue.opacity(0.08),
+                    Color.uciGold.opacity(0.07),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
             in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
         )
         .overlay(
             RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                .strokeBorder(Color.uciBlue.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Color.uciBlue.opacity(0.18), lineWidth: 1)
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -281,22 +290,25 @@ struct QuietestClosedCard: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "moon.zzz.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 38, height: 38)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.inkMuted)
+                .frame(width: 40, height: 40)
+                .background(
+                    Color.primary.opacity(0.05),
+                    in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("QUIETEST LIBRARY")
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(0.6)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("QUIETEST RIGHT NOW")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .tracking(0.8)
+                    .foregroundStyle(Color.inkMuted)
                 Text(QuietestLibraryGlance.closedTitle)
                     .font(ZotFont.cardTitle)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.ink)
                 Text(detail)
                     .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -305,8 +317,12 @@ struct QuietestClosedCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            Color.primary.opacity(0.04),
+            Color.card,
             in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                .strokeBorder(Color.cardBorder, lineWidth: 1)
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(QuietestLibraryGlance.closedTitle). \(detail)")
@@ -654,7 +670,7 @@ struct BusynessZoneRowView: View {
 #Preview("Facility cards") {
     ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-            ScreenHeader(title: "Study", subtitle: "Find a quiet library spot")
+            ScreenHeader(title: "Study", subtitle: "Where it’s calm right now")
             VStack(alignment: .leading, spacing: 16) {
                 BusynessGroupSection(
                     category: "Library",

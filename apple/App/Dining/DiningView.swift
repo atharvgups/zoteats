@@ -463,19 +463,19 @@ struct DiningView: View {
         return Button {
             guard location.id != selectedHall else { return }
             pinnedDeepLinkPeriod = nil
-            withAnimation(.snappy(duration: 0.25)) {
+            withAnimation(ZotMotion.select) {
                 selectedHall = location.id
             }
             Haptics.selection()
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text(status.text)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(status.tint)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
@@ -486,16 +486,17 @@ struct DiningView: View {
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
             .background(
-                isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                isSelected ? Color.selectWash : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.45) : Color.cardBorder,
-                        lineWidth: isSelected ? 1.5 : 1
+                        isSelected ? Color.uciBlue.opacity(0.32) : Color.cardBorder,
+                        lineWidth: 1
                     )
             )
+            .shadow(color: isSelected ? Color.uciBlue.opacity(0.08) : .clear, radius: 8, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
@@ -1154,10 +1155,10 @@ struct DiningView: View {
     /// Time-of-day greeting on UCI's clock.
     static func greeting() -> String {
         switch UCITime.hour() {
-        case ..<4: "Late night, Anteater"
-        case ..<12: "Good morning, Anteater"
-        case ..<17: "Good afternoon, Anteater"
-        default: "Good evening, Anteater"
+        case ..<4: "Still hungry, Anteater?"
+        case ..<12: "What’s for breakfast?"
+        case ..<17: "What’s on the board?"
+        default: "Dinner plans, Anteater?"
         }
     }
 
