@@ -32,15 +32,16 @@ struct DiningView: View {
     @State private var boundaryEpoch = 0
     @Environment(\.scenePhase) private var scenePhase
 
-    /// All published days the feed currently exposes (often a week+ ahead).
-    /// Clamped to `/dateRange.latest` so empty 404 days never appear.
+    /// Today plus future days that actually have a posted board for this hall.
+    /// `/dateRange` is a window — Tue/Wed can be empty while Thursday is live.
     private var upcomingDays: [(isoDate: String, label: String)] {
+        let today = UCITime.todayISO()
         let candidates = UCITime.upcomingDays(count: 21)
-        guard let latest = store.publishedDateRange?.latest else {
-            return Array(candidates.prefix(7))
-        }
-        let visible = candidates.filter { $0.isoDate <= latest }
-        return visible.isEmpty ? Array(candidates.prefix(1)) : visible
+        return EatPostedDays.visible(
+            candidates: candidates,
+            todayISO: today,
+            postedISOs: store.postedMenuDates[selectedHall]
+        )
     }
 
     /// Timed windows for the board in view — tomorrow's schedule when browsing ahead.
@@ -635,8 +636,14 @@ struct DiningView: View {
                         icon: "moon.zzz",
                         title: "No menu posted yet",
                         message: selectedDate == nil
-                            ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
-                            : "UCI hasn't released this day's menu in the dining feed yet. Posted days stay in the date strip — check back as they go live."
+                            ? EatBrowseEmptyCopy.message(
+                                period: menu.period,
+                                browsingFutureDay: false
+                            )
+                            : EatBrowseEmptyCopy.message(
+                                period: menu.period,
+                                browsingFutureDay: true
+                            )
                     )
                 }
             } else {
@@ -1239,7 +1246,7 @@ private struct DayStrip: View {
                     .accessibilityHidden(true)
             }
         }
-        .accessibilityLabel("Menu day, swipe for more days")
+        .accessibilityLabel("Days with a menu")
     }
 }
 

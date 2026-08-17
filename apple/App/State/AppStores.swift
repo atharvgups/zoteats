@@ -31,6 +31,8 @@ final class DiningStore {
     var locations: LoadState<[DiningLocation]> = .idle
     /// Inclusive ISO window the feed currently publishes — clamps the day strip.
     private(set) var publishedDateRange: DiningService.PublishedDateRange?
+    /// Per-hall days that actually have a posted board (not every day in the window).
+    private(set) var postedMenuDates: [String: Set<String>] = [:]
     /// Keyed by "\(hallID)|\(period)|\(date ?? "today")".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
     /// Future-day meal windows keyed by "\(hallID)|\(dateISO)" — Eat pills/snap
@@ -53,6 +55,7 @@ final class DiningStore {
         }
         menus = menus.filter { !DiningDayMath.isLiveTodayMenuKey($0.key) }
         dayPeriods = [:]
+        postedMenuDates = [:]
         locationsDateISO = nil
         dayEpoch += 1
         return true
@@ -91,6 +94,25 @@ final class DiningStore {
         if let loaded = locations.value, !loaded.isEmpty {
             WidgetSnapshotStore.saveDiningLocations(loaded)
             WidgetReloader.reloadEatWidgets()
+        }
+        let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
+        for hall in halls {
+            await loadPostedMenuDates(hall: hall, forceRefresh: forceRefresh)
+        }
+    }
+
+    func loadPostedMenuDates(hall: String, forceRefresh: Bool = false) async {
+        let today = UCITime.todayISO()
+        let latest = publishedDateRange?.latest ?? today
+        let from = max(today, publishedDateRange?.earliest ?? today)
+        let dates = await service.postedMenuDates(
+            hall: hall,
+            fromISO: from,
+            throughISO: latest,
+            forceRefresh: forceRefresh
+        )
+        if postedMenuDates[hall] != dates {
+            postedMenuDates[hall] = dates
         }
     }
 

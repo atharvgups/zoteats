@@ -390,8 +390,9 @@ struct UpcomingDaysTests {
         #expect(days[0].label == "Today")
         #expect(days[1].isoDate == "2026-07-10")
         #expect(days[1].label == "Tomorrow")
-        #expect(days[2].label == "Sat 11")
+        #expect(days[2].label == "Sat Jul 11")
         #expect(days[3].isoDate == "2026-07-12")
+        #expect(UCITime.nextISO(after: "2026-08-19") == "2026-08-20")
     }
 }
 

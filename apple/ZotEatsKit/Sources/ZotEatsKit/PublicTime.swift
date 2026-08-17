@@ -59,13 +59,13 @@ public enum UCITime {
     }
 
     /// The next `count` days starting today (Irvine calendar), as
-    /// (isoDate: "2026-07-15", label: "Today" / "Thu 16" / ...).
+    /// (isoDate: "2026-07-15", label: "Today" / "Thu Jul 16" / ...).
     public static func upcomingDays(count: Int, now: Date = Date()) -> [(isoDate: String, label: String)] {
         let calendar = PacificTime.calendar
         let labelFormatter = DateFormatter()
         labelFormatter.timeZone = PacificTime.timeZone
         labelFormatter.locale = Locale(identifier: "en_US_POSIX")
-        labelFormatter.dateFormat = "EEE d"
+        labelFormatter.dateFormat = "EEE MMM d"
 
         return (0..<count).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
@@ -73,6 +73,18 @@ public enum UCITime {
             let label = offset == 0 ? "Today" : (offset == 1 ? "Tomorrow" : labelFormatter.string(from: day))
             return (iso, label)
         }
+    }
+
+    /// Next Irvine calendar day after an ISO date (`yyyy-MM-dd`).
+    public static func nextISO(after iso: String) -> String? {
+        let formatter = DateFormatter()
+        formatter.timeZone = PacificTime.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let day = formatter.date(from: iso),
+              let next = PacificTime.calendar.date(byAdding: .day, value: 1, to: day)
+        else { return nil }
+        return formatter.string(from: next)
     }
 
     /// Next Irvine midnight strictly after `now` — day-rollover widget reload.
