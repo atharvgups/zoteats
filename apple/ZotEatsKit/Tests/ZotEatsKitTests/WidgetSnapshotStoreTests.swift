@@ -15,7 +15,24 @@ struct WidgetSnapshotStoreTests {
         #expect(
             WidgetCountdownCopy.short(until: now.addingTimeInterval(90 * 60), now: now) == "1h 30m"
         )
-        #expect(WidgetCountdownCopy.closesLine(until: now.addingTimeInterval(60), now: now) == "closes 1m")
+        #expect(
+            WidgetCountdownCopy.closesLine(
+                until: now.addingTimeInterval(60),
+                now: now
+            ).hasPrefix("until ")
+        )
+        #expect(
+            WidgetCountdownCopy.opensLine(
+                until: now.addingTimeInterval(57 * 60),
+                now: now
+            ).hasPrefix("at ")
+        )
+        let thursday = ISO8601DateFormatter().date(from: "2026-07-16T18:15:00Z")! // Thu 11:15 AM PDT
+        let monday = ISO8601DateFormatter().date(from: "2026-07-13T03:00:00Z")! // Sun 8 PM PDT
+        let far = WidgetCountdownCopy.opensLine(until: thursday, now: monday)
+        #expect(!far.contains("opens"))
+        #expect(!far.contains("h "))
+        #expect(far.contains("11:15"))
     }
 
     @Test func diningRoundTripViaSuite() {

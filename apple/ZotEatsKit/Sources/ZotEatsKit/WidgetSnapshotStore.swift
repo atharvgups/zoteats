@@ -94,9 +94,8 @@ public enum WidgetSnapshotStore {
     }
 }
 
-/// Static countdown labels for Home Screen widgets — avoids `Text(timerInterval:)`
-/// which WidgetKit often treats as privacy-sensitive and can leave the whole
-/// glance stuck on redacted placeholder bars.
+/// Clock-first widget timing — never “opens 67h 57m”.
+/// Avoids `Text(timerInterval:)` which WidgetKit often redacts.
 public enum WidgetCountdownCopy {
     public static func short(until end: Date, now: Date = .now) -> String {
         let secs = max(0, Int(end.timeIntervalSince(now)))
@@ -110,12 +109,42 @@ public enum WidgetCountdownCopy {
         return "\(max(secs, 1))s"
     }
 
+    /// Pacific wall clock, e.g. "7:15 AM".
+    public static func clock(at date: Date) -> String {
+        UCITime.format(minutes: UCITime.nowMinutes(now: date))
+    }
+
     public static func closesLine(until end: Date, now: Date = .now) -> String {
-        "closes \(short(until: end, now: now))"
+        "until \(clock(at: end))"
     }
 
     public static func opensLine(until end: Date, now: Date = .now) -> String {
-        "opens \(short(until: end, now: now))"
+        let minutes = UCITime.nowMinutes(now: end)
+        let time = UCITime.format(minutes: minutes)
+        if isSameIrvineDay(end, now) {
+            return "at \(time)"
+        }
+        if isNextIrvineDay(end, now) {
+            return "tomorrow \(time)"
+        }
+        return "\(shortWeekday(end)) \(time)"
+    }
+
+    private static func isSameIrvineDay(_ date: Date, _ now: Date) -> Bool {
+        UCITime.todayISO(now: date) == UCITime.todayISO(now: now)
+    }
+
+    private static func isNextIrvineDay(_ date: Date, _ now: Date) -> Bool {
+        UCITime.upcomingDays(count: 2, now: now).dropFirst().first?.isoDate
+            == UCITime.todayISO(now: date)
+    }
+
+    private static func shortWeekday(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(identifier: "America/Los_Angeles")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date)
     }
 }
 

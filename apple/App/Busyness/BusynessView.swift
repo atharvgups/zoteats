@@ -170,6 +170,7 @@ struct BusynessView: View {
                 if !store.libraryHours.isEmpty {
                     LibraryHoursTodayCard(hours: store.libraryHours)
                 }
+                StudentCenterStudyCard()
                 ForEach(grouped, id: \.category) { group in
                     // A lone "Library" header under a tab named Study is noise;
                     // headers earn their place only when multiple categories report.
@@ -381,6 +382,63 @@ private struct LibraryHoursTodayCard: View {
             Color.primary.opacity(0.04),
             in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
         )
+    }
+}
+
+/// Hours-only Student Center study spaces — no fake Occuspace % while they recalibrate.
+private struct StudentCenterStudyCard: View {
+    private var spaces: [StudentCenterStudyHours.Space] {
+        StudentCenterStudyHours.spaces()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Student Center")
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(Color.inkMuted)
+                .textCase(.uppercase)
+                .tracking(0.4)
+                .accessibilityAddTraits(.isHeader)
+
+            ForEach(spaces) { space in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(space.name)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                        Text(space.location)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(space.isOpen ? "Open" : "Closed")
+                            .font(ZotFont.pill.weight(.semibold))
+                            .foregroundStyle(space.isOpen ? Color.openGreen : .secondary)
+                        Text(space.hours)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "\(space.name), \(space.isOpen ? "open" : "closed"), \(space.hours)"
+                )
+            }
+
+            Text(StudentCenterStudyHours.occupancyNote)
+                .font(ZotFont.caption)
+                .foregroundStyle(Color.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Link("Hours on studentcenter.uci.edu", destination: StudentCenterStudyHours.sourceURL)
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(Color.uciBlue)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
     }
 }
 
