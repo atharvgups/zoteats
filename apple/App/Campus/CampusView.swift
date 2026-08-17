@@ -214,11 +214,15 @@ struct CampusView: View {
     private var content: some View {
         switch store.places {
         case .idle, .loading:
-            VStack(spacing: 12) {
-                ForEach(0..<6, id: \.self) { _ in
-                    SkeletonCard(height: 64)
+            VStack(spacing: 0) {
+                ForEach(0..<8, id: \.self) { index in
+                    SkeletonCard(height: 44)
+                    if index < 7 {
+                        CampusListHairline()
+                    }
                 }
             }
+            .zotCard()
         case .failed(let message):
             EmptyStateView(
                 icon: "cup.and.saucer",
@@ -242,29 +246,35 @@ struct CampusView: View {
                     favoritesShelf(partition.favorites)
                 }
 
-                ForEach(brands, id: \.brand) { entry in
-                    if entry.places.count == 1 {
-                        CampusPlaceRow(
-                            place: entry.places[0],
-                            showBrandOnly: false,
-                            isFavorite: prefs.isCampusFavorite(entry.places[0].id),
-                            onToggleFavorite: { prefs.toggleCampusFavorite(entry.places[0].id) }
-                        ) {
-                            selectedPlace = entry.places[0]
-                            Haptics.selection()
+                VStack(spacing: 0) {
+                    ForEach(Array(brands.enumerated()), id: \.element.brand) { index, entry in
+                        if entry.places.count == 1 {
+                            CampusPlaceRow(
+                                place: entry.places[0],
+                                showBrandOnly: false,
+                                isFavorite: prefs.isCampusFavorite(entry.places[0].id),
+                                onToggleFavorite: { prefs.toggleCampusFavorite(entry.places[0].id) }
+                            ) {
+                                selectedPlace = entry.places[0]
+                                Haptics.selection()
+                            }
+                        } else {
+                            CampusBrandGroupRow(
+                                brand: entry.brand,
+                                places: entry.places,
+                                favoriteIDs: prefs.favoriteCampusPlaceIDs,
+                                onToggleFavorite: { prefs.toggleCampusFavorite($0) }
+                            ) { place in
+                                selectedPlace = place
+                                Haptics.selection()
+                            }
                         }
-                    } else {
-                        CampusBrandGroupRow(
-                            brand: entry.brand,
-                            places: entry.places,
-                            favoriteIDs: prefs.favoriteCampusPlaceIDs,
-                            onToggleFavorite: { prefs.toggleCampusFavorite($0) }
-                        ) { place in
-                            selectedPlace = place
-                            Haptics.selection()
+                        if index < brands.count - 1 {
+                            CampusListHairline()
                         }
                     }
                 }
+                .zotCard()
             }
         }
     }
@@ -367,9 +377,8 @@ struct CampusView: View {
                 .font(ZotFont.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
 
-            // Same full-height CampusPlaceRow as the main list — never mini-rows.
-            VStack(spacing: 14) {
-                ForEach(favorites) { place in
+            VStack(spacing: 0) {
+                ForEach(Array(favorites.enumerated()), id: \.element.id) { index, place in
                     CampusPlaceRow(
                         place: place,
                         showBrandOnly: false,
@@ -379,8 +388,12 @@ struct CampusView: View {
                         selectedPlace = place
                         Haptics.selection()
                     }
+                    if index < favorites.count - 1 {
+                        CampusListHairline()
+                    }
                 }
             }
+            .zotCard()
         }
         .padding(.bottom, 4)
         .animation(.snappy(duration: 0.25), value: prefs.favoriteCampusPlaceIDs)
@@ -397,6 +410,15 @@ struct CampusView: View {
 
 // MARK: - Expandable multi-location brand row
 
+private struct CampusListHairline: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.cardBorder)
+            .frame(height: 1)
+            .padding(.leading, 32)
+    }
+}
+
 private struct CampusBrandGroupRow: View {
     let brand: String
     let places: [CampusPlace]
@@ -408,6 +430,12 @@ private struct CampusBrandGroupRow: View {
 
     private var openCount: Int { places.filter(\.openNow).count }
 
+    private var statusLine: String {
+        if openCount == 0 { return "Closed" }
+        if openCount == places.count { return "Open" }
+        return "\(openCount) open"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
@@ -416,28 +444,29 @@ private struct CampusBrandGroupRow: View {
                 }
                 Haptics.selection()
             } label: {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(brand)
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text("\(places.count) locations")
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(openCount > 0 ? Color.openGreen : Color.secondary.opacity(0.35))
+                        .frame(width: 6, height: 6)
+                    Text(brand)
+                        .font(ZotFont.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text("\(places.count)")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
                     Spacer(minLength: 8)
-                    StatusPill(
-                        isOpen: openCount > 0,
-                        openText: openCount == places.count ? "Open" : "\(openCount) open",
-                        closedText: "Closed"
-                    )
+                    Text(statusLine)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(openCount > 0 ? Color.openGreen : Color.secondary)
+                        .lineLimit(1)
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
-                        .frame(width: 18, height: 18)
+                        .frame(width: 16, height: 16)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -446,84 +475,20 @@ private struct CampusBrandGroupRow: View {
             .accessibilityHint(isExpanded ? "Hides locations" : "Shows locations")
 
             if isExpanded {
-                VStack(spacing: 6) {
-                    ForEach(places) { place in
-                        // One continuous nested bar: name / hours / status / heart.
-                        HStack(spacing: 8) {
-                            Button {
-                                onOpen(place)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(place.openNow ? Color.openGreen : Color.secondary.opacity(0.35))
-                                        .frame(width: 6, height: 6)
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(place.locationDetail ?? place.name)
-                                            .font(ZotFont.caption.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        Text(place.hoursLine)
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer(minLength: 6)
-                                    Text("Menu")
-                                        .font(ZotFont.caption.weight(.semibold))
-                                        .foregroundStyle(Color.uciBlue)
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(
-                                CampusPlaceAccessibilityLabel.nested(
-                                    brand: brand,
-                                    locationDetail: place.locationDetail ?? place.name,
-                                    openNow: place.openNow,
-                                    hoursLine: place.hoursLine,
-                                    hasMenu: place.hasMenu
-                                )
-                            )
-                            .accessibilityHint(
-                                place.hasMenu ? "Opens menu" : "Opens hours and details"
-                            )
-
-                            Button {
-                                onToggleFavorite(place.id)
-                            } label: {
-                                Image(systemName: favoriteIDs.contains(place.id) ? "heart.fill" : "heart")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(
-                                        favoriteIDs.contains(place.id)
-                                            ? Color.uciBlue
-                                            : Color.secondary.opacity(0.45)
-                                    )
-                                    .frame(width: 28, height: 28)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(
-                                favoriteIDs.contains(place.id)
-                                    ? "Remove from Favorites"
-                                    : "Add to Favorites"
-                            )
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        // Closed tint covers the whole nested bar, including the heart.
-                        .background(
-                            Color.primary.opacity(place.openNow ? 0.04 : 0.09),
-                            in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                        )
-                        .opacity(place.openNow ? 1 : 0.78)
+                ForEach(places) { place in
+                    CampusListHairline()
+                    CampusPlaceRow(
+                        place: place,
+                        title: place.locationDetail ?? place.name,
+                        accessibilityBrand: brand,
+                        isFavorite: favoriteIDs.contains(place.id),
+                        onToggleFavorite: { onToggleFavorite(place.id) }
+                    ) {
+                        onOpen(place)
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 10)
-                .transition(.opacity)
             }
         }
-        .zotCard()
     }
 }
 
@@ -532,34 +497,34 @@ private struct CampusBrandGroupRow: View {
 private struct CampusPlaceRow: View {
     let place: CampusPlace
     var showBrandOnly = true
+    var title: String? = nil
+    var accessibilityBrand: String? = nil
     let isFavorite: Bool
     let onToggleFavorite: () -> Void
     let onOpen: () -> Void
 
+    private var displayName: String {
+        title ?? (showBrandOnly ? place.brand : place.name)
+    }
+
     var body: some View {
-        // One continuous card: name / hours / status / Menu / heart share chrome.
-        // No disclosure chevron — only brand groups expand.
         HStack(spacing: 8) {
             Button(action: onOpen) {
                 HStack(spacing: 8) {
                     Circle()
                         .fill(place.openNow ? Color.openGreen : Color.secondary.opacity(0.35))
                         .frame(width: 6, height: 6)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(showBrandOnly ? place.brand : place.name)
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        Text(place.hoursLine)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 6)
-                    Text("Menu")
-                        .font(ZotFont.caption.weight(.semibold))
-                        .foregroundStyle(Color.uciBlue)
+                    Text(displayName)
+                        .font(ZotFont.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Spacer(minLength: 8)
+                    Text(place.hoursLine)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
                 .contentShape(Rectangle())
             }
@@ -567,7 +532,7 @@ private struct CampusPlaceRow: View {
 
             Button(action: onToggleFavorite) {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(isFavorite ? Color.uciBlue : Color.secondary.opacity(0.45))
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
@@ -575,22 +540,32 @@ private struct CampusPlaceRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
-        .padding(.leading, 12)
+        .padding(.leading, 14)
         .padding(.trailing, 8)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .opacity(place.openNow ? 1 : 0.72)
-        .zotCard()
         .accessibilityIdentifier("campus-place-\(place.id)")
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(
-            CampusPlaceAccessibilityLabel.place(
-                name: place.name,
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(place.hasMenu ? "Opens menu" : "Opens hours and details")
+    }
+
+    private var accessibilityLabel: String {
+        if let accessibilityBrand {
+            return CampusPlaceAccessibilityLabel.nested(
+                brand: accessibilityBrand,
+                locationDetail: displayName,
                 openNow: place.openNow,
                 hoursLine: place.hoursLine,
                 hasMenu: place.hasMenu
             )
+        }
+        return CampusPlaceAccessibilityLabel.place(
+            name: place.name,
+            openNow: place.openNow,
+            hoursLine: place.hoursLine,
+            hasMenu: place.hasMenu
         )
-        .accessibilityHint(place.hasMenu ? "Opens menu" : "Opens hours and details")
     }
 }
 

@@ -393,18 +393,12 @@ private struct StudentCenterStudyCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Student Center")
-                    .font(ZotFont.caption.weight(.semibold))
-                    .foregroundStyle(Color.inkMuted)
-                    .textCase(.uppercase)
-                    .tracking(0.4)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Link(StudentCenterStudyHours.occupancyNote, destination: StudentCenterStudyHours.sourceURL)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(Color.uciBlue)
-            }
+            Text("Student Center")
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(Color.inkMuted)
+                .textCase(.uppercase)
+                .tracking(0.4)
+                .accessibilityAddTraits(.isHeader)
 
             ForEach(spaces) { space in
                 HStack(spacing: 8) {
@@ -420,6 +414,7 @@ private struct StudentCenterStudyCard: View {
                         .font(ZotFont.caption)
                         .foregroundStyle(Color.inkMuted)
                         .lineLimit(1)
+                        .layoutPriority(1)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
@@ -428,9 +423,12 @@ private struct StudentCenterStudyCard: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
+        .background(
+            Color.primary.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+        )
     }
 
     private func shortName(_ name: String) -> String {
