@@ -437,27 +437,33 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width 3-up hall cards — all visible, no sideways scroll.
-    /// Big presence like the old two-up cards (taller, roomy padding, larger type).
+    /// Live halls as two wide buttons (actually bigger). Coming Soon (Oasis)
+    /// sits as a short full-width strip so the row isn’t three tall skinny cards.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        HStack(spacing: 10) {
-            if let locations, !locations.isEmpty {
-                ForEach(locations) { location in
-                    hallCard(for: location)
+        let live = (locations ?? []).filter { !$0.isComingSoon }
+        let soon = (locations ?? []).filter(\.isComingSoon)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                if live.isEmpty, locations == nil {
+                    SkeletonCard(height: 76)
+                    SkeletonCard(height: 76)
+                } else {
+                    ForEach(live) { location in
+                        hallCard(for: location, compact: false)
+                    }
                 }
-            } else {
-                SkeletonCard(height: 112)
-                SkeletonCard(height: 112)
-                SkeletonCard(height: 112)
+            }
+            ForEach(soon) { location in
+                hallCard(for: location, compact: true)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Dining hall")
     }
 
-    private func hallCard(for location: DiningLocation) -> some View {
+    private func hallCard(for location: DiningLocation, compact: Bool) -> some View {
         let isSelected = location.id == selectedHall
         let status = HallChromeStatus.resolve(for: location)
         return Button {
@@ -468,23 +474,39 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(HallDirectory.compactName(for: location.id))
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(status.text)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(status.tint)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
+            Group {
+                if compact {
+                    HStack(spacing: 10) {
+                        Text(HallDirectory.compactName(for: location.id))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(status.text)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(status.tint)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(HallDirectory.compactName(for: location.id))
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                        Text(status.text)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(status.tint)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected ? Color.selectWash : Color.card,
                 in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
