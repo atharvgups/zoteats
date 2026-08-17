@@ -34,7 +34,7 @@ struct DiningView: View {
 
     /// Today plus future days that actually have a posted board for this hall.
     /// `/dateRange` is a window — Tue/Wed can be empty while Thursday is live.
-    private var upcomingDays: [(isoDate: String, label: String)] {
+    private var upcomingDays: [EatPostedDay] {
         let today = UCITime.todayISO()
         let candidates = UCITime.upcomingDays(count: 21)
         return EatPostedDays.visible(
@@ -657,7 +657,13 @@ struct DiningView: View {
         // section instead of floating between two.
         LazyVStack(alignment: .leading, spacing: 30) {
             HStack(spacing: 8) {
-                Text("\(menu.period) • \(prettyDate(menu.date))")
+                Text(
+                    EatPostedDays.browseCaption(
+                        period: menu.period,
+                        prettyDate: prettyDate(menu.date),
+                        skipsAhead: upcomingDays.contains { $0.isoDate == menu.date && $0.skipsAhead }
+                    )
+                )
                     .font(ZotFont.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
@@ -1206,14 +1212,24 @@ struct DiningView: View {
 /// Quiet text-button day selector — visually lighter than a pill row so the
 /// meal periods stay the primary control.
 private struct DayStrip: View {
-    let days: [(isoDate: String, label: String)]
+    let days: [EatPostedDay]
     @Binding var selection: String?
 
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(days, id: \.isoDate) { day in
+                HStack(spacing: 10) {
+                    ForEach(Array(days.enumerated()), id: \.element.isoDate) { index, day in
+                        if index > 0,
+                           EatPostedDays.skipsCalendarDays(
+                            from: days[index - 1].isoDate,
+                            to: day.isoDate
+                           ) {
+                            Text("···")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
+                        }
                         let isSelected = selection == day.isoDate
                         Button {
                             withAnimation(.snappy(duration: 0.25)) {
@@ -1232,7 +1248,7 @@ private struct DayStrip: View {
                             .fixedSize()
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Menu for \(day.label)")
+                        .accessibilityLabel(day.accessibilityLabel)
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
                 }
@@ -1246,7 +1262,11 @@ private struct DayStrip: View {
                     .accessibilityHidden(true)
             }
         }
-        .accessibilityLabel("Days with a menu")
+        .accessibilityLabel(
+            days.contains(where: \.skipsAhead)
+                ? "Days with a menu. Next board skips days that aren’t posted yet."
+                : "Days with a menu"
+        )
     }
 }
 
