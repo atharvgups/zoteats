@@ -13,6 +13,13 @@ public enum UCITime {
         PacificTime.formatMinutes(minutes)
     }
 
+    /// Tight widget clock — "8PM", "7:15AM".
+    public static func formatCompact(minutes: Int) -> String {
+        format(minutes: minutes)
+            .replacingOccurrences(of: ":00 ", with: "")
+            .replacingOccurrences(of: " ", with: "")
+    }
+
     /// Compact countdown between two minute marks: "45m" or "1h 10m".
     public static func countdown(from now: Int, to target: Int) -> String {
         let delta = max(0, target - now)

@@ -25,4 +25,9 @@ struct DiningStatusLayoutTests {
         #expect(DiningStatusLayout.statusFontSize(isCompact: false, hallCount: 3)
             < DiningStatusLayout.statusFontSize(isCompact: false, hallCount: 2))
     }
+
+    @Test func diningWidgetDoesNotBorrowStudyFooter() {
+        #expect(DiningStatusLayout.showsStudyFooter(isCompact: true) == false)
+        #expect(DiningStatusLayout.showsStudyFooter(isCompact: false) == false)
+    }
 }

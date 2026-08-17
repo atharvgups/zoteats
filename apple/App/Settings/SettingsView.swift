@@ -274,7 +274,7 @@ struct SettingsView: View {
                 .foregroundStyle(Color.inkMuted)
 
             VStack(alignment: .leading, spacing: 8) {
-                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Open halls + closes-in")
+                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Meal + until when")
                 widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Meal glance + filters")
                 widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on the board")
                 widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés open right now")

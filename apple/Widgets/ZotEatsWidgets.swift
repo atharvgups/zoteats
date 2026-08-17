@@ -34,10 +34,15 @@ private extension View {
     }
 }
 
-/// Dark ink + gold accent — Box Box Club glance, not flat UCI-blue slab.
+/// Dark ink + gold accent — leftover glances that still use the night slab.
 private let widgetInk = Color(red: 16 / 255, green: 16 / 255, blue: 18 / 255)
 private let widgetGold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
-private let widgetHair = Color.white.opacity(0.10)
+
+/// Warm paper for Dining Halls — matches the app, never a forced dark tile.
+private let widgetPaper = Color(red: 255 / 255, green: 246 / 255, blue: 230 / 255)
+private let widgetPaperInk = Color(red: 23 / 255, green: 19 / 255, blue: 16 / 255)
+private let widgetPaperMuted = Color(red: 97 / 255, green: 88 / 255, blue: 74 / 255)
+private let widgetPaperOpen = Color(red: 52 / 255, green: 178 / 255, blue: 51 / 255)
 
 // MARK: - "Meal ends soon" Live Activity
 
@@ -284,11 +289,10 @@ struct DiningStatusProvider: TimelineProvider {
         DiningStatusEntry(
             date: .now,
             halls: [
-                .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
-                .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
-                .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
-            ],
-            quietest: .open(name: "Science Library", percent: 12, facilityID: 2, updatedAt: .now)
+                .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner · 8:00 PM", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
+                .init(id: "brandywine", name: "Brandywine", statusText: "Dinner · 8:00 PM", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
+                .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Lunch · 11:00 AM", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .opens),
+            ]
         )
     }
 
@@ -402,7 +406,7 @@ struct DiningStatusProvider: TimelineProvider {
             return .init(
                 id: location.id,
                 name: location.name,
-                statusText: DiningLocationHoursLine.resolve(
+                statusText: DiningStatusWidgetLine.resolve(
                     state: state,
                     todayHours: location.todayHours,
                     opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
@@ -464,12 +468,12 @@ struct DiningStatusWidget: Widget {
             DiningStatusView(entry: entry)
                 .anteatsWidgetContent()
                 .containerBackground(for: .widget) {
-                    widgetInk
+                    widgetPaper
                 }
                 .widgetURL(AnteatsWidgetURL.eat)
         }
         .configurationDisplayName("Dining Halls")
-        .description("Open halls and the next meal at a clock time.")
+        .description("Which meal is on, and until when.")
         // Small + medium cover the job; large only when more halls earn the height.
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
@@ -492,30 +496,22 @@ struct DiningStatusView: View {
         entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact, isLarge: isLarge))
     }
     private var hallCount: Int { visibleHalls.count }
-    private var openCount: Int { entry.halls.filter(\.isOpen).count }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("Eat")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                Spacer()
-                if !entry.needsAppRefresh {
-                    Text(openCount == 0 ? "Closed" : "\(openCount) open")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(widgetGold)
-                }
-            }
+        let spacing = DiningStatusLayout.rowSpacing(isCompact: isCompact, hallCount: hallCount)
+        VStack(alignment: .leading, spacing: spacing) {
+            Text("Eat")
+                .font(.system(size: isCompact ? 12 : 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(widgetPaperInk)
 
             if entry.needsAppRefresh || entry.halls.isEmpty {
                 Spacer(minLength: 0)
                 Text(WidgetLoadEmptyCopy.title)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(widgetPaperInk)
                 Text(WidgetLoadEmptyCopy.detail)
                     .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(widgetPaperMuted)
                     .lineLimit(3)
                 Spacer(minLength: 0)
             } else {
@@ -528,50 +524,6 @@ struct DiningStatusView: View {
                         hallRow(hall)
                     }
                 }
-
-                if family == .systemMedium, let tip = entry.quietest {
-                    Rectangle()
-                        .fill(widgetHair)
-                        .frame(height: 1)
-                    switch tip {
-                    case .open(let name, let percent, let facilityID, _):
-                        Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
-                            HStack(spacing: 6) {
-                                Text(name)
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.72))
-                                    .lineLimit(1)
-                                Spacer()
-                                Text("\(percent)%")
-                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                    .monospacedDigit()
-                                    .foregroundStyle(widgetGold)
-                            }
-                        }
-                        .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
-                    case .librariesClosed(let reopenMinutes):
-                        Link(destination: AnteatsDeepLink.study().url) {
-                            HStack(spacing: 6) {
-                                Text(QuietestLibraryGlance.closedTitle)
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.72))
-                                    .lineLimit(1)
-                                Spacer(minLength: 0)
-                                if let line = QuietestLibraryGlance.diningStatusClosedSecondary(
-                                    reopenMinutes: reopenMinutes
-                                ) {
-                                    Text(line)
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(widgetGold.opacity(0.9))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
-                                }
-                            }
-                        }
-                        .accessibilityLabel(DiningStatusAccessibilityLabel.quietestTip(tip))
-                    }
-                }
-
                 Spacer(minLength: 0)
             }
         }
@@ -580,25 +532,26 @@ struct DiningStatusView: View {
     private func hallRow(_ hall: DiningStatusEntry.HallStatus) -> some View {
         let nameSize = DiningStatusLayout.nameFontSize(isCompact: isCompact, hallCount: hallCount)
         let statusSize = DiningStatusLayout.statusFontSize(isCompact: isCompact, hallCount: hallCount)
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+        let status = isCompact ? DiningStatusWidgetLine.tighten(hall.statusText) : hall.statusText
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Circle()
-                .fill(hall.isOpen ? widgetGold : Color.white.opacity(0.22))
+                .fill(hall.isOpen ? widgetPaperOpen : widgetPaperMuted.opacity(0.45))
                 .frame(width: 6, height: 6)
                 .offset(y: -1)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(shortName(hall.name))
-                    .font(.system(size: nameSize + 1, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(hall.statusText)
-                    .font(.system(size: statusSize + 1, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            Spacer(minLength: 0)
+            Text(shortName(hall.name))
+                .font(.system(size: nameSize, weight: .semibold, design: .rounded))
+                .foregroundStyle(widgetPaperInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 6)
+            Text(status)
+                .font(.system(size: statusSize, weight: .medium, design: .rounded))
+                .foregroundStyle(widgetPaperMuted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .layoutPriority(1)
         }
+        .opacity(hall.isOpen ? 1 : 0.72)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             DiningStatusAccessibilityLabel.hall(
@@ -623,11 +576,10 @@ struct DiningStatusView: View {
     DiningStatusEntry(
         date: .now,
         halls: [
-            .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
-            .init(id: "brandywine", name: "Brandywine", statusText: "Dinner", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
-            .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Dinner", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
-        ],
-        quietest: .open(name: "Science Library", percent: 12, facilityID: 2, updatedAt: .now)
+            .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner · 8:00 PM", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
+            .init(id: "brandywine", name: "Brandywine", statusText: "Dinner · 8:00 PM", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
+            .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Lunch · 11:00 AM", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
+        ]
     )
 }
 
