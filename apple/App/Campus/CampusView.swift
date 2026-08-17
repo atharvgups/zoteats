@@ -436,8 +436,8 @@ private struct CampusBrandGroupRow: View {
                         .foregroundStyle(.tertiary)
                         .frame(width: 18, height: 18)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -453,8 +453,11 @@ private struct CampusBrandGroupRow: View {
                             Button {
                                 onOpen(place)
                             } label: {
-                                HStack(spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(place.openNow ? Color.openGreen : Color.secondary.opacity(0.35))
+                                        .frame(width: 6, height: 6)
+                                    VStack(alignment: .leading, spacing: 1) {
                                         Text(place.locationDetail ?? place.name)
                                             .font(ZotFont.caption.weight(.semibold))
                                             .foregroundStyle(.primary)
@@ -465,9 +468,8 @@ private struct CampusBrandGroupRow: View {
                                             .lineLimit(1)
                                     }
                                     Spacer(minLength: 6)
-                                    StatusPill(isOpen: place.openNow)
                                     Text("Menu")
-                                        .font(ZotFont.pill.weight(.semibold))
+                                        .font(ZotFont.caption.weight(.semibold))
                                         .foregroundStyle(Color.uciBlue)
                                 }
                                 .contentShape(Rectangle())
@@ -506,8 +508,8 @@ private struct CampusBrandGroupRow: View {
                                     : "Add to Favorites"
                             )
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
                         // Closed tint covers the whole nested bar, including the heart.
                         .background(
                             Color.primary.opacity(place.openNow ? 0.04 : 0.09),
@@ -539,8 +541,11 @@ private struct CampusPlaceRow: View {
         // No disclosure chevron — only brand groups expand.
         HStack(spacing: 8) {
             Button(action: onOpen) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(place.openNow ? Color.openGreen : Color.secondary.opacity(0.35))
+                        .frame(width: 6, height: 6)
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(showBrandOnly ? place.brand : place.name)
                             .font(ZotFont.body.weight(.semibold))
                             .foregroundStyle(.primary)
@@ -551,10 +556,9 @@ private struct CampusPlaceRow: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    Spacer(minLength: 8)
-                    StatusPill(isOpen: place.openNow)
+                    Spacer(minLength: 6)
                     Text("Menu")
-                        .font(ZotFont.pill.weight(.semibold))
+                        .font(ZotFont.caption.weight(.semibold))
                         .foregroundStyle(Color.uciBlue)
                 }
                 .contentShape(Rectangle())
@@ -563,17 +567,17 @@ private struct CampusPlaceRow: View {
 
             Button(action: onToggleFavorite) {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(isFavorite ? Color.uciBlue : Color.secondary.opacity(0.45))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 10)
-        .padding(.vertical, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
         .opacity(place.openNow ? 1 : 0.72)
         .zotCard()
         .accessibilityIdentifier("campus-place-\(place.id)")

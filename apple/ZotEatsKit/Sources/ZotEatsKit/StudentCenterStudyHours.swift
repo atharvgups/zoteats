@@ -4,8 +4,7 @@ import Foundation
 /// Live Occuspace % is **not** shown — Amy Schulz (Aug 2026): still
 /// recalibrating; they will publish study-space data on the website.
 public enum StudentCenterStudyHours {
-    public static let occupancyNote =
-        "Live occupancy is being recalibrated. Student Center will share it on their site — we’ll show it then."
+    public static let occupancyNote = "Live busyness coming soon."
 
     public static let sourceURL = URL(string: "https://studentcenter.uci.edu/learn-and-enjoy/study/")!
 

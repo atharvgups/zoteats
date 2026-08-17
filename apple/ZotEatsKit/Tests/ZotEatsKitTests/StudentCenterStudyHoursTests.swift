@@ -33,7 +33,8 @@ struct StudentCenterStudyHoursTests {
     }
 
     @Test func occupancyNoteIsHonest() {
-        #expect(StudentCenterStudyHours.occupancyNote.localizedCaseInsensitiveContains("recalibrat"))
+        #expect(StudentCenterStudyHours.occupancyNote.localizedCaseInsensitiveContains("coming soon"))
         #expect(!StudentCenterStudyHours.occupancyNote.localizedCaseInsensitiveContains("%"))
+        #expect(StudentCenterStudyHours.occupancyNote.split(separator: " ").count <= 5)
     }
 }

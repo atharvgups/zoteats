@@ -392,53 +392,51 @@ private struct StudentCenterStudyCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Student Center")
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(Color.inkMuted)
-                .textCase(.uppercase)
-                .tracking(0.4)
-                .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Student Center")
+                    .font(ZotFont.caption.weight(.semibold))
+                    .foregroundStyle(Color.inkMuted)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Link(StudentCenterStudyHours.occupancyNote, destination: StudentCenterStudyHours.sourceURL)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(Color.uciBlue)
+            }
 
             ForEach(spaces) { space in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(space.name)
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                        Text(space.location)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(Color.inkMuted)
-                    }
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(space.isOpen ? Color.openGreen : Color.secondary.opacity(0.35))
+                        .frame(width: 6, height: 6)
+                    Text(shortName(space.name))
+                        .font(ZotFont.body.weight(.semibold))
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(1)
                     Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(space.isOpen ? "Open" : "Closed")
-                            .font(ZotFont.pill.weight(.semibold))
-                            .foregroundStyle(space.isOpen ? Color.openGreen : .secondary)
-                        Text(space.hours)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(Color.inkMuted)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    Text(space.hours)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(Color.inkMuted)
+                        .lineLimit(1)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
-                    "\(space.name), \(space.isOpen ? "open" : "closed"), \(space.hours)"
+                    "\(space.name), \(space.location), \(space.isOpen ? "open" : "closed"), \(space.hours)"
                 )
             }
-
-            Text(StudentCenterStudyHours.occupancyNote)
-                .font(ZotFont.caption)
-                .foregroundStyle(Color.inkMuted)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Link("Hours on studentcenter.uci.edu", destination: StudentCenterStudyHours.sourceURL)
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(Color.uciBlue)
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    private func shortName(_ name: String) -> String {
+        name
+            .replacingOccurrences(of: " Study Lounge", with: "")
+            .replacingOccurrences(of: " Lounge", with: "")
     }
 }
 
