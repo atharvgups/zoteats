@@ -48,6 +48,15 @@ struct DiningStatusWidgetLineTests {
         )
     }
 
+    @Test func splitMealAndClockAtTheDot() {
+        let lunch = DiningStatusWidgetLine.splitMealAndClock("Lunch Thursday · 11:30 AM")
+        #expect(lunch.meal == "Lunch Thursday")
+        #expect(lunch.clock == "11:30 AM")
+        let closed = DiningStatusWidgetLine.splitMealAndClock("Closed for today")
+        #expect(closed.meal == "Closed for today")
+        #expect(closed.clock == nil)
+    }
+
     @Test func tightenCompactsClockForSmallTile() {
         #expect(DiningStatusWidgetLine.tighten("Dinner · 8:00 PM") == "Dinner · 8PM")
         #expect(DiningStatusWidgetLine.tighten("Breakfast tomorrow · 7:15 AM") == "Breakfast tomorrow · 7:15AM")

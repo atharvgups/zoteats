@@ -20,30 +20,39 @@ public enum DiningStatusLayout {
         return false
     }
 
-    /// Outer VStack spacing between header and hall rows.
+    /// Outer VStack spacing between header and the halls card.
     public static func rowSpacing(isCompact: Bool, hallCount: Int) -> Double {
         let dense = usesDenseRows(hallCount: hallCount)
         if isCompact {
-            return dense ? 5 : 7
+            return dense ? 8 : 10
         }
-        return dense ? 7 : 9
+        return dense ? 8 : 12
     }
 
-    /// Primary hall name font size.
+    /// Spacing between hall rows inside the nested card.
+    public static func hallRowSpacing(isCompact: Bool, hallCount: Int) -> Double {
+        let dense = usesDenseRows(hallCount: hallCount)
+        if isCompact {
+            return dense ? 8 : 10
+        }
+        return dense ? 9 : 11
+    }
+
+    /// Primary hall name font size (expanded display type runs wide).
     public static func nameFontSize(isCompact: Bool, hallCount: Int) -> Double {
         let dense = usesDenseRows(hallCount: hallCount)
         if isCompact {
-            return dense ? 13 : 14
+            return dense ? 12 : 13
         }
-        return dense ? 14 : 15
+        return dense ? 13 : 14
     }
 
-    /// Meal + clock on the trailing side.
+    /// Clock on the trailing side.
     public static func statusFontSize(isCompact: Bool, hallCount: Int) -> Double {
         let dense = usesDenseRows(hallCount: hallCount)
         if isCompact {
-            return dense ? 11 : 12
+            return dense ? 12 : 13
         }
-        return dense ? 12 : 13
+        return dense ? 14 : 16
     }
 }

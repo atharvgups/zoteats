@@ -48,4 +48,14 @@ public enum DiningStatusWidgetLine {
             .replacingOccurrences(of: " AM", with: "AM")
             .replacingOccurrences(of: " PM", with: "PM")
     }
+
+    /// Split `"Lunch · 11:30 AM"` into meal + clock for Box Box-style rows.
+    public static func splitMealAndClock(_ line: String) -> (meal: String, clock: String?) {
+        let parts = line.split(separator: "·", maxSplits: 1, omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+            return (line, nil)
+        }
+        return (parts[0], parts[1])
+    }
 }

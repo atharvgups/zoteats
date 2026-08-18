@@ -20,6 +20,8 @@ struct DiningStatusLayoutTests {
             < DiningStatusLayout.rowSpacing(isCompact: true, hallCount: 2))
         #expect(DiningStatusLayout.rowSpacing(isCompact: false, hallCount: 3)
             < DiningStatusLayout.rowSpacing(isCompact: false, hallCount: 2))
+        #expect(DiningStatusLayout.hallRowSpacing(isCompact: true, hallCount: 3)
+            < DiningStatusLayout.hallRowSpacing(isCompact: true, hallCount: 2))
         #expect(DiningStatusLayout.nameFontSize(isCompact: true, hallCount: 3)
             < DiningStatusLayout.nameFontSize(isCompact: true, hallCount: 2))
         #expect(DiningStatusLayout.statusFontSize(isCompact: false, hallCount: 3)
