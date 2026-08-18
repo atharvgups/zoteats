@@ -154,7 +154,18 @@ struct FavoritesMatcherTests {
         #expect(match.legacyDedupeKey(dateISO: "2026-07-16") == "2026-07-16|crispy okra")
     }
 
-    @Test func shouldNotifyAllowsServingUpgradeAfterUpcoming() {
+    @Test func bannerIdentifierOmitsPhaseSoIosReplaces() {
+        let match = FavoritesMatcher.Match(
+            dishName: "Crispy Okra", hallName: "X", locationId: "anteatery", period: "Lunch"
+        )
+        #expect(match.bannerIdentifier(dateISO: "2026-07-16") == "2026-07-16|crispy okra|lunch")
+        #expect(
+            match.bannerIdentifier(dateISO: "2026-07-16")
+                != match.dedupeKey(dateISO: "2026-07-16", phase: .upcoming)
+        )
+    }
+
+    @Test func shouldNotifyDoesNotUpgradeAfterUpcoming() {
         let match = FavoritesMatcher.Match(
             dishName: "Crispy Okra",
             hallName: "The Anteatery",
@@ -171,6 +182,14 @@ struct FavoritesMatcherTests {
             )
         )
         #expect(
+            FavoritesMatcher.shouldNotify(
+                match: match,
+                dateISO: "2026-07-16",
+                servingNow: true,
+                alreadyNotified: []
+            )
+        )
+        #expect(
             !FavoritesMatcher.shouldNotify(
                 match: match,
                 dateISO: "2026-07-16",
@@ -179,7 +198,7 @@ struct FavoritesMatcherTests {
             )
         )
         #expect(
-            FavoritesMatcher.shouldNotify(
+            !FavoritesMatcher.shouldNotify(
                 match: match,
                 dateISO: "2026-07-16",
                 servingNow: true,
@@ -191,15 +210,12 @@ struct FavoritesMatcherTests {
                 match: match,
                 dateISO: "2026-07-16",
                 servingNow: true,
-                alreadyNotified: [
-                    upcomingKey,
-                    match.dedupeKey(dateISO: "2026-07-16", phase: .serving),
-                ]
+                alreadyNotified: [match.bannerIdentifier(dateISO: "2026-07-16")]
             )
         )
     }
 
-    @Test func shouldNotifyLegacyUpcomingBlocksOnlyUpcoming() {
+    @Test func shouldNotifyLegacyKeyBlocksBothPhases() {
         let match = FavoritesMatcher.Match(
             dishName: "Crispy Okra",
             hallName: "The Anteatery",
@@ -216,7 +232,7 @@ struct FavoritesMatcherTests {
             )
         )
         #expect(
-            FavoritesMatcher.shouldNotify(
+            !FavoritesMatcher.shouldNotify(
                 match: match,
                 dateISO: "2026-07-16",
                 servingNow: true,

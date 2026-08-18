@@ -3,7 +3,7 @@ import Foundation
 /// Pure matching logic behind favorite-dish alerts: given the user's favorite
 /// dish names and today's menus, which favorites are actually being served?
 public enum FavoritesMatcher {
-    /// Early menu-drop heads-up vs live "being served now" — each may ping once.
+    /// Copy flavor only — one banner per dish / meal / day, not two phases.
     public enum NotifyPhase: String, Sendable, Equatable {
         case upcoming
         case serving
@@ -23,17 +23,31 @@ public enum FavoritesMatcher {
             self.period = period
         }
 
-        /// Stable dedupe key — one alert per day / dish / meal / phase so an
-        /// early "on today's menu" ping doesn't block the live serving upgrade.
+        /// History key — still records which copy we used.
         public func dedupeKey(dateISO: String, phase: NotifyPhase) -> String {
             let pill = MealPeriodPill.canonical(period).lowercased()
             return "\(dateISO)|\(dishName.lowercased())|\(pill)|\(phase.rawValue)"
         }
 
-        /// Pre–phase-key format (`date|dish`) — suppress duplicate upcoming
-        /// after upgrade; serving upgrades still fire.
+        /// iOS request id — same banner for upcoming and serving so a second
+        /// check replaces instead of stacking.
+        public func bannerIdentifier(dateISO: String) -> String {
+            let pill = MealPeriodPill.canonical(period).lowercased()
+            return "\(dateISO)|\(dishName.lowercased())|\(pill)"
+        }
+
+        /// Pre–phase-key format (`date|dish`).
         public func legacyDedupeKey(dateISO: String) -> String {
             "\(dateISO)|\(dishName.lowercased())"
+        }
+
+        /// True if this dish + meal already pinged today (any copy, including
+        /// the old date|dish key).
+        public func alreadyAnnounced(dateISO: String, alreadyNotified: Set<String>) -> Bool {
+            alreadyNotified.contains(bannerIdentifier(dateISO: dateISO))
+                || alreadyNotified.contains(dedupeKey(dateISO: dateISO, phase: .upcoming))
+                || alreadyNotified.contains(dedupeKey(dateISO: dateISO, phase: .serving))
+                || alreadyNotified.contains(legacyDedupeKey(dateISO: dateISO))
         }
     }
 
@@ -66,7 +80,7 @@ public enum FavoritesMatcher {
         let phase: NotifyPhase = servingNow ? .serving : .upcoming
         let key = match.dedupeKey(dateISO: dateISO, phase: phase)
         if alreadyNotified.contains(key) { return false }
-        if !servingNow, alreadyNotified.contains(match.legacyDedupeKey(dateISO: dateISO)) {
+        if match.alreadyAnnounced(dateISO: dateISO, alreadyNotified: alreadyNotified) {
             return false
         }
 

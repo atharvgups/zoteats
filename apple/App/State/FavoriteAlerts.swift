@@ -4,12 +4,10 @@ import BackgroundTasks
 import ZotEatsKit
 
 // Favorite-dish alerts: when a favorited dish shows up on today's menu,
-// send a local notification ("Zot! Crispy Okra is on the menu"). An early
-// menu-drop heads-up can upgrade once to "Being served now…" when the meal
-// opens — Opening Alerts catch-up parity. Matches pin the soonest live /
-// upcoming meal so Dinner can't steal Lunch while Lunch is still relevant.
-// Checks run on foreground launches and via opportunistic background refresh
-// — no servers, no push infrastructure.
+// send a local notification ("Zot! Crispy Okra is on the menu"). One ping
+// per dish per meal per day — "on today's menu" does not get a second
+// "Being served now" follow-up. Checks run on foreground launches and via
+// opportunistic background refresh — no servers, no push infrastructure.
 
 @MainActor
 enum FavoriteAlerts {
@@ -119,6 +117,7 @@ enum FavoriteAlerts {
             let phase: FavoritesMatcher.NotifyPhase = servingNow ? .serving : .upcoming
             let key = match.dedupeKey(dateISO: dateISO, phase: phase)
             notified.insert(key)
+            notified.insert(match.bannerIdentifier(dateISO: dateISO))
 
             let content = UNMutableNotificationContent()
             content.title = "Zot! \(match.dishName) is on the menu"
@@ -141,7 +140,11 @@ enum FavoriteAlerts {
                 "dish": match.dishName,
             ]
             try? await UNUserNotificationCenter.current().add(
-                UNNotificationRequest(identifier: key, content: content, trigger: nil)
+                UNNotificationRequest(
+                    identifier: match.bannerIdentifier(dateISO: dateISO),
+                    content: content,
+                    trigger: nil
+                )
             )
         }
 
