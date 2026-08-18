@@ -127,6 +127,22 @@ struct CampusTypeFilterTests {
     }
 }
 
+@Suite("CampusDirectorySection")
+struct CampusDirectorySectionTests {
+    @Test func hubCategoriesMapToDiningBoardSections() {
+        #expect(CampusDirectorySection.grouping(forHubCategory: "Coffee & Cafés") == .coffee)
+        #expect(CampusDirectorySection.grouping(forHubCategory: "Food Courts") == .food)
+        #expect(CampusDirectorySection.grouping(forHubCategory: "Restaurants & Pubs") == .food)
+        #expect(CampusDirectorySection.grouping(forHubCategory: "Markets") == .markets)
+    }
+
+    @Test func symbolsMatchCupPlateBasket() {
+        #expect(CampusDirectorySection.coffee.symbolName.contains("cup"))
+        #expect(CampusDirectorySection.food.symbolName.contains("fork"))
+        #expect(CampusDirectorySection.markets.symbolName.contains("basket"))
+    }
+}
+
 @Suite("CampusMenuNormalize")
 struct CampusMenuNormalizeTests {
     private func item(_ name: String) -> MenuItem {

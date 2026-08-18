@@ -344,21 +344,22 @@ private struct LibraryHoursTodayCard: View {
                 .tracking(0.4)
                 .accessibilityAddTraits(.isHeader)
 
-            HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
                 ForEach(Array(hours.enumerated()), id: \.element.id) { index, building in
                     if index > 0 {
-                        Rectangle()
-                            .fill(Color.primary.opacity(0.08))
-                            .frame(width: 1)
+                        Capsule()
+                            .fill(Color.inkMuted.opacity(0.35))
+                            .frame(width: 2)
                             .padding(.vertical, 2)
-                            .padding(.horizontal, 12)
+                            .padding(.horizontal, 14)
                     }
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Text(building.shortName)
                                 .font(ZotFont.body.weight(.semibold))
+                                .foregroundStyle(Color.ink)
                             Text(building.isOpen ? "Open" : "Closed")
-                                .font(ZotFont.pill.weight(.semibold))
+                                .font(ZotFont.caption.weight(.semibold))
                                 .foregroundStyle(building.isOpen ? Color.openGreen : .secondary)
                         }
                         Text(building.rendered)

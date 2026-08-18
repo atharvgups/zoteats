@@ -215,9 +215,9 @@ struct CampusView: View {
         switch store.places {
         case .idle, .loading:
             VStack(spacing: 0) {
-                ForEach(0..<8, id: \.self) { index in
-                    SkeletonCard(height: 44)
-                    if index < 7 {
+                ForEach(0..<6, id: \.self) { index in
+                    SkeletonCard(height: 56)
+                    if index < 5 {
                         CampusListHairline()
                     }
                 }
@@ -415,7 +415,36 @@ private struct CampusListHairline: View {
         Rectangle()
             .fill(Color.cardBorder)
             .frame(height: 1)
-            .padding(.leading, 32)
+            .padding(.leading, 64)
+    }
+}
+
+private struct CampusVenueGlyph: View {
+    let category: String
+    var isOpen = true
+
+    private var section: CampusDirectorySection {
+        CampusDirectorySection.grouping(forHubCategory: category)
+    }
+
+    private var tint: Color {
+        switch section {
+        case .coffee: return Color.uciGold
+        case .food: return Color.uciBlue
+        case .markets: return TagPalette.sage
+        }
+    }
+
+    var body: some View {
+        Image(systemName: section.symbolName)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(isOpen ? tint : Color.inkMuted)
+            .frame(width: 40, height: 40)
+            .background(
+                tint.opacity(isOpen ? 0.16 : 0.08),
+                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+            )
+            .accessibilityHidden(true)
     }
 }
 
@@ -444,28 +473,30 @@ private struct CampusBrandGroupRow: View {
                 }
                 Haptics.selection()
             } label: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(openCount > 0 ? Color.openGreen : Color.secondary.opacity(0.35))
-                        .frame(width: 6, height: 6)
-                    Text(brand)
-                        .font(ZotFont.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text("\(places.count)")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    CampusVenueGlyph(
+                        category: places.first?.category ?? "Food Courts",
+                        isOpen: openCount > 0
+                    )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(brand)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                        Text("\(places.count) locations")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                    }
                     Spacer(minLength: 8)
                     Text(statusLine)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(openCount > 0 ? Color.openGreen : Color.secondary)
-                        .lineLimit(1)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(openCount > 0 ? Color.openGreen : Color.inkMuted)
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
                         .frame(width: 16, height: 16)
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -508,23 +539,25 @@ private struct CampusPlaceRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             Button(action: onOpen) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(place.openNow ? Color.openGreen : Color.secondary.opacity(0.35))
-                        .frame(width: 6, height: 6)
-                    Text(displayName)
-                        .font(ZotFont.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                HStack(spacing: 12) {
+                    CampusVenueGlyph(category: place.category, isOpen: place.openNow)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(displayName)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Text(place.hoursLine)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                            .lineLimit(1)
+                    }
                     Spacer(minLength: 8)
-                    Text(place.hoursLine)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .layoutPriority(1)
+                    Text(place.openNow ? "Open" : "Closed")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(place.openNow ? Color.openGreen : Color.inkMuted)
                 }
                 .contentShape(Rectangle())
             }
@@ -534,16 +567,15 @@ private struct CampusPlaceRow: View {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(isFavorite ? Color.uciBlue : Color.secondary.opacity(0.45))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 32, height: 40)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
-        .padding(.leading, 14)
+        .padding(.leading, 12)
         .padding(.trailing, 8)
         .padding(.vertical, 10)
-        .opacity(place.openNow ? 1 : 0.72)
         .accessibilityIdentifier("campus-place-\(place.id)")
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
