@@ -902,8 +902,12 @@ private struct CampusMenuItemRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.name)
                         .font(ZotFont.body.weight(.semibold))
-                    if stars > 0 {
-                        StarRatingControl(stars: stars, size: 11, interactive: false)
+                    StarRatingControl(stars: stars, size: 12) { value in
+                        prefs.setReview(
+                            dishName: item.name,
+                            stars: value,
+                            note: prefs.review(for: item.name)?.note ?? ""
+                        )
                     }
                     if let description = item.description, !description.isEmpty {
                         Text(description)

@@ -267,12 +267,12 @@ struct SettingsView: View {
 
     private var reviewsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Your ratings")
+            Text("Ratings")
                 .font(ZotFont.sectionTitle)
                 .foregroundStyle(Color.ink)
 
             if prefs.mealReviews.isEmpty {
-                Text("Tap a dish on Eat, then tap stars. Ratings stay on this iPhone.")
+                Text("Star a dish on Eat. It stays on this iPhone.")
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
             } else {

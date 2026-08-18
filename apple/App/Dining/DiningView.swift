@@ -672,7 +672,7 @@ struct DiningView: View {
             .padding(.horizontal, 20)
 
             let favorites = favoriteItems(in: stations)
-            let reviewed = reviewedItems(in: stations)
+            let hits = hitItems(in: stations)
             if !favorites.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     sectionHeader(
@@ -690,15 +690,15 @@ struct DiningView: View {
                 .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
             }
 
-            if !reviewed.isEmpty {
+            if !hits.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     sectionHeader(
-                        title: "Your ratings",
-                        count: reviewed.count,
+                        title: "Hits",
+                        count: hits.count,
                         icon: "star.fill",
                         tint: .uciGold
                     )
-                    ForEach(reviewed) { item in
+                    ForEach(hits) { item in
                         dishRow(item)
                     }
                 }
@@ -775,6 +775,13 @@ struct DiningView: View {
             onTogglePlate: selectedDate == nil
                 ? { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } }
                 : nil,
+            onRate: { stars in
+                prefs.setReview(
+                    dishName: item.name,
+                    stars: stars,
+                    note: prefs.review(for: item.name)?.note ?? ""
+                )
+            },
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
@@ -940,13 +947,14 @@ struct DiningView: View {
         return result
     }
 
-    /// Rated dishes on this board — highest stars first.
-    private func reviewedItems(in stations: [MenuStation]) -> [MenuItem] {
+    /// 4–5 star dishes on this board — glance strip, like Nom’s popular picks.
+    private func hitItems(in stations: [MenuStation]) -> [MenuItem] {
         var seen = Set<String>()
         var result: [MenuItem] = []
         for station in stations {
             for item in station.items {
-                guard prefs.review(for: item.name) != nil,
+                guard let stars = prefs.review(for: item.name)?.stars,
+                      MealReviewLogic.isHit(stars),
                       seen.insert(item.name.lowercased()).inserted
                 else { continue }
                 result.append(item)
@@ -1505,6 +1513,7 @@ private struct DishRowCard: View {
     var stars: Int = 0
     let onToggleFavorite: () -> Void
     var onTogglePlate: (() -> Void)?
+    var onRate: ((Int) -> Void)?
     let onOpen: () -> Void
 
     var body: some View {
@@ -1515,9 +1524,7 @@ private struct DishRowCard: View {
                         .font(ZotFont.body.weight(.semibold))
                         .multilineTextAlignment(.leading)
 
-                    if stars > 0 {
-                        StarRatingControl(stars: stars, size: 11, interactive: false)
-                    }
+                    StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
 
                     if let description = item.description, !description.isEmpty {
                         Text(description)

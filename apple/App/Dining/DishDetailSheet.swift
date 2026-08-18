@@ -49,8 +49,6 @@ struct DishDetailSheet: View {
                     plateToggle(plate)
                 }
 
-                reviewCard
-
                 favoriteToggle
             }
             .padding(20)
@@ -81,10 +79,36 @@ struct DishDetailSheet: View {
     // MARK: - Sections
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(dish.name)
                 .font(ZotFont.hero(26))
-                .padding(.trailing, 40) // keep clear of the close button
+                .padding(.trailing, 40)
+
+            StarRatingControl(stars: currentReview?.stars ?? 0, size: 22) { value in
+                prefs.setReview(dishName: dish.name, stars: value, note: noteDraft)
+            }
+            .accessibilityIdentifier("dish-star-rating")
+
+            if currentReview != nil {
+                TextField("Add a note", text: $noteDraft, axis: .vertical)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1...2)
+                    .textFieldStyle(.plain)
+                    .onChange(of: noteDraft) { _, newValue in
+                        guard let stars = currentReview?.stars else { return }
+                        prefs.setReview(dishName: dish.name, stars: stars, note: newValue, playHaptic: false)
+                    }
+                    .accessibilityIdentifier("dish-review-note")
+
+                Button("Clear") {
+                    noteDraft = ""
+                    prefs.clearReview(dishName: dish.name)
+                }
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityIdentifier("dish-clear-rating")
+            }
 
             if let description = dish.description, !description.isEmpty {
                 Text(description)
@@ -161,51 +185,6 @@ struct DishDetailSheet: View {
 
     private var currentReview: MealReview? {
         prefs.review(for: dish.name)
-    }
-
-    private var reviewCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Your rating")
-                .font(ZotFont.sectionTitle)
-                .foregroundStyle(Color.ink)
-
-            StarRatingControl(stars: currentReview?.stars ?? 0) { value in
-                prefs.setReview(dishName: dish.name, stars: value, note: noteDraft)
-            }
-            .accessibilityIdentifier("dish-star-rating")
-
-            TextField("What did you think? (optional)", text: $noteDraft, axis: .vertical)
-                .font(ZotFont.body)
-                .lineLimit(1...3)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
-                .onChange(of: noteDraft) { _, newValue in
-                    guard let stars = currentReview?.stars else { return }
-                    prefs.setReview(dishName: dish.name, stars: stars, note: newValue, playHaptic: false)
-                }
-                .disabled(currentReview == nil)
-                .opacity(currentReview == nil ? 0.55 : 1)
-
-            if currentReview == nil {
-                Text("Tap a star to rate this dish. It stays on this iPhone.")
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Button("Remove rating") {
-                    noteDraft = ""
-                    prefs.clearReview(dishName: dish.name)
-                }
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(Color.uciBlue)
-                .accessibilityIdentifier("dish-clear-rating")
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
-        .accessibilityElement(children: .contain)
     }
 
     private var favoriteToggle: some View {

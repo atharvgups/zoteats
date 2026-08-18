@@ -70,20 +70,24 @@ struct StarRatingControl: View {
     var body: some View {
         HStack(spacing: size > 20 ? 8 : 3) {
             ForEach(1...5, id: \.self) { value in
-                let star = Image(systemName: value <= stars ? "star.fill" : "star")
+                let filled = value <= stars
+                let star = Image(systemName: filled ? "star.fill" : "star")
                     .font(.system(size: size, weight: .semibold))
-                    .foregroundStyle(value <= stars ? Color.uciGold : Color.inkMuted.opacity(0.45))
+                    .foregroundStyle(filled ? Color.uciGold : Color.inkMuted.opacity(stars == 0 ? 0.28 : 0.4))
                 if interactive, let onRate {
-                    Button {
-                        onRate(value)
-                        Haptics.selection()
-                    } label: {
-                        star.symbolEffect(.bounce, value: stars == value)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(MealReviewAccessibility.starsLabel(value))
-                    .accessibilityAddTraits(value == stars ? [.isSelected] : [])
-                    .accessibilityIdentifier("dish-star-\(value)")
+                    star
+                        .symbolEffect(.bounce, value: stars == value)
+                        .padding(4)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(
+                            TapGesture().onEnded {
+                                onRate(value)
+                                Haptics.selection()
+                            }
+                        )
+                        .accessibilityLabel(MealReviewAccessibility.starsLabel(value))
+                        .accessibilityAddTraits(value == stars ? [.isSelected, .isButton] : .isButton)
+                        .accessibilityIdentifier("dish-star-\(value)")
                 } else {
                     star
                 }

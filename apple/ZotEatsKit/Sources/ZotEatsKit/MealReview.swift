@@ -57,6 +57,11 @@ public enum MealReviewLogic {
         return existing.filter { MealReview.key(for: $0.dishName) != key }
     }
 
+    /// Dining-hall glance: 4–5 stars is a hit worth pinning at the top.
+    public static func isHit(_ stars: Int) -> Bool {
+        stars >= 4
+    }
+
     /// Newest first, then higher stars.
     public static func sortedForDisplay(_ reviews: [MealReview]) -> [MealReview] {
         reviews.sorted { lhs, rhs in

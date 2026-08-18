@@ -55,6 +55,14 @@ struct MealReviewLogicTests {
         #expect(MealReviewLogic.sanitizeNote(long).count == MealReviewLogic.maxNoteLength)
     }
 
+    @Test func fourAndFiveAreHits() {
+        #expect(MealReviewLogic.isHit(4))
+        #expect(MealReviewLogic.isHit(5))
+        #expect(!MealReviewLogic.isHit(3))
+        #expect(!MealReviewLogic.isHit(1))
+        #expect(!MealReviewLogic.isHit(0))
+    }
+
     @Test func starsVoiceOver() {
         #expect(MealReviewAccessibility.starsLabel(1) == "1 star")
         #expect(MealReviewAccessibility.starsLabel(4) == "4 stars")
