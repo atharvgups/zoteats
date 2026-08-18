@@ -15,7 +15,7 @@ Nothing.
 
 ## What stays on your device
 
-Your preferences — favorited dishes and campus spots, dietary filters, opening /
+Your preferences — favorited dishes and campus spots, dish ratings and notes, dietary filters, opening /
 favorite / menu-drop alerts, appearance, and today's Plate Builder tally — are
 stored locally on your device using Apple's UserDefaults (including an App Group
 shared with the Anteats widgets). They never leave your device, and we have no

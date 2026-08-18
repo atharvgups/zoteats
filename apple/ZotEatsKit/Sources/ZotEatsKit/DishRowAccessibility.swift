@@ -7,7 +7,8 @@ public enum DishRowAccessibility {
         dishName: String,
         calories: Int?,
         dietaryTags: [String],
-        allergens: [String]
+        allergens: [String],
+        stars: Int? = nil
     ) -> String {
         let name = dishName.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = [name.isEmpty ? "Dish" : name]
@@ -28,6 +29,10 @@ public enum DishRowAccessibility {
             if !trimmed.isEmpty {
                 parts.append("Contains \(trimmed)")
             }
+        }
+
+        if let stars, stars > 0 {
+            parts.append(MealReviewAccessibility.starsLabel(stars))
         }
 
         return parts.joined(separator: ", ")

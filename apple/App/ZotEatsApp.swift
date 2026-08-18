@@ -138,7 +138,7 @@ struct RootTabView: View {
             .liquidGlassTabBar()
             .environment(\.openSettings) { showSettings = true }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(prefs: preferences)
             }
             .task(id: wrapUpWatchID) {
                 await watchMealWrapUps()

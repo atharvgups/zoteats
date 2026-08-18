@@ -9,6 +9,7 @@ public enum SharedDefaults {
     public static let campusFavoritePlaceIDsKey = "zoteats.favoriteCampusPlaceIDs"
     public static let dietFiltersKey = "zoteats.dietFilters"
     public static let allergenAvoidsKey = "zoteats.allergenAvoids"
+    public static let mealReviewsKey = "zoteats.mealReviews"
 
     public static var suite: UserDefaults {
         UserDefaults(suiteName: appGroupID) ?? .standard
@@ -57,6 +58,30 @@ public enum SharedDefaults {
     public static func setAllergenAvoids(_ tags: [String]) {
         suite.set(tags, forKey: allergenAvoidsKey)
         UserDefaults.standard.set(tags, forKey: allergenAvoidsKey)
+    }
+
+    public static func mealReviews() -> [MealReview] {
+        guard let data = suite.data(forKey: mealReviewsKey)
+            ?? UserDefaults.standard.data(forKey: mealReviewsKey)
+        else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let decoded = try? decoder.decode([MealReview].self, from: data) else { return [] }
+        return MealReviewLogic.sortedForDisplay(decoded)
+    }
+
+    public static func setMealReviews(_ reviews: [MealReview]) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoderData: Data
+        let payload = MealReviewLogic.sortedForDisplay(reviews)
+        if let data = try? encoder.encode(payload) {
+            decoderData = data
+        } else {
+            decoderData = Data()
+        }
+        suite.set(decoderData, forKey: mealReviewsKey)
+        UserDefaults.standard.set(decoderData, forKey: mealReviewsKey)
     }
 
     /// Wipe diet + allergen Eat Filters (App Group + standard). Used by the

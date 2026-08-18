@@ -74,4 +74,17 @@ struct DishRowAccessibilityTests {
             ) == "Soup, 180 calories, Vegan, Contains Sesame"
         )
     }
+
+    @Test("Rated dish announces stars")
+    func includesStars() {
+        #expect(
+            DishRowAccessibility.label(
+                dishName: "Tofu Bowl",
+                calories: 420,
+                dietaryTags: [],
+                allergens: [],
+                stars: 4
+            ) == "Tofu Bowl, 420 calories, 4 stars"
+        )
+    }
 }

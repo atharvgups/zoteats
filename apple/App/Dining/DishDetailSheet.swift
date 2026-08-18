@@ -12,6 +12,8 @@ struct DishDetailSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    @State private var noteDraft = ""
+
     private var isFavorite: Bool {
         prefs.isFavorite(dish.name)
     }
@@ -22,10 +24,6 @@ struct DishDetailSheet: View {
 
     private var hasTags: Bool {
         !dish.dietaryTags.isEmpty || !dish.allergens.isEmpty
-    }
-
-    private var hasNutritionExtras: Bool {
-        dish.nutrition?.hasMacros == true || dish.nutrition?.hasDetails == true
     }
 
     var body: some View {
@@ -51,6 +49,8 @@ struct DishDetailSheet: View {
                     plateToggle(plate)
                 }
 
+                reviewCard
+
                 favoriteToggle
             }
             .padding(20)
@@ -63,14 +63,19 @@ struct DishDetailSheet: View {
         }
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
+        .onAppear {
+            noteDraft = prefs.review(for: dish.name)?.note ?? ""
+        }
+        .onDisappear {
+            if let current = prefs.review(for: dish.name), noteDraft != current.note {
+                prefs.setReview(dishName: dish.name, stars: current.stars, note: noteDraft, playHaptic: false)
+            }
+        }
     }
 
-    /// Compact when there's little to show; room to scroll when macros/label land.
+    /// Always room for rating + nutrition; large when they scroll.
     private var detents: Set<PresentationDetent> {
-        if hasNutritionExtras || plate != nil {
-            return [.medium, .large]
-        }
-        return [.height(hasTags ? 420 : 340), .large]
+        [.medium, .large]
     }
 
     // MARK: - Sections
@@ -152,6 +157,55 @@ struct DishDetailSheet: View {
             return "cup.and.saucer.fill"
         }
         return "scalemass.fill"
+    }
+
+    private var currentReview: MealReview? {
+        prefs.review(for: dish.name)
+    }
+
+    private var reviewCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your rating")
+                .font(ZotFont.sectionTitle)
+                .foregroundStyle(Color.ink)
+
+            StarRatingControl(stars: currentReview?.stars ?? 0) { value in
+                prefs.setReview(dishName: dish.name, stars: value, note: noteDraft)
+            }
+            .accessibilityIdentifier("dish-star-rating")
+
+            TextField("What did you think? (optional)", text: $noteDraft, axis: .vertical)
+                .font(ZotFont.body)
+                .lineLimit(1...3)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+                .onChange(of: noteDraft) { _, newValue in
+                    guard let stars = currentReview?.stars else { return }
+                    prefs.setReview(dishName: dish.name, stars: stars, note: newValue, playHaptic: false)
+                }
+                .disabled(currentReview == nil)
+                .opacity(currentReview == nil ? 0.55 : 1)
+
+            if currentReview == nil {
+                Text("Tap a star to rate this dish. It stays on this iPhone.")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button("Remove rating") {
+                    noteDraft = ""
+                    prefs.clearReview(dishName: dish.name)
+                }
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(Color.uciBlue)
+                .accessibilityIdentifier("dish-clear-rating")
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+        .accessibilityElement(children: .contain)
     }
 
     private var favoriteToggle: some View {

@@ -369,6 +369,13 @@ final class Preferences {
         }
     }
 
+    /// Personal dish ratings — on-device only, keyed by dish name.
+    var mealReviews: [MealReview] {
+        didSet {
+            SharedDefaults.setMealReviews(mealReviews)
+        }
+    }
+
     /// Convenience for single-filter callers (campus sheet, etc.).
     var dietFilter: String? {
         get { dietFilters.sorted().first }
@@ -398,10 +405,12 @@ final class Preferences {
             dietFilters = []
         }
         allergenAvoids = Set(SharedDefaults.allergenAvoids())
+        mealReviews = SharedDefaults.mealReviews()
         // Init assignments skip didSet — mirror into the App Group for widgets.
         SharedDefaults.setDietFilters(Array(dietFilters).sorted())
         SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
         SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+        SharedDefaults.setMealReviews(mealReviews)
     }
 
     func clearMenuFilters() {
@@ -454,5 +463,26 @@ final class Preferences {
 
     func isCampusFavorite(_ placeID: String) -> Bool {
         favoriteCampusPlaceIDs.contains(placeID)
+    }
+
+    func review(for dishName: String) -> MealReview? {
+        MealReviewLogic.lookup(mealReviews, dishName: dishName)
+    }
+
+    func setReview(dishName: String, stars: Int, note: String, playHaptic: Bool = true) {
+        mealReviews = MealReviewLogic.upsert(
+            existing: mealReviews,
+            dishName: dishName,
+            stars: stars,
+            note: note
+        )
+        if playHaptic {
+            Haptics.soft()
+        }
+    }
+
+    func clearReview(dishName: String) {
+        mealReviews = MealReviewLogic.remove(existing: mealReviews, dishName: dishName)
+        Haptics.soft()
     }
 }

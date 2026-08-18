@@ -59,6 +59,41 @@ struct TagChip: View {
     }
 }
 
+// MARK: - Personal dish rating (1–5)
+
+struct StarRatingControl: View {
+    var stars: Int
+    var size: CGFloat = 28
+    var interactive = true
+    var onRate: ((Int) -> Void)?
+
+    var body: some View {
+        HStack(spacing: size > 20 ? 8 : 3) {
+            ForEach(1...5, id: \.self) { value in
+                let star = Image(systemName: value <= stars ? "star.fill" : "star")
+                    .font(.system(size: size, weight: .semibold))
+                    .foregroundStyle(value <= stars ? Color.uciGold : Color.inkMuted.opacity(0.45))
+                if interactive, let onRate {
+                    Button {
+                        onRate(value)
+                        Haptics.selection()
+                    } label: {
+                        star.symbolEffect(.bounce, value: stars == value)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(MealReviewAccessibility.starsLabel(value))
+                    .accessibilityAddTraits(value == stars ? [.isSelected] : [])
+                    .accessibilityIdentifier("dish-star-\(value)")
+                } else {
+                    star
+                }
+            }
+        }
+        .accessibilityElement(children: interactive ? .contain : .ignore)
+        .accessibilityLabel(stars > 0 ? MealReviewAccessibility.starsLabel(stars) : "Not rated")
+    }
+}
+
 // MARK: - Horizontal selectable pill row
 
 struct PillRow<Item: Hashable>: View {

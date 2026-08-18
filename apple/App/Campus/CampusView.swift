@@ -611,6 +611,7 @@ struct CampusMenuSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showDietFilters = false
     @State private var allDayExpanded = false
+    @State private var selectedDish: MenuItem?
 
     var body: some View {
         NavigationStack {
@@ -652,6 +653,9 @@ struct CampusMenuSheet: View {
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showDietFilters) {
             DietFilterSheet(prefs: prefs)
+        }
+        .sheet(item: $selectedDish) { dish in
+            DishDetailSheet(dish: dish, prefs: prefs)
         }
         .task {
             // Always probe the Hub menu — force so a stale empty TTL can't lie.
@@ -775,7 +779,9 @@ struct CampusMenuSheet: View {
 
                     if allDayExpanded {
                         ForEach(station.items) { item in
-                            CampusMenuItemRow(item: item)
+                            CampusMenuItemRow(item: item, prefs: prefs) {
+                                selectedDish = item
+                            }
                         }
                         .transition(.opacity)
                     }
@@ -784,7 +790,9 @@ struct CampusMenuSheet: View {
                         .font(ZotFont.sectionTitle)
                         .accessibilityAddTraits(.isHeader)
                     ForEach(station.items) { item in
-                        CampusMenuItemRow(item: item)
+                        CampusMenuItemRow(item: item, prefs: prefs) {
+                            selectedDish = item
+                        }
                     }
                 }
             }
@@ -881,48 +889,63 @@ struct CampusMenuSheet: View {
 
 private struct CampusMenuItemRow: View {
     let item: MenuItem
+    let prefs: Preferences
+    let onOpen: () -> Void
+
+    private var stars: Int {
+        prefs.review(for: item.name)?.stars ?? 0
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.name)
-                    .font(ZotFont.body.weight(.semibold))
-                if let description = item.description, !description.isEmpty {
-                    Text(description)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 5) {
-                            ForEach(item.dietaryTags, id: \.self) { tag in
-                                TagChip(text: tag, color: TagPalette.dietColor(tag))
-                            }
-                            ForEach(item.allergens, id: \.self) { allergen in
-                                TagChip(text: allergen, color: TagPalette.allergenColor)
+        Button(action: onOpen) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.name)
+                        .font(ZotFont.body.weight(.semibold))
+                    if stars > 0 {
+                        StarRatingControl(stars: stars, size: 11, interactive: false)
+                    }
+                    if let description = item.description, !description.isEmpty {
+                        Text(description)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 5) {
+                                ForEach(item.dietaryTags, id: \.self) { tag in
+                                    TagChip(text: tag, color: TagPalette.dietColor(tag))
+                                }
+                                ForEach(item.allergens, id: \.self) { allergen in
+                                    TagChip(text: allergen, color: TagPalette.allergenColor)
+                                }
                             }
                         }
                     }
                 }
-            }
-            Spacer(minLength: 8)
-            if let calories = item.calories {
-                VStack(spacing: -1) {
-                    Text("\(calories)")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color.uciBlue)
-                    Text("cal")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if let calories = item.calories {
+                    VStack(spacing: -1) {
+                        Text("\(calories)")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.uciBlue)
+                        Text("cal")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Color.uciBlue.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                    )
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
             }
+            .padding(11)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
         .zotCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -930,9 +953,11 @@ private struct CampusMenuItemRow: View {
                 dishName: item.name,
                 calories: item.calories,
                 dietaryTags: item.dietaryTags,
-                allergens: item.allergens
+                allergens: item.allergens,
+                stars: stars > 0 ? stars : nil
             )
         )
+        .accessibilityHint("Shows dish details")
     }
 }
 

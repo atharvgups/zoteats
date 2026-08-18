@@ -3,6 +3,7 @@ import SwiftUI
 // Settings — appearance control plus honest app/data-source info.
 
 struct SettingsView: View {
+    let prefs: Preferences
     @AppStorage(AppearanceSetting.storageKey)
     private var appearanceRaw: String = AppearanceSetting.system.rawValue
 
@@ -33,6 +34,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         appearanceCard
                         alertsCard
+                        reviewsCard
                         widgetsCard
                         aboutCard
                         dataSourcesCard
@@ -253,6 +255,53 @@ struct SettingsView: View {
                     Text("Notifications are off — open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+    }
+
+    // MARK: - Reviews
+
+    private var reviewsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your ratings")
+                .font(ZotFont.sectionTitle)
+                .foregroundStyle(Color.ink)
+
+            if prefs.mealReviews.isEmpty {
+                Text("Tap a dish on Eat, then tap stars. Ratings stay on this iPhone.")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(MealReviewLogic.sortedForDisplay(prefs.mealReviews)) { review in
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(review.dishName)
+                                .font(ZotFont.body.weight(.semibold))
+                                .foregroundStyle(Color.ink)
+                            StarRatingControl(stars: review.stars, size: 12, interactive: false)
+                            if !review.note.isEmpty {
+                                Text(review.note)
+                                    .font(ZotFont.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Button {
+                            prefs.clearReview(dishName: review.dishName)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove rating for \(review.dishName)")
+                    }
+                    .padding(.vertical, 4)
                 }
             }
         }
@@ -501,5 +550,5 @@ private struct AppearanceOption: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(prefs: Preferences())
 }

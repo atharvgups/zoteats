@@ -118,3 +118,19 @@ struct SharedDefaultsTodaysMenuTests {
         #expect(result.ordered == ["Soup"])
     }
 }
+
+@Suite("SharedDefaults — meal reviews")
+struct SharedDefaultsMealReviewTests {
+    @Test func roundTripsAReview() {
+        SharedDefaults.setMealReviews([])
+        let review = MealReview(dishName: "Grill Chicken", stars: 4, note: "Crispy", updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        SharedDefaults.setMealReviews([review])
+        let loaded = SharedDefaults.mealReviews()
+        #expect(loaded.count == 1)
+        #expect(loaded[0].dishName == "Grill Chicken")
+        #expect(loaded[0].stars == 4)
+        #expect(loaded[0].note == "Crispy")
+        SharedDefaults.setMealReviews([])
+        #expect(SharedDefaults.mealReviews().isEmpty)
+    }
+}
