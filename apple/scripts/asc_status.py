@@ -48,7 +48,7 @@ def make_token() -> str:
     )
 
 
-def api(method: str, path: str, token: str) -> dict:
+def api(method: str, path: str, token: str, ok_empty: bool = False) -> dict:
     req = urllib.request.Request(
         f"{API}{path}",
         method=method,
@@ -60,7 +60,20 @@ def api(method: str, path: str, token: str) -> dict:
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")
+        if ok_empty and exc.code in {404, 403}:
+            return {}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+
+
+def _days_ago(iso: str | None) -> str:
+    if not iso:
+        return ""
+    try:
+        submitted = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    hours = (datetime.now(timezone.utc) - submitted).total_seconds() / 3600
+    return f" (~{hours / 24:.1f}d)"
 
 
 def main() -> None:
@@ -87,18 +100,37 @@ def main() -> None:
     }
 
     print("--- appStoreVersions ---", flush=True)
+    waiting = []
     for v in versions.get("data") or []:
         attrs = v.get("attributes") or {}
         rel = ((v.get("relationships") or {}).get("build") or {}).get("data") or {}
         build = builds_by_id.get(rel.get("id") or "")
         battrs = (build or {}).get("attributes") or {}
+        build_no = battrs.get("version")
+        if not build_no and rel.get("id"):
+            linked = api("GET", f"/v1/builds/{rel['id']}", token, ok_empty=True)
+            build_no = ((linked.get("data") or {}).get("attributes") or {}).get("version")
+        if not build_no:
+            linked = api(
+                "GET",
+                f"/v1/appStoreVersions/{v['id']}/build",
+                token,
+                ok_empty=True,
+            )
+            build_no = ((linked.get("data") or {}).get("attributes") or {}).get("version")
         print(
             f"version={attrs.get('versionString')} "
             f"appStoreState={attrs.get('appStoreState')} "
-            f"build={battrs.get('version') or '—'} "
+            f"build={build_no or '—'} "
             f"buildProcessing={battrs.get('processingState') or '—'}",
             flush=True,
         )
+        if attrs.get("appStoreState") in {
+            "WAITING_FOR_REVIEW",
+            "IN_REVIEW",
+            "PROCESSING_FOR_REVIEW",
+        }:
+            waiting.append((v["id"], attrs.get("versionString"), attrs.get("appStoreState")))
 
     sq = urllib.parse.urlencode(
         {"filter[app]": app_id, "filter[platform]": "IOS", "limit": "10"}
@@ -107,13 +139,39 @@ def main() -> None:
     print("--- reviewSubmissions ---", flush=True)
     if not subs:
         print("(none)", flush=True)
+    in_flight = False
     for sub in subs:
         attrs = sub.get("attributes") or {}
+        state = attrs.get("state")
+        submitted = attrs.get("submittedDate")
         print(
-            f"id={sub.get('id')} state={attrs.get('state')} "
-            f"created={attrs.get('createdDate')} submitted={attrs.get('submittedDate')}",
+            f"id={sub.get('id')} state={state} "
+            f"created={attrs.get('createdDate')} submitted={submitted}"
+            f"{_days_ago(submitted)}",
             flush=True,
         )
+        items = api(
+            "GET", f"/v1/reviewSubmissions/{sub['id']}/items?limit=20", token, ok_empty=True
+        ).get("data") or []
+        print(f"  items={len(items)}", flush=True)
+        for item in items:
+            iattrs = item.get("attributes") or {}
+            print(f"  item state={iattrs.get('state')}", flush=True)
+        if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
+            in_flight = True
+
+    print("--- bottleneck ---", flush=True)
+    if in_flight:
+        print(
+            "No developer action: Apple already accepted 1.0.221 for App Review. "
+            "First-app queues often sit in WAITING_FOR_REVIEW for several days. "
+            "Do not cancel/replace unless Apple rejects.",
+            flush=True,
+        )
+    elif waiting:
+        print(f"Version still listed as {waiting[0][2]} — check items above.", flush=True)
+    else:
+        print("No in-flight App Review submission.", flush=True)
 
 
 if __name__ == "__main__":

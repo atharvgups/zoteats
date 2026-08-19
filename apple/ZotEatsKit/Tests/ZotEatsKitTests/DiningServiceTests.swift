@@ -292,6 +292,44 @@ struct HallOpenStateTests {
         #expect(empty.hoursLine(nowMinutes: 9 * 60) == "Menu not posted yet")
     }
 
+    @Test func emptyBoardWithTomorrowOpenIsClosedNotUnpublished() {
+        // Anteatery 404 today while Brandywine is serving — widget used to say
+        // "Menu not posted yet" all morning. Next-open means this hall is dark.
+        let empty = DiningLocation(
+            id: "anteatery", name: "The Anteatery", area: "Mesa Court",
+            openNow: false, todayHours: nil,
+            availablePeriods: [], periods: [],
+            hoursApproximate: false,
+            opensTomorrowAtMinutes: 11 * 60 + 30,
+            opensTomorrowPeriod: "Brunch"
+        )
+        #expect(empty.openState(nowMinutes: 7 * 60 + 39) == .closedForToday)
+        #expect(empty.hoursLine(nowMinutes: 7 * 60 + 39) == "Brunch tomorrow · 11:30 AM")
+        #expect(
+            DiningStatusWidgetLine.resolve(
+                state: empty.openState(nowMinutes: 7 * 60 + 39),
+                todayHours: nil,
+                opensTomorrowAtMinutes: empty.opensTomorrowAtMinutes,
+                opensTomorrowPeriod: empty.opensTomorrowPeriod
+            ) == "Brunch tomorrow · 11:30 AM"
+        )
+    }
+
+    @Test func emptyBoardWithMondayOpenIsClosedBeforeLunchProbe() {
+        let empty = DiningLocation(
+            id: "anteatery", name: "The Anteatery", area: "Mesa Court",
+            openNow: false, todayHours: nil,
+            availablePeriods: [], periods: [],
+            hoursApproximate: false,
+            opensNextAtMinutes: 7 * 60 + 15,
+            opensNextDayOffset: 3,
+            opensNextWeekday: "Monday",
+            opensNextPeriod: "Breakfast"
+        )
+        #expect(empty.openState(nowMinutes: 8 * 60) == .closedForToday)
+        #expect(empty.hoursLine(nowMinutes: 8 * 60) == "Breakfast Monday · 7:15 AM")
+    }
+
     @Test func emptyBoardAfterLunchProbeIsClosedForToday() {
         let empty = DiningLocation(
             id: "anteatery", name: "The Anteatery", area: "Mesa Court",

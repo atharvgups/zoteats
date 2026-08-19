@@ -207,6 +207,12 @@ public enum HallOpenState: Sendable, Equatable {
 public extension DiningLocation {
     func openState(nowMinutes: Int) -> HallOpenState {
         guard !periods.isEmpty else {
+            // Empty today with a known next meal = this hall is dark, not
+            // "menu unpublished". Sibling halls often have a full board
+            // (Brandywine today, Anteatery tomorrow).
+            if opensTomorrowAtMinutes != nil || opensNextAtMinutes != nil {
+                return .closedForToday
+            }
             // Unpublished / empty board: early morning stays unknown
             // ("Menu not posted yet"). After empty-board confidence (Lunch probe),
             // treat as closed-for-today so Status / Eat / widgets can surface

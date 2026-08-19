@@ -461,6 +461,19 @@ struct DiningStatusProvider: TimelineProvider {
         }
 
         let halls = locations.map { location -> DiningStatusEntry.HallStatus in
+            if location.isComingSoon {
+                return .init(
+                    id: location.id,
+                    name: location.name,
+                    statusText: location.comingSoonSubtitle ?? "Coming Soon",
+                    isOpen: false,
+                    occupancy: nil,
+                    countdownEnd: nil,
+                    countdownKind: nil,
+                    deepLinkPeriod: nil,
+                    deepLinkDate: nil
+                )
+            }
             let state = location.openState(nowMinutes: nowMinutes)
             let chrome = DiningStatusHallChrome.resolve(
                 state: state,
