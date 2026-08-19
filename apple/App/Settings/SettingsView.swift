@@ -1,4 +1,5 @@
 import SwiftUI
+import ZotEatsKit
 
 // Settings — appearance control plus honest app/data-source info.
 
