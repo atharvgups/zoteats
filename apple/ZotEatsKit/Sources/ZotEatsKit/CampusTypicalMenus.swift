@@ -40,6 +40,7 @@ public enum CampusTypicalMenus {
         case greensToGo
         case bAndF
         case javaCity
+        case greenRoom
         case halalShack
 
         var stations: [MenuStation] {
@@ -58,6 +59,7 @@ public enum CampusTypicalMenus {
             case .greensToGo: return Self.greensToGoStations
             case .bAndF: return Self.bAndFStations
             case .javaCity: return Self.javaCityStations
+            case .greenRoom: return Self.greenRoomStations
             case .halalShack: return Self.halalShackStations
             }
         }
@@ -167,19 +169,42 @@ public enum CampusTypicalMenus {
                 item("Sesame", tags: ["Vegetarian"]),
                 item("Cinnamon Raisin", tags: ["Vegetarian"]),
                 item("Asiago", tags: ["Vegetarian"]),
+                item("Blueberry", tags: ["Vegetarian"]),
             ]),
             station("Spreads & sandwiches", [
-                item("Shmear (ask flavors)"),
-                item("Breakfast sandwiches"),
-                item("Coffee"),
+                item("Plain shmear", tags: ["Vegetarian"]),
+                item("Garden veggie shmear", tags: ["Vegetarian"]),
+                item("Nova lox"),
+                item("Ham & Swiss"),
+                item("Bacon, egg & cheese"),
+                item("Avocado smash", tags: ["Vegetarian"]),
+            ]),
+            station("Drinks", [
+                item("Fresh-brewed coffee", tags: ["Vegan", "Vegetarian"]),
+                item("Latte", tags: ["Vegetarian"]),
+                item("Cold brew", tags: ["Vegan", "Vegetarian"]),
             ]),
         ]
 
         private static let paneraStations: [MenuStation] = [
-            station("Bakery & cafe", [
-                item("Bagels & pastries"), item("Soups (rotating)"),
-                item("Salads"), item("Sandwiches / paninis"),
-                item("Coffee & fountain drinks"),
+            station("Soups & mac", [
+                item("Broccoli Cheddar", tags: ["Vegetarian"]),
+                item("Chicken noodle"),
+                item("Tomato basil", tags: ["Vegetarian"]),
+                item("Mac & cheese", tags: ["Vegetarian"]),
+            ]),
+            station("Salads & sandwiches", [
+                item("Fuji Apple salad", tags: ["Vegetarian"]),
+                item("Green goddess cobb"),
+                item("Chipotle chicken avocado melt"),
+                item("Mediterranean veggie", tags: ["Vegetarian"]),
+                item("Bacon turkey bravo"),
+            ]),
+            station("Bakery & drinks", [
+                item("Bagel", tags: ["Vegetarian"]),
+                item("Pastry case", tags: ["Vegetarian"]),
+                item("Coffee", tags: ["Vegan", "Vegetarian"]),
+                item("Fountain drink"),
             ]),
         ]
 
@@ -187,61 +212,144 @@ public enum CampusTypicalMenus {
             station("Bowls & plates", [
                 item("Build-your-own Indian bowl"),
                 item("Chicken tikka"),
-                item("Paneer", tags: ["Vegetarian"]),
+                item("Chicken tikka masala"),
+                item("Saag paneer", tags: ["Vegetarian"]),
                 item("Chana masala", tags: ["Vegan", "Vegetarian"]),
                 item("Basmati rice", tags: ["Vegan", "Vegetarian"]),
-                item("Naan"),
+                item("Garlic naan"),
             ]),
             station("Sides", [
-                item("Samosas"), item("Raita"), item("Chutneys"),
+                item("Samosas", tags: ["Vegetarian"]),
+                item("Raita", tags: ["Vegetarian"]),
+                item("Mango chutney", tags: ["Vegan", "Vegetarian"]),
+                item("Mint chutney", tags: ["Vegan", "Vegetarian"]),
             ]),
         ]
 
         private static let wushilandStations: [MenuStation] = [
-            station("Boba & tea", [
-                item("Classic milk tea"), item("Brown sugar boba"),
-                item("Fruit teas"), item("Slush / snow"),
-                item("Add boba / toppings"),
+            station("Milk teas", [
+                item("Classic milk tea", tags: ["Vegetarian"]),
+                item("Brown sugar pearl milk tea", tags: ["Vegetarian"]),
+                item("Oolong milk tea", tags: ["Vegetarian"]),
+                item("Wintermelon milk tea", tags: ["Vegetarian"]),
+            ]),
+            station("Fruit teas & snow", [
+                item("Mango green tea", tags: ["Vegan", "Vegetarian"]),
+                item("Passion fruit green tea", tags: ["Vegan", "Vegetarian"]),
+                item("Lychee black tea", tags: ["Vegan", "Vegetarian"]),
+                item("Snow / slush"),
+            ]),
+            station("Toppings", [
+                item("Pearls (boba)", tags: ["Vegan", "Vegetarian"]),
+                item("Grass jelly", tags: ["Vegan", "Vegetarian"]),
+                item("Pudding", tags: ["Vegetarian"]),
             ]),
         ]
 
         private static let tortillaFrescaStations: [MenuStation] = [
-            station("Mexican grill", [
-                item("Burritos"), item("Tacos"), item("Quesadillas"),
-                item("Nachos"), item("Rice & beans", tags: ["Vegetarian"]),
+            station("Grill", [
+                item("Chicken burrito"),
+                item("Carne asada burrito"),
+                item("Bean & cheese burrito", tags: ["Vegetarian"]),
+                item("Carne asada tacos"),
+                item("Chicken tacos"),
+                item("Cheese quesadilla", tags: ["Vegetarian"]),
+                item("Super nachos"),
+            ]),
+            station("Sides", [
+                item("Cilantro lime rice", tags: ["Vegan", "Vegetarian"]),
+                item("Black beans", tags: ["Vegan", "Vegetarian"]),
                 item("Chips & salsa", tags: ["Vegan", "Vegetarian"]),
+                item("Guacamole", tags: ["Vegan", "Vegetarian"]),
             ]),
         ]
 
         private static let anthillPubStations: [MenuStation] = [
-            station("Pub fare", [
-                item("Burgers"), item("Sandwiches"), item("Fries"),
-                item("Salads"), item("Wings / sharables"),
+            station("Mains", [
+                item("Anthill burger"),
+                item("Impossible burger", tags: ["Vegetarian"]),
+                item("Chicken sandwich"),
+                item("Chicken tenders"),
+                item("Buffalo wings"),
+                item("Caesar salad"),
+            ]),
+            station("Sides & drinks", [
+                item("Fries", tags: ["Vegetarian"]),
+                item("Onion rings", tags: ["Vegetarian"]),
+                item("Mozzarella sticks", tags: ["Vegetarian"]),
                 item("Soft drinks"),
             ]),
         ]
 
         private static let greensToGoStations: [MenuStation] = [
             station("Salads & bowls", [
-                item("Build-your-own salad", tags: ["Vegetarian"]),
-                item("Grain bowls"), item("Wraps"),
-                item("Soups (rotating)"),
-                item("Fruit cups", tags: ["Vegan", "Vegetarian"]),
+                item("Kale Caesar", tags: ["Vegetarian"]),
+                item("Southwest bowl"),
+                item("Greek salad", tags: ["Vegetarian"]),
+                item("Harvest grain bowl", tags: ["Vegetarian"]),
+                item("Chicken wrap"),
+                item("Hummus veggie wrap", tags: ["Vegan", "Vegetarian"]),
+            ]),
+            station("Sides", [
+                item("Soup of the day"),
+                item("Fruit cup", tags: ["Vegan", "Vegetarian"]),
+                item("Chips", tags: ["Vegan", "Vegetarian"]),
             ]),
         ]
 
         private static let bAndFStations: [MenuStation] = [
-            station("Burgers & fries", [
-                item("Classic burger"), item("Chicken sandwich"),
+            station("Burgers & sandwiches", [
+                item("Classic smash burger"),
+                item("Double cheeseburger"),
+                item("Crispy chicken sandwich"),
                 item("Veggie burger", tags: ["Vegetarian"]),
-                item("Fries"), item("Onion rings"), item("Shakes"),
+            ]),
+            station("Sides & shakes", [
+                item("Fries"), item("Cheese fries", tags: ["Vegetarian"]),
+                item("Onion rings"),
+                item("Vanilla shake", tags: ["Vegetarian"]),
+                item("Chocolate shake", tags: ["Vegetarian"]),
             ]),
         ]
 
         private static let javaCityStations: [MenuStation] = [
-            station("Coffee & cafe", [
-                item("Brewed coffee"), item("Espresso drinks"),
-                item("Iced coffee / tea"), item("Pastries"),
+            station("Espresso", [
+                item("Caffè latte", tags: ["Vegetarian"]),
+                item("Cappuccino", tags: ["Vegetarian"]),
+                item("Caffè mocha", tags: ["Vegetarian"]),
+                item("Americano", tags: ["Vegan", "Vegetarian"]),
+                item("Espresso", tags: ["Vegan", "Vegetarian"]),
+                item("Caramel macchiato", tags: ["Vegetarian"]),
+            ]),
+            station("Brewed & iced", [
+                item("House drip", tags: ["Vegan", "Vegetarian"]),
+                item("Cold brew", tags: ["Vegan", "Vegetarian"]),
+                item("Iced latte", tags: ["Vegetarian"]),
+                item("Chai latte", tags: ["Vegetarian"]),
+                item("Iced tea", tags: ["Vegan", "Vegetarian"]),
+                item("Italian soda", tags: ["Vegetarian"]),
+            ]),
+            station("Bakery & bottles", [
+                item("Blueberry muffin", tags: ["Vegetarian"]),
+                item("Scone", tags: ["Vegetarian"]),
+                item("Bagel", tags: ["Vegetarian"]),
+                item("Cookie", tags: ["Vegetarian"]),
+                item("Bottled water", tags: ["Vegan", "Vegetarian"]),
+                item("Bottled juice"),
+            ]),
+        ]
+
+        private static let greenRoomStations: [MenuStation] = [
+            station("Coffee & tea", [
+                item("Drip coffee", tags: ["Vegan", "Vegetarian"]),
+                item("Latte", tags: ["Vegetarian"]),
+                item("Americano", tags: ["Vegan", "Vegetarian"]),
+                item("Chai", tags: ["Vegetarian"]),
+                item("Iced tea", tags: ["Vegan", "Vegetarian"]),
+            ]),
+            station("Bites", [
+                item("Pastry case", tags: ["Vegetarian"]),
+                item("Grab-and-go snacks"),
                 item("Bottled drinks"),
             ]),
         ]
@@ -315,6 +423,7 @@ public enum CampusTypicalMenus {
             return .bAndF
         }
         if hay.contains("java-city") || hay.contains("java city") { return .javaCity }
+        if hay.contains("green room") || hay.contains("green-room") { return .greenRoom }
         if hay.contains("halal-shack") || hay.contains("halal shack") { return .halalShack }
         return nil
     }

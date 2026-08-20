@@ -116,6 +116,12 @@ struct CampusTypicalMenusTests {
                 placeName: "Java City"
             ) == .javaCity
         )
+        #expect(
+            CampusTypicalMenus.kind(
+                forPlaceID: "the-green-room",
+                placeName: "The Green Room"
+            ) == .greenRoom
+        )
     }
 
     @Test func veganTaggedTypicalItemsSurviveDietFilter() {
@@ -168,6 +174,26 @@ struct CampusTypicalMenusTests {
         )
         #expect(zot.contains { $0.name.localizedCaseInsensitiveContains("parfait") })
         #expect(zot.contains { $0.name.localizedCaseInsensitiveContains("Veggie wrap") })
+    }
+
+    @Test func javaCityListsNamedDrinksNotCategoryBuckets() {
+        let items = foodItems(
+            forPlaceID: "java-city-kiosk",
+            placeName: "Java City Kiosk"
+        )
+        #expect(items.contains { $0.name.localizedCaseInsensitiveContains("latte") })
+        #expect(items.contains { $0.name.localizedCaseInsensitiveContains("cold brew") })
+        #expect(!items.contains { $0.name == "Brewed coffee" })
+        #expect(!items.contains { $0.name == "Espresso drinks" })
+    }
+
+    @Test func thinChainPacksNowListNamedPlates() {
+        let panera = foodItems(forPlaceID: "panera-at-bsc", placeName: "Panera")
+        #expect(panera.contains { $0.name.localizedCaseInsensitiveContains("Broccoli Cheddar") })
+        let pub = foodItems(forPlaceID: "anthill-pub", placeName: "Anthill Pub")
+        #expect(pub.contains { $0.name.localizedCaseInsensitiveContains("Anthill burger") })
+        let wushi = foodItems(forPlaceID: "wushiland-boba", placeName: "Wushiland")
+        #expect(wushi.contains { $0.name.localizedCaseInsensitiveContains("Brown sugar") })
     }
 
     private func foodItems(forPlaceID placeID: String, placeName: String) -> [MenuItem] {

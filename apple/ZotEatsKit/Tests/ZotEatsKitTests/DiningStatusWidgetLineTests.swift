@@ -55,6 +55,8 @@ struct DiningStatusWidgetLineTests {
         let closed = DiningStatusWidgetLine.splitMealAndClock("Closed for today")
         #expect(closed.meal == "Closed for today")
         #expect(closed.clock == nil)
+        let soon = DiningStatusWidgetLine.splitMealAndClock("Coming Soon")
+        #expect(soon.clock == nil)
     }
 
     @Test func tightenCompactsClockForSmallTile() {

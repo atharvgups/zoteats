@@ -23,6 +23,7 @@ struct ZotEatsWidgetBundle: WidgetBundle {
         TodaysMenuWidget()
         FavoritesTodayWidget()
         CampusOpenWidget()
+        CampusStudyWidget()
         QuietestLibraryWidget()
         MealCountdownActivity()
     }
@@ -318,17 +319,32 @@ struct DiningStatusEntry: TimelineEntry {
     let quietest: QuietestLibraryGlance.DiningStatusTip?
     /// True when we have no halls to show — render honest refresh copy (never skeleton).
     let needsAppRefresh: Bool
+    let boardHallName: String?
+    let boardHallID: String?
+    let boardDishes: [String]
+    let campusOpen: [WidgetGlanceExtras.CampusRow]
+    let campusOpenCount: Int
 
     init(
         date: Date,
         halls: [HallStatus],
         quietest: QuietestLibraryGlance.DiningStatusTip? = nil,
-        needsAppRefresh: Bool = false
+        needsAppRefresh: Bool = false,
+        boardHallName: String? = nil,
+        boardHallID: String? = nil,
+        boardDishes: [String] = [],
+        campusOpen: [WidgetGlanceExtras.CampusRow] = [],
+        campusOpenCount: Int = 0
     ) {
         self.date = date
         self.halls = halls
         self.quietest = quietest
         self.needsAppRefresh = needsAppRefresh
+        self.boardHallName = boardHallName
+        self.boardHallID = boardHallID
+        self.boardDishes = boardDishes
+        self.campusOpen = campusOpen
+        self.campusOpenCount = campusOpenCount
     }
 
     struct HallStatus {
@@ -345,6 +361,7 @@ struct DiningStatusEntry: TimelineEntry {
         let deepLinkPeriod: String?
         /// Tomorrow ISO when after-hours row deep-links into next day's board.
         let deepLinkDate: String?
+        let isComingSoon: Bool
 
         enum CountdownKind {
             case closes
@@ -360,7 +377,8 @@ struct DiningStatusEntry: TimelineEntry {
             countdownEnd: Date?,
             countdownKind: CountdownKind?,
             deepLinkPeriod: String? = nil,
-            deepLinkDate: String? = nil
+            deepLinkDate: String? = nil,
+            isComingSoon: Bool = false
         ) {
             self.id = id
             self.name = name
@@ -371,63 +389,76 @@ struct DiningStatusEntry: TimelineEntry {
             self.countdownKind = countdownKind
             self.deepLinkPeriod = deepLinkPeriod
             self.deepLinkDate = deepLinkDate
+            self.isComingSoon = isComingSoon
         }
     }
 }
 
-struct DiningStatusProvider: TimelineProvider {
-    func placeholder(in context: Context) -> DiningStatusEntry {
-        DiningStatusEntry(
+struct DiningHallsConfigurationIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Dining Halls"
+    static var description: IntentDescription = IntentDescription(
+        "Hall clocks. Medium adds today’s dishes; Large adds campus and study. Hide Coming Soon if you want."
+    )
+
+    @Parameter(title: "Show Coming Soon halls", default: true)
+    var showComingSoon: Bool
+}
+
+struct DiningStatusProvider: AppIntentTimelineProvider {
+    func placeholder(for configuration: DiningHallsConfigurationIntent, in context: Context) -> DiningStatusEntry {
+        _ = configuration
+        return DiningStatusEntry(
             date: .now,
             halls: [
-                .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner · 8:00 PM", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
-                .init(id: "brandywine", name: "Brandywine", statusText: "Dinner · 8:00 PM", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
-                .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Lunch · 11:00 AM", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .opens),
-            ]
+                .init(id: "anteatery", name: "The Anteatery", statusText: "Lunch · 11:30 AM", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil),
+                .init(id: "brandywine", name: "Brandywine", statusText: "Breakfast · 11:00 AM", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
+                .init(id: "oasis", name: "The Oasis", statusText: "Coming Soon", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil, isComingSoon: true),
+            ],
+            boardHallName: "Brandywine",
+            boardHallID: "brandywine",
+            boardDishes: ["Crispy Okra", "Farro Salad", "BBQ Pork"],
+            campusOpen: [
+                .init(id: "starbucks-at-student-center", name: "Starbucks", hours: "until 4 PM"),
+            ],
+            campusOpenCount: 6,
+            quietest: .open(name: "Langson · 4th", percent: 8, facilityID: 1, updatedAt: .now)
         )
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (DiningStatusEntry) -> Void) {
-        if context.isPreview {
-            completion(placeholder(in: context))
-            return
-        }
-        // WidgetKit's completion closures aren't Sendable; box them to cross
-        // into the async task under Swift 6 strict concurrency.
-        let deliver = UncheckedSendableBox(completion)
-        Task { deliver.value(await fetchEntry()) }
+    func snapshot(for configuration: DiningHallsConfigurationIntent, in context: Context) async -> DiningStatusEntry {
+        if context.isPreview { return placeholder(for: configuration, in: context) }
+        return await fetchEntry(showComingSoon: configuration.showComingSoon)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<DiningStatusEntry>) -> Void) {
-        let deliver = UncheckedSendableBox(completion)
-        Task {
-            let (entry, locations, libraryReopenMinutes, libraryCloseMinutes) = await fetchEntryAndLocations()
-            let librariesClosed: Bool = {
-                if case .librariesClosed(_) = entry.quietest { return true }
-                return false
-            }()
-            let quietestTipOpen: Bool = {
-                if case .open = entry.quietest { return true }
-                return false
-            }()
-            let reload = DiningStatusReload.nextReload(
-                locations: locations,
-                nowMinutes: UCITime.nowMinutes(),
-                now: .now,
-                librariesClosed: librariesClosed,
-                libraryReopenMinutes: libraryReopenMinutes,
-                libraryCloseMinutes: libraryCloseMinutes,
-                quietestTipOpen: quietestTipOpen
-            )
-            deliver.value(Timeline(entries: [entry], policy: .after(reload)))
-        }
+    func timeline(for configuration: DiningHallsConfigurationIntent, in context: Context) async -> Timeline<DiningStatusEntry> {
+        let (entry, locations, libraryReopenMinutes, libraryCloseMinutes) = await fetchEntryAndLocations(
+            showComingSoon: configuration.showComingSoon
+        )
+        let librariesClosed: Bool = {
+            if case .librariesClosed(_) = entry.quietest { return true }
+            return false
+        }()
+        let quietestTipOpen: Bool = {
+            if case .open = entry.quietest { return true }
+            return false
+        }()
+        let reload = DiningStatusReload.nextReload(
+            locations: locations,
+            nowMinutes: UCITime.nowMinutes(),
+            now: .now,
+            librariesClosed: librariesClosed,
+            libraryReopenMinutes: libraryReopenMinutes,
+            libraryCloseMinutes: libraryCloseMinutes,
+            quietestTipOpen: quietestTipOpen
+        )
+        return Timeline(entries: [entry], policy: .after(reload))
     }
 
-    private func fetchEntry() async -> DiningStatusEntry {
-        await fetchEntryAndLocations().entry
+    private func fetchEntry(showComingSoon: Bool) async -> DiningStatusEntry {
+        await fetchEntryAndLocations(showComingSoon: showComingSoon).entry
     }
 
-    private func fetchEntryAndLocations() async -> (
+    private func fetchEntryAndLocations(showComingSoon: Bool) async -> (
         entry: DiningStatusEntry,
         locations: [DiningLocation],
         libraryReopenMinutes: [Int],
@@ -460,7 +491,12 @@ struct DiningStatusProvider: TimelineProvider {
             )
         }
 
-        let halls = locations.map { location -> DiningStatusEntry.HallStatus in
+        let visibleLocations = WidgetGlanceExtras.comingSoonHalls(
+            from: locations,
+            showComingSoon: showComingSoon
+        )
+
+        let halls = visibleLocations.map { location -> DiningStatusEntry.HallStatus in
             if location.isComingSoon {
                 return .init(
                     id: location.id,
@@ -471,7 +507,8 @@ struct DiningStatusProvider: TimelineProvider {
                     countdownEnd: nil,
                     countdownKind: nil,
                     deepLinkPeriod: nil,
-                    deepLinkDate: nil
+                    deepLinkDate: nil,
+                    isComingSoon: true
                 )
             }
             let state = location.openState(nowMinutes: nowMinutes)
@@ -548,8 +585,57 @@ struct DiningStatusProvider: TimelineProvider {
             libraryCloseMinutes = []
         }
 
+        var boardHallName: String?
+        var boardHallID: String?
+        var boardDishes: [String] = []
+        if let pick = TodaysMenuHallPick.auto(from: locations, nowMinutes: nowMinutes) {
+            let timed = pick.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+            let choice = TodaysMenuPeriodPick.choose(
+                timedPeriods: timed,
+                availablePeriods: pick.availablePeriods,
+                nowMinutes: nowMinutes
+            )
+            if !choice.period.isEmpty {
+                let menu = WidgetSnapshotStore.loadDiningMenu(
+                    hall: pick.id,
+                    period: choice.period,
+                    dateISO: UCITime.todayISO()
+                )
+                if let strip = WidgetGlanceExtras.boardStrip(
+                    locations: locations,
+                    menu: menu,
+                    nowMinutes: nowMinutes,
+                    dietFilters: Set(SharedDefaults.dietFilters()),
+                    allergenAvoids: Set(SharedDefaults.allergenAvoids()),
+                    favorites: SharedDefaults.favoriteDishNames(),
+                    limit: 5
+                ) {
+                    boardHallName = strip.hallName
+                    boardHallID = strip.hallID
+                    boardDishes = strip.dishes
+                }
+            }
+        }
+
+        let campusPlaces = WidgetSnapshotStore.loadCampusPlaces() ?? []
+        let campus = WidgetGlanceExtras.campusRows(
+            places: campusPlaces,
+            favoriteIDs: Set(SharedDefaults.favoriteCampusPlaceIDs()),
+            favoritesOnly: false,
+            limit: 3
+        )
+
         return (
-            DiningStatusEntry(date: .now, halls: halls, quietest: quietest),
+            DiningStatusEntry(
+                date: .now,
+                halls: halls,
+                quietest: quietest,
+                boardHallName: boardHallName,
+                boardHallID: boardHallID,
+                boardDishes: boardDishes,
+                campusOpen: campus.rows,
+                campusOpenCount: campus.totalOpen
+            ),
             locations,
             libraryReopenMinutes,
             libraryCloseMinutes
@@ -568,7 +654,11 @@ private struct UncheckedSendableBox<T>: @unchecked Sendable {
 
 struct DiningStatusWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ZotEatsDiningStatus", provider: DiningStatusProvider()) { entry in
+        AppIntentConfiguration(
+            kind: WidgetTimelineKinds.diningStatus,
+            intent: DiningHallsConfigurationIntent.self,
+            provider: DiningStatusProvider()
+        ) { entry in
             DiningStatusView(entry: entry)
                 .anteatsWidgetContent()
                 .containerBackground(for: .widget) {
@@ -577,8 +667,7 @@ struct DiningStatusWidget: Widget {
                 .widgetURL(AnteatsWidgetURL.eat)
         }
         .configurationDisplayName("Dining Halls")
-        .description("Which meal is on, and until when.")
-        // Small + medium cover the job; large only when more halls earn the height.
+        .description("Hall clocks. Medium adds today’s dishes; Large adds campus and study.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -630,17 +719,108 @@ struct DiningStatusView: View {
                         }
                     }
                 }
+                if DiningStatusLayout.showsBoardStrip(isCompact: isCompact) {
+                    boardStrip
+                }
+                if isLarge {
+                    campusStrip
+                    studyStrip
+                }
                 Spacer(minLength: 0)
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if !isCompact {
+            if !isCompact && !isLarge {
                 Text("EAT")
-                    .font(WidgetChrome.display(isLarge ? 56 : 44))
+                    .font(WidgetChrome.display(44))
                     .foregroundStyle(WidgetChrome.ink.opacity(0.06))
                     .padding(.trailing, 2)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var boardStrip: some View {
+        if !entry.boardDishes.isEmpty {
+            let dishes = Array(entry.boardDishes.prefix(DiningStatusLayout.boardDishLimit(isLarge: isLarge)))
+            WidgetInsetCard {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text((entry.boardHallName ?? "Board").uppercased())
+                        .font(WidgetChrome.kicker(10))
+                        .tracking(0.8)
+                        .foregroundStyle(WidgetChrome.accent)
+                    ForEach(dishes, id: \.self) { dish in
+                        Link(destination: AnteatsDeepLink.eat(
+                            hall: entry.boardHallID,
+                            dish: dish
+                        ).url) {
+                            Text(dish)
+                                .font(WidgetChrome.row(11))
+                                .foregroundStyle(WidgetChrome.ink)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var campusStrip: some View {
+        if DiningStatusLayout.showsCampusStrip(isLarge: isLarge), !entry.campusOpen.isEmpty {
+            WidgetInsetCard {
+                VStack(alignment: .leading, spacing: 5) {
+                    WidgetKicker(
+                        title: "CAMPUS",
+                        trailing: entry.campusOpenCount == 0 ? nil : "\(entry.campusOpenCount) OPEN"
+                    )
+                    ForEach(Array(entry.campusOpen.prefix(DiningStatusLayout.campusRowLimit(isLarge: true))), id: \.id) { place in
+                        Link(destination: AnteatsDeepLink.campus(placeID: place.id).url) {
+                            HStack {
+                                Text(place.name.uppercased())
+                                    .font(WidgetChrome.row(11))
+                                    .foregroundStyle(WidgetChrome.ink)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(place.hours.uppercased())
+                                    .font(WidgetChrome.meta(10))
+                                    .foregroundStyle(WidgetChrome.accent)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var studyStrip: some View {
+        if DiningStatusLayout.showsStudyFooter(isCompact: isCompact, isLarge: isLarge),
+           let quietest = entry.quietest {
+            WidgetInsetCard {
+                switch quietest {
+                case .open(let name, let percent, let facilityID, _):
+                    Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
+                        HStack {
+                            Text("STUDY")
+                                .font(WidgetChrome.kicker(10))
+                                .tracking(0.8)
+                                .foregroundStyle(WidgetChrome.accent)
+                            Spacer(minLength: 4)
+                            Text("\(name.uppercased()) · \(percent)%")
+                                .font(WidgetChrome.row(11))
+                                .foregroundStyle(WidgetChrome.ink)
+                                .lineLimit(1)
+                        }
+                    }
+                case .librariesClosed:
+                    Text("LIBRARIES CLOSED")
+                        .font(WidgetChrome.row(11))
+                        .foregroundStyle(WidgetChrome.muted)
+                }
             }
         }
     }
@@ -650,6 +830,15 @@ struct DiningStatusView: View {
         let clockSize = DiningStatusLayout.statusFontSize(isCompact: isCompact, hallCount: hallCount)
         let raw = isCompact ? DiningStatusWidgetLine.tighten(hall.statusText) : hall.statusText
         let split = DiningStatusWidgetLine.splitMealAndClock(raw)
+        let subtitle: String = {
+            if hall.isComingSoon { return "Soon" }
+            if split.clock != nil { return split.meal }
+            return ""
+        }()
+        let trailing: String = {
+            if hall.isComingSoon { return "Soon" }
+            return split.clock ?? split.meal
+        }()
         return HStack(alignment: .center, spacing: 8) {
             Circle()
                 .fill(hall.isOpen ? WidgetChrome.open : WidgetChrome.muted.opacity(0.45))
@@ -659,26 +848,23 @@ struct DiningStatusView: View {
                     .font(WidgetChrome.row(nameSize))
                     .foregroundStyle(WidgetChrome.ink)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                if split.clock != nil, !isCompact {
-                    Text(split.meal.uppercased())
-                        .font(WidgetChrome.meta(isCompact ? 9 : 10))
-                        .tracking(0.5)
-                        .foregroundStyle(WidgetChrome.muted)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(subtitle.uppercased())
+                    .font(WidgetChrome.meta(isCompact ? 9 : 10))
+                    .tracking(0.5)
+                    .foregroundStyle(WidgetChrome.muted)
+                    .lineLimit(1)
+                    .opacity(subtitle.isEmpty ? 0 : 1)
             }
-            Spacer(minLength: 6)
-            Text(split.clock ?? split.meal.uppercased())
+            Text(trailing.uppercased())
                 .font(WidgetChrome.display(clockSize))
                 .foregroundStyle(hall.isOpen ? WidgetChrome.accent : WidgetChrome.muted)
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
-                .layoutPriority(1)
+                .minimumScaleFactor(0.7)
+                .frame(minWidth: DiningStatusLayout.trailingColumnMinWidth, alignment: .trailing)
         }
-        .opacity(hall.isOpen ? 1 : 0.78)
+        .opacity(hall.isOpen || hall.isComingSoon ? 1 : 0.78)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             DiningStatusAccessibilityLabel.hall(
@@ -703,10 +889,13 @@ struct DiningStatusView: View {
     DiningStatusEntry(
         date: .now,
         halls: [
-            .init(id: "anteatery", name: "The Anteatery", statusText: "Dinner · 8:00 PM", isOpen: true, occupancy: 72, countdownEnd: .now.addingTimeInterval(3600), countdownKind: .closes),
-            .init(id: "brandywine", name: "Brandywine", statusText: "Dinner · 8:00 PM", isOpen: false, occupancy: nil, countdownEnd: .now.addingTimeInterval(7200), countdownKind: .opens),
-            .init(id: "mesa-commons", name: "Mesa Commons", statusText: "Lunch · 11:00 AM", isOpen: true, occupancy: 40, countdownEnd: .now.addingTimeInterval(4800), countdownKind: .closes),
-        ]
+            .init(id: "anteatery", name: "The Anteatery", statusText: "Lunch · 11:30 AM", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil),
+            .init(id: "brandywine", name: "Brandywine", statusText: "Breakfast · 11:00 AM", isOpen: true, occupancy: nil, countdownEnd: nil, countdownKind: .closes),
+            .init(id: "oasis", name: "The Oasis", statusText: "Coming Soon", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil, isComingSoon: true),
+        ],
+        boardHallName: "Brandywine",
+        boardHallID: "brandywine",
+        boardDishes: ["Crispy Okra", "Farro Salad", "BBQ Pork"]
     )
 }
 
@@ -1765,7 +1954,7 @@ struct CampusOpenProvider: TimelineProvider {
             places: places,
             favoriteIDs: favoriteIDs
         )
-        let rows = open.prefix(4).map { place -> (id: String, name: String, hours: String) in
+        let rows = open.prefix(6).map { place -> (id: String, name: String, hours: String) in
             let hours = CampusPlaceHoursLine.widgetOpenHours(
                 todayHours: place.todayHours,
                 closesAtMinutes: place.closesAtMinutes
@@ -1795,13 +1984,21 @@ struct CampusOpenWidget: Widget {
         }
         .configurationDisplayName("Campus Open Now")
         .description("Which cafés and food courts are open right now.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
 struct CampusOpenView: View {
     let entry: CampusOpenEntry
     @Environment(\.widgetFamily) private var family
+
+    private var rowLimit: Int {
+        switch family {
+        case .systemLarge: return 6
+        case .systemSmall: return 1
+        default: return 3
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: family == .systemSmall ? 8 : 8) {
@@ -1866,7 +2063,7 @@ struct CampusOpenView: View {
             } else {
                 WidgetInsetCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(entry.openPlaces.prefix(3)), id: \.id) { place in
+                        ForEach(Array(entry.openPlaces.prefix(rowLimit)), id: \.id) { place in
                             Link(destination: AnteatsDeepLink.campus(placeID: place.id).url) {
                                 HStack(spacing: 8) {
                                     Circle()
@@ -1887,8 +2084,8 @@ struct CampusOpenView: View {
                                 }
                             }
                         }
-                        if entry.totalOpen > 3 {
-                            Text("+\(entry.totalOpen - 3) MORE")
+                        if entry.totalOpen > rowLimit {
+                            Text("+\(entry.totalOpen - rowLimit) MORE")
                                 .font(WidgetChrome.kicker(10))
                                 .tracking(0.8)
                                 .foregroundStyle(WidgetChrome.muted)
@@ -2143,4 +2340,257 @@ struct QuietestLibraryView: View {
     QuietestLibraryWidget()
 } timeline: {
     QuietestLibraryEntry(date: .now, name: "Langson · 4th Floor", percent: 8)
+}
+
+// MARK: - Campus + Study combo
+
+struct CampusStudyConfigurationIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Campus + Study"
+    static var description: IntentDescription = IntentDescription(
+        "Open campus spots plus the quietest library. Optionally only hearted cafés."
+    )
+
+    @Parameter(title: "Campus favorites only", default: false)
+    var favoritesOnly: Bool
+}
+
+struct CampusStudyEntry: TimelineEntry {
+    let date: Date
+    let campusOpen: [WidgetGlanceExtras.CampusRow]
+    let campusOpenCount: Int
+    let nextOpen: CampusNextOpenHint.Hint?
+    let needsAppRefresh: Bool
+    let libraryName: String
+    let libraryPercent: Int?
+    let libraryFacilityID: Int?
+    let libraryReopenMinutes: Int?
+}
+
+struct CampusStudyProvider: AppIntentTimelineProvider {
+    func placeholder(for configuration: CampusStudyConfigurationIntent, in context: Context) -> CampusStudyEntry {
+        _ = configuration
+        return CampusStudyEntry(
+            date: .now,
+            campusOpen: [
+                .init(id: "starbucks-at-student-center", name: "Starbucks", hours: "until 4 PM"),
+                .init(id: "panda-express", name: "Panda Express", hours: "until 7 PM"),
+            ],
+            campusOpenCount: 6,
+            nextOpen: nil,
+            needsAppRefresh: false,
+            libraryName: "Langson · 4th Floor",
+            libraryPercent: 8,
+            libraryFacilityID: 1,
+            libraryReopenMinutes: nil
+        )
+    }
+
+    func snapshot(for configuration: CampusStudyConfigurationIntent, in context: Context) async -> CampusStudyEntry {
+        if context.isPreview { return placeholder(for: configuration, in: context) }
+        return await fetchEntry(favoritesOnly: configuration.favoritesOnly)
+    }
+
+    func timeline(for configuration: CampusStudyConfigurationIntent, in context: Context) async -> Timeline<CampusStudyEntry> {
+        let entry = await fetchEntry(favoritesOnly: configuration.favoritesOnly)
+        let places = WidgetSnapshotStore.loadCampusPlaces() ?? []
+        let facilities = WidgetSnapshotStore.loadBusynessPlaces() ?? []
+        let campusReload = CampusOpenReload.nextReload(now: .now, places: places)
+        let nowMinutes = UCITime.nowMinutes()
+        let studyReload = QuietestLibraryReload.nextReload(
+            now: .now,
+            anyLibraryOpen: StudyBoundaryRefresh.anyLibraryOpen(
+                from: facilities,
+                nowMinutes: nowMinutes
+            ),
+            reopenMinutes: QuietestLibraryReload.reopenMinutes(from: facilities),
+            closeMinutes: QuietestLibraryReload.closeMinutes(
+                from: facilities,
+                nowMinutes: nowMinutes
+            )
+        )
+        let reload = min(campusReload, studyReload)
+        return Timeline(entries: [entry], policy: .after(reload))
+    }
+
+    private func fetchEntry(favoritesOnly: Bool) async -> CampusStudyEntry {
+        let cachedCampus = WidgetSnapshotStore.loadCampusPlaces() ?? []
+        let campusPlaces: [CampusPlace]
+        if let networked = try? await CampusService(http: HTTPClient(timeout: 8)).places(),
+           !networked.isEmpty {
+            WidgetSnapshotStore.saveCampusPlaces(networked)
+            campusPlaces = networked
+        } else {
+            campusPlaces = cachedCampus
+        }
+
+        let cachedStudy = WidgetSnapshotStore.loadBusynessPlaces() ?? []
+        let facilities: [BusynessPoint]
+        if let networked = try? await BusynessService(http: HTTPClient(timeout: 6)).all(),
+           !networked.isEmpty {
+            WidgetSnapshotStore.saveBusynessPlaces(networked)
+            facilities = networked
+        } else {
+            facilities = cachedStudy
+        }
+
+        let campus = WidgetGlanceExtras.campusRows(
+            places: campusPlaces,
+            favoriteIDs: Set(SharedDefaults.favoriteCampusPlaceIDs()),
+            favoritesOnly: favoritesOnly,
+            limit: 4
+        )
+        let library = QuietestLibraryProvider.entryForCombo(from: facilities)
+        let nextOpen = campus.totalOpen == 0 ? CampusNextOpenHint.best(from: campusPlaces) : nil
+        return CampusStudyEntry(
+            date: .now,
+            campusOpen: campus.rows,
+            campusOpenCount: campus.totalOpen,
+            nextOpen: nextOpen,
+            needsAppRefresh: campusPlaces.isEmpty && facilities.isEmpty,
+            libraryName: library.name,
+            libraryPercent: library.percent,
+            libraryFacilityID: library.facilityID,
+            libraryReopenMinutes: library.reopenMinutes
+        )
+    }
+}
+
+private extension QuietestLibraryProvider {
+    static func entryForCombo(from facilities: [BusynessPoint]) -> QuietestLibraryEntry {
+        entry(from: facilities)
+    }
+}
+
+struct CampusStudyWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: WidgetTimelineKinds.campusStudy,
+            intent: CampusStudyConfigurationIntent.self,
+            provider: CampusStudyProvider()
+        ) { entry in
+            CampusStudyView(entry: entry)
+                .anteatsWidgetContent()
+                .containerBackground(for: .widget) {
+                    WidgetChrome.canvas
+                }
+                .widgetURL(AnteatsWidgetURL.campus)
+        }
+        .configurationDisplayName("Campus + Study")
+        .description("Open cafés plus the quietest library. Optionally only hearted spots.")
+        .supportedFamilies([.systemMedium, .systemLarge])
+    }
+}
+
+struct CampusStudyView: View {
+    let entry: CampusStudyEntry
+    @Environment(\.widgetFamily) private var family
+
+    private var campusLimit: Int { family == .systemLarge ? 4 : 2 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            WidgetKicker(
+                title: "CAMPUS + STUDY",
+                trailing: entry.campusOpenCount == 0 ? nil : "\(entry.campusOpenCount) OPEN"
+            )
+
+            if entry.needsAppRefresh {
+                Spacer(minLength: 0)
+                Text(WidgetLoadEmptyCopy.title)
+                    .font(WidgetChrome.row(13))
+                    .foregroundStyle(WidgetChrome.ink)
+                Text(WidgetLoadEmptyCopy.detail)
+                    .font(WidgetChrome.meta(11))
+                    .foregroundStyle(WidgetChrome.muted)
+                    .lineLimit(3)
+                Spacer(minLength: 0)
+            } else {
+                WidgetInsetCard {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if entry.campusOpen.isEmpty {
+                            if let hint = entry.nextOpen {
+                                Text(hint.line)
+                                    .font(WidgetChrome.row(12))
+                                    .foregroundStyle(WidgetChrome.accent)
+                                    .lineLimit(2)
+                            } else {
+                                Text("Nothing's open right now.")
+                                    .font(WidgetChrome.meta(12))
+                                    .foregroundStyle(WidgetChrome.muted)
+                            }
+                        } else {
+                            ForEach(Array(entry.campusOpen.prefix(campusLimit)), id: \.id) { place in
+                                Link(destination: AnteatsDeepLink.campus(placeID: place.id).url) {
+                                    HStack(spacing: 8) {
+                                        Circle()
+                                            .fill(WidgetChrome.open)
+                                            .frame(width: 6, height: 6)
+                                        Text(place.name.uppercased())
+                                            .font(WidgetChrome.row(12))
+                                            .foregroundStyle(WidgetChrome.ink)
+                                            .lineLimit(1)
+                                        Spacer(minLength: 4)
+                                        Text(place.hours.uppercased())
+                                            .font(WidgetChrome.display(12))
+                                            .foregroundStyle(WidgetChrome.accent)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.7)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                WidgetInsetCard {
+                    Link(destination: AnteatsDeepLink.study(facilityID: entry.libraryFacilityID).url) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("STUDY")
+                                .font(WidgetChrome.kicker(10))
+                                .tracking(0.8)
+                                .foregroundStyle(WidgetChrome.accent)
+                            Text(entry.libraryName.uppercased())
+                                .font(WidgetChrome.row(12))
+                                .foregroundStyle(WidgetChrome.ink)
+                                .lineLimit(2)
+                            if let percent = entry.libraryPercent {
+                                Text("\(percent)% FULL · QUIETEST NOW")
+                                    .font(WidgetChrome.meta(11))
+                                    .foregroundStyle(WidgetChrome.muted)
+                            } else {
+                                Text(
+                                    StudyIdleCopy.quietestClosedDetail(
+                                        reopenMinutes: entry.libraryReopenMinutes
+                                    )
+                                )
+                                .font(WidgetChrome.meta(11))
+                                .foregroundStyle(WidgetChrome.muted)
+                                .lineLimit(2)
+                            }
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+}
+
+#Preview(as: .systemMedium) {
+    CampusStudyWidget()
+} timeline: {
+    CampusStudyEntry(
+        date: .now,
+        campusOpen: [
+            .init(id: "starbucks-at-student-center", name: "Starbucks", hours: "until 4 PM"),
+            .init(id: "panda-express", name: "Panda Express", hours: "until 7 PM"),
+        ],
+        campusOpenCount: 6,
+        nextOpen: nil,
+        needsAppRefresh: false,
+        libraryName: "Langson · 4th Floor",
+        libraryPercent: 8,
+        libraryFacilityID: 1,
+        libraryReopenMinutes: nil
+    )
 }

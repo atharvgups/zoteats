@@ -10,6 +10,7 @@ struct WidgetTimelineKindsTests {
             "ZotEatsTodaysMenu",
             "ZotEatsFavoritesToday",
             "ZotEatsCampusOpen",
+            "ZotEatsCampusStudy",
             "ZotEatsQuietestLibrary",
         ])
         #expect(Set(WidgetTimelineKinds.all).count == WidgetTimelineKinds.all.count)
@@ -32,6 +33,7 @@ struct WidgetTimelineKindsTests {
     @Test func campusGroupIsOpenNowOnly() {
         #expect(WidgetTimelineKinds.campus == [
             WidgetTimelineKinds.campusOpen,
+            WidgetTimelineKinds.campusStudy,
         ])
     }
 }

@@ -28,6 +28,7 @@ enum WidgetReloader {
     /// Study / Quietest (+ Dining Status tip that embeds quietest).
     static func reloadStudyWidgets() {
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.quietestLibrary)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.campusStudy)
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.diningStatus)
     }
 
