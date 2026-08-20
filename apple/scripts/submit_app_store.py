@@ -53,15 +53,29 @@ BUILD_NUMBER = os.environ.get("BUILD_NUMBER", "").strip()
 METADATA_PATH = Path(os.environ.get("METADATA_PATH", "apple/AppStore/metadata.json"))
 SCREENSHOT_ROOT = Path(os.environ.get("SCREENSHOT_ROOT", ".")).resolve()
 SUBMIT = os.environ.get("SUBMIT_FOR_REVIEW", "true").lower() not in {"0", "false", "no"}
-# When true, PATCH canceled=true on WAITING_FOR_REVIEW / IN_REVIEW before
-# creating a new submission (Atharv cancel/replace flow). If ASC refuses,
-# die with the App Store Connect UI cancel path.
+# When true, cancel WAITING_FOR_REVIEW only (never IN_REVIEW / approved).
+# First public version 1.0.221 is approved — do not pull it from review.
 CANCEL_IN_FLIGHT = os.environ.get("CANCEL_IN_FLIGHT_REVIEW", "true").lower() not in {
     "0",
     "false",
     "no",
 }
+# When true, POST appStoreVersionReleaseRequests for PENDING_DEVELOPER_RELEASE
+# so the approved version actually goes on sale before we create the next one.
+RELEASE_PENDING = os.environ.get("RELEASE_PENDING_DEVELOPER_RELEASE", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 MAX_WAIT = int(os.environ.get("BUILD_WAIT_SECONDS", "2400"))
+RELEASE_STATES = {"PENDING_DEVELOPER_RELEASE", "ACCEPTED"}
+LIVE_OR_RELEASING_STATES = {
+    "READY_FOR_SALE",
+    "PENDING_APPLE_RELEASE",
+    "PROCESSING_FOR_APP_STORE",
+    "READY_FOR_DISTRIBUTION",
+    "REPLACED_WITH_NEW_VERSION",
+}
 
 # iPhone 6.7" App Store slot (iPhone 15 Pro Max / similar).
 IPHONE_67_SIZE = (1290, 2796)
@@ -154,50 +168,64 @@ def load_metadata() -> dict:
     return json.loads(METADATA_PATH.read_text())
 
 
-def list_builds(token: str, app_id: str, limit: int = 40) -> list[dict]:
+def list_builds(token: str, app_id: str, limit: int = 50) -> tuple[list[dict], dict]:
     q = urllib.parse.urlencode(
         {
             "filter[app]": app_id,
             "sort": "-uploadedDate",
             "limit": str(limit),
+            "include": "preReleaseVersion",
             "fields[builds]": "version,processingState,uploadedDate,expired",
+            "fields[preReleaseVersions]": "version",
         }
     )
-    return api("GET", f"/v1/builds?{q}", token).get("data") or []
+    payload = api("GET", f"/v1/builds?{q}", token)
+    trains = {
+        row["id"]: row
+        for row in (payload.get("included") or [])
+        if row.get("type") == "preReleaseVersions"
+    }
+    return payload.get("data") or [], trains
+
+
+def build_marketing_version(build: dict, trains: dict) -> str:
+    rel = ((build.get("relationships") or {}).get("preReleaseVersion") or {}).get("data") or {}
+    train = trains.get(rel.get("id") or "")
+    return str(((train or {}).get("attributes") or {}).get("version") or "")
 
 
 def wait_for_build(token: str, app_id: str) -> dict:
     deadline = time.time() + MAX_WAIT
     last = None
+    want_train = MARKETING_VERSION
     while time.time() < deadline:
-        builds = list_builds(token, app_id)
+        builds, trains = list_builds(token, app_id)
         chosen = None
-        if BUILD_NUMBER:
-            for b in builds:
-                if str((b.get("attributes") or {}).get("version")) == str(BUILD_NUMBER):
-                    chosen = b
-                    break
-        else:
-            # Newest non-expired first (`sort=-uploadedDate`). Do not fall through
-            # to an older VALID build while the latest is still PROCESSING — that
-            # can re-submit a stale Gym binary after a Gym-free TestFlight upload.
-            for b in builds:
-                attrs = b.get("attributes") or {}
-                if attrs.get("expired"):
+        for b in builds:
+            attrs = b.get("attributes") or {}
+            if attrs.get("expired"):
+                continue
+            if BUILD_NUMBER and str(attrs.get("version")) != str(BUILD_NUMBER):
+                continue
+            if want_train:
+                train = build_marketing_version(b, trains)
+                if train and train != want_train:
                     continue
-                chosen = b
-                break
+            chosen = b
+            break
         if chosen:
             state = (chosen.get("attributes") or {}).get("processingState")
             ver = (chosen.get("attributes") or {}).get("version")
-            info(f"Build {ver}: processingState={state}")
+            train = build_marketing_version(chosen, trains) or "?"
+            info(f"Build {ver} ({train}): processingState={state}")
             last = state
             if state == "VALID":
                 return chosen
             if state in {"INVALID", "FAILED"}:
                 die(f"Build ended in state {state}")
         else:
-            info("Waiting for a build to appear…")
+            target = want_train or "any"
+            info(f"Waiting for a VALID build on train {target}…")
         time.sleep(30)
     die(f"Timed out waiting for a VALID build (last state={last})")
 
@@ -212,7 +240,7 @@ def editable_states() -> set[str]:
     }
 
 
-def get_or_create_version(token: str, app_id: str, version_string: str) -> dict:
+def list_ios_versions(token: str, app_id: str) -> list[dict]:
     q = urllib.parse.urlencode(
         {
             "filter[platform]": "IOS",
@@ -220,7 +248,73 @@ def get_or_create_version(token: str, app_id: str, version_string: str) -> dict:
             "fields[appStoreVersions]": "versionString,appStoreState,platform",
         }
     )
-    versions = api("GET", f"/v1/apps/{app_id}/appStoreVersions?{q}", token).get("data") or []
+    return api("GET", f"/v1/apps/{app_id}/appStoreVersions?{q}", token).get("data") or []
+
+
+def release_pending_developer_release(token: str, app_id: str) -> None:
+    """Put an approved-but-unreleased version on sale so a newer version can be created."""
+    versions = list_ios_versions(token, app_id)
+    pending = [
+        v
+        for v in versions
+        if (v.get("attributes") or {}).get("appStoreState") in RELEASE_STATES
+    ]
+    if not pending:
+        return
+    if not RELEASE_PENDING:
+        ver = (pending[0].get("attributes") or {}).get("versionString")
+        state = (pending[0].get("attributes") or {}).get("appStoreState")
+        die(
+            f"{ver} is {state}. Set RELEASE_PENDING_DEVELOPER_RELEASE=true "
+            "(or tap Release in App Store Connect) so it can go on sale, then re-run."
+        )
+    for version in pending:
+        version_id = version["id"]
+        attrs = version.get("attributes") or {}
+        ver = attrs.get("versionString")
+        state = attrs.get("appStoreState")
+        info(f"Releasing {ver} to the App Store (state={state})…")
+        result = api(
+            "POST",
+            "/v1/appStoreVersionReleaseRequests",
+            token,
+            {
+                "data": {
+                    "type": "appStoreVersionReleaseRequests",
+                    "relationships": {
+                        "appStoreVersion": {
+                            "data": {"type": "appStoreVersions", "id": version_id}
+                        }
+                    },
+                }
+            },
+            ok_codes={200, 201, 409, 422},
+        )
+        if result.get("errors") and not result.get("already_exists") and not result.get("data"):
+            die(
+                f"Could not release {ver}. In App Store Connect → Anteats → "
+                f"{ver} → Release this version. Detail: {json.dumps(result)[:1200]}"
+            )
+        deadline = time.time() + 300
+        while time.time() < deadline:
+            detail = api("GET", f"/v1/appStoreVersions/{version_id}", token)
+            new_state = ((detail.get("data") or {}).get("attributes") or {}).get("appStoreState")
+            info(f"Release poll: {ver} → {new_state}")
+            if new_state in LIVE_OR_RELEASING_STATES:
+                break
+            if new_state in RELEASE_STATES:
+                time.sleep(10)
+                continue
+            break
+        else:
+            warn(
+                f"{ver} release is still settling (last state pending). "
+                "Continuing to prepare the next App Store version."
+            )
+
+
+def get_or_create_version(token: str, app_id: str, version_string: str) -> dict:
+    versions = list_ios_versions(token, app_id)
     for v in versions:
         attrs = v.get("attributes") or {}
         info(f"Version {attrs.get('versionString')}: {attrs.get('appStoreState')}")
@@ -246,25 +340,42 @@ def get_or_create_version(token: str, app_id: str, version_string: str) -> dict:
                 return patched.get("data") or v
             return v
 
-    created = api(
-        "POST",
-        "/v1/appStoreVersions",
-        token,
-        {
-            "data": {
-                "type": "appStoreVersions",
-                "attributes": {"platform": "IOS", "versionString": version_string},
-                "relationships": {"app": {"data": {"type": "apps", "id": app_id}}},
-            }
-        },
+    last = {}
+    for attempt in range(6):
+        created = api(
+            "POST",
+            "/v1/appStoreVersions",
+            token,
+            {
+                "data": {
+                    "type": "appStoreVersions",
+                    "attributes": {"platform": "IOS", "versionString": version_string},
+                    "relationships": {"app": {"data": {"type": "apps", "id": app_id}}},
+                }
+            },
+            ok_codes={200, 201, 409, 422},
+        )
+        version = created.get("data")
+        if version:
+            info(f"Created App Store version {version_string} ({version['id']})")
+            return version
+        last = created
+        info(
+            f"Could not create {version_string} yet (attempt {attempt + 1}/6); "
+            "waiting for the approved version to go on sale…"
+        )
+        time.sleep(20)
+        versions = list_ios_versions(token, app_id)
+        for v in versions:
+            attrs = v.get("attributes") or {}
+            if attrs.get("versionString") == version_string and attrs.get("appStoreState") in editable_states():
+                return v
+    die(
+        "Could not create app store version and no editable draft exists. "
+        "If the approved version is still Pending Developer Release, release it "
+        "in App Store Connect first (or re-run with RELEASE_PENDING_DEVELOPER_RELEASE=true). "
+        f"Detail: {json.dumps(last)[:800]}"
     )
-    if created.get("already_exists"):
-        die("Could not create app store version and no editable draft exists.")
-    version = created.get("data")
-    if not version:
-        die("Creating appStoreVersion returned empty data.")
-    info(f"Created App Store version {version_string} ({version['id']})")
-    return version
 
 
 def attach_build(token: str, version_id: str, build_id: str) -> None:
@@ -982,7 +1093,7 @@ def wait_for_screenshot_processing(token: str, localization_id: str, timeout_s: 
 
 
 def cancel_in_flight_review_submissions(token: str, app_id: str) -> None:
-    """Cancel WAITING_FOR_REVIEW / IN_REVIEW so a Gym-free build can replace them."""
+    """Cancel WAITING_FOR_REVIEW drafts only. Never cancel IN_REVIEW / approved."""
     q = urllib.parse.urlencode(
         {
             "filter[app]": app_id,
@@ -991,17 +1102,40 @@ def cancel_in_flight_review_submissions(token: str, app_id: str) -> None:
         }
     )
     existing = api("GET", f"/v1/reviewSubmissions?{q}", token).get("data") or []
+    approved_or_live = any(
+        (v.get("attributes") or {}).get("appStoreState") in (RELEASE_STATES | LIVE_OR_RELEASING_STATES)
+        for v in list_ios_versions(token, app_id)
+    )
+    with_apple = [
+        sub
+        for sub in existing
+        if (sub.get("attributes") or {}).get("state")
+        in {"IN_REVIEW", "PROCESSING_FOR_REVIEW"}
+    ]
+    if with_apple and approved_or_live:
+        info(
+            "An IN_REVIEW submission record is still listed, but a version is "
+            "already approved or live — not canceling it."
+        )
+        with_apple = []
+    if with_apple:
+        state = (with_apple[0].get("attributes") or {}).get("state")
+        die(
+            f"An App Review submission is still {state}. Do not cancel — "
+            "1.0.221 was approved for distribution. Wait until it is "
+            "Pending Developer Release or Ready for Sale, then re-run."
+        )
     in_flight = [
         sub
         for sub in existing
         if (sub.get("attributes") or {}).get("state")
-        in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW", "CANCELING"}
+        in {"WAITING_FOR_REVIEW", "CANCELING"}
     ]
     if not in_flight:
         return
     if not CANCEL_IN_FLIGHT:
         die(
-            "An App Review submission is still WAITING_FOR_REVIEW / IN_REVIEW. "
+            "An App Review submission is still WAITING_FOR_REVIEW. "
             "Cancel it in App Store Connect → Anteats → App Review → Cancel Submission, "
             "then re-run. Or set CANCEL_IN_FLIGHT_REVIEW=true."
         )
@@ -1220,8 +1354,9 @@ def main() -> None:
     build_ver = (build.get("attributes") or {}).get("version")
     info(f"Using build CFBundleVersion={build_ver} id={build_id}")
 
-    # Cancel WAITING_FOR_REVIEW before version create/reuse — ASC blocks a new
-    # appStoreVersion (and leaves no editable draft) while a submission is live.
+    # Put the approved first version on sale, then cancel leftover WAITING drafts
+    # (never IN_REVIEW) so ASC will allow creating the next marketing version.
+    release_pending_developer_release(token, app_id)
     cancel_in_flight_review_submissions(token, app_id)
 
     version = get_or_create_version(token, app_id, version_string)

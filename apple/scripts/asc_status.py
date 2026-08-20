@@ -161,11 +161,31 @@ def main() -> None:
             in_flight = True
 
     print("--- bottleneck ---", flush=True)
-    if in_flight:
+    states = [
+        ((v.get("attributes") or {}).get("versionString"), (v.get("attributes") or {}).get("appStoreState"))
+        for v in (versions.get("data") or [])
+    ]
+    pending_release = [s for s in states if s[1] in {"PENDING_DEVELOPER_RELEASE", "ACCEPTED"}]
+    live = [s for s in states if s[1] in {"READY_FOR_SALE", "PENDING_APPLE_RELEASE", "PROCESSING_FOR_APP_STORE"}]
+    if pending_release:
+        ver, state = pending_release[0]
         print(
-            "No developer action: Apple already accepted 1.0.221 for App Review. "
-            "First-app queues often sit in WAITING_FOR_REVIEW for several days. "
-            "Do not cancel/replace unless Apple rejects.",
+            f"{ver} is {state} (approved, not on sale yet). "
+            "Push appstore-* to release it, then submit the current TestFlight train. "
+            "Do not cancel.",
+            flush=True,
+        )
+    elif live and not in_flight:
+        ver, state = live[0]
+        print(
+            f"{ver} is {state}. Public store is live. "
+            "Next update: push appstore-<newer> against the current TestFlight train.",
+            flush=True,
+        )
+    elif in_flight:
+        print(
+            "App Review is still in flight. Do not cancel an approved first version. "
+            "Wait for Pending Developer Release / Ready for Sale, then push appstore-*.",
             flush=True,
         )
     elif waiting:
