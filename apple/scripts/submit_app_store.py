@@ -175,8 +175,6 @@ def list_builds(token: str, app_id: str, limit: int = 50) -> tuple[list[dict], d
             "sort": "-uploadedDate",
             "limit": str(limit),
             "include": "preReleaseVersion",
-            "fields[builds]": "version,processingState,uploadedDate,expired",
-            "fields[preReleaseVersions]": "version",
         }
     )
     payload = api("GET", f"/v1/builds?{q}", token)
@@ -194,6 +192,27 @@ def build_marketing_version(build: dict, trains: dict) -> str:
     return str(((train or {}).get("attributes") or {}).get("version") or "")
 
 
+def enrich_marketing_version(token: str, build: dict, trains: dict) -> str:
+    train = build_marketing_version(build, trains)
+    if train:
+        return train
+    bid = build.get("id")
+    if not bid:
+        return ""
+    detail = api(
+        "GET",
+        f"/v1/builds/{bid}/preReleaseVersion",
+        token,
+        ok_codes={200, 404},
+    ).get("data") or {}
+    train = str((detail.get("attributes") or {}).get("version") or "")
+    if detail.get("id"):
+        trains[detail["id"]] = detail
+        rel = build.setdefault("relationships", {}).setdefault("preReleaseVersion", {})
+        rel["data"] = {"type": "preReleaseVersions", "id": detail["id"]}
+    return train
+
+
 def wait_for_build(token: str, app_id: str) -> dict:
     deadline = time.time() + MAX_WAIT
     last = None
@@ -208,15 +227,15 @@ def wait_for_build(token: str, app_id: str) -> dict:
             if BUILD_NUMBER and str(attrs.get("version")) != str(BUILD_NUMBER):
                 continue
             if want_train:
-                train = build_marketing_version(b, trains)
-                if train and train != want_train:
+                train = enrich_marketing_version(token, b, trains)
+                if train != want_train:
                     continue
             chosen = b
             break
         if chosen:
             state = (chosen.get("attributes") or {}).get("processingState")
             ver = (chosen.get("attributes") or {}).get("version")
-            train = build_marketing_version(chosen, trains) or "?"
+            train = enrich_marketing_version(token, chosen, trains) or "?"
             info(f"Build {ver} ({train}): processingState={state}")
             last = state
             if state == "VALID":
@@ -934,6 +953,12 @@ def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
         ok_codes={200, 204, 409, 422},
     )
     if result.get("errors") and not result.get("data"):
+        raw = str(result.get("raw") or json.dumps(result))
+        if result.get("already_exists") or "not editable" in raw.lower():
+            warn(
+                "Age rating is not editable (already set on the live 1.0.221 listing). Continuing."
+            )
+            return
         die(
             "Age rating PATCH incomplete — ASC will reject App Review attach. "
             "In App Store Connect → App Information → Age Ratings, answer all "
