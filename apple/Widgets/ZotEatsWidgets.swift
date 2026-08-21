@@ -395,8 +395,8 @@ struct DiningStatusEntry: TimelineEntry {
 }
 
 struct DiningHallsConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Dining Halls"
-    static var description: IntentDescription = IntentDescription(
+    static let title: LocalizedStringResource = "Dining Halls"
+    static let description: IntentDescription = IntentDescription(
         "Hall clocks. Medium adds today’s dishes; Large adds campus and study. Hide Coming Soon if you want."
     )
 
@@ -405,6 +405,10 @@ struct DiningHallsConfigurationIntent: WidgetConfigurationIntent {
 }
 
 struct DiningStatusProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> DiningStatusEntry {
+        placeholder(for: DiningHallsConfigurationIntent(), in: context)
+    }
+
     func placeholder(for configuration: DiningHallsConfigurationIntent, in context: Context) -> DiningStatusEntry {
         _ = configuration
         return DiningStatusEntry(
@@ -414,14 +418,14 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
                 .init(id: "brandywine", name: "Brandywine", statusText: "Breakfast · 11:00 AM", isOpen: true, occupancy: 65, countdownEnd: .now.addingTimeInterval(5400), countdownKind: .closes),
                 .init(id: "oasis", name: "The Oasis", statusText: "Coming Soon", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil, isComingSoon: true),
             ],
+            quietest: .open(name: "Langson · 4th", percent: 8, facilityID: 1, updatedAt: .now),
             boardHallName: "Brandywine",
             boardHallID: "brandywine",
             boardDishes: ["Crispy Okra", "Farro Salad", "BBQ Pork"],
             campusOpen: [
                 .init(id: "starbucks-at-student-center", name: "Starbucks", hours: "until 4 PM"),
             ],
-            campusOpenCount: 6,
-            quietest: .open(name: "Langson · 4th", percent: 8, facilityID: 1, updatedAt: .now)
+            campusOpenCount: 6
         )
     }
 
@@ -2345,8 +2349,8 @@ struct QuietestLibraryView: View {
 // MARK: - Campus + Study combo
 
 struct CampusStudyConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Campus + Study"
-    static var description: IntentDescription = IntentDescription(
+    static let title: LocalizedStringResource = "Campus + Study"
+    static let description: IntentDescription = IntentDescription(
         "Open campus spots plus the quietest library. Optionally only hearted cafés."
     )
 
@@ -2367,6 +2371,10 @@ struct CampusStudyEntry: TimelineEntry {
 }
 
 struct CampusStudyProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> CampusStudyEntry {
+        placeholder(for: CampusStudyConfigurationIntent(), in: context)
+    }
+
     func placeholder(for configuration: CampusStudyConfigurationIntent, in context: Context) -> CampusStudyEntry {
         _ = configuration
         return CampusStudyEntry(
