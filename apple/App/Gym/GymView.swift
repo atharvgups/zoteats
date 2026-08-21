@@ -339,16 +339,16 @@ struct GymHoursCard: View {
                         HStack {
                             Text(day.day)
                                 .font(isToday ? ZotFont.body.weight(.semibold) : ZotFont.body)
-                                .foregroundStyle(isToday ? Color.uciBlue : Color.primary)
+                                .foregroundStyle(isToday ? Color.ink : Color.primary)
                             Spacer()
                             Text(day.hours)
                                 .font(isToday ? ZotFont.body.weight(.semibold) : ZotFont.body)
-                                .foregroundStyle(isToday ? Color.uciBlue : Color.secondary)
+                                .foregroundStyle(isToday ? Color.ink : Color.secondary)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
                         .background(
-                            isToday ? Color.uciBlue.opacity(0.08) : Color.clear,
+                            isToday ? Color.ink.opacity(0.08) : Color.clear,
                             in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                         )
                         .accessibilityElement(children: .combine)
@@ -405,7 +405,7 @@ struct GymApproximateHoursFootnote: View {
                     destination: URL(string: "https://www.campusrec.uci.edu/arc/hours.html")!
                 )
                 .font(ZotFont.caption.weight(.medium))
-                .foregroundStyle(Color.uciBlue)
+                .foregroundStyle(Color.ink)
                 .accessibilityLabel("Open ARC hours page at campusrec.uci.edu")
             }
         }

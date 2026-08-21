@@ -64,7 +64,7 @@ struct ZotEatsApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabView()
-                .tint(.uciBlue)
+                .tint(.ink)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -243,5 +243,5 @@ struct RootTabView: View {
 
 #Preview {
     RootTabView()
-        .tint(.uciBlue)
+        .tint(.ink)
 }

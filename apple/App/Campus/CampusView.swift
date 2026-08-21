@@ -143,13 +143,13 @@ struct CampusView: View {
                             .padding(.horizontal, 13)
                             .padding(.vertical, 7)
                             .background(
-                                isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
+                                isSelected ? Color.ink.opacity(0.12) : Color.card,
                                 in: Capsule()
                             )
-                            .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                            .foregroundStyle(isSelected ? Color.ink : .primary)
                             .overlay(
                                 Capsule().strokeBorder(
-                                    isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                    isSelected ? Color.ink.opacity(0.35) : Color.cardBorder,
                                     lineWidth: 1
                                 )
                             )
@@ -430,7 +430,7 @@ private struct CampusVenueGlyph: View {
     private var tint: Color {
         switch section {
         case .coffee: return Color.uciGold
-        case .food: return Color.uciBlue
+        case .food: return TagPalette.clay
         case .markets: return TagPalette.sage
         }
     }
@@ -489,7 +489,7 @@ private struct CampusBrandGroupRow: View {
                     }
                     Spacer(minLength: 8)
                     Text(statusLine)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(ZotFont.caption.weight(.medium))
                         .foregroundStyle(openCount > 0 ? Color.openGreen : Color.inkMuted)
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
@@ -556,7 +556,7 @@ private struct CampusPlaceRow: View {
                     }
                     Spacer(minLength: 8)
                     Text(place.openNow ? "Open" : "Closed")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(ZotFont.caption.weight(.medium))
                         .foregroundStyle(place.openNow ? Color.openGreen : Color.inkMuted)
                 }
                 .contentShape(Rectangle())
@@ -566,7 +566,7 @@ private struct CampusPlaceRow: View {
             Button(action: onToggleFavorite) {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isFavorite ? Color.uciBlue : Color.secondary.opacity(0.45))
+                    .foregroundStyle(isFavorite ? Color.ink : Color.secondary.opacity(0.45))
                     .frame(width: 32, height: 40)
                     .contentShape(Rectangle())
             }
@@ -697,7 +697,7 @@ struct CampusMenuSheet: View {
                         } label: {
                             Text("Clear")
                                 .font(ZotFont.pill.weight(.semibold))
-                                .foregroundStyle(Color.uciBlue)
+                                .foregroundStyle(Color.ink)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Clear menu filters")
@@ -814,7 +814,7 @@ struct CampusMenuSheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.uciBlue.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.horizontal, 20)
         .accessibilityElement(children: .combine)
     }
@@ -840,10 +840,10 @@ struct CampusMenuSheet: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                active ? Color.uciBlue.opacity(0.12) : Color.primary.opacity(0.05),
+                active ? Color.ink.opacity(0.12) : Color.primary.opacity(0.05),
                 in: Capsule()
             )
-            .foregroundStyle(active ? Color.uciBlue : .primary)
+            .foregroundStyle(active ? Color.ink : .primary)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("campus-diet-filter-chip")
@@ -932,16 +932,16 @@ private struct CampusMenuItemRow: View {
                 if let calories = item.calories {
                     VStack(spacing: -1) {
                         Text("\(calories)")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color.uciBlue)
+                            .font(ZotFont.face(14, relativeTo: .caption).weight(.medium))
+                            .foregroundStyle(Color.ink)
                         Text("cal")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
                     .background(
-                        Color.uciBlue.opacity(0.1),
+                        Color.ink.opacity(0.1),
                         in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                     )
                 }

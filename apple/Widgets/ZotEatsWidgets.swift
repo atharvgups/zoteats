@@ -36,43 +36,43 @@ private extension View {
     }
 }
 
-/// Home Screen widget chrome — Box Box Club language: black (or cream in
-/// Light Mode), nested charcoal cards, wide black type, gold accent.
+/// Home Screen widget chrome — parchment canvas, nested cards, one grotesque
+/// (Instrument Sans), gold accent. No expanded-black shout.
 /// Colors follow the Home Screen appearance so Dark Mode actually flips.
 private enum WidgetChrome {
-    static let open = Color(red: 52 / 255, green: 178 / 255, blue: 51 / 255)
+    static let open = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
 
     static let canvas = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor.black
-            : UIColor(red: 255 / 255, green: 246 / 255, blue: 230 / 255, alpha: 1)
+            ? UIColor(red: 28 / 255, green: 28 / 255, blue: 26 / 255, alpha: 1)
+            : UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
     })
 
     static let card = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
-            : UIColor(red: 255 / 255, green: 252 / 255, blue: 243 / 255, alpha: 1)
+            ? UIColor(red: 40 / 255, green: 40 / 255, blue: 37 / 255, alpha: 1)
+            : UIColor(red: 241 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
     })
 
     static let ink = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor.white
-            : UIColor(red: 23 / 255, green: 19 / 255, blue: 16 / 255, alpha: 1)
+            ? UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
+            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 1)
     })
 
     static let muted = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.55)
-            : UIColor(red: 97 / 255, green: 88 / 255, blue: 74 / 255, alpha: 1)
+            ? UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 0.58)
+            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 0.52)
     })
 
     static let hairline = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.10)
-            : UIColor(red: 230 / 255, green: 220 / 255, blue: 195 / 255, alpha: 1)
+            ? UIColor(white: 1, alpha: 0.08)
+            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 0.08)
     })
 
-    /// Gold on black; deeper gold on cream so it still reads in Light Mode.
+    /// Gold on parchment; brighter gold on charcoal so it still reads in Dark Mode.
     static let accent = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
@@ -80,19 +80,19 @@ private enum WidgetChrome {
     })
 
     static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .black, design: .default).width(.expanded)
+        .custom("Instrument Sans", size: size).weight(.medium)
     }
 
     static func kicker(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .heavy, design: .default).width(.expanded)
+        .custom("Instrument Sans", size: size).weight(.medium)
     }
 
     static func row(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .bold, design: .default).width(.expanded)
+        .custom("Instrument Sans", size: size).weight(.medium)
     }
 
     static func meta(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold, design: .default)
+        .custom("Instrument Sans", size: size)
     }
 }
 
@@ -104,7 +104,7 @@ private struct WidgetKicker: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
                 .font(WidgetChrome.kicker(11))
-                .tracking(1.6)
+                .tracking(0.8)
                 .foregroundStyle(WidgetChrome.accent)
             Spacer(minLength: 4)
             if let trailing {
@@ -160,7 +160,7 @@ struct MealCountdownActivity: Widget {
                     .foregroundStyle(activityGold)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.hallName)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(WidgetChrome.row(15))
                     Text(
                         MealCountdownChrome.lockStatus(
                             period: context.attributes.period,
@@ -169,7 +169,7 @@ struct MealCountdownActivity: Widget {
                             postCloseDate: context.state.postCloseDate
                         )
                     )
-                        .font(.system(size: 12))
+                        .font(WidgetChrome.meta(12))
                         .opacity(0.8)
                 }
                 Spacer()
@@ -230,7 +230,7 @@ struct MealCountdownActivity: Widget {
                         Image(systemName: "fork.knife.circle.fill")
                             .foregroundStyle(activityGold)
                         Text(context.attributes.hallName)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(WidgetChrome.row(14))
                             .lineLimit(1)
                     }
                     .accessibilityElement(children: .combine)
@@ -246,14 +246,14 @@ struct MealCountdownActivity: Widget {
                                 postCloseDate: context.state.postCloseDate
                             )
                         )
-                            .font(.system(size: 18, weight: .bold))
+                            .font(WidgetChrome.display(18))
                             .foregroundStyle(activityGold)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                             .accessibilityHidden(true)
                     } else {
                         Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
-                            .font(.system(size: 22, weight: .bold))
+                            .font(WidgetChrome.display(22))
                             .monospacedDigit()
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 84)
@@ -270,7 +270,7 @@ struct MealCountdownActivity: Widget {
                             postCloseDate: context.state.postCloseDate
                         )
                     )
-                        .font(.system(size: 12))
+                        .font(WidgetChrome.meta(12))
                         .opacity(0.8)
                         .accessibilityHidden(true)
                 }
@@ -288,7 +288,7 @@ struct MealCountdownActivity: Widget {
                             postCloseDate: context.state.postCloseDate
                         )
                     )
-                        .font(.system(size: 12, weight: .bold))
+                        .font(WidgetChrome.row(12))
                         .foregroundStyle(activityGold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -1306,14 +1306,14 @@ struct TodaysMenuView: View {
                 Image(systemName: "fork.knife")
                     .font(.system(size: 11, weight: .semibold))
                 Text(glanceTitle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(WidgetChrome.row(13))
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             if let first = Array(entry.dishes.prefix(dishLimit)).first {
                 Link(destination: entry.dishDeepLinkURL(first)) {
                     Text(first)
-                        .font(.system(size: 12))
+                        .font(WidgetChrome.meta(12))
                         .opacity(0.85)
                         .lineLimit(1)
                 }
@@ -1321,7 +1321,7 @@ struct TodaysMenuView: View {
                     let second = entry.dishes[1]
                     Link(destination: entry.dishDeepLinkURL(second)) {
                         Text(second)
-                            .font(.system(size: 12))
+                            .font(WidgetChrome.meta(12))
                             .opacity(0.7)
                             .lineLimit(1)
                     }
@@ -1344,7 +1344,7 @@ struct TodaysMenuView: View {
                         emptyBoard: entry.isEmptyBoard
                     )
                 )
-                    .font(.system(size: 12))
+                    .font(WidgetChrome.meta(12))
                     .opacity(0.75)
                     .lineLimit(1)
             }
@@ -2249,7 +2249,7 @@ struct QuietestLibraryView: View {
                         Image(systemName: "books.vertical.fill")
                     } currentValueLabel: {
                         Text("\(percent)%")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(WidgetChrome.row(14))
                             .monospacedDigit()
                     }
                     .gaugeStyle(.accessoryCircular)
@@ -2265,13 +2265,13 @@ struct QuietestLibraryView: View {
                         .font(.system(size: 18, weight: .semibold))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(entry.name)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(WidgetChrome.row(13))
                             .lineLimit(1)
                         Text(QuietestLibraryGlance.widgetRectangularDetail(
                             percent: entry.percent,
                             reopenMinutes: entry.reopenMinutes
                         ))
-                            .font(.system(size: 11))
+                            .font(WidgetChrome.meta(11))
                             .opacity(0.8)
                             .lineLimit(2)
                     }
@@ -2296,7 +2296,7 @@ struct QuietestLibraryView: View {
                             .foregroundStyle(WidgetChrome.accent)
                         Text("% FULL · QUIETEST NOW")
                             .font(WidgetChrome.kicker(10))
-                            .tracking(1.2)
+                            .tracking(0.6)
                             .foregroundStyle(WidgetChrome.muted)
                     } else {
                         Text(

@@ -43,6 +43,9 @@ targets:
           - Gym/**
       - path: App/PrivacyInfo.xcprivacy
         buildPhase: resources
+      - path: Fonts
+        type: group
+        buildPhase: resources
     dependencies:
       - package: ZotEatsKit
       - target: ZotEatsWidgets
@@ -60,6 +63,7 @@ targets:
         NSSupportsLiveActivities: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.atharvgupta.zoteats.refresh]
+        UIAppFonts: [InstrumentSans.ttf]
         CFBundleURLTypes:
           - CFBundleURLName: Anteats
             CFBundleURLSchemes: [anteats]
@@ -86,6 +90,9 @@ targets:
           - PrivacyInfo.xcprivacy
       - path: Widgets/PrivacyInfo.xcprivacy
         buildPhase: resources
+      - path: Fonts
+        type: group
+        buildPhase: resources
     dependencies:
       - package: ZotEatsKit
     info:
@@ -96,6 +103,7 @@ targets:
         # widgets on an old/broken extension while TestFlight bumped the app.
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UIAppFonts: [InstrumentSans.ttf]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:

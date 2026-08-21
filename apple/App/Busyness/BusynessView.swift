@@ -219,7 +219,7 @@ struct QuietestNowCard: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "sparkles")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.uciGold)
                 .frame(width: 40, height: 40)
                 .background(
@@ -229,7 +229,7 @@ struct QuietestNowCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("QUIETEST RIGHT NOW")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(ZotFont.face(10, relativeTo: .caption2).weight(.medium))
                     .tracking(0.8)
                     .foregroundStyle(Color.inkMuted)
                 Text(pick.title)
@@ -243,11 +243,11 @@ struct QuietestNowCard: View {
 
             VStack(spacing: 1) {
                 Text("\(pick.percent)%")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(ZotFont.face(22, relativeTo: .title2).weight(.medium))
                     .monospacedDigit()
-                    .foregroundStyle(Color.uciBlue)
+                    .foregroundStyle(Color.ink)
                 Text("full")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(ZotFont.face(10, relativeTo: .caption2))
                     .foregroundStyle(Color.inkMuted)
             }
         }
@@ -256,7 +256,7 @@ struct QuietestNowCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.uciBlue.opacity(0.08),
+                    Color.ink.opacity(0.08),
                     Color.uciGold.opacity(0.07),
                 ],
                 startPoint: .topLeading,
@@ -266,7 +266,7 @@ struct QuietestNowCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                .strokeBorder(Color.uciBlue.opacity(0.18), lineWidth: 1)
+                .strokeBorder(Color.ink.opacity(0.18), lineWidth: 1)
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -291,7 +291,7 @@ struct QuietestClosedCard: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "moon.zzz.fill")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.inkMuted)
                 .frame(width: 40, height: 40)
                 .background(
@@ -301,7 +301,7 @@ struct QuietestClosedCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("QUIETEST RIGHT NOW")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(ZotFont.face(10, relativeTo: .caption2).weight(.medium))
                     .tracking(0.8)
                     .foregroundStyle(Color.inkMuted)
                 Text(QuietestLibraryGlance.closedTitle)
@@ -512,7 +512,7 @@ struct BusynessFacilityCard: View {
                     if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
                        let percent = facility.percent {
                         Text("\(percent)%")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
                             .monospacedDigit()
                             .foregroundStyle(facility.level.color)
                         Text(facility.level.label)
@@ -520,14 +520,14 @@ struct BusynessFacilityCard: View {
                             .foregroundStyle(facility.level.color)
                     } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
                         Text("—")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
                             .foregroundStyle(.secondary)
                         Text(facility.level.label)
                             .font(ZotFont.pill)
                             .foregroundStyle(facility.level.color)
                     } else {
                         Text("—")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
                             .foregroundStyle(.secondary)
                         Text(StudyFacilityCrowding.closedLevelLabel)
                             .font(ZotFont.pill)
@@ -639,7 +639,7 @@ struct BusynessFacilityCard: View {
                     .font(.caption.weight(.semibold))
                     .frame(width: 18, height: 18)
             }
-            .foregroundStyle(Color.uciBlue)
+            .foregroundStyle(Color.ink)
             .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
@@ -669,7 +669,7 @@ private struct BusynessFloorBlock: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text(floor.floorLabel)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(ZotFont.face(11, relativeTo: .caption2).weight(.medium))
                     .foregroundStyle(.secondary)
                     .tracking(0.3)
                     .textCase(.uppercase)

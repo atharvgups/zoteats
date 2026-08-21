@@ -203,9 +203,8 @@ struct DiningView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .background(Color.uciBlue, in: Capsule())
-            .foregroundStyle(.white)
-            .shadow(color: Color.uciBlue.opacity(0.3), radius: 10, y: 4)
+            .background(Color.ink, in: Capsule())
+            .foregroundStyle(Color.screen)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
@@ -234,9 +233,9 @@ struct DiningView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color.uciBlue.opacity(0.12), in: Capsule())
-            .foregroundStyle(Color.uciBlue)
-            .overlay(Capsule().strokeBorder(Color.uciBlue.opacity(0.28), lineWidth: 1))
+            .background(Color.ink.opacity(0.12), in: Capsule())
+            .foregroundStyle(Color.ink)
+            .overlay(Capsule().strokeBorder(Color.ink.opacity(0.28), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
@@ -330,10 +329,10 @@ struct DiningView: View {
                             } label: {
                                 Text("Clear")
                                     .font(ZotFont.pill.weight(.semibold))
-                                    .foregroundStyle(Color.uciBlue)
+                                    .foregroundStyle(Color.ink)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 5)
-                                    .background(Color.uciBlue.opacity(0.08), in: Capsule())
+                                    .background(Color.ink.opacity(0.08), in: Capsule())
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("diet-filter-clear")
@@ -376,13 +375,13 @@ struct DiningView: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(
-                active ? Color.uciBlue.opacity(0.12) : Color.card,
+                active ? Color.ink.opacity(0.12) : Color.card,
                 in: Capsule()
             )
-            .foregroundStyle(active ? Color.uciBlue : Color.primary)
+            .foregroundStyle(active ? Color.ink : Color.primary)
             .overlay(
                 Capsule().strokeBorder(
-                    active ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    active ? Color.ink.opacity(0.35) : Color.cardBorder,
                     lineWidth: 1
                 )
             )
@@ -411,13 +410,13 @@ struct DiningView: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(
-                active ? Color.uciBlue.opacity(0.12) : Color.card,
+                active ? Color.ink.opacity(0.12) : Color.card,
                 in: Capsule()
             )
-            .foregroundStyle(active ? Color.uciBlue : Color.primary)
+            .foregroundStyle(active ? Color.ink : Color.primary)
             .overlay(
                 Capsule().strokeBorder(
-                    active ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    active ? Color.ink.opacity(0.35) : Color.cardBorder,
                     lineWidth: 1
                 )
             )
@@ -479,12 +478,12 @@ struct DiningView: View {
                 if compact {
                     HStack(spacing: 10) {
                         Text(HallDirectory.compactName(for: location.id))
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
+                            .font(ZotFont.face(16, relativeTo: .headline).weight(.medium))
+                            .foregroundStyle(Color.ink)
                             .lineLimit(1)
                         Spacer(minLength: 8)
                         Text(status.text)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(ZotFont.face(13, relativeTo: .caption).weight(.medium))
                             .foregroundStyle(status.tint)
                             .lineLimit(1)
                     }
@@ -493,12 +492,12 @@ struct DiningView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(HallDirectory.compactName(for: location.id))
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
+                            .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
+                            .foregroundStyle(Color.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                         Text(status.text)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .font(ZotFont.face(14, relativeTo: .subheadline).weight(.medium))
                             .foregroundStyle(status.tint)
                             .lineLimit(1)
                     }
@@ -515,11 +514,10 @@ struct DiningView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.32) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
                         lineWidth: 1
                     )
             )
-            .shadow(color: isSelected ? Color.uciBlue.opacity(0.08) : .clear, radius: 8, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
@@ -722,7 +720,7 @@ struct DiningView: View {
                                     .fill(Color.uciGold)
                                     .frame(width: 5, height: 21)
                                 Text(station.name)
-                                    .font(.system(size: 20, weight: .bold))
+                                    .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
                                     .foregroundStyle(.primary)
                                 Spacer(minLength: 8)
                                 Text("\(station.items.count)")
@@ -835,17 +833,17 @@ struct DiningView: View {
                             tracking ? "Tracking" : "Track meal",
                             systemImage: tracking ? "timer.circle.fill" : "timer"
                         )
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(ZotFont.caption.weight(.medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(
-                            tracking ? Color.uciBlue.opacity(0.12) : Color.card,
+                            tracking ? Color.ink.opacity(0.12) : Color.card,
                             in: Capsule()
                         )
-                        .foregroundStyle(tracking ? Color.uciBlue : .secondary)
+                        .foregroundStyle(tracking ? Color.ink : .secondary)
                         .overlay(
                             Capsule().strokeBorder(
-                                tracking ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                                tracking ? Color.ink.opacity(0.35) : Color.cardBorder,
                                 lineWidth: 1
                             )
                         )
@@ -860,7 +858,7 @@ struct DiningView: View {
                     // Honest affordance — don't hide Track when the meal is live
                     // but system Live Activities are off.
                     Label("Live Activities off", systemImage: "timer")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(ZotFont.caption.weight(.medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Color.card, in: Capsule())
@@ -892,7 +890,7 @@ struct DiningView: View {
             }
             // A full step above dish names so station boundaries scan clearly.
             Text(title)
-                .font(.system(size: 20, weight: .bold))
+                .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
             Spacer()
             Text("\(count)")
                 .font(ZotFont.caption.weight(.semibold))
@@ -1286,10 +1284,10 @@ private struct DayStrip: View {
                         } label: {
                             VStack(spacing: 2) {
                                 Text(day.label)
-                                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                                    .foregroundStyle(isSelected ? Color.uciBlue : .secondary)
+                                    .font(ZotFont.face(13, relativeTo: .caption).weight(isSelected ? .medium : .regular))
+                                    .foregroundStyle(isSelected ? Color.ink : .secondary)
                                 Capsule()
-                                    .fill(isSelected ? Color.uciBlue : .clear)
+                                    .fill(isSelected ? Color.ink : .clear)
                                     .frame(height: 2.5)
                             }
                             .fixedSize()
@@ -1343,8 +1341,8 @@ struct DietFilterSheet: View {
                         .font(ZotFont.pill.weight(.semibold))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 7)
-                        .background(Color.uciBlue, in: Capsule())
-                        .foregroundStyle(.white)
+                        .background(Color.ink, in: Capsule())
+                        .foregroundStyle(Color.screen)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("diet-filter-done")
@@ -1448,18 +1446,18 @@ struct DietFilterSheet: View {
                     .minimumScaleFactor(0.85)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary.opacity(0.4))
+                    .foregroundStyle(isSelected ? Color.ink : Color.secondary.opacity(0.4))
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 14)
             .background(
-                isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
+                isSelected ? Color.ink.opacity(0.08) : Color.card,
                 in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.35) : Color.cardBorder,
                         lineWidth: 1
                     )
             )
@@ -1607,7 +1605,7 @@ private struct DishRowCard: View {
         Button(action: action) {
             Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle.fill")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(isOnPlate ? Color.uciBlue : Color.uciBlue.opacity(0.85))
+                .foregroundStyle(isOnPlate ? Color.ink : Color.ink.opacity(0.85))
                 .symbolEffect(.bounce, value: isOnPlate)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 30, height: 30)
@@ -1628,15 +1626,15 @@ private struct CalorieBadge: View {
     var body: some View {
         VStack(spacing: -1) {
             Text("\(calories)")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.uciBlue)
+                .font(ZotFont.face(14, relativeTo: .caption).weight(.medium))
+                .foregroundStyle(Color.ink)
             Text("cal")
-                .font(.system(size: 9, weight: .semibold))
+                .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+        .background(Color.ink.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityLabel("\(calories) calories")
     }
 }

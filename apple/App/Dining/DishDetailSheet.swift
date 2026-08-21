@@ -149,7 +149,7 @@ struct DishDetailSheet: View {
             )
             StatCard(
                 icon: servingIcon,
-                tint: .uciBlue,
+                tint: .ink,
                 value: prettyServing,
                 label: "Serving"
             )
@@ -160,7 +160,7 @@ struct DishDetailSheet: View {
     private func macroRow(_ facts: NutritionFacts) -> some View {
         HStack(spacing: 12) {
             MacroCard(value: facts.proteinG, label: "Protein", tint: TagPalette.sage)
-            MacroCard(value: facts.totalCarbsG, label: "Carbs", tint: .uciBlue)
+            MacroCard(value: facts.totalCarbsG, label: "Carbs", tint: TagPalette.slate)
             MacroCard(value: facts.totalFatG, label: "Fat", tint: TagPalette.terracotta)
         }
     }
@@ -228,10 +228,10 @@ struct DishDetailSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                isOnPlate ? AnyShapeStyle(Color.uciBlue.opacity(0.15)) : AnyShapeStyle(Color.uciBlue),
+                isOnPlate ? AnyShapeStyle(Color.ink.opacity(0.15)) : AnyShapeStyle(Color.ink),
                 in: Capsule()
             )
-            .foregroundStyle(isOnPlate ? Color.uciBlue : Color.white)
+            .foregroundStyle(isOnPlate ? Color.ink : Color.screen)
             .symbolEffect(.bounce, value: isOnPlate)
         }
         .buttonStyle(.plain)
@@ -324,7 +324,7 @@ private struct NutritionDetailsCard: View {
                 HStack {
                     Label("Full nutrition", systemImage: "list.clipboard")
                         .font(ZotFont.sectionTitle)
-                        .foregroundStyle(Color.uciBlue)
+                        .foregroundStyle(Color.ink)
                     Spacer()
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
@@ -402,7 +402,7 @@ private struct AllergenChip: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 9, weight: .bold))
             Text(text)
-                .font(.system(size: 12, weight: .semibold))
+                .font(ZotFont.caption.weight(.medium))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)

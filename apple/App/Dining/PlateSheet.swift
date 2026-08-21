@@ -154,7 +154,7 @@ struct PlateSheet: View {
     private func totalCard(value: String, label: String, tint: Color, announce: Bool) -> some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.title2.weight(.bold))
+                .font(ZotFont.face(22, relativeTo: .title2).weight(.medium))
                 .foregroundStyle(tint)
             Text(label)
                 .font(ZotFont.caption)

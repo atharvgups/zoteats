@@ -51,10 +51,10 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .medium))
+            .font(ZotFont.caption.weight(.medium))
             .padding(.horizontal, 7)
             .padding(.vertical, 3.5)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous))
+            .background(color.opacity(0.12), in: Capsule())
             .foregroundStyle(color)
     }
 }
@@ -152,10 +152,10 @@ struct PillRow<Item: Hashable>: View {
                     isSelected ? Color.selectWash : Color.card,
                     in: Capsule()
                 )
-                .foregroundStyle(isSelected ? Color.uciBlue : Color.ink)
+                .foregroundStyle(Color.ink)
                 .overlay(
                     Capsule().strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.28) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
                         lineWidth: 1
                     )
                 )
@@ -183,11 +183,11 @@ struct PillRow<Item: Hashable>: View {
 struct TypicalTag: View {
     var body: some View {
         Text("TYPICAL")
-            .font(.system(size: 9, weight: .semibold))
-            .tracking(0.5)
+            .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
+            .tracking(0.6)
             .padding(.horizontal, 5)
             .padding(.vertical, 2.5)
-            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .background(Color.primary.opacity(0.06), in: Capsule())
             .foregroundStyle(.secondary)
             .accessibilityLabel("Typical estimate, not live data")
     }
@@ -211,10 +211,10 @@ struct RushStrip: View {
                     Capsule()
                         .fill(
                             isNow
-                                ? AnyShapeStyle(Color.uciBlue)
+                                ? AnyShapeStyle(Color.ink)
                                 : value == 0
                                     ? AnyShapeStyle(Color.primary.opacity(0.06))
-                                    : AnyShapeStyle(Color.uciBlue.opacity(0.28))
+                                    : AnyShapeStyle(Color.ink.opacity(0.28))
                         )
                         .frame(maxWidth: .infinity)
                         .frame(height: max(3, barMaxHeight * CGFloat(value) / 100))
@@ -229,7 +229,7 @@ struct RushStrip: View {
                     Text("12 PM").position(x: geo.size.width * 12.5 / 24, y: 6)
                     Text("6 PM").position(x: geo.size.width * 18.5 / 24, y: 6)
                 }
-                .font(.system(size: 9, weight: .medium))
+                .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                 .foregroundStyle(.tertiary)
             }
             .frame(height: 12)
@@ -292,7 +292,7 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 36, weight: .ultraLight, design: .rounded))
+                .font(.system(size: 36, weight: .ultraLight))
                 .foregroundStyle(Color.inkMuted)
                 .frame(width: 64, height: 64)
                 .background(Color.uciGold.opacity(0.14), in: Circle())
@@ -310,7 +310,7 @@ struct EmptyStateView: View {
                     if let retry {
                         Button(actionTitle, action: retry)
                             .buttonStyle(.bordered)
-                            .tint(.uciBlue)
+                            .tint(.ink)
                     }
                     if let secondaryRetry, let secondaryActionTitle {
                         Button(secondaryActionTitle, action: secondaryRetry)
@@ -344,7 +344,7 @@ struct ScreenHeader: View {
                     .tracking(-0.4)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(ZotFont.face(16, relativeTo: .subheadline))
                         .foregroundStyle(Color.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -356,7 +356,7 @@ struct ScreenHeader: View {
                     Haptics.selection()
                 } label: {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.inkMuted)
                         .frame(width: 36, height: 36)
                         .glassIconCircle()

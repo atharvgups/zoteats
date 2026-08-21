@@ -112,7 +112,7 @@ struct OpeningAlertsPicker: View {
                     .lineLimit(1)
             }
         }
-        .tint(.uciBlue)
+        .tint(.ink)
         .padding(.vertical, 6)
         .accessibilityIdentifier("openAlert-\(id)")
     }

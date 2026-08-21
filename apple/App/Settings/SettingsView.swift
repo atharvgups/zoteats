@@ -120,7 +120,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .tint(.uciBlue)
+            .tint(.ink)
             .accessibilityIdentifier("favorite-alerts-toggle")
             .onChange(of: alertsEnabled) { _, enabled in
                 guard enabled else {
@@ -151,7 +151,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .tint(.uciBlue)
+            .tint(.ink)
             .accessibilityIdentifier("menu-drop-alerts-toggle")
             .onChange(of: menuDropEnabled) { _, enabled in
                 guard enabled else {
@@ -188,10 +188,10 @@ struct SettingsView: View {
                     if !watchedPlaces.isEmpty {
                         Text("\(watchedPlaces.count)")
                             .font(ZotFont.pill.weight(.semibold))
-                            .foregroundStyle(Color.uciBlue)
+                            .foregroundStyle(Color.ink)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(Color.uciBlue.opacity(0.12), in: Capsule())
+                            .background(Color.ink.opacity(0.12), in: Capsule())
                     }
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
@@ -210,7 +210,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .tint(.uciBlue)
+            .tint(.ink)
             .accessibilityIdentifier("auto-meal-activity-toggle")
             .onChange(of: autoMealActivity) { _, enabled in
                 MealActivityManager.autoStartEnabled = enabled
@@ -243,7 +243,7 @@ struct SettingsView: View {
                 } label: {
                     Text(testPingSent ? "Test ping sent" : "Send test notification")
                         .font(ZotFont.caption.weight(.semibold))
-                        .foregroundStyle(Color.uciBlue)
+                        .foregroundStyle(Color.ink)
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -345,7 +345,7 @@ struct SettingsView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.uciBlue)
+                .foregroundStyle(Color.ink)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
@@ -449,7 +449,7 @@ struct SettingsView: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.uciBlue)
+                    .foregroundStyle(Color.ink)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
@@ -498,16 +498,15 @@ private struct ZotCheer: View {
                 }
             }
             Text("Zot! Zot! Zot!")
-                .font(.system(size: 20, weight: .bold))
+                .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
                 .foregroundStyle(.white)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 20)
         .background(
             LinearGradient(colors: [.uciBlue, .uciBlueDeep], startPoint: .top, endPoint: .bottom),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
         )
-        .shadow(color: Color.uciBlue.opacity(0.35), radius: 16, y: 6)
         .onAppear { march = true }
         .accessibilityLabel("Zot zot zot!")
     }
@@ -525,21 +524,21 @@ private struct AppearanceOption: View {
             VStack(spacing: 7) {
                 Image(systemName: option.icon)
                     .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.uciBlue : Color.secondary)
+                    .foregroundStyle(isSelected ? Color.ink : Color.secondary)
                 Text(option.label)
                     .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
+                    .foregroundStyle(isSelected ? Color.ink : .primary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                isSelected ? Color.uciBlue.opacity(0.1) : Color.primary.opacity(0.03),
+                isSelected ? Color.ink.opacity(0.1) : Color.primary.opacity(0.03),
                 in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.4) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.4) : Color.cardBorder,
                         lineWidth: isSelected ? 1.5 : 1
                     )
             )
