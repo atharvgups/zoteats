@@ -126,6 +126,17 @@ struct DiningServiceTests {
         )
     }
 
+    @Test func menuCanSkipHubDietEnrichment() async throws {
+        let menu = try await service().menu(
+            for: "anteatery",
+            period: "Lunch",
+            date: "2026-07-09",
+            includeHubDietTags: false
+        )
+        #expect(!menu.stations.isEmpty)
+        #expect(menu.period == "Lunch")
+    }
+
     @Test func unpublishedFutureDayReadsAsNotPostedNotError() async throws {
         // Browsing ahead when the feed 404s must never surface "HTTP 404".
         let service = DiningService(http: NotFoundHTTP(), now: { fixtureNoon })

@@ -63,6 +63,16 @@ public enum EatBoundaryRefresh {
         return dates
     }
 
+    /// Open/close ticks only need a network round-trip when the Irvine day
+    /// rolled or a hall is still waiting on Lunch/Dinner to publish. Serving
+    /// chrome (`isServing`) is computed at render time from cached windows.
+    public static func shouldForceNetwork(
+        dayRolled: Bool,
+        shouldProbeForPublish: Bool
+    ) -> Bool {
+        dayRolled || shouldProbeForPublish
+    }
+
     public static func nextFire(
         hallPeriods: [[MealPeriodWindow]],
         nowMinutes: Int,

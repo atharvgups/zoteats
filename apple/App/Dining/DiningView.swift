@@ -1015,16 +1015,26 @@ struct DiningView: View {
     }
 
     private func applyBoundaryTick() async {
-        // Midnight (and meal edges / Lunch·Dinner publish probes): purge stale
-        // |"today"| menus, clear yesterday's plate, and force-refetch hall
-        // windows so an empty or breakfast-only board isn't stuck for 20m.
+        // Open/close chrome is computed from cached windows. Force the network
+        // only at Irvine midnight or while Lunch/Dinner may still publish.
         plate.ensureCurrentDay()
-        store.ensureCurrentDay()
-        await store.loadLocations(forceRefresh: true)
+        let dayRolled = store.ensureCurrentDay()
+        let nowMinutes = UCITime.nowMinutes()
+        let shouldProbe = (store.locations.value ?? []).contains {
+            DiningBoardPublish.shouldProbeForPublish(
+                periods: $0.periods,
+                nowMinutes: nowMinutes
+            )
+        }
+        let force = EatBoundaryRefresh.shouldForceNetwork(
+            dayRolled: dayRolled,
+            shouldProbeForPublish: shouldProbe
+        )
+        await store.loadLocations(forceRefresh: force)
         syncDateSelection()
         syncPeriodSelection()
         if selectedDate == nil {
-            await loadCurrentMenu(forceRefresh: true)
+            await loadCurrentMenu(forceRefresh: force)
             considerAutoMealActivity()
         }
         WidgetReloader.reloadEatWidgets()

@@ -671,11 +671,16 @@ public struct DiningService: Sendable {
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
     /// All Day stations fold into the bottom as "Available all day".
     /// Unpublished days (API 404) return an empty menu — never throw.
+    ///
+    /// Hub diet-tag merge hits Campus GraphQL. Pass `includeHubDietTags: false`
+    /// to paint the Anteater board first, then call again with `true` (the
+    /// board is already in TTL).
     public func menu(
         for hall: String,
         period: String,
         date: String? = nil,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        includeHubDietTags: Bool = true
     ) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
@@ -718,6 +723,7 @@ public struct DiningService: Sendable {
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
+        guard includeHubDietTags else { return built }
         return await enrichDietTags(built)
     }
 

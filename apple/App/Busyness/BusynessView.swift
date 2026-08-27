@@ -73,8 +73,8 @@ struct BusynessView: View {
         }
     }
 
-    /// Sleep until morning open / midnight / Waitz cadence, then reload — same
-    /// honesty as the Quietest Library widget while Study stays open.
+    /// Sleep until the next occupancy tick (libraries open) or morning
+    /// open / midnight (closed), then reload while Study stays open.
     private func watchLibraryBoundaries() async {
         guard let facilities = store.facilities.value else { return }
         let fire = StudyBoundaryRefresh.nextFire(facilities: facilities)

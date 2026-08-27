@@ -30,7 +30,27 @@ struct StudyBoundaryRefreshTests {
         let facilities = [point(id: 1, category: "Library", isOpen: true)]
         #expect(StudyBoundaryRefresh.anyLibraryOpen(from: facilities))
         let fire = StudyBoundaryRefresh.nextFire(now: now, facilities: facilities)
-        #expect(fire == now.addingTimeInterval(10 * 60))
+        #expect(fire == now.addingTimeInterval(StudyBoundaryRefresh.openOccupancyInterval))
+    }
+
+    @Test func openLibraryCloseBeatsOccupancyTick() {
+        // Monday 11:59:40 AM — noon close is 20s away, sooner than the 45s tick.
+        let now = ISO8601DateFormatter().date(from: "2026-07-13T18:59:40Z")!
+        let facilities = [
+            point(
+                id: 1,
+                category: "Library",
+                isOpen: true,
+                hoursSummary: "8:00am-12:00pm"
+            ),
+        ]
+        let fire = StudyBoundaryRefresh.nextFire(now: now, facilities: facilities)
+        let noon = UCITime.date(
+            forMinutes: 12 * 60,
+            nowMinutes: UCITime.nowMinutes(now: now),
+            now: now
+        )
+        #expect(fire == noon.addingTimeInterval(2))
     }
 
     @Test func closedLibrariesProbeMorningOpen() {

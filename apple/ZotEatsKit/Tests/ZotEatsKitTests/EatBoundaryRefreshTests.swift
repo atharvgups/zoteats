@@ -88,6 +88,27 @@ struct EatBoundaryRefreshTests {
         #expect(fire == cap)
     }
 
+    @Test func forceNetworkOnlyOnRolloverOrPublishProbe() {
+        #expect(
+            !EatBoundaryRefresh.shouldForceNetwork(
+                dayRolled: false,
+                shouldProbeForPublish: false
+            )
+        )
+        #expect(
+            EatBoundaryRefresh.shouldForceNetwork(
+                dayRolled: true,
+                shouldProbeForPublish: false
+            )
+        )
+        #expect(
+            EatBoundaryRefresh.shouldForceNetwork(
+                dayRolled: false,
+                shouldProbeForPublish: true
+            )
+        )
+    }
+
     @Test func awaitingBreakfastOnlyArmsLunchPublishProbe() {
         let partial = [
             MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 11 * 60),

@@ -179,18 +179,32 @@ final class DiningStore {
                 for: hall,
                 period: period,
                 date: date,
-                forceRefresh: forceRefresh
+                forceRefresh: forceRefresh,
+                includeHubDietTags: false
             )
-            // Boundary / pull reloads often return the same board — skip churn.
+            // Paint the Anteater board immediately; hub tags merge next.
             if menus[key]?.value != next {
                 menus[key] = .loaded(next)
             }
-            // Today's board → App Group so Home Screen widgets paint without a
-            // cold extension menu fetch (Atharv: open app, still empty glance).
             if date == nil {
                 WidgetSnapshotStore.saveDiningMenu(next)
                 if reloadWidgets {
                     WidgetReloader.reloadEatWidgets()
+                }
+            }
+            if !next.stations.isEmpty {
+                let enriched = try await service.menu(
+                    for: hall,
+                    period: period,
+                    date: date,
+                    forceRefresh: false,
+                    includeHubDietTags: true
+                )
+                if menus[key]?.value != enriched {
+                    menus[key] = .loaded(enriched)
+                }
+                if date == nil {
+                    WidgetSnapshotStore.saveDiningMenu(enriched)
                 }
             }
         } catch {

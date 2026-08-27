@@ -56,7 +56,11 @@ enum FavoriteAlerts {
                     nowMinutes: nowMinutes
                 ) {
                     group.addTask {
-                        try? await service.menu(for: location.id, period: period)
+                        try? await service.menu(
+                            for: location.id,
+                            period: period,
+                            includeHubDietTags: false
+                        )
                     }
                 }
             }
