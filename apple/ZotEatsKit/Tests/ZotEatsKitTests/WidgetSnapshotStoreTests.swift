@@ -186,6 +186,41 @@ struct WidgetSnapshotStoreTests {
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
     }
 
+    @Test func campusMenuRoundTripAndHydrateToday() {
+        let key = WidgetSnapshotStore.campusMenusKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let today = UCITime.todayISO()
+        let stations = [
+            MenuStation(
+                name: "Lunch",
+                items: [
+                    MenuItem(
+                        id: "1",
+                        name: "Chicken Teriyaki Bowl",
+                        description: nil,
+                        calories: nil,
+                        servingSize: nil,
+                        allergens: [],
+                        dietaryTags: []
+                    ),
+                ]
+            )
+        ]
+        WidgetSnapshotStore.saveCampusMenu(placeID: "panda-express", stations: stations, dateISO: today)
+        #expect(
+            WidgetSnapshotStore.loadCampusMenu(placeID: "panda-express", dateISO: today)?
+                .first?.items.first?.name == "Chicken Teriyaki Bowl"
+        )
+        let hydrated = WidgetSnapshotStore.loadCampusMenusIfCurrentDay()
+        #expect(hydrated["panda-express"]?.first?.items.first?.name == "Chicken Teriyaki Bowl")
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadCampusMenusIfCurrentDay().isEmpty)
+    }
+
     @Test func emptyCopyIsReadable() {
         #expect(!WidgetLoadEmptyCopy.title.isEmpty)
         #expect(WidgetLoadEmptyCopy.detail.localizedCaseInsensitiveContains("eat"))

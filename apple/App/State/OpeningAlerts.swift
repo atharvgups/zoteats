@@ -36,7 +36,10 @@ enum OpeningAlerts {
 
     /// Re-plans opening alerts from fresh hours. Cheap: services are TTL-cached,
     /// so foreground calls right after the stores load hit memory.
-    static func refreshSchedules() async {
+    static func refreshSchedules(
+        dining: DiningService = DiningService(),
+        campus: CampusService = CampusService()
+    ) async {
         let center = UNUserNotificationCenter.current()
 
         // Always clear our pending alerts first so deselected or re-planned
@@ -59,7 +62,6 @@ enum OpeningAlerts {
 
         var candidates: [OpeningAlertPlanner.Candidate] = []
 
-        let dining = DiningService()
         let nowMinutes = UCITime.nowMinutes()
         let tomorrowISO = UCITime.upcomingDays(count: 2).dropFirst().first?.isoDate
         let halls: [DiningLocation]
@@ -162,7 +164,7 @@ enum OpeningAlerts {
         if let cached = WidgetSnapshotStore.loadCampusPlacesIfCurrentDay() {
             campusPlaces = cached
         } else {
-            campusPlaces = (try? await CampusService().places()) ?? []
+            campusPlaces = (try? await campus.places()) ?? []
         }
         for place in campusPlaces {
             let id = "campus:\(place.id)"

@@ -9,6 +9,7 @@ public enum WidgetSnapshotStore {
     public static let diningLocationsKey = "zoteats.widget.diningLocations.v1"
     public static let diningMenusKey = "zoteats.widget.diningMenus.v1"
     public static let campusPlacesKey = "zoteats.widget.campusPlaces.v1"
+    public static let campusMenusKey = "zoteats.widget.campusMenus.v1"
     public static let busynessPlacesKey = "zoteats.widget.busynessPlaces.v1"
     public static let savedAtSuffix = ".savedAt"
 
@@ -60,6 +61,54 @@ public enum WidgetSnapshotStore {
     }
 
     // MARK: - Campus
+
+    public static func campusMenuEntryKey(placeID: String, dateISO: String) -> String {
+        "\(placeID)|\(dateISO)"
+    }
+
+    /// Persist a cafe board so Campus menu sheets paint without a cold GraphQL wait.
+    public static func saveCampusMenu(
+        placeID: String,
+        stations: [MenuStation],
+        dateISO: String = UCITime.todayISO()
+    ) {
+        io.lock()
+        defer { io.unlock() }
+        var all: [String: [MenuStation]] = loadUnlocked(key: campusMenusKey) ?? [:]
+        let key = campusMenuEntryKey(placeID: placeID, dateISO: dateISO)
+        all[key] = stations
+        all = all.filter { entryKey, _ in
+            entryKey.hasSuffix("|\(dateISO)") || entryKey == key
+        }
+        saveUnlocked(all, key: campusMenusKey)
+    }
+
+    public static func loadCampusMenu(
+        placeID: String,
+        dateISO: String = UCITime.todayISO()
+    ) -> [MenuStation]? {
+        let key = campusMenuEntryKey(placeID: placeID, dateISO: dateISO)
+        return loadCampusMenus()?[key]
+    }
+
+    public static func loadCampusMenus() -> [String: [MenuStation]]? {
+        load(key: campusMenusKey)
+    }
+
+    /// Today's cafe boards keyed by place id — Campus can paint before GraphQL.
+    public static func loadCampusMenusIfCurrentDay(now: Date = .now) -> [String: [MenuStation]] {
+        guard savedOnCurrentIrvineDay(campusMenusKey, now: now),
+              let all = loadCampusMenus()
+        else { return [:] }
+        let today = UCITime.todayISO(now: now)
+        var byPlace: [String: [MenuStation]] = [:]
+        for (key, stations) in all {
+            guard key.hasSuffix("|\(today)") else { continue }
+            let placeID = String(key.dropLast(today.count + 1))
+            byPlace[placeID] = stations
+        }
+        return byPlace
+    }
 
     public static func saveCampusPlaces(_ places: [CampusPlace]) {
         save(places, key: campusPlacesKey)

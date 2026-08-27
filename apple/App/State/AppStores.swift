@@ -26,7 +26,7 @@ enum LoadState<Value> {
 @MainActor
 @Observable
 final class DiningStore {
-    private let service: DiningService
+    let service: DiningService
 
     var locations: LoadState<[DiningLocation]> = .idle
     /// Inclusive ISO window the feed currently publishes — clamps the day strip.
@@ -382,7 +382,7 @@ final class GymStore {
 @MainActor
 @Observable
 final class CampusStore {
-    private let service: CampusService
+    let service: CampusService
 
     var places: LoadState<[CampusPlace]> = .idle
     /// Keyed by place id.
@@ -392,6 +392,9 @@ final class CampusStore {
         self.service = service
         if let cached = WidgetSnapshotStore.loadCampusPlacesIfCurrentDay() {
             places = .loaded(cached)
+        }
+        for (placeID, stations) in WidgetSnapshotStore.loadCampusMenusIfCurrentDay() {
+            menus[placeID] = .loaded(stations)
         }
     }
 
@@ -464,6 +467,9 @@ final class CampusStore {
                 menus[placeID] = .loaded(next)
             } else if case .loading = menus[placeID] {
                 menus[placeID] = .loaded(next)
+            }
+            if !next.isEmpty || place?.hasMenu == false {
+                WidgetSnapshotStore.saveCampusMenu(placeID: placeID, stations: next)
             }
         } catch {
             if menus[placeID]?.value == nil {

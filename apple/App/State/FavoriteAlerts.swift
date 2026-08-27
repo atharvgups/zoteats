@@ -35,12 +35,10 @@ enum FavoriteAlerts {
     }
 
     /// Fetches today's menus, matches favorites, and notifies new matches.
-    static func runCheck() async {
+    static func runCheck(service: DiningService = DiningService()) async {
         guard isEnabled else { return }
         let favorites = Preferences().favoriteDishNames
         guard !favorites.isEmpty else { return }
-
-        let service = DiningService()
         let locations: [DiningLocation]
         if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
             locations = cached
@@ -184,7 +182,12 @@ enum FavoriteAlerts {
     /// also short-lead the next publish probes so Opening Alerts can re-arm
     /// before a typical 11:00 / 16:00 open.
     static func scheduleNextRefresh(service: DiningService = DiningService()) async {
-        let locations = await service.locations()
+        let locations: [DiningLocation]
+        if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
+            locations = cached
+        } else {
+            locations = await service.locations()
+        }
         let nowMinutes = UCITime.nowMinutes()
         let wrapUps = MealActivityAutoStart.wrapUpAimMinutes(locations: locations)
         let mealOpens = MealActivityAutoStart.mealOpenAimMinutes(locations: locations)

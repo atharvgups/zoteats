@@ -67,19 +67,8 @@ struct ZotEatsApp: App {
                 .tint(.ink)
         }
         .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .active:
-                Task {
-                    async let favorites: Void = FavoriteAlerts.runCheck()
-                    async let menuDrop: Void = MenuDropAlerts.runCheck()
-                    async let opening: Void = OpeningAlerts.refreshSchedules()
-                    async let meal: Void = MealActivityAutoStartRunner.run()
-                    _ = await (favorites, menuDrop, opening, meal)
-                }
-            case .background:
+            if phase == .background {
                 Task { await FavoriteAlerts.scheduleNextRefresh() }
-            default:
-                break
             }
         }
         .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
@@ -180,6 +169,18 @@ struct RootTabView: View {
                         await diningStore.loadLocations()
                         wrapUpEpoch += 1
                     }
+                    // Share the on-screen TTL/HTTP session so resume doesn't
+                    // stampede Anteater with four cold clients.
+                    Task {
+                        async let favorites: Void = FavoriteAlerts.runCheck(service: diningStore.service)
+                        async let menuDrop: Void = MenuDropAlerts.runCheck(service: diningStore.service)
+                        async let opening: Void = OpeningAlerts.refreshSchedules(
+                            dining: diningStore.service,
+                            campus: campusStore.service
+                        )
+                        async let meal: Void = MealActivityAutoStartRunner.run(service: diningStore.service)
+                        _ = await (favorites, menuDrop, opening, meal)
+                    }
                 }
             }
             .onOpenURL { url in
@@ -199,7 +200,7 @@ struct RootTabView: View {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
         guard !Task.isCancelled else { return }
-        await MealActivityAutoStartRunner.run(service: DiningService())
+        await MealActivityAutoStartRunner.run(service: diningStore.service)
         wrapUpEpoch += 1
     }
 
