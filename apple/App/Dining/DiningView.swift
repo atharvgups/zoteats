@@ -979,29 +979,13 @@ struct DiningView: View {
             date: selectedDate,
             forceRefresh: forceRefresh
         )
-        // Warm sibling hall boards for Favorites Today (today only) without
-        // holding the selected hall's first paint.
+        // Sibling halls + other pills wait until this board's fetch joins so
+        // first paint keeps the connection.
         if selectedDate == nil {
             let hall = selectedHall
             let period = selectedPeriod
             Task {
-                await store.warmWidgetMenusForLiveHalls(
-                    preferredHall: hall,
-                    preferredPeriod: period
-                )
-            }
-            // Peek Breakfast/Lunch/Dinner without waiting on the open pill.
-            let force = forceRefresh
-            for pill in DiningService.mealSelectorPills where pill != period {
-                Task {
-                    await store.loadMenu(
-                        hall: hall,
-                        period: pill,
-                        date: nil,
-                        forceRefresh: force,
-                        reloadWidgets: false
-                    )
-                }
+                await store.prefetchAfterSelectedBoard(hall: hall, period: period)
             }
         }
     }

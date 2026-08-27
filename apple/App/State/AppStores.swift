@@ -331,6 +331,33 @@ final class DiningStore {
             WidgetReloader.reloadEatWidgets()
         }
     }
+
+    /// Finish the selected hall's in-flight board first, then peek sibling halls
+    /// and the other meal pills so they don't steal the first connection.
+    func prefetchAfterSelectedBoard(hall: String, period: String) async {
+        _ = try? await service.menu(
+            for: hall,
+            period: period,
+            date: nil,
+            forceRefresh: false,
+            includeHubDietTags: false
+        )
+        await warmWidgetMenusForLiveHalls(
+            preferredHall: hall,
+            preferredPeriod: period
+        )
+        for pill in DiningService.mealSelectorPills where pill != period {
+            Task {
+                await self.loadMenu(
+                    hall: hall,
+                    period: pill,
+                    date: nil,
+                    forceRefresh: false,
+                    reloadWidgets: false
+                )
+            }
+        }
+    }
 }
 
 #if ANTEATS_ENABLE_GYM
@@ -402,23 +429,46 @@ final class CampusStore {
     }
 
     func loadMenu(for placeID: String, forceRefresh: Bool = false) async {
-        if forceRefresh || menus[placeID]?.value == nil {
+        let cached = menus[placeID]?.value
+        let hasItems = cached?.contains { !$0.items.isEmpty } == true
+        if hasItems, !forceRefresh {
+            Task { await self.fetchMenu(placeID: placeID, forceRefresh: false) }
+            return
+        }
+        if cached == nil {
             menus[placeID] = .loading
         }
-        let placeName = places.value?.first(where: { $0.id == placeID })?.name
+        await fetchMenu(placeID: placeID, forceRefresh: forceRefresh)
+    }
+
+    private func fetchMenu(placeID: String, forceRefresh: Bool) async {
+        let place = places.value?.first(where: { $0.id == placeID })
         do {
-            let next = try await service.menu(
+            var next = try await service.menu(
                 for: placeID,
-                placeName: placeName,
+                placeName: place?.name,
                 forceRefresh: forceRefresh
             )
+            // Empty TTL can hide a Hub publish. Probe once for venues that
+            // actually post menus; Starbucks-style spots stay instant.
+            if !forceRefresh,
+               next.allSatisfy({ $0.items.isEmpty }),
+               place?.hasMenu == true {
+                next = try await service.menu(
+                    for: placeID,
+                    placeName: place?.name,
+                    forceRefresh: true
+                )
+            }
             if menus[placeID]?.value != next {
                 menus[placeID] = .loaded(next)
             } else if case .loading = menus[placeID] {
                 menus[placeID] = .loaded(next)
             }
         } catch {
-            menus[placeID] = .failed(error.localizedDescription)
+            if menus[placeID]?.value == nil {
+                menus[placeID] = .failed(error.localizedDescription)
+            }
         }
     }
 }

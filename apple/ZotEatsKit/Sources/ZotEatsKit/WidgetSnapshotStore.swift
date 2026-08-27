@@ -12,6 +12,7 @@ public enum WidgetSnapshotStore {
     public static let busynessPlacesKey = "zoteats.widget.busynessPlaces.v1"
     public static let savedAtSuffix = ".savedAt"
 
+    private static let io = NSLock()
     private static var suite: UserDefaults { SharedDefaults.suite }
 
     // MARK: - Dining
@@ -33,14 +34,16 @@ public enum WidgetSnapshotStore {
     /// Persist a board the main app just loaded so Today's Menu / Favorites
     /// can paint without a cold extension network fetch.
     public static func saveDiningMenu(_ menu: DiningMenu) {
-        var all = loadDiningMenus() ?? [:]
+        io.lock()
+        defer { io.unlock() }
+        var all: [String: DiningMenu] = loadUnlocked(key: diningMenusKey) ?? [:]
         let key = diningMenuEntryKey(hall: menu.locationId, period: menu.period, dateISO: menu.date)
         all[key] = menu
         // Drop other days so the suite doesn't grow forever across rollovers.
         all = all.filter { entryKey, _ in
             entryKey.hasSuffix("|\(menu.date)") || entryKey == key
         }
-        save(all, key: diningMenusKey)
+        saveUnlocked(all, key: diningMenusKey)
     }
 
     public static func loadDiningMenu(
@@ -122,12 +125,24 @@ public enum WidgetSnapshotStore {
     // MARK: - Codable helpers
 
     private static func save<T: Encodable>(_ value: T, key: String) {
+        io.lock()
+        defer { io.unlock() }
+        saveUnlocked(value, key: key)
+    }
+
+    private static func load<T: Decodable>(key: String) -> T? {
+        io.lock()
+        defer { io.unlock() }
+        return loadUnlocked(key: key)
+    }
+
+    private static func saveUnlocked<T: Encodable>(_ value: T, key: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         suite.set(data, forKey: key)
         suite.set(Date(), forKey: key + savedAtSuffix)
     }
 
-    private static func load<T: Decodable>(key: String) -> T? {
+    private static func loadUnlocked<T: Decodable>(key: String) -> T? {
         guard let data = suite.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)
     }

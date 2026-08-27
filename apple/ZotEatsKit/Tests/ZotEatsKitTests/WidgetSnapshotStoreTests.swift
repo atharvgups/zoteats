@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
-@Suite("WidgetSnapshotStore + countdown copy")
+@Suite("WidgetSnapshotStore + countdown copy", .serialized)
 struct WidgetSnapshotStoreTests {
     @Test func countdownShortFormats() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -145,6 +145,45 @@ struct WidgetSnapshotStoreTests {
         SharedDefaults.suite.removeObject(forKey: key)
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
         #expect(WidgetSnapshotStore.loadDiningMenusIfCurrentDay().isEmpty)
+    }
+
+    @Test func savingTwoMealsKeepsBothToday() {
+        let key = WidgetSnapshotStore.diningMenusKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let today = UCITime.todayISO()
+        func board(_ period: String, dish: String) -> DiningMenu {
+            DiningMenu(
+                locationId: "anteatery",
+                date: today,
+                period: period,
+                stations: [
+                    MenuStation(
+                        name: "Grill",
+                        items: [
+                            MenuItem(
+                                id: dish,
+                                name: dish,
+                                description: nil,
+                                calories: nil,
+                                servingSize: nil,
+                                allergens: [],
+                                dietaryTags: []
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        }
+        WidgetSnapshotStore.saveDiningMenu(board("Lunch", dish: "Crispy Okra"))
+        WidgetSnapshotStore.saveDiningMenu(board("Dinner", dish: "Baked Ziti"))
+        let loaded = WidgetSnapshotStore.loadDiningMenusIfCurrentDay()
+        #expect(loaded.contains { $0.period == "Lunch" && $0.stations.first?.items.first?.name == "Crispy Okra" })
+        #expect(loaded.contains { $0.period == "Dinner" && $0.stations.first?.items.first?.name == "Baked Ziti" })
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
     }
 
     @Test func emptyCopyIsReadable() {

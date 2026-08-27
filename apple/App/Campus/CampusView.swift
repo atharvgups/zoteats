@@ -659,8 +659,7 @@ struct CampusMenuSheet: View {
             DishDetailSheet(dish: dish, prefs: prefs)
         }
         .task {
-            // Always probe the Hub menu — force so a stale empty TTL can't lie.
-            await store.loadMenu(for: place.id, forceRefresh: true)
+            await store.loadMenu(for: place.id)
         }
     }
 

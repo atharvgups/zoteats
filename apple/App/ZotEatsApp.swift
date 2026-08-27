@@ -118,8 +118,8 @@ struct RootTabView: View {
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
     @State private var pendingDeepLink: AnteatsDeepLink?
 
-    // App-lifetime stores share one TTL cache so Eat / Campus / Study don't
-    // each hammer Anteater + Waitz for the same payloads.
+    // App-lifetime stores share one TTL cache and one HTTP session so Eat /
+    // Campus / Study reuse connections instead of opening a pool each.
     @State private var diningStore: DiningStore
     @State private var campusStore: CampusStore
     @State private var busynessStore: BusynessStore
@@ -130,12 +130,13 @@ struct RootTabView: View {
 
     init() {
         let cache = TTLCache()
-        _diningStore = State(initialValue: DiningStore(service: DiningService(cache: cache)))
-        _campusStore = State(initialValue: CampusStore(service: CampusService(cache: cache)))
+        let http = HTTPClient()
+        _diningStore = State(initialValue: DiningStore(service: DiningService(http: http, cache: cache)))
+        _campusStore = State(initialValue: CampusStore(service: CampusService(http: http, cache: cache)))
         _busynessStore = State(
             initialValue: BusynessStore(
-                service: BusynessService(cache: cache),
-                libraryHoursService: LibraryHoursService(cache: cache)
+                service: BusynessService(http: http, cache: cache),
+                libraryHoursService: LibraryHoursService(http: http, cache: cache)
             )
         )
     }

@@ -258,8 +258,8 @@ public struct CampusService: Sendable {
 
     /// Published menu for a retail spot, grouped by meal period.
     /// Empty when the venue doesn't publish menus (brand-app-only places).
-    /// Pass `forceRefresh` when reopening a menu sheet so a stale empty TTL
-    /// doesn't keep saying "not posted" after Hub publishes.
+    /// Pass `forceRefresh` after an empty TTL hit for venues that publish
+    /// (`hasMenu`) so a stale miss doesn't keep saying "not posted".
     public func menu(
         for placeID: String,
         placeName: String? = nil,
