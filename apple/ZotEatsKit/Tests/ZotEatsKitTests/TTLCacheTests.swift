@@ -2,23 +2,25 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
-@Suite("TTLCache")
+@Suite("TTLCache", .serialized)
 struct TTLCacheTests {
     @Test func overlappingRememberSharesOneLoader() async throws {
         let cache = TTLCache()
         let hits = Counter()
+        let firstStarted = Gate()
         async let first: Int = cache.remember("k", ttl: 60) {
             await hits.increment()
+            await firstStarted.open()
             try await Task.sleep(nanoseconds: 80_000_000)
             return 7
         }
-        async let second: Int = cache.remember("k", ttl: 60) {
+        await firstStarted.wait()
+        let second = try await cache.remember("k", ttl: 60) {
             await hits.increment()
             return 99
         }
-        let values = try await (first, second)
-        #expect(values.0 == 7)
-        #expect(values.1 == 7)
+        #expect(try await first == 7)
+        #expect(second == 7)
         #expect(await hits.value == 1)
     }
 
@@ -49,6 +51,23 @@ struct TTLCacheTests {
 private actor Counter {
     var value = 0
     func increment() { value += 1 }
+}
+
+private actor Gate {
+    private var opened = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func open() {
+        opened = true
+        let pending = waiters
+        waiters.removeAll()
+        for waiter in pending { waiter.resume() }
+    }
+
+    func wait() async {
+        if opened { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
 }
 
 private struct TestFailure: Error {}
