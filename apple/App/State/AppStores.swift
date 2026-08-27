@@ -357,7 +357,15 @@ final class CampusStore {
         }
     }
 
-    func loadPlaces() async {
+    func loadPlaces(forceRefresh: Bool = false) async {
+        if !forceRefresh, places.value != nil {
+            Task { await self.fetchPlaces() }
+            return
+        }
+        await fetchPlaces()
+    }
+
+    private func fetchPlaces() async {
         if places.value == nil { places = .loading }
         do {
             let next = try await service.places()

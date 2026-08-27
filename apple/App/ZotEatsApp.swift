@@ -75,7 +75,6 @@ struct ZotEatsApp: App {
                     async let opening: Void = OpeningAlerts.refreshSchedules()
                     async let meal: Void = MealActivityAutoStartRunner.run()
                     _ = await (favorites, menuDrop, opening, meal)
-                    WidgetReloader.reloadAll()
                 }
             case .background:
                 Task { await FavoriteAlerts.scheduleNextRefresh() }

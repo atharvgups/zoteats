@@ -506,6 +506,24 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         let detail = parts.dropFirst().joined(separator: " @ ").trimmingCharacters(in: .whitespaces)
         return detail.isEmpty ? nil : detail
     }
+
+    /// Live open state from saved windows so a last-known snapshot still
+    /// flips Open/Closed at the boundary without waiting on GraphQL.
+    public func isOpen(nowMinutes: Int = UCITime.nowMinutes()) -> Bool {
+        if let start = currentOpenStartMinutes, let end = closesAtMinutes,
+           nowMinutes >= start && nowMinutes < end {
+            return true
+        }
+        if upcomingWindows.contains(where: {
+            nowMinutes >= $0.startMinutes && nowMinutes < $0.endMinutes
+        }) {
+            return true
+        }
+        if currentOpenStartMinutes != nil || closesAtMinutes != nil || !upcomingWindows.isEmpty {
+            return false
+        }
+        return openNow
+    }
 }
 
 public enum BusynessLevel: String, Codable, Sendable {

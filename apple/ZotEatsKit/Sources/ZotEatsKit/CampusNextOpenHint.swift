@@ -55,7 +55,7 @@ public enum CampusNextOpenHint {
         var tomorrowCandidates: [(place: CampusPlace, minutes: Int)] = []
         var laterCandidates: [(place: CampusPlace, minutes: Int, weekday: String, offset: Int)] = []
 
-        for place in places where !place.openNow {
+        for place in places where !place.isOpen() {
             if let minutes = place.opensAtMinutes {
                 todayCandidates.append((place, minutes))
             } else if let minutes = place.opensTomorrowAtMinutes {

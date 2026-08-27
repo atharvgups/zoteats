@@ -75,6 +75,61 @@ struct CampusPlaceStatusTests {
     }
 }
 
+@Suite("CampusPlace live open from snapshot windows")
+struct CampusPlaceLiveOpenTests {
+    private func starbucks(
+        openNow: Bool,
+        currentStart: Int?,
+        closesAt: Int?,
+        upcoming: [CampusHoursWindow]
+    ) -> CampusPlace {
+        CampusPlace(
+            id: "starbucks-at-student-center",
+            name: "Starbucks @ Student Center",
+            category: "Coffee & Cafés",
+            openNow: openNow,
+            todayHours: "7:30 AM – 4:00 PM",
+            currentOpenStartMinutes: currentStart,
+            closesAtMinutes: closesAt,
+            upcomingWindows: upcoming
+        )
+    }
+
+    @Test func bakedOpenFlipsClosedAfterWindowEnds() {
+        let place = starbucks(
+            openNow: true,
+            currentStart: 7 * 60 + 30,
+            closesAt: 16 * 60,
+            upcoming: []
+        )
+        #expect(place.isOpen(nowMinutes: 15 * 60))
+        #expect(!place.isOpen(nowMinutes: 16 * 60))
+        #expect(!place.isOpen(nowMinutes: 17 * 60))
+    }
+
+    @Test func upcomingWindowFlipsOpenWithoutRefetch() {
+        let place = starbucks(
+            openNow: false,
+            currentStart: nil,
+            closesAt: nil,
+            upcoming: [CampusHoursWindow(startMinutes: 7 * 60 + 30, endMinutes: 16 * 60)]
+        )
+        #expect(!place.isOpen(nowMinutes: 7 * 60))
+        #expect(place.isOpen(nowMinutes: 8 * 60))
+    }
+
+    @Test func twentyFourHourFallsBackToBakedFlag() {
+        let place = CampusPlace(
+            id: "zot-n-go",
+            name: "Zot N Go",
+            category: "Markets",
+            openNow: true,
+            todayHours: "Open 24 hours"
+        )
+        #expect(place.isOpen(nowMinutes: 3 * 60))
+    }
+}
+
 @Suite("CampusService — live open state within TTL")
 struct CampusServiceLiveOpenTests {
     /// Mutable clock so one TTL-warmed service can cross a close/open boundary.

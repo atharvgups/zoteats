@@ -47,7 +47,7 @@ struct CampusView: View {
             .padding(.bottom, 24)
         }
         .refreshable {
-            await store.loadPlaces()
+            await store.loadPlaces(forceRefresh: true)
             boundaryEpoch += 1
         }
         .statusBarBackdrop()
@@ -91,8 +91,8 @@ struct CampusView: View {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
         guard !Task.isCancelled else { return }
-        await store.loadPlaces()
         boundaryEpoch += 1
+        await store.loadPlaces()
     }
 
     private func applyPendingDeepLinkIfNeeded() {
@@ -403,7 +403,7 @@ struct CampusView: View {
     private func filteredPlaces(from places: [CampusPlace]) -> [CampusPlace] {
         var filtered = places.filter { typeFilter.matches(category: $0.category) }
         if openOnly {
-            filtered = filtered.filter(\.openNow)
+            filtered = filtered.filter { $0.isOpen() }
         }
         return filtered
     }
@@ -458,7 +458,7 @@ private struct CampusBrandGroupRow: View {
 
     @State private var isExpanded = false
 
-    private var openCount: Int { places.filter(\.openNow).count }
+    private var openCount: Int { places.filter { $0.isOpen() }.count }
 
     private var statusLine: String {
         if openCount == 0 { return "Closed" }
@@ -543,7 +543,7 @@ private struct CampusPlaceRow: View {
         HStack(spacing: 4) {
             Button(action: onOpen) {
                 HStack(spacing: 12) {
-                    CampusVenueGlyph(category: place.category, isOpen: place.openNow)
+                    CampusVenueGlyph(category: place.category, isOpen: place.isOpen())
                     VStack(alignment: .leading, spacing: 2) {
                         Text(displayName)
                             .font(ZotFont.body.weight(.semibold))
@@ -556,9 +556,9 @@ private struct CampusPlaceRow: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
-                    Text(place.openNow ? "Open" : "Closed")
+                    Text(place.isOpen() ? "Open" : "Closed")
                         .font(ZotFont.caption.weight(.medium))
-                        .foregroundStyle(place.openNow ? Color.openGreen : Color.inkMuted)
+                        .foregroundStyle(place.isOpen() ? Color.openGreen : Color.inkMuted)
                 }
                 .contentShape(Rectangle())
             }
@@ -588,14 +588,14 @@ private struct CampusPlaceRow: View {
             return CampusPlaceAccessibilityLabel.nested(
                 brand: accessibilityBrand,
                 locationDetail: displayName,
-                openNow: place.openNow,
+                openNow: place.isOpen(),
                 hoursLine: place.hoursLine,
                 hasMenu: place.hasMenu
             )
         }
         return CampusPlaceAccessibilityLabel.place(
             name: place.name,
-            openNow: place.openNow,
+            openNow: place.isOpen(),
             hoursLine: place.hoursLine,
             hasMenu: place.hasMenu
         )
@@ -623,7 +623,7 @@ struct CampusMenuSheet: View {
                             .font(ZotFont.hero(24))
                             .padding(.trailing, 44)
                         HStack(spacing: 8) {
-                            StatusPill(isOpen: place.openNow)
+                            StatusPill(isOpen: place.isOpen())
                             Text(place.hoursLine)
                                 .font(ZotFont.caption)
                                 .foregroundStyle(.secondary)

@@ -69,6 +69,35 @@ enum OpeningAlerts {
             halls = await dining.locations()
         }
 
+        let diningService = dining
+        var tomorrowByHall: [String: [MealPeriodWindow]] = [:]
+        var nextByHall: [String: [MealPeriodWindow]] = [:]
+        await withTaskGroup(of: (String, [MealPeriodWindow], [MealPeriodWindow]).self) { group in
+            for hall in halls {
+                let hallID = hall.id
+                let nextISO = hall.opensTomorrowAtMinutes == nil ? hall.opensNextDateISO : nil
+                group.addTask {
+                    let tomorrow: [MealPeriodWindow]
+                    if let tomorrowISO {
+                        tomorrow = await diningService.mealPeriods(for: hallID, dateISO: tomorrowISO)
+                    } else {
+                        tomorrow = []
+                    }
+                    let next: [MealPeriodWindow]
+                    if let nextISO {
+                        next = await diningService.mealPeriods(for: hallID, dateISO: nextISO)
+                    } else {
+                        next = []
+                    }
+                    return (hallID, tomorrow, next)
+                }
+            }
+            for await (hallID, tomorrow, next) in group {
+                tomorrowByHall[hallID] = tomorrow
+                nextByHall[hallID] = next
+            }
+        }
+
         for hall in halls {
             let id = "dining:\(hall.id)"
             // Pre-arm every meal still ahead today (per-meal notification ids).
@@ -102,7 +131,7 @@ enum OpeningAlerts {
             // still leaves Lunch/Dinner dependent on a morning BG that often
             // lands after they open.
             if let tomorrowISO {
-                let periods = await dining.mealPeriods(for: hall.id, dateISO: tomorrowISO)
+                let periods = tomorrowByHall[hall.id] ?? []
                 for meal in OpeningAlertPlanner.allTimedMeals(periods: periods) {
                     candidates.append(.init(
                         id: id,
@@ -118,12 +147,7 @@ enum OpeningAlerts {
             // (Fri→Mon gaps), matching tomorrow's Breakfast+Lunch+Dinner pre-arm.
             // Empty boards / missing ISO: skip — do not invent from chrome alone.
             if hall.opensTomorrowAtMinutes == nil {
-                let nextPeriods: [MealPeriodWindow]
-                if let nextISO = hall.opensNextDateISO {
-                    nextPeriods = await dining.mealPeriods(for: hall.id, dateISO: nextISO)
-                } else {
-                    nextPeriods = []
-                }
+                let nextPeriods = nextByHall[hall.id] ?? []
                 candidates.append(contentsOf: OpeningAlertPlanner.nextOpenDiningCandidates(
                     placeID: id,
                     name: hall.name,

@@ -28,7 +28,9 @@ public enum CampusPlaceSort {
 
     public static func sortFavorites(_ places: [CampusPlace]) -> [CampusPlace] {
         places.sorted { lhs, rhs in
-            if lhs.openNow != rhs.openNow { return lhs.openNow }
+            let lhsOpen = lhs.isOpen()
+            let rhsOpen = rhs.isOpen()
+            if lhsOpen != rhsOpen { return lhsOpen }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }
@@ -36,10 +38,11 @@ public enum CampusPlaceSort {
     /// Campus Open widget glance: open spots only, hearted first, then name.
     public static func sortOpenForWidget(
         places: [CampusPlace],
-        favoriteIDs: Set<String>
+        favoriteIDs: Set<String>,
+        nowMinutes: Int = UCITime.nowMinutes()
     ) -> [CampusPlace] {
         places
-            .filter(\.openNow)
+            .filter { $0.isOpen(nowMinutes: nowMinutes) }
             .sorted { lhs, rhs in
                 let lhsFav = favoriteIDs.contains(lhs.id)
                 let rhsFav = favoriteIDs.contains(rhs.id)
@@ -54,7 +57,9 @@ public enum CampusPlaceSort {
             let lhsRoot = isTwistedRootPreferred(lhs)
             let rhsRoot = isTwistedRootPreferred(rhs)
             if lhsRoot != rhsRoot { return lhsRoot }
-            if lhs.openNow != rhs.openNow { return lhs.openNow }
+            let lhsOpen = lhs.isOpen()
+            let rhsOpen = rhs.isOpen()
+            if lhsOpen != rhsOpen { return lhsOpen }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }
@@ -75,7 +80,9 @@ public enum CampusPlaceSort {
                 let lhsRoot = isTwistedRootPreferred(lhs)
                 let rhsRoot = isTwistedRootPreferred(rhs)
                 if lhsRoot != rhsRoot { return lhsRoot }
-                if lhs.openNow != rhs.openNow { return lhs.openNow }
+                let lhsOpen = lhs.isOpen()
+                let rhsOpen = rhs.isOpen()
+                if lhsOpen != rhsOpen { return lhsOpen }
                 return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
             return (brand: brand, places: sorted)
@@ -84,8 +91,8 @@ public enum CampusPlaceSort {
             let lhsRoot = lhs.places.contains(where: isTwistedRootPreferred)
             let rhsRoot = rhs.places.contains(where: isTwistedRootPreferred)
             if lhsRoot != rhsRoot { return lhsRoot }
-            let lhsOpen = lhs.places.contains(where: \.openNow)
-            let rhsOpen = rhs.places.contains(where: \.openNow)
+            let lhsOpen = lhs.places.contains { $0.isOpen() }
+            let rhsOpen = rhs.places.contains { $0.isOpen() }
             if lhsOpen != rhsOpen { return lhsOpen }
             return lhs.brand.localizedCaseInsensitiveCompare(rhs.brand) == .orderedAscending
         }
