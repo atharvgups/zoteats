@@ -469,8 +469,7 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
         libraryCloseMinutes: [Int]
     ) {
         let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
-        let busynessCached = WidgetSnapshotStore.loadBusynessPlaces()
-        async let waitzFetch = BusynessService(http: HTTPClient(timeout: 6)).all()
+        let busynessCached = WidgetSnapshotStore.loadBusynessPlacesIfPresent()
 
         let locations: [DiningLocation]
         if !cached.isEmpty {
@@ -497,7 +496,6 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
 
         let nowMinutes = UCITime.nowMinutes()
         guard !locations.isEmpty else {
-            _ = try? await waitzFetch
             return (
                 DiningStatusEntry(date: .now, halls: [], needsAppRefresh: true),
                 [],
@@ -581,19 +579,30 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
             )
         }
 
+        let waitzPlaces: [BusynessPoint]
+        if let cachedWaitz = busynessCached {
+            waitzPlaces = cachedWaitz
+            Task {
+                if let networked = try? await BusynessService(http: HTTPClient(timeout: 6)).all(),
+                   !networked.isEmpty {
+                    WidgetSnapshotStore.saveBusynessPlaces(networked)
+                }
+            }
+        } else if let networked = try? await BusynessService(http: HTTPClient(timeout: 6)).all(),
+                  !networked.isEmpty {
+            WidgetSnapshotStore.saveBusynessPlaces(networked)
+            waitzPlaces = networked
+        } else {
+            waitzPlaces = []
+        }
+
         let quietest: QuietestLibraryGlance.DiningStatusTip?
         let libraryReopenMinutes: [Int]
         let libraryCloseMinutes: [Int]
-        let waitzPlaces = try? await waitzFetch
-        if let places = waitzPlaces {
-            WidgetSnapshotStore.saveBusynessPlaces(places)
-            quietest = QuietestLibraryGlance.diningStatusTip(from: places)
-            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
-            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: places)
-        } else if let places = busynessCached {
-            quietest = QuietestLibraryGlance.diningStatusTip(from: places)
-            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
-            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: places)
+        if !waitzPlaces.isEmpty {
+            quietest = QuietestLibraryGlance.diningStatusTip(from: waitzPlaces)
+            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: waitzPlaces)
+            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: waitzPlaces)
         } else {
             quietest = nil
             libraryReopenMinutes = []

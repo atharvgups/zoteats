@@ -62,8 +62,10 @@ enum OpeningAlerts {
         let dining = DiningService()
         let nowMinutes = UCITime.nowMinutes()
         let tomorrowISO = UCITime.upcomingDays(count: 2).dropFirst().first?.isoDate
+        let halls = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay()
+            ?? await dining.locations()
 
-        for hall in await dining.locations() {
+        for hall in halls {
             let id = "dining:\(hall.id)"
             // Pre-arm every meal still ahead today (per-meal notification ids).
             for meal in OpeningAlertPlanner.followingMeals(
@@ -128,7 +130,8 @@ enum OpeningAlerts {
             }
         }
 
-        for place in (try? await CampusService().places()) ?? [] {
+        for place in WidgetSnapshotStore.loadCampusPlacesIfCurrentDay()
+            ?? ((try? await CampusService().places()) ?? []) {
             let id = "campus:\(place.id)"
             // Pre-arm every remaining today window (morning + afternoon reopen)
             // and tomorrow's full chain — dining multi-meal parity so a missed

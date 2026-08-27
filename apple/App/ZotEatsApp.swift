@@ -70,10 +70,11 @@ struct ZotEatsApp: App {
             switch phase {
             case .active:
                 Task {
-                    await FavoriteAlerts.runCheck()
-                    await MenuDropAlerts.runCheck()
-                    await OpeningAlerts.refreshSchedules()
-                    await MealActivityAutoStartRunner.run()
+                    async let favorites: Void = FavoriteAlerts.runCheck()
+                    async let menuDrop: Void = MenuDropAlerts.runCheck()
+                    async let opening: Void = OpeningAlerts.refreshSchedules()
+                    async let meal: Void = MealActivityAutoStartRunner.run()
+                    _ = await (favorites, menuDrop, opening, meal)
                     WidgetReloader.reloadAll()
                 }
             case .background:
@@ -83,10 +84,11 @@ struct ZotEatsApp: App {
             }
         }
         .backgroundTask(.appRefresh(FavoriteAlerts.refreshTaskID)) {
-            await FavoriteAlerts.runCheck()
-            await MenuDropAlerts.runCheck()
-            await OpeningAlerts.refreshSchedules()
-            await MealActivityAutoStartRunner.run()
+            async let favorites: Void = FavoriteAlerts.runCheck()
+            async let menuDrop: Void = MenuDropAlerts.runCheck()
+            async let opening: Void = OpeningAlerts.refreshSchedules()
+            async let meal: Void = MealActivityAutoStartRunner.run()
+            _ = await (favorites, menuDrop, opening, meal)
             WidgetReloader.reloadAll()
             await FavoriteAlerts.scheduleNextRefresh()
         }

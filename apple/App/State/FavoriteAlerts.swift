@@ -41,12 +41,14 @@ enum FavoriteAlerts {
         guard !favorites.isEmpty else { return }
 
         let service = DiningService()
-        let locations = await service.locations()
+        let locations = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay()
+            ?? await service.locations()
         let hallNames = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0.name) })
 
         var menus: [DiningMenu] = []
         var hallPeriods: [String: (timed: [MealPeriodWindow], available: [String])] = [:]
         let nowMinutes = UCITime.nowMinutes()
+        let todayISO = UCITime.todayISO()
         await withTaskGroup(of: DiningMenu?.self) { group in
             for location in locations {
                 hallPeriods[location.id] = (location.periods, location.availablePeriods)
@@ -55,9 +57,17 @@ enum FavoriteAlerts {
                     availablePeriods: location.availablePeriods,
                     nowMinutes: nowMinutes
                 ) {
+                    let hallID = location.id
                     group.addTask {
-                        try? await service.menu(
-                            for: location.id,
+                        if let cached = WidgetSnapshotStore.loadDiningMenu(
+                            hall: hallID,
+                            period: period,
+                            dateISO: todayISO
+                        ), !cached.stations.isEmpty {
+                            return cached
+                        }
+                        return try? await service.menu(
+                            for: hallID,
                             period: period,
                             includeHubDietTags: false
                         )

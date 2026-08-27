@@ -978,12 +978,17 @@ struct DiningView: View {
             date: selectedDate,
             forceRefresh: forceRefresh
         )
-        // Warm sibling hall boards for Favorites Today (today only).
+        // Warm sibling hall boards for Favorites Today (today only) without
+        // holding the selected hall's first paint.
         if selectedDate == nil {
-            await store.warmWidgetMenusForLiveHalls(
-                preferredHall: selectedHall,
-                preferredPeriod: selectedPeriod
-            )
+            let hall = selectedHall
+            let period = selectedPeriod
+            Task {
+                await store.warmWidgetMenusForLiveHalls(
+                    preferredHall: hall,
+                    preferredPeriod: period
+                )
+            }
         }
     }
 

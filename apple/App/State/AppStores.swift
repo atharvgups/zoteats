@@ -102,7 +102,14 @@ final class DiningStore {
             WidgetSnapshotStore.saveDiningLocations(loaded)
             WidgetReloader.reloadEatWidgets()
         }
+        // Day-strip dots can land a moment later — halls and today's board
+        // should not wait on a multi-day posted-date scan.
+        Task { await self.refreshPostedMenuDates(forceRefresh: forceRefresh) }
+    }
+
+    func refreshPostedMenuDates(forceRefresh: Bool = false) async {
         let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
+        guard !halls.isEmpty else { return }
         let fromISO = fromISOForPostedDates
         let throughISO = throughISOForPostedDates
         let diningService = service
