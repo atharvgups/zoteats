@@ -118,7 +118,11 @@ final class DiningStore {
         // waiting on a cold network fetch inside the extension process.
         if locations.value != previous, let loaded = locations.value, !loaded.isEmpty {
             WidgetSnapshotStore.saveDiningLocations(loaded)
-            WidgetReloader.reloadEatWidgets()
+            // Today-only first paint is missing tomorrow chrome — don't flash
+            // widgets until the follow-up fill lands (or pull-to-refresh).
+            if !paintingFirst || forceRefresh {
+                WidgetReloader.reloadEatWidgets()
+            }
         }
         if forceRefresh {
             Task { await self.refreshPostedMenuDates(forceRefresh: true) }
@@ -464,9 +468,13 @@ final class CampusStore {
         let published = places.filter(\.hasMenu)
         let ordered = published.filter { favorites.contains($0.id) }
             + published.filter { !favorites.contains($0.id) }
-        for place in ordered {
-            if menus[place.id]?.value != nil { continue }
-            await loadMenu(for: place.id)
+        let missingFavs = ordered.filter { favorites.contains($0.id) && menus[$0.id]?.value == nil }
+        let missingRest = ordered.filter { !favorites.contains($0.id) && menus[$0.id]?.value == nil }
+        for place in missingFavs {
+            Task { await self.loadMenu(for: place.id) }
+        }
+        for place in missingRest {
+            Task { await self.loadMenu(for: place.id) }
         }
     }
 
@@ -560,7 +568,7 @@ final class BusynessStore {
                 facilities = .failed(error.localizedDescription)
             }
         }
-        if let hours = try? await hoursTask, hours != libraryHours {
+        if let hours = try? await hoursTask, !hours.isEmpty, hours != libraryHours {
             libraryHours = hours
             WidgetSnapshotStore.saveLibraryHours(hours)
         }
