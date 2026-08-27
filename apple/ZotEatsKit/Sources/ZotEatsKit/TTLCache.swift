@@ -57,7 +57,7 @@ public actor TTLCache {
     public func remember<T: Sendable>(
         _ key: String,
         ttl: TimeInterval,
-        loader: @Sendable () async throws -> T
+        loader: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         if let cached = get(key, as: T.self) { return cached }
 
