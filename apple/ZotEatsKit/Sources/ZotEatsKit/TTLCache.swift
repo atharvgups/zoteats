@@ -66,6 +66,8 @@ public actor TTLCache {
                 if let value = try await existing.value as? T {
                     return value
                 }
+                if let staleValue = stale(key, as: T.self) { return staleValue }
+                throw TTLCacheTypeError(key: key)
             } catch {
                 if let staleValue = stale(key, as: T.self) { return staleValue }
                 throw error
