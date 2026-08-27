@@ -110,6 +110,43 @@ struct WidgetSnapshotStoreTests {
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
     }
 
+    @Test func todayMenusHydrateWhenSavedThisIrvineDay() {
+        let key = WidgetSnapshotStore.diningMenusKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let today = UCITime.todayISO()
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: today,
+            period: "Lunch",
+            stations: [
+                MenuStation(
+                    name: "Grill",
+                    items: [
+                        MenuItem(
+                            id: "1",
+                            name: "Crispy Okra",
+                            description: nil,
+                            calories: nil,
+                            servingSize: nil,
+                            allergens: [],
+                            dietaryTags: []
+                        ),
+                    ]
+                ),
+            ]
+        )
+        WidgetSnapshotStore.saveDiningMenu(menu)
+        let loaded = WidgetSnapshotStore.loadDiningMenusIfCurrentDay()
+        #expect(loaded.contains { $0.locationId == "anteatery" && $0.period == "Lunch" })
+        #expect(loaded.first?.stations.first?.items.first?.name == "Crispy Okra")
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadDiningMenusIfCurrentDay().isEmpty)
+    }
+
     @Test func emptyCopyIsReadable() {
         #expect(!WidgetLoadEmptyCopy.title.isEmpty)
         #expect(WidgetLoadEmptyCopy.detail.localizedCaseInsensitiveContains("eat"))

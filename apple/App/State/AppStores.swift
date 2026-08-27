@@ -49,6 +49,10 @@ final class DiningStore {
             locations = .loaded(cached)
             locationsDateISO = UCITime.todayISO()
         }
+        for menu in WidgetSnapshotStore.loadDiningMenusIfCurrentDay() {
+            let pill = MealPeriodPill.canonical(menu.period)
+            menus["\(menu.locationId)|\(pill)|today"] = .loaded(menu)
+        }
     }
 
     /// Purge stale live menus after Irvine midnight. Returns true when a refetch is needed.

@@ -95,6 +95,15 @@ public enum WidgetSnapshotStore {
         return locations
     }
 
+    /// Today's saved boards (primary pills) — Eat can paint before any network.
+    public static func loadDiningMenusIfCurrentDay(now: Date = .now) -> [DiningMenu] {
+        guard savedOnCurrentIrvineDay(diningMenusKey, now: now),
+              let all = loadDiningMenus()
+        else { return [] }
+        let today = UCITime.todayISO(now: now)
+        return Array(all.values.filter { $0.date == today })
+    }
+
     /// Instant Campus paint: last-known places from this Irvine day, else nil.
     public static func loadCampusPlacesIfCurrentDay(now: Date = .now) -> [CampusPlace]? {
         guard savedOnCurrentIrvineDay(campusPlacesKey, now: now),
