@@ -420,6 +420,7 @@ final class CampusStore {
                 WidgetSnapshotStore.saveCampusPlaces(loaded)
                 WidgetReloader.reloadCampusOpen()
             }
+            Task { await self.prefetchPublishedMenus() }
         } catch {
             if places.value == nil {
                 places = .failed(error.localizedDescription)
@@ -432,6 +433,11 @@ final class CampusStore {
     }
 
     func loadMenu(for placeID: String, forceRefresh: Bool = false) async {
+        if menus[placeID]?.value == nil,
+           let snap = WidgetSnapshotStore.loadCampusMenu(placeID: placeID),
+           !snap.isEmpty {
+            menus[placeID] = .loaded(snap)
+        }
         let cached = menus[placeID]?.value
         let hasItems = cached?.contains { !$0.items.isEmpty } == true
         if hasItems, !forceRefresh {
@@ -442,6 +448,20 @@ final class CampusStore {
             menus[placeID] = .loading
         }
         await fetchMenu(placeID: placeID, forceRefresh: forceRefresh)
+    }
+
+    /// Warm Hub menus after the cafe list paints so a tap doesn't wait on GraphQL.
+    /// Favorites first; skip boards already in memory.
+    private func prefetchPublishedMenus() async {
+        guard let places = places.value else { return }
+        let favorites = Set(SharedDefaults.favoriteCampusPlaceIDs())
+        let published = places.filter(\.hasMenu)
+        let ordered = published.filter { favorites.contains($0.id) }
+            + published.filter { !favorites.contains($0.id) }
+        for place in ordered {
+            if menus[place.id]?.value != nil { continue }
+            await loadMenu(for: place.id)
+        }
     }
 
     private func fetchMenu(placeID: String, forceRefresh: Bool) async {

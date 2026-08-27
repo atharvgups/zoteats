@@ -917,6 +917,10 @@ private enum WidgetSnapshotPaint {
     private static let http = HTTPClient(timeout: 8)
     private static let waitzHTTP = HTTPClient(timeout: 6)
 
+    static func diningService() -> DiningService {
+        DiningService(http: http)
+    }
+
     static func diningLocations() async -> [DiningLocation] {
         if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
             Task { await refreshDiningLocations() }
@@ -1154,7 +1158,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
     }
 
     private func fetchEntry(for configuration: TodaysMenuConfigurationIntent) async -> TodaysMenuEntry {
-        let service = DiningService(http: HTTPClient(timeout: 8))
+        let service = WidgetSnapshotPaint.diningService()
         let locations = await WidgetSnapshotPaint.diningLocations()
         let nowMinutes = UCITime.nowMinutes()
 
@@ -1204,7 +1208,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 menu = cachedMenu
                 let hallID = hall.id
                 Task {
-                    if let networkedMenu = try? await DiningService(http: HTTPClient(timeout: 8))
+                    if let networkedMenu = try? await WidgetSnapshotPaint.diningService()
                         .menu(for: hallID, period: pill) {
                         WidgetSnapshotStore.saveDiningMenu(networkedMenu)
                     }
@@ -1725,7 +1729,7 @@ struct FavoritesTodayProvider: TimelineProvider {
             )
         }
 
-        let service = DiningService(http: HTTPClient(timeout: 8))
+        let service = WidgetSnapshotPaint.diningService()
         let todayISO = UCITime.todayISO()
         var boards: [FavoritesOnMenuPick.Board] = []
         await withTaskGroup(of: FavoritesOnMenuPick.Board?.self) { group in
