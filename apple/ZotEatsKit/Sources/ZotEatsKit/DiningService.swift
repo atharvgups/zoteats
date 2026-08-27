@@ -439,7 +439,10 @@ public struct DiningService: Sendable {
     /// Pass `forceRefresh` at publish probes / pull-to-refresh so a stale
     /// empty or breakfast-only board — and tomorrow / next-open metadata —
     /// is not reused for up to 20 minutes.
-    public func locations(forceRefresh: Bool = false) async -> [DiningLocation] {
+    public func locations(
+        forceRefresh: Bool = false,
+        includeAdjacentDays: Bool = true
+    ) async -> [DiningLocation] {
         let dateISO = PacificTime.todayISO(now: now())
         let nowMinutes = PacificTime.nowMinutes(now: now())
 
@@ -454,7 +457,8 @@ public struct DiningService: Sendable {
                         for: hall,
                         dateISO: dateISO,
                         nowMinutes: nowMinutes,
-                        forceRefresh: forceRefresh
+                        forceRefresh: forceRefresh,
+                        includeAdjacentDays: includeAdjacentDays
                     )
                 }
             }
@@ -515,7 +519,8 @@ public struct DiningService: Sendable {
         for hall: String,
         dateISO: String,
         nowMinutes: Int,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        includeAdjacentDays: Bool = true
     ) async -> DiningLocation {
         let calendar = PacificTime.calendar
         let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: now()) ?? now()
@@ -523,11 +528,14 @@ public struct DiningService: Sendable {
         // Force-refresh must also re-fetch tomorrow / next-open boards — otherwise
         // pull-to-refresh can leave "Closed for today" / Monday chrome stuck on a
         // cached empty next day while today's board updates.
-        async let tomorrowWindows = mealPeriods(
-            for: hall,
-            dateISO: tomorrowISO,
-            forceRefresh: forceRefresh
-        )
+        async let tomorrowWindows: [MealPeriodWindow] = {
+            guard includeAdjacentDays else { return [] }
+            return await mealPeriods(
+                for: hall,
+                dateISO: tomorrowISO,
+                forceRefresh: forceRefresh
+            )
+        }()
 
         do {
             let periods = Self.servedPeriods(
@@ -545,11 +553,13 @@ public struct DiningService: Sendable {
                 ? nil
                 : "\(PacificTime.formatMinutes(starts.min()!)) – \(PacificTime.formatMinutes(ends.max()!))"
             let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
-            let next = await nextOpenBeyondTomorrow(
-                hall: hall,
-                tomorrowMinutes: tomorrow.minutes,
-                forceRefresh: forceRefresh
-            )
+            let next = includeAdjacentDays
+                ? await nextOpenBeyondTomorrow(
+                    hall: hall,
+                    tomorrowMinutes: tomorrow.minutes,
+                    forceRefresh: forceRefresh
+                )
+                : nil
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -575,11 +585,13 @@ public struct DiningService: Sendable {
             )
         } catch {
             let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
-            let next = await nextOpenBeyondTomorrow(
-                hall: hall,
-                tomorrowMinutes: tomorrow.minutes,
-                forceRefresh: forceRefresh
-            )
+            let next = includeAdjacentDays
+                ? await nextOpenBeyondTomorrow(
+                    hall: hall,
+                    tomorrowMinutes: tomorrow.minutes,
+                    forceRefresh: forceRefresh
+                )
+                : nil
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),

@@ -11,6 +11,7 @@ public enum WidgetSnapshotStore {
     public static let campusPlacesKey = "zoteats.widget.campusPlaces.v1"
     public static let campusMenusKey = "zoteats.widget.campusMenus.v1"
     public static let busynessPlacesKey = "zoteats.widget.busynessPlaces.v1"
+    public static let libraryHoursKey = "zoteats.widget.libraryHours.v1"
     public static let savedAtSuffix = ".savedAt"
 
     private static let io = NSLock()
@@ -126,6 +127,23 @@ public enum WidgetSnapshotStore {
 
     public static func loadBusynessPlaces() -> [BusynessPoint]? {
         load(key: busynessPlacesKey)
+    }
+
+    public static func saveLibraryHours(_ hours: [LibraryBuildingHours]) {
+        save(hours, key: libraryHoursKey)
+    }
+
+    public static func loadLibraryHours() -> [LibraryBuildingHours]? {
+        load(key: libraryHoursKey)
+    }
+
+    /// Instant Study hours line: last LibCal render from this Irvine day.
+    public static func loadLibraryHoursIfCurrentDay(now: Date = .now) -> [LibraryBuildingHours]? {
+        guard savedOnCurrentIrvineDay(libraryHoursKey, now: now),
+              let hours = loadLibraryHours(),
+              !hours.isEmpty
+        else { return nil }
+        return hours
     }
 
     public static func savedAt(for key: String) -> Date? {

@@ -3,7 +3,7 @@ import Foundation
 /// Today's building hours for Langson + Science from UCI LibCal (official
 /// library schedule). Waitz often only says `"open"` with no clocks — this
 /// fills the neat “8:00 AM – 8:00 PM” line for both libraries.
-public struct LibraryBuildingHours: Equatable, Sendable, Identifiable {
+public struct LibraryBuildingHours: Codable, Equatable, Sendable, Identifiable {
     /// Stable key: `langson` or `science`.
     public let id: String
     public let shortName: String

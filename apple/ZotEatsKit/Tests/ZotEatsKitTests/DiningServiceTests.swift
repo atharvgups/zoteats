@@ -29,6 +29,17 @@ struct DiningServiceTests {
         #expect(anteatery.openNow)
     }
 
+    @Test func firstPaintCanSkipTomorrowBoards() async {
+        let anteatery = await service().locations(includeAdjacentDays: false)
+            .first { $0.id == "anteatery" }!
+        #expect(anteatery.todayHours == "7:15 AM – 8:00 PM")
+        #expect(anteatery.openNow)
+        #expect(anteatery.opensTomorrowAtMinutes == nil)
+        #expect(anteatery.opensNextAtMinutes == nil)
+        let full = await service().locations().first { $0.id == "anteatery" }!
+        #expect(full.opensTomorrowAtMinutes != nil)
+    }
+
     @Test func periodsFollowTheDaysNaturalOrder() async {
         // Fixture serves Lunch, Dinner, Breakfast, Brunch (untimed), All Day (untimed).
         let anteatery = await service().locations().first { $0.id == "anteatery" }!

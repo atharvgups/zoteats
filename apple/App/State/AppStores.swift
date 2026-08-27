@@ -92,9 +92,13 @@ final class DiningStore {
     }
 
     private func fetchLocations(forceRefresh: Bool) async {
-        if locations.value == nil { locations = .loading }
+        let paintingFirst = locations.value == nil
+        if paintingFirst { locations = .loading }
         async let range = service.publishedDateRange(forceRefresh: forceRefresh)
-        let result = await service.locations(forceRefresh: forceRefresh)
+        let result = await service.locations(
+            forceRefresh: forceRefresh,
+            includeAdjacentDays: !paintingFirst || forceRefresh
+        )
         let nextRange = await range
         if publishedDateRange != nextRange {
             publishedDateRange = nextRange
@@ -118,6 +122,8 @@ final class DiningStore {
         }
         if forceRefresh {
             Task { await self.refreshPostedMenuDates(forceRefresh: true) }
+        } else if paintingFirst, locations.value != nil {
+            Task { await self.fetchLocations(forceRefresh: false) }
         }
     }
 
@@ -518,6 +524,9 @@ final class BusynessStore {
         if let cached = WidgetSnapshotStore.loadBusynessPlacesIfPresent() {
             facilities = .loaded(cached)
         }
+        if let hours = WidgetSnapshotStore.loadLibraryHoursIfCurrentDay() {
+            libraryHours = hours
+        }
     }
 
     func load(forceRefresh: Bool = false) async {
@@ -553,6 +562,7 @@ final class BusynessStore {
         }
         if let hours = try? await hoursTask, hours != libraryHours {
             libraryHours = hours
+            WidgetSnapshotStore.saveLibraryHours(hours)
         }
     }
 }

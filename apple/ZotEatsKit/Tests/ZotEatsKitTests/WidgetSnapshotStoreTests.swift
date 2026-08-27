@@ -221,6 +221,30 @@ struct WidgetSnapshotStoreTests {
         #expect(WidgetSnapshotStore.loadCampusMenusIfCurrentDay().isEmpty)
     }
 
+    @Test func libraryHoursRoundTripAndHydrateToday() {
+        let key = WidgetSnapshotStore.libraryHoursKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let hours = [
+            LibraryBuildingHours(
+                id: "langson",
+                shortName: "Langson",
+                rendered: "8:00 AM – 8:00 PM",
+                isOpen: true,
+                openMinutes: 8 * 60,
+                closeMinutes: 20 * 60
+            )
+        ]
+        WidgetSnapshotStore.saveLibraryHours(hours)
+        #expect(WidgetSnapshotStore.loadLibraryHoursIfCurrentDay()?.first?.shortName == "Langson")
+        #expect(WidgetSnapshotStore.loadLibraryHoursIfCurrentDay()?.first?.rendered == "8:00 AM – 8:00 PM")
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadLibraryHoursIfCurrentDay() == nil)
+    }
+
     @Test func emptyCopyIsReadable() {
         #expect(!WidgetLoadEmptyCopy.title.isEmpty)
         #expect(WidgetLoadEmptyCopy.detail.localizedCaseInsensitiveContains("eat"))
