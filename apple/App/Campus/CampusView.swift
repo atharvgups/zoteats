@@ -55,6 +55,7 @@ struct CampusView: View {
             CampusMenuSheet(place: place, store: store, prefs: prefs)
         }
         .task {
+            applyPendingDeepLinkIfNeeded()
             await store.loadPlaces()
             // CI screenshots the menu sheet deterministically via
             // `-campusMenu <place-id>` instead of scripted taps.

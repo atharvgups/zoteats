@@ -90,6 +90,7 @@ struct DiningView: View {
         .statusBarBackdrop()
         .refreshable { await refresh() }
         .task {
+            applyPendingDeepLinkIfNeeded()
             await store.loadLocations()
             // Failed feeds leave locations.value nil — still settle pending links.
             applyPendingDeepLinkIfNeeded()
@@ -994,10 +995,12 @@ struct DiningView: View {
 
     private func refresh() async {
         // Pull-to-refresh must bypass the 20-minute restaurantToday TTL so a
-        // publish that landed minutes ago shows up immediately.
-        await store.loadLocations(forceRefresh: true)
+        // publish that landed minutes ago shows up immediately. Halls and the
+        // selected board fetch together instead of waiting in line.
+        async let locationsLoad: Void = store.loadLocations(forceRefresh: true)
+        async let menuLoad: Void = loadCurrentMenu(forceRefresh: true)
+        _ = await (locationsLoad, menuLoad)
         syncPeriodSelection()
-        await loadCurrentMenu(forceRefresh: true)
         WidgetReloader.reloadEatWidgets()
         considerAutoMealActivity()
         boundaryEpoch += 1

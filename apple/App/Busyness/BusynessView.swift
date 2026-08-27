@@ -45,6 +45,8 @@ struct BusynessView: View {
             }
             .statusBarBackdrop()
             .task {
+                applyPendingDeepLinkIfNeeded()
+                scrollToDeepLinkedFacility(proxy: proxy)
                 await store.load()
                 // Failed feeds leave facilities.value nil — still settle pending links.
                 applyPendingDeepLinkIfNeeded()

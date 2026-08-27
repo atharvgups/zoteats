@@ -200,18 +200,25 @@ final class DiningStore {
                 }
             }
             if !next.stations.isEmpty {
-                let enriched = try await service.menu(
-                    for: hall,
-                    period: period,
-                    date: date,
-                    forceRefresh: false,
-                    includeHubDietTags: true
-                )
-                if menus[key]?.value != enriched {
-                    menus[key] = .loaded(enriched)
-                }
-                if date == nil {
-                    WidgetSnapshotStore.saveDiningMenu(enriched)
+                let dining = service
+                let hallID = hall
+                let meal = period
+                let iso = date
+                let menuKey = key
+                Task {
+                    guard let enriched = try? await dining.menu(
+                        for: hallID,
+                        period: meal,
+                        date: iso,
+                        forceRefresh: false,
+                        includeHubDietTags: true
+                    ) else { return }
+                    if menus[menuKey]?.value != enriched {
+                        menus[menuKey] = .loaded(enriched)
+                    }
+                    if iso == nil {
+                        WidgetSnapshotStore.saveDiningMenu(enriched)
+                    }
                 }
             }
         } catch {
