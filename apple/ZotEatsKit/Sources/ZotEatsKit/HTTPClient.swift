@@ -42,7 +42,6 @@ public struct HTTPClient: HTTPFetching {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout
-        config.waitsForConnectivity = false
         config.httpAdditionalHeaders = [
             "Accept": "application/json",
             "User-Agent": "Anteats/1.0 (UCI student utility)",
