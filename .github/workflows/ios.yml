@@ -95,7 +95,8 @@ jobs:
           # Light and dark mode captures of every tab.
           for mode in light dark; do
             xcrun simctl ui booted appearance "$mode"
-            for tab in dining campus gym busyness; do
+            # Gym tab removed from shipping until live ARC sensors exist.
+            for tab in dining campus busyness; do
               xcrun simctl launch --terminate-running-process booted \
                 com.atharvgupta.zoteats -initialTab "$tab"
               # The app fetches live UCI data on launch; give it time to render.
@@ -112,6 +113,15 @@ jobs:
               com.atharvgupta.zoteats -initialTab campus -campusMenu halal-shack
             sleep 12
             xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
+            # Dish nutrition sheet + Plate Builder (App Store listing needs the new UI).
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showDishDetail
+            sleep 14
+            xcrun simctl io booted screenshot "screenshots/dish_nutrition_${mode}.png"
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showPlate
+            sleep 14
+            xcrun simctl io booted screenshot "screenshots/plate_${mode}.png"
           done
           xcrun simctl ui booted appearance light
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"

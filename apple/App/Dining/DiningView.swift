@@ -7,56 +7,245 @@ import ZotEatsKit
 struct DiningView: View {
     let store: DiningStore
     let prefs: Preferences
+    let plate: PlateStore
+    @Binding var pendingDeepLink: AnteatsDeepLink?
     @Environment(\.openSettings) private var openSettings
 
     @State private var selectedHall: String = HallDirectory.fallbackIDs[0]
     @State private var selectedPeriod: String?
     /// Nil means today; otherwise a future ISO date being browsed.
     @State private var selectedDate: String?
-    @State private var searchText = ""
     @State private var selectedDish: MenuItem?
     @State private var showDietFilters = false
+    @State private var showPlate = false
+    /// Eat meal boards: Available-all-day station stays collapsed until tapped.
+    @State private var allDayExpanded = false
     @State private var mealActivity = MealActivityManager()
+    /// CI screenshot launch args (`-showDishDetail` / `-showPlate`) fire once.
+    @State private var didApplyScreenshotArgs = false
+    /// Dish name from a notification tap — opened once the menu finishes loading.
+    @State private var pendingDishName: String?
+    /// Explicit period from Opening Alerts / widgets / Favorite Alerts — hold
+    /// Eat snap so an ended Lunch isn't remapped the moment the hall settles.
+    @State private var pinnedDeepLinkPeriod: String?
+    /// Bumps after each meal-boundary tick so hall chrome / pills re-render.
+    @State private var boundaryEpoch = 0
+    @Environment(\.scenePhase) private var scenePhase
 
-    /// Today + the next few days (menus are usually published a few days out).
-    private let upcomingDays = UCITime.upcomingDays(count: 5)
+    /// Today plus future days that actually have a posted board for this hall.
+    /// `/dateRange` is a window — Tue/Wed can be empty while Thursday is live.
+    private var upcomingDays: [EatPostedDay] {
+        let today = UCITime.todayISO()
+        let candidates = UCITime.upcomingDays(count: 21)
+        return EatPostedDays.visible(
+            candidates: candidates,
+            todayISO: today,
+            postedISOs: store.postedMenuDates[selectedHall]
+        )
+    }
 
-    private static let dietFilters = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+    /// Timed windows for the board in view — tomorrow's schedule when browsing ahead.
+    private var boardTimedPeriods: [MealPeriodWindow]? {
+        guard let date = selectedDate else { return selectedLocation?.periods }
+        return store.dayPeriodsState(hall: selectedHall, dateISO: date).value
+    }
+
+    /// Period names for pills / snap on the board in view.
+    private var boardAvailablePeriods: [String]? {
+        guard selectedDate != nil else { return selectedLocation?.availablePeriods }
+        return boardTimedPeriods?.map(\.name)
+    }
+
+    /// True while a future DayStrip day hasn't finished loading its periods.
+    private var browseDayPeriodsPending: Bool {
+        guard let date = selectedDate else { return false }
+        return store.dayPeriodsState(hall: selectedHall, dateISO: date).value == nil
+    }
+
+    private var browsePeriodsTaskID: String {
+        "\(selectedHall)|\(selectedDate ?? "today")"
+    }
+
+    private var boundaryWatchID: String {
+        "\(boundaryEpoch)|\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")|\(store.dayEpoch)|\(store.locations.value?.map(\.id).joined() ?? "")"
+    }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
+        // Hall cards / Track meal read wall-clock minutes; re-render after ticks.
+        let _ = boundaryEpoch
+        // Flat ScrollView (no searchable / empty nav bar) so Eat title sits under
+        // the status bar like Campus — Atharv: kill search + top inset gap.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
 
-                    hallSelector
-                        .padding(.horizontal, 20)
+                hallSelector
+                    .padding(.horizontal, 20)
 
-                    content
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+                content
             }
-            .background(Color.screen.ignoresSafeArea())
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search today's dishes"
-            )
-            .refreshable { await refresh() }
-            .task { await store.loadLocations() }
-            .task(id: menuTaskID) { await loadCurrentMenu() }
-            .onChange(of: store.locations.value) { syncPeriodSelection() }
-            .onChange(of: selectedHall) { syncPeriodSelection() }
-            .sheet(item: $selectedDish) { dish in
-                DishDetailSheet(dish: dish, prefs: prefs)
-            }
-            .sheet(isPresented: $showDietFilters) {
-                DietFilterSheet(prefs: prefs)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
+        }
+        .statusBarBackdrop()
+        .refreshable { await refresh() }
+        .task {
+            applyPendingDeepLinkIfNeeded()
+            await store.loadLocations()
+            // Failed feeds leave locations.value nil — still settle pending links.
+            applyPendingDeepLinkIfNeeded()
+        }
+        .task(id: menuTaskID) {
+            await loadCurrentMenu()
+            considerAutoMealActivity()
+            applyScreenshotLaunchArgsIfNeeded()
+            openPendingDishIfPossible()
+        }
+        .task(id: browsePeriodsTaskID) {
+            guard let date = selectedDate else { return }
+            await store.loadDayPeriods(hall: selectedHall, dateISO: date)
+            syncPeriodSelection()
+            applyPendingDeepLinkIfNeeded()
+        }
+        .task(id: boundaryWatchID) {
+            await watchMealBoundaries()
+        }
+        .onChange(of: store.locations.value) {
+            syncPeriodSelection()
+            considerAutoMealActivity()
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onChange(of: store.publishedDateRange) { syncDateSelection() }
+        .onChange(of: selectedHall) {
+            // Do not clear pinnedDeepLinkPeriod here — deep-link apply also
+            // sets hall, and deferred onChange would wipe the meal pin and
+            // snap ended Lunch → Dinner. User hall taps clear the pin.
+            allDayExpanded = false
+            syncPeriodSelection()
+            considerAutoMealActivity()
+        }
+        .onChange(of: selectedDate) {
+            // After-hours Today clears the pill; moving to a future day must
+            // snap Breakfast (or first primary) so DayStrip / Menu Drop don't
+            // land on "No menu yet" with selectedPeriod == nil.
+            // Same as hall: deep links force today / future ISO — don't clear
+            // the meal pin from this onChange.
+            allDayExpanded = false
+            syncPeriodSelection()
+        }
+        .onChange(of: selectedPeriod) { _, newPeriod in
+            allDayExpanded = false
+            if let pinned = pinnedDeepLinkPeriod, newPeriod != pinned {
+                pinnedDeepLinkPeriod = nil
             }
         }
+        .onChange(of: pendingDeepLink) {
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onAppear {
+            syncPeriodSelection()
+            syncDateSelection()
+            considerAutoMealActivity()
+            applyPendingDeepLinkIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Overnight warm launch: drop stale Dinner once Irvine is past last meal.
+            if phase == .active {
+                syncDateSelection()
+                syncPeriodSelection()
+                considerAutoMealActivity()
+                boundaryEpoch += 1
+            }
+        }
+        .sheet(item: $selectedDish) { dish in
+            // Plate CTA only for today — future menus are browse-only.
+            DishDetailSheet(
+                dish: dish,
+                prefs: prefs,
+                plate: selectedDate == nil ? plate : nil
+            )
+        }
+        .sheet(isPresented: $showDietFilters) {
+            DietFilterSheet(prefs: prefs)
+        }
+        .sheet(isPresented: $showPlate) {
+            PlateSheet(plate: plate)
+        }
+        // Plate access: full tally on today when filled; quiet chip otherwise;
+        // browse-ahead keeps today's plate visible without implying add works.
+        .safeAreaInset(edge: .bottom) {
+            if selectedDate == nil {
+                if plate.isEmpty {
+                    EmptyView()
+                } else {
+                    plateTallyBar
+                }
+            } else if !plate.isEmpty {
+                browseAheadPlateBar
+            }
+        }
+    }
+
+    /// Compact running total pinned above the tab bar; taps open the plate.
+    private var plateTallyBar: some View {
+        Button {
+            showPlate = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                Text(PlateTallyCopy.barTitle(count: plate.entries.count))
+                    .font(ZotFont.pill.weight(.semibold))
+                Spacer()
+                Text("\(plate.totalCalories) cal · \(plate.totalProteinG)g protein")
+                    .font(ZotFont.pill.weight(.medium))
+                    .opacity(0.9)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(Color.ink, in: Capsule())
+            .foregroundStyle(Color.screen)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityLabel(
+            "My plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein"
+        )
+        .accessibilityIdentifier("plate-tally-bar")
+    }
+
+    /// While browsing tomorrow+, keep today's plate one tap away.
+    private var browseAheadPlateBar: some View {
+        Button {
+            showPlate = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text(PlateTallyCopy.browseAheadTitle(count: plate.entries.count))
+                    .font(ZotFont.pill.weight(.semibold))
+                Spacer()
+                Text("View")
+                    .font(ZotFont.pill.weight(.semibold))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.ink.opacity(0.12), in: Capsule())
+            .foregroundStyle(Color.ink)
+            .overlay(Capsule().strokeBorder(Color.ink.opacity(0.28), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityLabel(
+            "Today's plate: \(plate.entries.count) dishes. Opens My Plate."
+        )
+        .accessibilityIdentifier("plate-browse-ahead-bar")
     }
 
     // MARK: - Derived state
@@ -70,17 +259,10 @@ struct DiningView: View {
         return store.menuState(hall: selectedHall, period: selectedPeriod, date: selectedDate)
     }
 
-    /// Drives `.task(id:)` so the menu reloads whenever hall, period, or day changes.
+    /// Drives `.task(id:)` so the menu reloads whenever hall, period, day, or
+    /// Irvine day-rollover epoch changes.
     private var menuTaskID: String {
-        "\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")"
-    }
-
-    private var trimmedQuery: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var hasActiveFilter: Bool {
-        prefs.dietFilter != nil || !trimmedQuery.isEmpty
+        "\(selectedHall)|\(selectedPeriod ?? "-")|\(selectedDate ?? "today")|\(store.dayEpoch)"
     }
 
     // MARK: - Sections
@@ -101,117 +283,328 @@ struct DiningView: View {
                 Task { await refresh() }
             }
         case .loaded:
-            // One primary control row (meal periods), then a single quiet row
-            // combining the day strip and a filter chip — down from three
-            // stacked pill rows.
-            if let location = selectedLocation, !location.availablePeriods.isEmpty {
+            if selectedLocation?.isComingSoon == true {
+                comingSoonHallEmpty
+            } else {
+                // Always show Breakfast / Lunch / Dinner — never hide unposted meals.
+                // (Breakfast-only boards used to render a giant single pill.)
                 PillRow(
-                    items: location.availablePeriods,
+                    items: DiningService.mealSelectorPills,
                     title: { $0 },
-                    selection: $selectedPeriod
+                    selection: $selectedPeriod,
+                    fillsWidth: true
                 )
+                .accessibilityElement(children: .contain)
                 .accessibilityLabel("Meal period")
-            }
+                .accessibilityHint("Peek Lunch or Dinner even before that meal is posted")
 
-            HStack(spacing: 10) {
-                DayStrip(
-                    days: upcomingDays,
-                    selection: Binding(
-                        get: { selectedDate ?? upcomingDays.first?.isoDate },
-                        set: { newValue in
-                            let today = upcomingDays.first?.isoDate
-                            selectedDate = (newValue == today) ? nil : newValue
-                        }
+                // Dates + Plate + Filters on one row — actions stay fixedSize so
+                // they never truncate to "My…" / "Fil…" while dates scroll.
+                HStack(alignment: .center, spacing: 8) {
+                    DayStrip(
+                        days: upcomingDays,
+                        selection: Binding(
+                            get: { selectedDate ?? upcomingDays.first?.isoDate },
+                            set: { newValue in
+                                let today = upcomingDays.first?.isoDate
+                                let next = (newValue == today) ? nil : newValue
+                                // User DayStrip tap — drop deep-link meal pin.
+                                if next != selectedDate {
+                                    pinnedDeepLinkPeriod = nil
+                                }
+                                selectedDate = next
+                            }
+                        )
                     )
-                )
-                Spacer(minLength: 8)
-                filterChip
-            }
-            .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            menuContent
+                    HStack(spacing: 6) {
+                        if plate.isEmpty {
+                            myPlateChip
+                        }
+                        filterChip
+                        if prefs.hasActiveMenuFilters {
+                            Button {
+                                prefs.clearMenuFilters()
+                                Haptics.selection()
+                            } label: {
+                                Text("Clear")
+                                    .font(ZotFont.pill.weight(.semibold))
+                                    .foregroundStyle(Color.ink)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Color.ink.opacity(0.08), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("diet-filter-clear")
+                            .accessibilityLabel("Clear all filters")
+                        }
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+                }
+                .padding(.horizontal, 20)
+
+                menuContent
+            }
         }
     }
 
-    /// Compact chip summarizing the dietary filter; opens the picker sheet.
-    private var filterChip: some View {
-        let active = prefs.dietFilter
+    /// Honest Oasis / future-hall card — Hub facts only, no invented menu.
+    private var comingSoonHallEmpty: some View {
+        let name = selectedLocation?.name ?? "This hall"
+        return EmptyStateView(
+            icon: "building.2",
+            title: "\(name) · Coming Soon",
+            message: "Opens Sept 21 · Lunch & Dinner"
+        )
+    }
+
+    /// Compact inline chip — idle like Filters; blue only while the plate sheet is open.
+    private var myPlateChip: some View {
+        let active = showPlate
         return Button {
-            showDietFilters = true
+            showPlate = true
             Haptics.selection()
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "line.3.horizontal.decrease.circle\(active != nil ? ".fill" : "")")
-                    .font(.system(size: 14, weight: .semibold))
-                Text(active ?? "Filters")
-                    .font(ZotFont.pill.weight(active != nil ? .semibold : .medium))
-                    .lineLimit(1)
+            HStack(spacing: 4) {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Plate")
+                    .font(ZotFont.pill.weight(active ? .semibold : .medium))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
             .background(
-                active != nil ? Color.uciBlue.opacity(0.12) : Color.card,
+                active ? Color.ink.opacity(0.12) : Color.card,
                 in: Capsule()
             )
-            .foregroundStyle(active != nil ? Color.uciBlue : .primary)
+            .foregroundStyle(active ? Color.ink : Color.primary)
             .overlay(
                 Capsule().strokeBorder(
-                    active != nil ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
+                    active ? Color.ink.opacity(0.35) : Color.cardBorder,
                     lineWidth: 1
                 )
             )
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("diet-filter-chip")
-        .accessibilityLabel(active.map { "Dietary filter: \($0)" } ?? "Dietary filters")
+        .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
+        .accessibilityIdentifier("my-plate-chip")
+        .accessibilityLabel("My Plate, empty")
     }
 
-    /// Hall cards straight from the live API — a third commons appears here
-    /// automatically. Two halls share the width; more become a scrollable row.
+    /// Inline Filters chip — always says "Filters" (details in VoiceOver / help).
+    private var filterChip: some View {
+        let diets = prefs.dietFilters.sorted()
+        let allergens = prefs.allergenAvoids.sorted()
+        let active = prefs.hasActiveMenuFilters
+        return Button {
+            showDietFilters = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease.circle\(active ? ".fill" : "")")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Filters")
+                    .font(ZotFont.pill.weight(active ? .semibold : .medium))
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                active ? Color.ink.opacity(0.12) : Color.card,
+                in: Capsule()
+            )
+            .foregroundStyle(active ? Color.ink : Color.primary)
+            .overlay(
+                Capsule().strokeBorder(
+                    active ? Color.ink.opacity(0.35) : Color.cardBorder,
+                    lineWidth: 1
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .help(
+            MenuFiltersChipAccessibility.accessibilityLabel(
+                dietFilters: diets,
+                allergenAvoids: allergens
+            )
+        )
+        .accessibilityIdentifier("diet-filter-chip")
+        .accessibilityLabel(
+            MenuFiltersChipAccessibility.accessibilityLabel(
+                dietFilters: diets,
+                allergenAvoids: allergens
+            )
+        )
+    }
+
+    /// Live halls as two wide buttons (actually bigger). Coming Soon (Oasis)
+    /// sits as a short full-width strip so the row isn’t three tall skinny cards.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        if let locations, locations.count > 2 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(locations) { location in
-                        hallCard(for: location)
-                            .frame(width: 172)
+        let live = (locations ?? []).filter { !$0.isComingSoon }
+        let soon = (locations ?? []).filter(\.isComingSoon)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                if live.isEmpty, locations == nil {
+                    SkeletonCard(height: 76)
+                    SkeletonCard(height: 76)
+                } else {
+                    ForEach(live) { location in
+                        hallCard(for: location, compact: false)
                     }
                 }
             }
-        } else {
-            HStack(spacing: 12) {
-                if let locations, !locations.isEmpty {
-                    ForEach(locations) { location in
-                        hallCard(for: location)
-                    }
-                } else {
-                    SkeletonCard(height: 88)
-                    SkeletonCard(height: 88)
-                }
+            ForEach(soon) { location in
+                hallCard(for: location, compact: true)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Dining hall")
     }
 
-    private func hallCard(for location: DiningLocation) -> some View {
-        HallCard(
-            location: location,
-            isSelected: location.id == selectedHall
-        ) {
+    private func hallCard(for location: DiningLocation, compact: Bool) -> some View {
+        let isSelected = location.id == selectedHall
+        let status = HallChromeStatus.resolve(for: location)
+        return Button {
             guard location.id != selectedHall else { return }
-            withAnimation(.snappy(duration: 0.3)) {
+            pinnedDeepLinkPeriod = nil
+            withAnimation(ZotMotion.select) {
                 selectedHall = location.id
             }
             Haptics.selection()
+        } label: {
+            Group {
+                if compact {
+                    HStack(spacing: 10) {
+                        Text(HallDirectory.compactName(for: location.id))
+                            .font(ZotFont.face(16, relativeTo: .headline).weight(.medium))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(status.text)
+                            .font(ZotFont.face(13, relativeTo: .caption).weight(.medium))
+                            .foregroundStyle(status.tint)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(HallDirectory.compactName(for: location.id))
+                            .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                        Text(status.text)
+                            .font(ZotFont.face(14, relativeTo: .subheadline).weight(.medium))
+                            .foregroundStyle(status.tint)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? Color.selectWash : Color.card,
+                in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
+                        lineWidth: 1
+                    )
+            )
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            DiningHallCardAccessibilityLabel.label(
+                name: location.name,
+                isOpen: location.isServing(nowMinutes: UCITime.nowMinutes()),
+                statusLine: status.text,
+                occupancyPercent: nil
+            )
+        )
+        .accessibilityHint("Shows this dining hall's menu")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     @ViewBuilder
     private var menuContent: some View {
         switch currentMenuState {
         case .idle, .loading:
-            loadingPlaceholder
+            switch DiningMenuIdleAction.resolve(
+                locationsLoaded: store.locations.value != nil,
+                availablePeriods: boardAvailablePeriods,
+                selectedPeriod: selectedPeriod,
+                browseDayPeriodsPending: browseDayPeriodsPending
+            ) {
+            case .emptyNoMenu:
+                let location = selectedLocation
+                let emptyKind = DiningMenuIdleEmptyKind.resolve(
+                    browsingToday: selectedDate == nil,
+                    openState: location.map { $0.openState(nowMinutes: UCITime.nowMinutes()) }
+                )
+                let awaiting = emptyKind == .awaitingMoreMeals
+                let afterHours = emptyKind == .afterHours
+                let emptyBoard = afterHours && (location?.periods.isEmpty ?? false)
+                EmptyStateView(
+                    icon: awaiting ? "clock.arrow.circlepath" : "moon.zzz",
+                    title: TodaysMenuEmptyCopy.eatIdleEmptyTitle(
+                        awaitingMoreMeals: awaiting,
+                        afterHours: afterHours,
+                        emptyBoard: emptyBoard
+                    ),
+                    message: {
+                        switch emptyKind {
+                        case .awaitingMoreMeals:
+                            return TodaysMenuEmptyCopy.eatAwaitingMoreMealsMessage(
+                                hallName: location?.name ?? "This hall"
+                            )
+                        case .afterHours:
+                            return TodaysMenuEmptyCopy.eatAfterHoursMessage(
+                                hallName: location?.name ?? "This hall",
+                                opensTomorrowPeriod: location?.opensTomorrowPeriod,
+                                opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                                opensNextPeriod: location?.opensNextPeriod,
+                                opensNextAtMinutes: location?.opensNextAtMinutes,
+                                opensNextWeekday: location?.opensNextWeekday,
+                                emptyBoard: emptyBoard
+                            )
+                        case .noMenuPosted:
+                            return "\(location?.name ?? "This hall") hasn't posted Breakfast, Lunch, or Dinner for this day. Pull to refresh or check another hall."
+                        }
+                    }(),
+                    actionTitle: {
+                        if afterHours {
+                            return TodaysMenuEmptyCopy.afterHoursActionTitle(
+                                opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                                opensNextWeekday: location?.opensNextWeekday
+                            ) ?? "Try Again"
+                        }
+                        return "Try Again"
+                    }()
+                ) {
+                    if afterHours,
+                       let jump = TodaysMenuEmptyCopy.afterHoursJumpISO(
+                           opensTomorrowAtMinutes: location?.opensTomorrowAtMinutes,
+                           opensNextDateISO: location?.opensNextDateISO,
+                           opensNextDayOffset: location?.opensNextDayOffset
+                       ) {
+                        pinnedDeepLinkPeriod = nil
+                        selectedDate = jump
+                        Haptics.selection()
+                    } else {
+                        Task { await refresh() }
+                    }
+                }
+            case .loading:
+                loadingPlaceholder
+            }
         case .failed(let message):
             EmptyStateView(
                 icon: "fork.knife.circle",
@@ -223,19 +616,33 @@ struct DiningView: View {
         case .loaded(let menu):
             let stations = filteredStations(menu)
             if stations.isEmpty {
-                if hasActiveFilter {
+                if let copy = EatFilterEmptyCopy.resolve(
+                    hasSearch: false,
+                    hasMenuFilters: prefs.hasActiveMenuFilters
+                ) {
                     EmptyStateView(
                         icon: "ant",
-                        title: "Nothing matches that filter",
-                        message: "The anteaters got to it first. Try a different search or clear your dietary filter."
+                        title: copy.title,
+                        message: copy.message,
+                        actionTitle: copy.actionTitle,
+                        retry: {
+                            prefs.clearMenuFilters()
+                            Haptics.selection()
+                        }
                     )
                 } else {
                     EmptyStateView(
                         icon: "moon.zzz",
-                        title: "No menu posted",
+                        title: "No menu posted yet",
                         message: selectedDate == nil
-                            ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
-                            : "\(selectedLocation?.name ?? "This hall") hasn't posted that day's \(menu.period.lowercased()) yet — menus usually appear a few days ahead."
+                            ? EatBrowseEmptyCopy.message(
+                                period: menu.period,
+                                browsingFutureDay: false
+                            )
+                            : EatBrowseEmptyCopy.message(
+                                period: menu.period,
+                                browsingFutureDay: true
+                            )
                     )
                 }
             } else {
@@ -249,7 +656,13 @@ struct DiningView: View {
         // section instead of floating between two.
         LazyVStack(alignment: .leading, spacing: 30) {
             HStack(spacing: 8) {
-                Text("\(menu.period) • \(prettyDate(menu.date))")
+                Text(
+                    EatPostedDays.browseCaption(
+                        period: menu.period,
+                        prettyDate: prettyDate(menu.date),
+                        skipsAhead: upcomingDays.contains { $0.isoDate == menu.date && $0.skipsAhead }
+                    )
+                )
                     .font(ZotFont.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
@@ -258,6 +671,7 @@ struct DiningView: View {
             .padding(.horizontal, 20)
 
             let favorites = favoriteItems(in: stations)
+            let hits = hitItems(in: stations)
             if !favorites.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     sectionHeader(
@@ -272,26 +686,101 @@ struct DiningView: View {
                 }
                 .padding(.horizontal, 20)
                 .transition(.opacity)
+                .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
+            }
+
+            if !hits.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    sectionHeader(
+                        title: "Hits",
+                        count: hits.count,
+                        icon: "star.fill",
+                        tint: .uciGold
+                    )
+                    ForEach(hits) { item in
+                        dishRow(item)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .transition(.opacity)
+                .animation(.snappy(duration: 0.25), value: prefs.mealReviews)
             }
 
             ForEach(stations) { station in
+                let isAllDay = CampusMenuNormalize.isAvailableAllDay(station.name)
                 VStack(alignment: .leading, spacing: 10) {
-                    sectionHeader(title: station.name, count: station.items.count)
-                    ForEach(station.items) { item in
-                        dishRow(item)
+                    if isAllDay {
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                allDayExpanded.toggle()
+                            }
+                            Haptics.selection()
+                        } label: {
+                            HStack(spacing: 9) {
+                                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                                    .fill(Color.uciGold)
+                                    .frame(width: 5, height: 21)
+                                Text(station.name)
+                                    .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
+                                    .foregroundStyle(.primary)
+                                Spacer(minLength: 8)
+                                Text("\(station.items.count)")
+                                    .font(ZotFont.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(.quaternary, in: Capsule())
+                                Image(systemName: allDayExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 18, height: 18)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Available all day, \(station.items.count) items")
+                        .accessibilityHint(
+                            allDayExpanded
+                                ? "Hides all-day items"
+                                : "Shows all-day items"
+                        )
+
+                        if allDayExpanded {
+                            ForEach(station.items) { item in
+                                dishRow(item)
+                            }
+                            .transition(.opacity)
+                        }
+                    } else {
+                        sectionHeader(title: station.name, count: station.items.count)
+                        ForEach(station.items) { item in
+                            dishRow(item)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
             }
         }
-        .animation(.snappy(duration: 0.25), value: prefs.favoriteDishNames)
     }
 
     private func dishRow(_ item: MenuItem) -> some View {
         DishRowCard(
             item: item,
             isFavorite: prefs.isFavorite(item.name),
+            isOnPlate: plate.isOnPlate(item.name),
+            stars: prefs.review(for: item.name)?.stars ?? 0,
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
+            // Plate building only makes sense for food being served today.
+            onTogglePlate: selectedDate == nil
+                ? { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } }
+                : nil,
+            onRate: { stars in
+                prefs.setReview(
+                    dishName: item.name,
+                    stars: stars,
+                    note: prefs.review(for: item.name)?.note ?? ""
+                )
+            },
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
@@ -302,7 +791,6 @@ struct DiningView: View {
     private func trackMealButton(menu: DiningMenu) -> some View {
         if selectedDate == nil,
            let location = selectedLocation,
-           mealActivity.isAvailable,
            let window = location.periods.first(where: {
                $0.name.caseInsensitiveCompare(menu.period) == .orderedSame
            }),
@@ -310,46 +798,77 @@ struct DiningView: View {
            let start = window.startMinutes {
             let now = UCITime.nowMinutes()
             if now >= start && now < end {
-                let tracking = mealActivity.isTracking(hall: location.id, period: menu.period)
-                Button {
-                    if tracking {
-                        mealActivity.endAll()
-                    } else {
-                        let secondsLeft = TimeInterval((end - now) * 60)
-                        mealActivity.track(
-                            hallName: location.name,
-                            hallID: location.id,
-                            period: menu.period,
-                            endsAt: Date(timeIntervalSinceNow: secondsLeft)
+                if mealActivity.isAvailable {
+                    let tracking = mealActivity.isTracking(hall: location.id, period: menu.period)
+                    Button {
+                        Task {
+                            if tracking {
+                                await mealActivity.endAll()
+                                Haptics.selection()
+                            } else {
+                                let postClose = MealActivityPostClose.destination(
+                                    currentPeriodEndMinutes: end,
+                                    timedPeriods: location.periods,
+                                    opensTomorrowPeriod: location.opensTomorrowPeriod,
+                                    opensNextPeriod: location.opensNextPeriod,
+                                    opensNextDayOffset: location.opensNextDayOffset,
+                                    opensNextDateISO: location.opensNextDateISO
+                                )
+                                _ = await mealActivity.track(
+                                    hallName: location.name,
+                                    hallID: location.id,
+                                    period: menu.period,
+                                    endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
+                                    postClosePeriod: postClose.period,
+                                    postCloseDate: postClose.date,
+                                    opensTomorrowPeriod: MealActivityPostClose
+                                        .contentOpensTomorrowPeriod(
+                                            postClose: postClose,
+                                            hallOpensTomorrowPeriod: location.opensTomorrowPeriod
+                                        )
+                                )
+                            }
+                        }
+                    } label: {
+                        Label(
+                            tracking ? "Tracking" : "Track meal",
+                            systemImage: tracking ? "timer.circle.fill" : "timer"
+                        )
+                        .font(ZotFont.caption.weight(.medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            tracking ? Color.ink.opacity(0.12) : Color.card,
+                            in: Capsule()
+                        )
+                        .foregroundStyle(tracking ? Color.ink : .secondary)
+                        .overlay(
+                            Capsule().strokeBorder(
+                                tracking ? Color.ink.opacity(0.35) : Color.cardBorder,
+                                lineWidth: 1
+                            )
                         )
                     }
-                    Haptics.selection()
-                } label: {
-                    Label(
-                        tracking ? "Tracking" : "Track meal",
-                        systemImage: tracking ? "timer.circle.fill" : "timer"
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        tracking
+                            ? "Stop tracking \(menu.period)"
+                            : "Track \(menu.period) — live countdown on your lock screen"
                     )
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        tracking ? Color.uciBlue.opacity(0.12) : Color.card,
-                        in: Capsule()
-                    )
-                    .foregroundStyle(tracking ? Color.uciBlue : .secondary)
-                    .overlay(
-                        Capsule().strokeBorder(
-                            tracking ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                            lineWidth: 1
+                } else {
+                    // Honest affordance — don't hide Track when the meal is live
+                    // but system Live Activities are off.
+                    Label("Live Activities off", systemImage: "timer")
+                        .font(ZotFont.caption.weight(.medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.card, in: Capsule())
+                        .foregroundStyle(.tertiary)
+                        .overlay(Capsule().strokeBorder(Color.cardBorder, lineWidth: 1))
+                        .accessibilityLabel(
+                            "Live Activities are off — enable them in iOS Settings to track \(menu.period)"
                         )
-                    )
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    tracking
-                        ? "Stop tracking \(menu.period)"
-                        : "Track \(menu.period) — live countdown on your lock screen"
-                )
             }
         }
     }
@@ -372,7 +891,7 @@ struct DiningView: View {
             }
             // A full step above dish names so station boundaries scan clearly.
             Text(title)
-                .font(.system(size: 20, weight: .bold))
+                .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
             Spacer()
             Text("\(count)")
                 .font(ZotFont.caption.weight(.semibold))
@@ -399,20 +918,20 @@ struct DiningView: View {
     // MARK: - Filtering
 
     private func matches(_ item: MenuItem) -> Bool {
-        if let filter = prefs.dietFilter, !item.dietaryTags.contains(filter) {
-            return false
-        }
-        let query = trimmedQuery
-        guard !query.isEmpty else { return true }
-        if item.name.localizedCaseInsensitiveContains(query) { return true }
-        return item.description?.localizedCaseInsensitiveContains(query) ?? false
+        prefs.matchesMenuFilters(item)
     }
 
     private func filteredStations(_ menu: DiningMenu) -> [MenuStation] {
-        menu.stations.compactMap { station in
+        // Twisted Root must stay visible under Vegan/Vegetarian even when the
+        // Anteater API leaves every diet flag false (common).
+        // Owner vegan preference: float Twisted Root to the top of the station list.
+        let stations = DiningService.withStationDietOverrides(menu).stations.compactMap { station in
             let items = station.items.filter(matches)
             return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
         }
+        let twisted = stations.filter { DiningService.isTwistedRoot(stationName: $0.name) }
+        let rest = stations.filter { !DiningService.isTwistedRoot(stationName: $0.name) }
+        return twisted + rest
     }
 
     /// Favorited dishes being served right now, deduplicated by name.
@@ -427,56 +946,314 @@ struct DiningView: View {
         return result
     }
 
+    /// 4–5 star dishes on this board — glance strip, like Nom’s popular picks.
+    private func hitItems(in stations: [MenuStation]) -> [MenuItem] {
+        var seen = Set<String>()
+        var result: [MenuItem] = []
+        for station in stations {
+            for item in station.items {
+                guard let stars = prefs.review(for: item.name)?.stars,
+                      MealReviewLogic.isHit(stars),
+                      seen.insert(item.name.lowercased()).inserted
+                else { continue }
+                result.append(item)
+            }
+        }
+        return result.sorted { lhs, rhs in
+            let left = prefs.review(for: lhs.name)?.stars ?? 0
+            let right = prefs.review(for: rhs.name)?.stars ?? 0
+            if left != right { return left > right }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
     // MARK: - Loading
 
-    private func loadCurrentMenu() async {
+    private func loadCurrentMenu(forceRefresh: Bool = false) async {
+        // Cache under the primary pill name (Breakfast/Lunch/Dinner). The
+        // service resolves Brunch / Limited Dinner internally.
         guard let selectedPeriod else { return }
-        await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
+        await store.loadMenu(
+            hall: selectedHall,
+            period: selectedPeriod,
+            date: selectedDate,
+            forceRefresh: forceRefresh
+        )
+        // Sibling halls + other pills wait until this board's fetch joins so
+        // first paint keeps the connection.
+        if selectedDate == nil {
+            let hall = selectedHall
+            let period = selectedPeriod
+            Task {
+                await store.prefetchAfterSelectedBoard(hall: hall, period: period)
+            }
+        }
     }
 
     private func refresh() async {
-        await store.loadLocations()
+        // Pull-to-refresh must bypass the 20-minute restaurantToday TTL so a
+        // publish that landed minutes ago shows up immediately. Halls and the
+        // selected board fetch together instead of waiting in line.
+        async let locationsLoad: Void = store.loadLocations(forceRefresh: true)
+        async let menuLoad: Void = loadCurrentMenu(forceRefresh: true)
+        _ = await (locationsLoad, menuLoad)
         syncPeriodSelection()
-        await loadCurrentMenu()
+        WidgetReloader.reloadEatWidgets()
+        considerAutoMealActivity()
+        boundaryEpoch += 1
     }
 
-    /// Keeps the period selection valid for the current hall,
-    /// preferring the meal most likely happening now.
+    /// Sleep until the next meal open/close / any-hall wrap-up / midnight, then
+    /// refresh pills, menu, Live Activity, and hall chrome without leaving Eat.
+    private func watchMealBoundaries() async {
+        guard let locations = store.locations.value, !locations.isEmpty else { return }
+        let fire = EatBoundaryRefresh.nextFire(
+            hallPeriods: locations.map(\.periods),
+            nowMinutes: UCITime.nowMinutes()
+        )
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await applyBoundaryTick()
+    }
+
+    private func applyBoundaryTick() async {
+        // Open/close chrome is computed from cached windows. Force the network
+        // only at Irvine midnight or while Lunch/Dinner may still publish.
+        plate.ensureCurrentDay()
+        let dayRolled = store.ensureCurrentDay()
+        let nowMinutes = UCITime.nowMinutes()
+        let shouldProbe = (store.locations.value ?? []).contains {
+            DiningBoardPublish.shouldProbeForPublish(
+                periods: $0.periods,
+                nowMinutes: nowMinutes
+            )
+        }
+        let force = EatBoundaryRefresh.shouldForceNetwork(
+            dayRolled: dayRolled,
+            shouldProbeForPublish: shouldProbe
+        )
+        await store.loadLocations(forceRefresh: force)
+        syncDateSelection()
+        syncPeriodSelection()
+        if selectedDate == nil {
+            await loadCurrentMenu(forceRefresh: force)
+            considerAutoMealActivity()
+        }
+        WidgetReloader.reloadEatWidgets()
+        boundaryEpoch += 1
+    }
+
+    /// When a meal is in its last ~45 minutes, start the Dynamic Island countdown
+    /// without requiring a tap (respects Settings → Auto meal countdown).
+    /// Picks the soonest-ending hall in wrap-up — not only the selected card —
+    /// so Anteatery selected still starts Brandywine when that Lunch ends first.
+    private func considerAutoMealActivity() {
+        // Tab unload / cold start drop in-memory trackedKey; reconcile first so
+        // Tracking stays honest and we don't recreate a live Island timer.
+        mealActivity.syncFromSystem()
+        guard selectedDate == nil,
+              let locations = store.locations.value
+        else { return }
+        // Board may have grown (Lunch/Dinner publish) since track/auto-start.
+        mealActivity.refreshPostCloseIfNeeded(locations: locations)
+        guard let pick = MealActivityAutoStart.pick(
+                locations: locations,
+                nowMinutes: UCITime.nowMinutes(),
+                alreadyTracking: mealActivity.trackedKey != nil,
+                autoEnabled: MealActivityManager.autoStartEnabled
+              )
+        else { return }
+        let postClose = MealActivityPostClose.destination(
+            currentPeriodEndMinutes: pick.endMinutes,
+            timedPeriods: pick.timedPeriods,
+            opensTomorrowPeriod: pick.opensTomorrowPeriod,
+            opensNextPeriod: pick.opensNextPeriod,
+            opensNextDayOffset: pick.opensNextDayOffset,
+            opensNextDateISO: pick.opensNextDateISO
+        )
+        Task {
+            await mealActivity.autoStartIfNeeded(
+                hallName: pick.hallName,
+                hallID: pick.hallID,
+                period: pick.livePeriodName,
+                startMinutes: pick.startMinutes,
+                endMinutes: pick.endMinutes,
+                postClosePeriod: postClose.period,
+                postCloseDate: postClose.date,
+                opensTomorrowPeriod: MealActivityPostClose.contentOpensTomorrowPeriod(
+                    postClose: postClose,
+                    hallOpensTomorrowPeriod: pick.opensTomorrowPeriod
+                )
+            )
+        }
+    }
+
+    /// Notification / widget taps: select hall, period, date; stash dish for after load.
+    private func applyPendingDeepLinkIfNeeded() {
+        guard let link = pendingDeepLink, link.tab == .eat else { return }
+        let needsLocations = link.hall != nil || link.period != nil
+        let feedReady: Bool = {
+            switch store.locations {
+            case .loaded, .failed: return true
+            case .idle, .loading: return false
+            }
+        }()
+        switch EatDeepLinkApply.resolve(
+            hallID: link.hall,
+            needsLocations: needsLocations,
+            locations: store.locations.value,
+            feedReady: feedReady
+        ) {
+        case .waitForLocations:
+            return
+        case .discard:
+            pendingDeepLink = nil
+            return
+        case .apply(let hallID):
+            if let hallID {
+                selectedHall = hallID
+            }
+            // Live same-day links omit date — force today so a stuck future
+            // DayStrip doesn't keep browsingFutureDay and wrong meal snap.
+            let forcesToday = link.hall != nil || link.period != nil || link.dish != nil
+            let todayISO = UCITime.upcomingDays(count: 1).first?.isoDate
+            switch EatDeepLinkBrowseDay.resolve(
+                linkDate: link.date,
+                todayISO: todayISO,
+                forcesTodayWhenDateOmitted: forcesToday
+            ) {
+            case .keep:
+                break
+            case .today:
+                selectedDate = nil
+            case .future(let iso):
+                selectedDate = iso
+            }
+            // Hall, period, or date taps re-resolve the pill. Bare `anteats://eat`
+            // leaves selection alone. Date-only Menu Drop links need a future-day
+            // Breakfast snap when today is after hours (pill was cleared).
+            // Opening Alerts / Status period taps / Favorite dishes keep the
+            // named meal; hall-only links still snap live.
+            let preserveMeal = link.period != nil || link.dish != nil
+            if link.period != nil || link.hall != nil || link.date != nil {
+                // Future-day links wait for that day's periods so weekend Brunch
+                // pills don't block weekday Lunch / Breakfast snaps.
+                if let date = selectedDate {
+                    guard let windows = store.dayPeriodsState(hall: selectedHall, dateISO: date).value
+                    else { return }
+                    selectedPeriod = EatDeepLinkPeriod.resolve(
+                        requested: link.period,
+                        availablePeriods: windows.map(\.name),
+                        timedPeriods: windows,
+                        nowMinutes: UCITime.nowMinutes(),
+                        browsingFutureDay: true,
+                        preserveRequestedMeal: preserveMeal
+                    )
+                } else if let location = selectedLocation {
+                    selectedPeriod = EatDeepLinkPeriod.resolve(
+                        requested: link.period,
+                        availablePeriods: location.availablePeriods,
+                        timedPeriods: location.periods,
+                        nowMinutes: UCITime.nowMinutes(),
+                        browsingFutureDay: false,
+                        preserveRequestedMeal: preserveMeal
+                    )
+                }
+                pinnedDeepLinkPeriod = EatDeepLinkMealPin.pin(
+                    preserveRequestedMeal: preserveMeal,
+                    resolvedPeriod: selectedPeriod
+                )
+            }
+            if let dish = link.dish {
+                pendingDishName = dish
+            }
+            pendingDeepLink = nil
+            openPendingDishIfPossible()
+        }
+    }
+
+    private func openPendingDishIfPossible() {
+        guard let name = pendingDishName else { return }
+        // Wait for the deep-linked meal board — searching a stale live meal
+        // clears the pending name before Lunch finishes loading.
+        guard selectedPeriod != nil else { return }
+        guard case .loaded(let menu) = currentMenuState else { return }
+        if let item = menu.stations.flatMap(\.items).first(where: {
+            $0.name.caseInsensitiveCompare(name) == .orderedSame
+        }) {
+            selectedDish = item
+        }
+        pendingDishName = nil
+    }
+
+    /// CI helpers: open a labeled dish sheet and/or seed My Plate for screenshots.
+    private func applyScreenshotLaunchArgsIfNeeded() {
+        guard !didApplyScreenshotArgs else { return }
+        let args = ProcessInfo.processInfo.arguments
+        let wantDish = args.contains("-showDishDetail")
+        let wantPlate = args.contains("-showPlate")
+        guard wantDish || wantPlate else { return }
+
+        guard case .loaded(let menu) = currentMenuState else { return }
+        let items = menu.stations.flatMap(\.items)
+        guard !items.isEmpty else { return }
+        didApplyScreenshotArgs = true
+
+        if wantPlate {
+            for item in items.prefix(3) where !plate.isOnPlate(item.name) {
+                plate.toggle(item)
+            }
+            if !wantDish {
+                showPlate = true
+            }
+        }
+
+        if wantDish {
+            selectedDish = items.first { $0.nutrition?.hasMacros == true } ?? items.first
+        }
+    }
+
+    /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
+    /// matching Today's Menu after-hours truth (no stale Dinner overnight).
     private func syncPeriodSelection() {
-        guard let location = selectedLocation else { return }
-        if let selectedPeriod, location.availablePeriods.contains(selectedPeriod) { return }
-        selectedPeriod = defaultPeriod(for: location)
+        // Hold an explicit deep-linked meal (Opening Alert / widget / dish) so
+        // Eat snap doesn't remap ended Lunch → Dinner under the user.
+        if pendingDishName != nil || pinnedDeepLinkPeriod != nil { return }
+        guard let available = boardAvailablePeriods,
+              let timed = boardTimedPeriods
+        else { return }
+        selectedPeriod = EatPeriodSelection.snap(
+            current: selectedPeriod,
+            availablePeriods: available,
+            timedPeriods: timed,
+            nowMinutes: UCITime.nowMinutes(),
+            browsingFutureDay: selectedDate != nil
+        )
     }
 
-    /// The meal that matters right now: the one being served, else the next
-    /// one starting today, else the day's last meal (evenings after close),
-    /// else whatever's first.
-    private func defaultPeriod(for location: DiningLocation) -> String? {
-        guard !location.availablePeriods.isEmpty else { return nil }
-        let now = UCITime.nowMinutes()
-        let timed = location.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
-
-        if let current = timed.first(where: { now >= $0.startMinutes! && now < $0.endMinutes! }) {
-            return current.name
-        }
-        if let upcoming = timed
-            .filter({ $0.startMinutes! > now })
-            .min(by: { $0.startMinutes! < $1.startMinutes! }) {
-            return upcoming.name
-        }
-        if let last = timed.max(by: { $0.endMinutes! < $1.endMinutes! }) {
-            return last.name
-        }
-        return location.availablePeriods.first
+    /// Snap off days the feed hasn't published yet, and collapse an explicit ISO
+    /// that is now Irvine today back to the live board (overnight DayStrip).
+    private func syncDateSelection() {
+        selectedDate = EatDateSelection.snapLiveToday(
+            selectedDateISO: selectedDate,
+            todayISO: UCITime.todayISO()
+        )
+        let days = upcomingDays
+        guard let selectedDate else { return }
+        if days.contains(where: { $0.isoDate == selectedDate }) { return }
+        self.selectedDate = nil
     }
 
     /// Time-of-day greeting on UCI's clock.
     static func greeting() -> String {
         switch UCITime.hour() {
-        case ..<4: "Late night, Anteater"
-        case ..<12: "Good morning, Anteater"
-        case ..<17: "Good afternoon, Anteater"
-        default: "Good evening, Anteater"
+        case ..<4: "Still hungry, Anteater?"
+        case ..<12: "What’s for breakfast?"
+        case ..<17: "What’s on the board?"
+        default: "Dinner plans, Anteater?"
         }
     }
 
@@ -495,225 +1272,249 @@ struct DiningView: View {
 /// Quiet text-button day selector — visually lighter than a pill row so the
 /// meal periods stay the primary control.
 private struct DayStrip: View {
-    let days: [(isoDate: String, label: String)]
+    let days: [EatPostedDay]
     @Binding var selection: String?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
-                ForEach(days, id: \.isoDate) { day in
-                    let isSelected = selection == day.isoDate
-                    Button {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            selection = day.isoDate
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(Array(days.enumerated()), id: \.element.isoDate) { index, day in
+                        if index > 0,
+                           EatPostedDays.skipsCalendarDays(
+                            from: days[index - 1].isoDate,
+                            to: day.isoDate
+                           ) {
+                            Text("···")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
                         }
-                        Haptics.selection()
-                    } label: {
-                        VStack(spacing: 3) {
-                            Text(day.label)
-                                .font(.system(size: 14, weight: isSelected ? .bold : .medium))
-                                .foregroundStyle(isSelected ? Color.uciBlue : .secondary)
-                            Capsule()
-                                .fill(isSelected ? Color.uciBlue : .clear)
-                                .frame(height: 3)
+                        let isSelected = selection == day.isoDate
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                selection = day.isoDate
+                            }
+                            Haptics.selection()
+                        } label: {
+                            VStack(spacing: 2) {
+                                Text(day.label)
+                                    .font(ZotFont.face(13, relativeTo: .caption).weight(isSelected ? .medium : .regular))
+                                    .foregroundStyle(isSelected ? Color.ink : .secondary)
+                                Capsule()
+                                    .fill(isSelected ? Color.ink : .clear)
+                                    .frame(height: 2.5)
+                            }
+                            .fixedSize()
                         }
-                        .fixedSize()
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(day.accessibilityLabel)
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Menu for \(day.label)")
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                 }
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 2)
+            if days.count > 3 {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 4)
+                    .accessibilityHidden(true)
+            }
         }
-        .accessibilityLabel("Menu day")
+        .accessibilityLabel(
+            days.contains(where: \.skipsAhead)
+                ? "Days with a menu. Next board skips days that aren’t posted yet."
+                : "Days with a menu"
+        )
     }
 }
 
-// MARK: - Dietary filter sheet
+// MARK: - Dietary + allergen filter sheet
 
-/// One tidy sheet instead of a permanent pill row on the main screen.
+/// Compact multi-select sheet — keeps Eat uncluttered vs a permanent pill row.
+/// Diet filters combine as AND; allergen avoids hide dishes that list them.
 struct DietFilterSheet: View {
     let prefs: Preferences
     @Environment(\.dismiss) private var dismiss
 
-    private static let options = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+    private static let dietOptions = ["Vegan", "Vegetarian", "Halal", "Kosher", "Gluten-Free"]
+    private static let allergenOptions = [
+        "Eggs", "Fish", "Milk", "Peanuts", "Sesame", "Shellfish", "Soy", "Tree Nuts", "Wheat",
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Dietary filter")
-                .font(ZotFont.hero(24))
-                .padding(.bottom, 10)
-
-            ForEach(Self.options, id: \.self) { option in
-                let isSelected = prefs.dietFilter == option
+            HStack(alignment: .firstTextBaseline) {
+                Text("Filters")
+                    .font(ZotFont.hero(24))
+                Spacer()
                 Button {
-                    prefs.dietFilter = isSelected ? nil : option
-                    Haptics.selection()
                     dismiss()
                 } label: {
-                    HStack {
-                        TagChip(text: option, color: TagPalette.dietColor(option))
-                        Text("Only show \(option.lowercased()) dishes")
-                            .font(ZotFont.body)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.uciBlue)
+                    Text("Done")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(Color.ink, in: Capsule())
+                        .foregroundStyle(Color.screen)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("diet-filter-done")
+            }
+            .padding(.bottom, 2)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Diet — dishes must match all selected.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 6)
+
+                    ForEach(Self.dietOptions, id: \.self) { option in
+                        filterRow(
+                            title: option,
+                            subtitle: "Only \(option.lowercased()) dishes",
+                            color: TagPalette.dietColor(option),
+                            isSelected: prefs.dietFilters.contains(option)
+                        ) {
+                            if prefs.dietFilters.contains(option) {
+                                prefs.dietFilters.remove(option)
+                            } else {
+                                prefs.dietFilters.insert(option)
+                            }
                         }
                     }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 14)
-                    .background(
-                        isSelected ? Color.uciBlue.opacity(0.08) : Color.card,
-                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                lineWidth: 1
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(option) filter\(isSelected ? ", active" : "")")
-            }
 
-            if prefs.dietFilter != nil {
-                Button {
-                    prefs.dietFilter = nil
-                    Haptics.selection()
-                    dismiss()
-                } label: {
-                    Text("Clear filter")
-                        .font(ZotFont.pill.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(Color.primary.opacity(0.05), in: Capsule())
-                        .foregroundStyle(.primary)
+                    Text("Avoid allergens — hides dishes that list them.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 14)
+                        .padding(.bottom, 6)
+
+                    Text("Only works when UCI publishes allergen data for that dish.")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.bottom, 4)
+
+                    ForEach(Self.allergenOptions, id: \.self) { option in
+                        filterRow(
+                            title: option,
+                            subtitle: "Hide dishes with \(option.lowercased())",
+                            color: TagPalette.allergenColor,
+                            isSelected: prefs.allergenAvoids.contains(option)
+                        ) {
+                            if prefs.allergenAvoids.contains(option) {
+                                prefs.allergenAvoids.remove(option)
+                            } else {
+                                prefs.allergenAvoids.insert(option)
+                            }
+                        }
+                    }
+
+                    if prefs.hasActiveMenuFilters {
+                        Button {
+                            prefs.clearMenuFilters()
+                            Haptics.selection()
+                        } label: {
+                            Text("Clear all")
+                                .font(ZotFont.pill.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color.primary.opacity(0.05), in: Capsule())
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 8)
+                        .accessibilityIdentifier("diet-filter-clear")
+                    }
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
             }
 
             Spacer(minLength: 0)
         }
         .padding(20)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .background(Color.screen)
+        .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
+        .animation(.snappy(duration: 0.2), value: prefs.allergenAvoids)
+    }
+
+    private func filterRow(
+        title: String,
+        subtitle: String,
+        color: Color,
+        isSelected: Bool,
+        toggle: @escaping () -> Void
+    ) -> some View {
+        Button {
+            toggle()
+            Haptics.selection()
+        } label: {
+            HStack {
+                TagChip(text: title, color: color)
+                Text(subtitle)
+                    .font(ZotFont.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.ink : Color.secondary.opacity(0.4))
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .background(
+                isSelected ? Color.ink.opacity(0.08) : Color.card,
+                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.ink.opacity(0.35) : Color.cardBorder,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(DietFilterRowAccessibility.label(title: title, subtitle: subtitle))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint(DietFilterRowAccessibility.hint(isSelected: isSelected))
     }
 }
 
-// MARK: - Hall hero card
+// MARK: - Hall status inside 3-up cards
 
-private struct HallCard: View {
-    let location: DiningLocation
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    // Deliberately minimal: name + open state, then one "when" line and the
-    // occupancy number. No icons, no location subtitle — just what decides
-    // "which hall do I go to".
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 10) {
-                // No status pill: the countdown line below already reads
-                // open/closed in words and color, and the name needs the width.
-                Text(location.name)
-                    .font(ZotFont.cardTitle)
-                    .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                HStack(alignment: .bottom, spacing: 6) {
-                    if let statusLine {
-                        Text(statusLine.text)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(statusLine.tint)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.75)
-                    } else if let hours = location.todayHours {
-                        Text(hours)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    Spacer(minLength: 4)
-                    if FeatureFlags.diningHallOccupancy, let occupancy {
-                        VStack(alignment: .trailing, spacing: 0) {
-                            Text("\(occupancy.percent)%")
-                                .font(.system(size: 16, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(occupancy.tint)
-                            Text("occupancy")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(occupancy.percent) percent occupancy, typical estimate")
-                    }
-                }
-            }
-            .padding(14)
-            // Fixed height keeps the two hall cards identical regardless of
-            // how long each status line runs.
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 82, alignment: .top)
-            .background(
-                isSelected ? Color.uciBlue.opacity(0.07) : Color.card,
-                in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.uciBlue.opacity(0.45) : Color.cardBorder,
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
-            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+/// Short card subtext — meal name only (Atharv: no “tomorrow · 7:15 AM” essays).
+private enum HallChromeStatus {
+    static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
+        if location.comingSoonSubtitle != nil {
+            return ("Coming Soon", .secondary)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            "\(location.name), \(location.area), \(location.openNow ? "open" : "closed")"
-        )
-        .accessibilityHint("Shows this dining hall's menu")
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-    }
-
-    /// Nom-style typical occupancy percent, shown only while the hall is serving.
-    private var occupancy: (percent: Int, tint: Color)? {
-        guard location.openNow, !location.periods.isEmpty else { return nil }
-        let estimate = TypicalBusyness.dining(periods: location.periods)
-        guard estimate.percentNow > 0 else { return nil }
-        return (estimate.percentNow, estimate.levelNow.color)
-    }
-
-    /// Live "when" intelligence. Countdowns read best when the moment is close;
-    /// beyond 90 minutes a clock time ("until 2:00 PM") is clearer than math.
-    private var statusLine: (text: String, icon: String, tint: Color)? {
-        let now = UCITime.nowMinutes()
-        switch location.openState(nowMinutes: now) {
-        case .open(let period, let closesAt):
-            let text = closesAt - now <= 90
-                ? "\(period) · closes in \(UCITime.countdown(from: now, to: closesAt))"
-                : "\(period) · until \(UCITime.format(minutes: closesAt % (24 * 60)))"
-            return (text, "clock.badge.checkmark", .openGreen)
-        case .openingLater(let period, let opensAt):
-            let text = opensAt - now <= 90
-                ? "\(period) starts in \(UCITime.countdown(from: now, to: opensAt))"
-                : "\(period) at \(UCITime.format(minutes: opensAt))"
-            return (text, "clock.arrow.circlepath", .busyOrange)
+        switch location.openState(nowMinutes: nowMinutes) {
+        case .open(let period, _):
+            return (mealLabel(period), .openGreen)
+        case .openingLater(let period, _):
+            return (mealLabel(period), .busyOrange)
+        case .awaitingMoreMeals:
+            return ("Later", .busyOrange)
         case .closedForToday:
-            return ("Closed for today", "moon.zzz", .secondary)
+            if let meal = location.opensTomorrowPeriod {
+                return (mealLabel(meal), .secondary)
+            }
+            if let meal = location.opensNextPeriod {
+                return (mealLabel(meal), .secondary)
+            }
+            return ("Closed", .secondary)
         case .unknown:
-            return nil
+            return ("Soon", .secondary)
         }
     }
 
+    private static func mealLabel(_ live: String) -> String {
+        MealPeriodPill.canonical(live)
+    }
 }
 
 // MARK: - Dish row card
@@ -721,7 +1522,11 @@ private struct HallCard: View {
 private struct DishRowCard: View {
     let item: MenuItem
     let isFavorite: Bool
+    var isOnPlate: Bool = false
+    var stars: Int = 0
     let onToggleFavorite: () -> Void
+    var onTogglePlate: (() -> Void)?
+    var onRate: ((Int) -> Void)?
     let onOpen: () -> Void
 
     var body: some View {
@@ -731,6 +1536,8 @@ private struct DishRowCard: View {
                     Text(item.name)
                         .font(ZotFont.body.weight(.semibold))
                         .multilineTextAlignment(.leading)
+
+                    StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
 
                     if let description = item.description, !description.isEmpty {
                         Text(description)
@@ -749,7 +1556,12 @@ private struct DishRowCard: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 10) {
-                    favoriteButton
+                    HStack(spacing: 8) {
+                        if let onTogglePlate {
+                            plateButton(onTogglePlate)
+                        }
+                        favoriteButton
+                    }
                     if let calories = item.calories {
                         CalorieBadge(calories: calories)
                     }
@@ -763,6 +1575,15 @@ private struct DishRowCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
                 .strokeBorder(Color.uciGold.opacity(isFavorite ? 0.65 : 0), lineWidth: 1.5)
+        )
+        .accessibilityLabel(
+            DishRowAccessibility.label(
+                dishName: item.name,
+                calories: item.calories,
+                dietaryTags: item.dietaryTags,
+                allergens: item.allergens,
+                stars: stars > 0 ? stars : nil
+            )
         )
         .accessibilityHint("Shows dish details")
     }
@@ -794,6 +1615,22 @@ private struct DishRowCard: View {
             isFavorite ? "Remove \(item.name) from favorites" : "Add \(item.name) to favorites"
         )
     }
+
+    private func plateButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isOnPlate ? Color.ink : Color.ink.opacity(0.85))
+                .symbolEffect(.bounce, value: isOnPlate)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            isOnPlate ? "Remove \(item.name) from my plate" : "Add \(item.name) to my plate"
+        )
+        .accessibilityIdentifier("plate-toggle")
+    }
 }
 
 // MARK: - Calories badge
@@ -804,19 +1641,24 @@ private struct CalorieBadge: View {
     var body: some View {
         VStack(spacing: -1) {
             Text("\(calories)")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.uciBlue)
+                .font(ZotFont.face(14, relativeTo: .caption).weight(.medium))
+                .foregroundStyle(Color.ink)
             Text("cal")
-                .font(.system(size: 9, weight: .semibold))
+                .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(Color.uciBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+        .background(Color.ink.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityLabel("\(calories) calories")
     }
 }
 
 #Preview {
-    DiningView(store: DiningStore(), prefs: Preferences())
+    DiningView(
+        store: DiningStore(),
+        prefs: Preferences(),
+        plate: PlateStore(),
+        pendingDeepLink: .constant(nil)
+    )
 }

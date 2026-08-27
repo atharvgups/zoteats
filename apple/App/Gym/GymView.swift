@@ -10,10 +10,18 @@ import ZotEatsKit
 struct GymView: View {
     let store: GymStore
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.scenePhase) private var scenePhase
+    /// Bumps after each schedule / Waitz tick so StatusPill and crowding re-render.
+    @State private var boundaryEpoch = 0
+
+    private var boundaryWatchID: String {
+        "\(boundaryEpoch)|\(store.status.value != nil)"
+    }
 
     // No NavigationStack: nothing navigates, and a flat hierarchy lets the
     // iOS 26 glass tab bar track this scroll view directly (minimize-on-scroll).
     var body: some View {
+        let _ = boundaryEpoch
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: "Gym", subtitle: "Beat the rush at the ARC", onSettings: openSettings)
@@ -23,10 +31,37 @@ struct GymView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(Color.screen)
-        .refreshable { await store.load() }
+        .refreshable {
+            await store.load()
+            boundaryEpoch += 1
+        }
         .statusBarBackdrop()
         .task { await store.load() }
+        .task(id: boundaryWatchID) {
+            await watchScheduleBoundaries()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                boundaryEpoch += 1
+            }
+        }
+    }
+
+    /// Sleep until ARC open/close (or 15m Waitz cadence), then reload — same
+    /// honesty as the ARC widget while the Gym tab stays open.
+    private func watchScheduleBoundaries() async {
+        guard store.status.value != nil else { return }
+        let fire = GymBoundaryRefresh.nextFire(
+            reopenMinutes: store.status.value?.waitzReopenMinutes,
+            closeMinutes: store.status.value?.waitzCloseMinutes
+        )
+        let delay = fire.timeIntervalSinceNow
+        if delay > 0.05 {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        guard !Task.isCancelled else { return }
+        await store.load()
+        boundaryEpoch += 1
     }
 
     @ViewBuilder
@@ -77,10 +112,12 @@ struct GymBusynessHero: View {
                 StatusPill(isOpen: status.openNow)
             }
 
-            if let point = status.busyness, let percent = point.percent {
+            // Gate on ArcWidgetGlance so closed ARC never shows a stale Waitz %.
+            if let crowding = ArcWidgetGlance.crowding(from: status),
+               let point = status.busyness {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("\(percent)%")
+                        Text("\(crowding.percent)%")
                             .font(.system(size: 44, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(point.level.color)
@@ -88,16 +125,12 @@ struct GymBusynessHero: View {
                             .font(ZotFont.sectionTitle)
                             .foregroundStyle(point.level.color)
                         Spacer()
-                        if point.source == .typical {
+                        if crowding.isTypical {
                             TypicalTag()
                         }
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        "\(percent) percent full, \(point.level.label)\(point.source == .typical ? ", typical estimate" : "")"
-                    )
 
-                    OccupancyBar(percent: percent, level: point.level)
+                    OccupancyBar(percent: crowding.percent, level: point.level)
 
                     HStack {
                         if let count = point.count {
@@ -120,7 +153,7 @@ struct GymBusynessHero: View {
                 HStack(spacing: 8) {
                     Image(systemName: "moon.zzz")
                         .foregroundStyle(.secondary)
-                    Text(status.openNow ? "No busyness estimate right now" : "Closed — see you tomorrow")
+                    Text(idleMessage)
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -135,20 +168,92 @@ struct GymBusynessHero: View {
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
             }
-            .accessibilityElement(children: .combine)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(heroAccessibilityLabel)
     }
 
     private var hoursLine: String {
-        guard let hours = status.todayHours else { return "Hours unavailable" }
-        // "6:00 AM – 12:00 AM" -> "Open until 12:00 AM" while open.
-        if status.openNow, let close = hours.components(separatedBy: "–").last?.trimmingCharacters(in: .whitespaces) {
-            return "Open until \(close)"
-        }
-        return "Today: \(hours)"
+        let weekday = UCITime.weekdayName()
+        let nowMinutes = UCITime.nowMinutes()
+        return ArcIdleCopy.hoursLine(
+            openNow: status.openNow,
+            todayHours: status.todayHours,
+            nowMinutes: nowMinutes,
+            opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
+                weekday: weekday,
+                openNow: status.openNow,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            ),
+            closesAtMinutesToday: ArcIdleCopy.closesAtMinutesToday(
+                weekday: weekday,
+                openNow: status.openNow,
+                nowMinutes: nowMinutes,
+                waitzCloseMinutes: status.waitzCloseMinutes,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            ),
+            opensAtMinutesTomorrow: ArcIdleCopy.opensAtMinutesTomorrow(
+                weekday: weekday,
+                openNow: status.openNow,
+                nowMinutes: nowMinutes,
+                waitzReopenMinutes: status.waitzReopenMinutes
+            )
+        )
+    }
+
+    private var idleMessage: String {
+        let weekday = UCITime.weekdayName()
+        let nowMinutes = UCITime.nowMinutes()
+        return status.openNow
+            ? "No busyness estimate right now"
+            : ArcIdleCopy.noBusynessMessage(
+                openNow: false,
+                nowMinutes: nowMinutes,
+                opensAtMinutesToday: ArcIdleCopy.opensAtMinutesToday(
+                    weekday: weekday,
+                    openNow: false,
+                    waitzReopenMinutes: status.waitzReopenMinutes
+                ),
+                closesAtMinutesToday: ArcIdleCopy.closesAtMinutesToday(
+                    weekday: weekday,
+                    openNow: false,
+                    nowMinutes: nowMinutes,
+                    waitzCloseMinutes: status.waitzCloseMinutes,
+                    waitzReopenMinutes: status.waitzReopenMinutes
+                ),
+                opensAtMinutesTomorrow: ArcIdleCopy.opensAtMinutesTomorrow(
+                    weekday: weekday,
+                    openNow: false,
+                    nowMinutes: nowMinutes,
+                    waitzReopenMinutes: status.waitzReopenMinutes
+                )
+            )
+    }
+
+    private var heroAccessibilityLabel: String {
+        let crowding = ArcWidgetGlance.crowding(from: status)
+        let point = status.busyness
+        let updatedRelative: String? = {
+            guard crowding != nil,
+                  let point,
+                  point.source == .live
+            else { return nil }
+            return UpdatedAgoCopy.relative(from: point.updatedAt)
+        }()
+        return GymHeroAccessibilityLabel.label(
+            isOpen: status.openNow,
+            hoursLine: hoursLine,
+            percent: crowding?.percent,
+            levelLabel: crowding != nil ? point?.level.label : nil,
+            isTypical: crowding?.isTypical ?? false,
+            peopleCount: crowding != nil ? point?.count : nil,
+            idleMessage: crowding == nil ? idleMessage : nil,
+            updatedRelative: updatedRelative,
+            hoursApproximate: status.hoursApproximate
+        )
     }
 }
 
@@ -158,6 +263,13 @@ struct GymRushCard: View {
     let curve: [Int]
     let status: GymStatus
 
+    private var highlightedHour: Int? {
+        GymRushHighlight.currentHour(
+            openNow: status.openNow,
+            nowMinutes: UCITime.nowMinutes()
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
@@ -166,7 +278,10 @@ struct GymRushCard: View {
                 TypicalTag()
                 Spacer()
             }
-            RushStrip(curve: curve, currentHour: UCITime.nowMinutes() / 60)
+            RushStrip(
+                curve: curve,
+                currentHour: highlightedHour ?? -1
+            )
             if let busiest = status.busiestSummary {
                 Text([busiest, status.quietestSummary].compactMap(\.self).joined(separator: " · "))
                     .font(ZotFont.caption)
@@ -176,6 +291,15 @@ struct GymRushCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            GymRushAccessibilityLabel.label(
+                curve: curve,
+                currentHour: highlightedHour,
+                busiestSummary: status.busiestSummary,
+                quietestSummary: status.quietestSummary
+            )
+        )
     }
 }
 
@@ -198,10 +322,10 @@ struct GymHoursCard: View {
                         .font(ZotFont.sectionTitle)
                         .foregroundStyle(.primary)
                     Spacer()
-                    Image(systemName: "chevron.down")
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .frame(width: 18, height: 18)
                 }
                 .contentShape(Rectangle())
             }
@@ -215,22 +339,32 @@ struct GymHoursCard: View {
                         HStack {
                             Text(day.day)
                                 .font(isToday ? ZotFont.body.weight(.semibold) : ZotFont.body)
-                                .foregroundStyle(isToday ? Color.uciBlue : Color.primary)
+                                .foregroundStyle(isToday ? Color.ink : Color.primary)
                             Spacer()
                             Text(day.hours)
                                 .font(isToday ? ZotFont.body.weight(.semibold) : ZotFont.body)
-                                .foregroundStyle(isToday ? Color.uciBlue : Color.secondary)
+                                .foregroundStyle(isToday ? Color.ink : Color.secondary)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
                         .background(
-                            isToday ? Color.uciBlue.opacity(0.08) : Color.clear,
+                            isToday ? Color.ink.opacity(0.08) : Color.clear,
                             in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                         )
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(
                             isToday ? "Today, \(day.day): \(day.hours)" : "\(day.day): \(day.hours)"
                         )
+                    }
+                    if GymService.todayWeekHoursDifferFromSchedule(
+                        status.weekHours,
+                        weekday: Self.todayName()
+                    ) {
+                        Text("Today from Waitz · other days are the usual schedule")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 6)
+                            .padding(.horizontal, 10)
                     }
                 }
                 .padding(.top, 6)
@@ -271,7 +405,7 @@ struct GymApproximateHoursFootnote: View {
                     destination: URL(string: "https://www.campusrec.uci.edu/arc/hours.html")!
                 )
                 .font(ZotFont.caption.weight(.medium))
-                .foregroundStyle(Color.uciBlue)
+                .foregroundStyle(Color.ink)
                 .accessibilityLabel("Open ARC hours page at campusrec.uci.edu")
             }
         }
@@ -290,7 +424,7 @@ struct GymApproximateHoursFootnote: View {
                     status: GymStatus(
                         name: "Anteater Recreation Center",
                         openNow: true,
-                        todayHours: "6:00 AM – 12:00 AM",
+                        todayHours: "6:00 AM – 10:00 PM",
                         weekHours: [],
                         busyness: BusynessPoint(
                             id: -100,
@@ -316,10 +450,10 @@ struct GymApproximateHoursFootnote: View {
                     status: GymStatus(
                         name: "ARC",
                         openNow: true,
-                        todayHours: "6:00 AM – 12:00 AM",
+                        todayHours: "6:00 AM – 10:00 PM",
                         weekHours: [
-                            DayHours(day: "Sunday", hours: "8:00 AM – 12:00 AM"),
-                            DayHours(day: "Monday", hours: "6:00 AM – 12:00 AM"),
+                            DayHours(day: "Sunday", hours: "8:00 AM – 8:00 PM"),
+                            DayHours(day: "Monday", hours: "6:00 AM – 10:00 PM"),
                         ],
                         busyness: nil,
                         hoursApproximate: true

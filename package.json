@@ -2,7 +2,7 @@
   "id": "1fb4xr1l",
   "name": "zot-eats",
   "version": "1.0.0",
-  "productName": "Zot Eats",
+  "productName": "Anteats",
   "description": "UCI dining, gym hours, and campus info",
   "iconDescription": "A campus life utility app for UC Irvine students that aggregates dining hall menus, hours, real-time occupancy levels, gym schedules, and other campus facility information from official UCI data sources. Think of a dining fork and spoon combined with a location pin, a campus building, or a digital cafeteria counter. Aesthetic: student-focused, practical, campus-community oriented.",
   "private": true,

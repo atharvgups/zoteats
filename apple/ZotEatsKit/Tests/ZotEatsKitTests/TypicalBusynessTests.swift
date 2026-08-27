@@ -73,10 +73,32 @@ struct TypicalArcTests {
         let saturday = TypicalBusyness.arcCurve(weekday: "Saturday")
         let thursday = TypicalBusyness.arcCurve(weekday: "Thursday")
         #expect(saturday.max()! < thursday.max()!)
-        // Saturday closes at 9 PM; opens 8 AM.
+        // Saturday closes at 8 PM; opens 8 AM.
         #expect(saturday[7] == 0)
         #expect(saturday[21] == 0)
         #expect(saturday[12] > 0)
+    }
+
+    @Test func waitzNoonCloseZerosEveningBars() {
+        let curve = TypicalBusyness.arcCurve(
+            weekday: "Monday",
+            openMinutes: 6 * 60,
+            closeMinutes: 12 * 60
+        )
+        #expect(curve[6] > 0)
+        #expect(curve[11] > 0)
+        #expect(curve[12] == 0)
+        #expect(curve[18] == 0)
+    }
+
+    @Test func pastWaitzReopenZerosWholeDay() {
+        let curve = TypicalBusyness.arcCurve(
+            weekday: "Monday",
+            openNow: false,
+            waitzReopenMinutes: 6 * 60,
+            nowMinutes: 13 * 60
+        )
+        #expect(curve.allSatisfy { $0 == 0 })
     }
 
     @Test func estimateAtPeakTimeIsBusy() {
@@ -118,6 +140,54 @@ struct GymBusynessResolutionTests {
         #expect(status.hoursApproximate == false)
         // The typical curve still rides along for the day chart.
         #expect(status.typicalCurve?.isEmpty == false)
+    }
+
+    /// Waitz still says open after an early holiday close — Gym + ARC widget
+    /// must flip closed so crowding % doesn't linger.
+    private struct StaleOpenArcHTTP: HTTPFetching {
+        func data(from url: URL) async throws -> Data {
+            Data("""
+            {"data":[{"name":"Anteater Recreation Center","id":99,"busyness":40,
+            "people":200,"capacity":500,"isAvailable":true,"isOpen":true,
+            "hourSummary":"6:00am-12:00pm"}]}
+            """.utf8)
+        }
+    }
+
+    @Test("Stale Waitz isOpen past range closes ARC")
+    func staleFeedOpenPastRangeIsClosed() async {
+        // Thursday 2:00 PM Pacific — Waitz range closed at noon.
+        let afternoon = ISO8601DateFormatter().date(from: "2026-07-09T21:00:00Z")!
+        let service = GymService(
+            busyness: BusynessService(http: StaleOpenArcHTTP(), now: { afternoon }),
+            now: { afternoon }
+        )
+        let status = await service.status()
+        #expect(!status.openNow)
+        #expect(ArcWidgetGlance.crowding(from: status) == nil)
+    }
+
+    private struct ClosedUntilArcHTTP: HTTPFetching {
+        func data(from url: URL) async throws -> Data {
+            Data("""
+            {"data":[{"name":"Anteater Recreation Center","id":99,"busyness":10,
+            "people":50,"capacity":500,"isAvailable":true,"isOpen":true,
+            "hourSummary":"Closed until 8:00am"}]}
+            """.utf8)
+        }
+    }
+
+    @Test("Closed-until summary closes ARC despite feed isOpen")
+    func closedUntilBeatsFeedIsOpen() async {
+        let early = ISO8601DateFormatter().date(from: "2026-07-09T13:00:00Z")! // 6 AM PT
+        let service = GymService(
+            busyness: BusynessService(http: ClosedUntilArcHTTP(), now: { early }),
+            now: { early }
+        )
+        let status = await service.status()
+        #expect(!status.openNow)
+        #expect(status.waitzReopenMinutes == 8 * 60)
+        #expect(ArcWidgetGlance.crowding(from: status) == nil)
     }
 
     @Test func typicalEstimateFillsInWhenFeedLacksArc() async {

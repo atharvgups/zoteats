@@ -21,23 +21,37 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["The Anteatery, Mesa Court"])
         pause(2)
 
-        // Browse meal periods.
-        tapFirstMatch(app.buttons, labels: ["Lunch", "Brunch", "Breakfast"])
+        // Browse meal periods (Breakfast / Lunch / Dinner only).
+        tapFirstMatch(app.buttons, labels: ["Lunch", "Breakfast"])
         pause(2.5)
-        tapFirstMatch(app.buttons, labels: ["Dinner", "All Day"])
+        tapFirstMatch(app.buttons, labels: ["Dinner"])
         pause(2.5)
 
-        // Open the first dish's detail sheet.
+        // Open the first dish's detail sheet — expand nutrition, add to plate.
         let firstDish = app.buttons.matching(identifier: "dish-row").firstMatch
         if firstDish.waitForExistence(timeout: 5) {
             firstDish.tap()
             pause(3)
-            // Favorite it from the sheet.
-            tapFirstMatch(app.buttons, labelPrefixes: ["Add "])
+            tapIfPresent(app.buttons.matching(identifier: "full-nutrition-toggle").firstMatch)
+            pause(2)
+            // Favorite from the sheet, then add to plate.
+            tapFirstMatch(app.buttons, labelPrefixes: ["Add to Favorites", "Add "])
+            pause(1)
+            tapFirstMatch(app.buttons, labelPrefixes: ["Add to My Plate"])
             pause(1.5)
             tapIfPresent(app.buttons["Close"])
             pause(1.5)
         }
+
+        // Floating plate tally → My Plate sheet.
+        tapIfPresent(app.buttons.matching(identifier: "plate-tally-bar").firstMatch)
+        pause(2.5)
+        tapIfPresent(app.buttons["Close plate"])
+        pause(1.5)
+
+        // Also tap + on a row if the sheet path didn't seed the plate.
+        tapIfPresent(app.buttons.matching(identifier: "plate-toggle").firstMatch)
+        pause(1.5)
 
         // Browse tomorrow's menu, then come back to today.
         tapIfPresent(app.buttons["Menu for Tomorrow"])
@@ -45,14 +59,18 @@ final class DemoTourUITests: XCTestCase {
         tapIfPresent(app.buttons["Menu for Today"])
         pause(2)
 
-        // Apply the Vegan filter via the filter sheet, then clear it.
+        // Open Filters sheet — pick a diet, then clear.
         tapIfPresent(app.buttons["diet-filter-chip"])
         pause(2)
-        tapFirstMatch(app.buttons, labelPrefixes: ["Vegan filter"])
-        pause(3)
+        tapFirstMatch(app.buttons, labelPrefixes: ["Vegan filter", "Vegetarian filter"])
+        pause(1.5)
+        tapIfPresent(app.buttons["diet-filter-done"])
+        pause(2)
         tapIfPresent(app.buttons["diet-filter-chip"])
         pause(1.5)
-        tapIfPresent(app.buttons["Clear filter"])
+        tapIfPresent(app.buttons["diet-filter-clear"])
+        pause(1)
+        tapIfPresent(app.buttons["diet-filter-done"])
         pause(1.5)
 
         // Scroll through the menu.
@@ -108,36 +126,44 @@ final class DemoTourUITests: XCTestCase {
         app.swipeDown()
         pause(1)
 
-        // ── Gym: busyness hero, rush chart, expandable hours ──────────────
-        tapTab(app, "Gym")
-        pause(3.5)
-        tapFirstMatch(app.buttons, labelPrefixes: ["Show this week's hours"])
-        pause(2.5)
-        app.swipeUp()
-        pause(2)
+        // Gym tab removed from shipping until live ARC sensors exist.
 
         // ── Study ─────────────────────────────────────────────────────────
         tapTab(app, "Study")
         pause(3.5)
         // Expand the first facility's sub-areas.
-        tapFirstMatch(app.buttons, labelPrefixes: ["Show areas inside"])
+        tapFirstMatch(app.buttons, labelPrefixes: ["Show floors inside", "Show areas inside"])
         pause(2.5)
         app.swipeUp()
         pause(2)
         app.swipeDown()
         pause(1.5)
 
-        // ── Settings (top-right gear): live appearance toggle ─────────────
+        // ── Settings (top-right gear): appearance + notifications ─────────
         tapTab(app, "Eat")
         pause(2)
         tapIfPresent(app.buttons["Open settings"].firstMatch)
         pause(2.5)
         tapIfPresent(app.buttons["Dark appearance"])
-        pause(2.5)
-        tapIfPresent(app.buttons["Light appearance"])
-        pause(2.5)
-        tapIfPresent(app.buttons["System appearance"])
         pause(2)
+        tapIfPresent(app.buttons["System appearance"])
+        pause(1.5)
+        // Scroll to notifications / widgets tips.
+        app.swipeUp()
+        pause(1.5)
+        // Accept the system notification permission alert if it appears.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Allow"]
+        tapIfPresent(app.buttons["favorite-alerts-toggle"])
+        pause(1)
+        if allow.waitForExistence(timeout: 2) { allow.tap() }
+        pause(1.5)
+        tapIfPresent(app.buttons["test-notification-button"])
+        pause(2)
+        tapIfPresent(app.buttons["opening-alerts-row"])
+        pause(2.5)
+        tapIfPresent(app.buttons["Close opening alerts"])
+        pause(1.5)
         tapIfPresent(app.buttons["Close settings"])
         pause(2.5)
     }
@@ -155,14 +181,31 @@ final class DemoTourUITests: XCTestCase {
     }
 
     /// Tab buttons moved out of the classic tab-bar hierarchy with the iOS 26
-    /// glass bar + Tab API; fall back to a global button query.
+    /// glass bar + Tab API; try several queries, then a bottom-edge coordinate tap.
     private func tapTab(_ app: XCUIApplication, _ name: String) {
-        let tabButton = app.tabBars.buttons[name]
-        if tabButton.waitForExistence(timeout: 2), tabButton.isHittable {
-            tabButton.tap()
-        } else {
-            tapIfPresent(app.buttons[name].firstMatch)
+        let candidates: [XCUIElement] = [
+            app.tabBars.buttons[name],
+            app.buttons[name],
+            app.descendants(matching: .any)[name].firstMatch,
+        ]
+        for candidate in candidates {
+            if candidate.waitForExistence(timeout: 2), candidate.isHittable {
+                candidate.tap()
+                return
+            }
         }
+        // Last resort: Liquid Glass sometimes reports tabs as non-hittable.
+        // Shipping tabs: Eat / Campus / Study (Gym parked).
+        let index: CGFloat
+        switch name {
+        case "Eat": index = 0
+        case "Campus": index = 1
+        case "Study": index = 2
+        default: return
+        }
+        let x = (index + 0.5) / 3.0
+        let coord = app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.96))
+        coord.tap()
     }
 
     private func tapFirstMatch(_ query: XCUIElementQuery, labels: [String]) {

@@ -1,85 +1,38 @@
-# App Store listing draft — ZotEats
+# Anteats — App Store listing
 
-Draft copy for the App Store Connect listing. Fields map 1:1 to App Store Connect;
-character limits are noted where they apply.
+Source of truth for automation: `metadata.json` (this file is the human-readable twin).
 
-## App name (30 chars max)
+| Field | Value |
+|---|---|
+| Name | Anteats |
+| Subtitle | UCI dining, campus & study |
+| Bundle ID | `com.atharvgupta.zoteats` |
+| Primary category | Food & Drink |
+| Secondary | Lifestyle |
+| Privacy | Data Not Collected — see `privacy-policy.md` |
+| Privacy URL | GitHub raw `privacy-policy.md` on `main` |
+| Support | https://github.com/atharvgups/zoteats/issues |
 
-ZotEats — UCI Dining & Gym
+## Shipping
 
-## Subtitle (30 chars max)
+1. Dogfood on Internal TestFlight (`testflight-x.y.z`).
+2. When ready for the public store, push `appstore-x.y.z` (or run the **App Store** workflow).
+3. CI attaches the latest VALID build, applies listing metadata / screenshots, and submits for App Review via the ASC `reviewSubmissions` API.
+4. In-flight Waiting for Review submissions are canceled first when `CANCEL_IN_FLIGHT_REVIEW=true` (default on the App Store workflow). If ASC refuses, cancel once in the UI: **App Store Connect → Anteats → App Review → Cancel Submission**.
 
-Menus, gym hours & busyness
+First submission may still need a one-time pass in App Store Connect for age rating, pricing (Free), and any missing screenshot size if Apple rejects the 6.7" set.
 
-## Promotional text (170 chars max)
+## User-only App Store Connect blockers
 
-See what's on the menu at The Anteatery and Brandywine, check ARC hours, and find a
-quiet library — all live, all in one place. Made by a UCI student, for UCI students.
+These cannot be automated from CI without your Apple account / ASC console:
 
-## Description
+1. **App record** — create/confirm Anteats (`com.atharvgupta.zoteats`) in App Store Connect if not already.
+2. **Signing** — Distribution certificate + App Store provisioning profile (or Ascendency CI secrets already wired).
+3. **Age rating / pricing** — one-time Free + age questionnaire if ASC rejects the API submit.
+4. **Privacy nutrition labels** — confirm “Data Not Collected” is **Published** in ASC and matches `privacy-policy.md` + in-app `PrivacyInfo.xcprivacy`. Merge this branch to `main` before App Store submit so the privacy URL serves the Anteats policy.
+5. **Screenshots** — verify 6.7" (and any required 6.5"/iPad) sets look current; CI clears and re-uploads from `metadata.json` `screenshot_files` (no Gym frames).
+6. **External TestFlight** — first build of a marketing version still needs Apple Beta App Review before “Zot Eats Testers!” gets it.
 
-ZotEats puts UC Irvine campus life in your pocket:
+## Gym
 
-DINING
-- Daily menus for The Anteatery and Brandywine, organized by meal period and station.
-- Nutrition info (calories, serving size) for each dish.
-- Allergen flags and dietary tags (Vegan, Vegetarian, and more) so you can filter to
-  what you can actually eat.
-- Save favorites and set a dietary filter — preferences stay on your device.
-
-GYM
-- Anteater Recreation Center (ARC) hours at a glance, for today and the whole week.
-- Live busyness for the ARC when occupancy data is available, so you can skip the
-  peak-hour crowd.
-
-BUSYNESS
-- Live occupancy for campus libraries (Langson, Science, and more) and other tracked
-  facilities, powered by public community data.
-- Find the least busy spot to study before you walk across Ring Road.
-
-ZotEats is an unofficial, independent student project. It is not affiliated with,
-endorsed by, or sponsored by UC Irvine, UCI Dining, or UCI Campus Recreation. All data
-comes from public community data sources and may occasionally be incomplete or out of
-date — always check official UCI channels for authoritative hours and menus.
-
-No account. No ads. No tracking. Just campus data.
-
-## Keywords (100 chars max)
-
-UCI,UC Irvine,dining,menu,anteatery,brandywine,ARC,gym,campus,college,food,busyness
-
-## Category
-
-- Primary: Food & Drink
-- Secondary: Lifestyle
-
-## Age rating notes
-
-- No objectionable content: no user-generated content, no web browsing, no gambling,
-  no violence, no medical content.
-- Expected rating: 4+.
-
-## URLs
-
-- Support URL: https://github.com/atharvgups/zoteats (placeholder — GitHub repo; issues
-  tab serves as the support channel)
-- Marketing URL: none
-- Privacy Policy URL: host `apple/AppStore/privacy-policy.md` (e.g. via the GitHub repo
-  or GitHub Pages) and paste that link into App Store Connect.
-
-## App Review notes
-
-For the App Review team:
-
-- ZotEats requires no account, login, or demo credentials. All features are available
-  immediately on first launch.
-- The app only reads public, unauthenticated community data sources:
-  - `anteaterapi.com` (Anteater API) — public REST API for UCI dining menus, dishes,
-    nutrition, and allergen data. No API key or authentication is required.
-  - `waitz.io` — public live occupancy feed for UCI facilities (libraries, ARC).
-    No API key or authentication is required.
-- The app makes no writes to any service; it is read-only.
-- ZotEats is an unofficial student project and clearly discloses this in the app
-  description. It uses no UCI trademarks in its branding beyond factual references to
-  campus locations.
-- No data is collected from users (see privacy policy: "Data Not Collected").
+Gym / ARC busy UI is **not** in shipping builds until UCI/Occuspace confirms live ARC sensors. Code stays parked (`App/Gym/**` excluded from XcodeGen; ARC widget behind `#if ANTEATS_ENABLE_GYM`).

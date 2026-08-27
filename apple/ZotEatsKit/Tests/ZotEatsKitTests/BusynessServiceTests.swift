@@ -58,7 +58,7 @@ struct BusynessServiceTests {
 @Suite("GymService")
 struct GymServiceTests {
     @Test func fallsBackToMaintainedScheduleWhenFeedIsDown() async {
-        // Thursday 12:30 PM Pacific — ARC schedule says open 6 AM to midnight.
+        // Thursday 12:30 PM Pacific — Summer schedule open 6 AM to 10 PM.
         let service = GymService(
             busyness: BusynessService(http: FailingHTTP(), now: { fixtureNow }),
             now: { fixtureNow }
@@ -67,7 +67,7 @@ struct GymServiceTests {
         #expect(status.name == "Anteater Recreation Center")
         #expect(status.openNow)
         #expect(status.hoursApproximate)
-        #expect(status.todayHours == "6:00 AM – 12:00 AM")
+        #expect(status.todayHours == "6:00 AM – 10:00 PM")
         #expect(status.weekHours.count == 7)
         // No live feed -> busyness is the typical-pattern estimate, flagged as such.
         #expect(status.busyness?.source == .typical)
@@ -82,9 +82,62 @@ struct GymServiceTests {
         let status = await service.status()
         if let arc = status.busyness {
             #expect(arc.category == "Recreation" || arc.name.lowercased().contains("arc"))
-            #expect(status.hoursApproximate == (arc.hoursSummary == nil))
+            #expect(status.hoursApproximate == !GymService.isDisplayableHoursRange(arc.hoursSummary))
+            if let summary = arc.hoursSummary {
+                #expect(status.waitzReopenMinutes == WaitzHoursSummary.closedUntilMinutes(summary))
+            }
         } else {
             #expect(status.hoursApproximate)
         }
+    }
+
+    @Test func displayableHoursRangeRejectsOpenAndClosedUntil() {
+        #expect(GymService.isDisplayableHoursRange("6:00am-11:00pm"))
+        #expect(GymService.isDisplayableHoursRange("6:00 AM – 10:00 PM"))
+        #expect(GymService.isDisplayableHoursRange("6am - 12am"))
+        #expect(!GymService.isDisplayableHoursRange("open"))
+        #expect(!GymService.isDisplayableHoursRange("Closed until 12:00pm"))
+        #expect(!GymService.isDisplayableHoursRange("Open 24 Hours"))
+        #expect(!GymService.isDisplayableHoursRange("foo-bar"))
+        #expect(!GymService.isDisplayableHoursRange(""))
+        #expect(!GymService.isDisplayableHoursRange(nil))
+    }
+
+    @Test func nextScheduleBoundaryIsWeekdayClose() {
+        // Thursday 12:30 PM Pacific — Summer close is 10 PM same day.
+        let boundary = GymService.nextScheduleBoundary(now: fixtureNow)
+        let minutes = PacificTime.nowMinutes(now: fixtureNow)
+        let expected = UCITime.date(forMinutes: 22 * 60, nowMinutes: minutes, now: fixtureNow)
+        #expect(boundary == expected)
+    }
+
+    @Test func nextScheduleBoundaryIsOpenWhenBeforeOpen() {
+        // Thursday 5:00 AM Pacific — opens at 6 AM.
+        let early = ISO8601DateFormatter().date(from: "2026-07-09T12:00:00Z")!
+        let boundary = GymService.nextScheduleBoundary(now: early)
+        let minutes = PacificTime.nowMinutes(now: early)
+        let expected = UCITime.date(forMinutes: 6 * 60, nowMinutes: minutes, now: early)
+        #expect(boundary == expected)
+    }
+
+    @Test func nextScheduleBoundaryIsSundayOpenAfterSaturdayClose() {
+        // Saturday 10:00 PM Pacific — closed after 8 PM; next open is Sunday 8 AM.
+        let saturdayNight = ISO8601DateFormatter().date(from: "2026-07-12T05:00:00Z")!
+        let boundary = GymService.nextScheduleBoundary(now: saturdayNight)
+        let minutes = PacificTime.nowMinutes(now: saturdayNight)
+        let expected = UCITime.date(forMinutes: 8 * 60, nowMinutes: minutes, now: saturdayNight)
+        #expect(boundary == expected)
+    }
+
+    @Test func maintainedScheduleClosedAfterWeekdayTenPM() async {
+        // Thursday 10:30 PM Pacific — Summer weekday close is 10 PM.
+        let late = ISO8601DateFormatter().date(from: "2026-07-10T05:30:00Z")!
+        let service = GymService(
+            busyness: BusynessService(http: FailingHTTP(), now: { late }),
+            now: { late }
+        )
+        let status = await service.status()
+        #expect(!status.openNow)
+        #expect(status.todayHours == "6:00 AM – 10:00 PM")
     }
 }

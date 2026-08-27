@@ -51,11 +51,50 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .medium))
+            .font(ZotFont.caption.weight(.medium))
             .padding(.horizontal, 7)
             .padding(.vertical, 3.5)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: zotChipRadius, style: .continuous))
+            .background(color.opacity(0.12), in: Capsule())
             .foregroundStyle(color)
+    }
+}
+
+// MARK: - Personal dish rating (1–5)
+
+struct StarRatingControl: View {
+    var stars: Int
+    var size: CGFloat = 28
+    var interactive = true
+    var onRate: ((Int) -> Void)?
+
+    var body: some View {
+        HStack(spacing: size > 20 ? 8 : 3) {
+            ForEach(1...5, id: \.self) { value in
+                let filled = value <= stars
+                let star = Image(systemName: filled ? "star.fill" : "star")
+                    .font(.system(size: size, weight: .semibold))
+                    .foregroundStyle(filled ? Color.uciGold : Color.inkMuted.opacity(stars == 0 ? 0.28 : 0.4))
+                if interactive, let onRate {
+                    star
+                        .symbolEffect(.bounce, value: stars == value)
+                        .padding(4)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(
+                            TapGesture().onEnded {
+                                onRate(value)
+                                Haptics.selection()
+                            }
+                        )
+                        .accessibilityLabel(MealReviewAccessibility.starsLabel(value))
+                        .accessibilityAddTraits(value == stars ? [.isSelected, .isButton] : .isButton)
+                        .accessibilityIdentifier("dish-star-\(value)")
+                } else {
+                    star
+                }
+            }
+        }
+        .accessibilityElement(children: interactive ? .contain : .ignore)
+        .accessibilityLabel(stars > 0 ? MealReviewAccessibility.starsLabel(stars) : "Not rated")
     }
 }
 
@@ -66,39 +105,74 @@ struct PillRow<Item: Hashable>: View {
     let title: (Item) -> String
     @Binding var selection: Item?
     var allowsDeselect = false
+    /// When true, pills share the row evenly (no horizontal scroll) — used for
+    /// Breakfast / Lunch / Dinner so they match the hall cards' full width.
+    var fillsWidth = false
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(items, id: \.self) { item in
-                    let isSelected = selection == item
-                    Button {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            selection = (isSelected && allowsDeselect) ? nil : item
-                        }
-                        Haptics.selection()
-                    } label: {
-                        Text(title(item))
-                            .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                isSelected ? Color.uciBlue.opacity(0.12) : Color.card,
-                                in: Capsule()
-                            )
-                            .foregroundStyle(isSelected ? Color.uciBlue : .primary)
-                            .overlay(
-                                Capsule().strokeBorder(
-                                    isSelected ? Color.uciBlue.opacity(0.35) : Color.cardBorder,
-                                    lineWidth: 1
-                                )
-                            )
+        Group {
+            if fillsWidth {
+                HStack(spacing: 8) {
+                    ForEach(items, id: \.self) { item in
+                        pill(item)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 2)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(items, id: \.self) { item in
+                            pill(item)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 2)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 2)
+        }
+    }
+
+    @ViewBuilder
+    private func pill(_ item: Item) -> some View {
+        let isSelected = selection == item
+        let button = Button {
+            withAnimation(ZotMotion.select) {
+                selection = (isSelected && allowsDeselect) ? nil : item
+            }
+            Haptics.selection()
+        } label: {
+            Text(title(item))
+                .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .padding(.horizontal, fillsWidth ? 8 : 14)
+                .padding(.vertical, fillsWidth ? 8 : 9)
+                .background(
+                    isSelected ? Color.selectWash : Color.card,
+                    in: Capsule()
+                )
+                .foregroundStyle(Color.ink)
+                .overlay(
+                    Capsule().strokeBorder(
+                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
+                        lineWidth: 1
+                    )
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title(item))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+
+        if let hint = PillSelectionAccessibility.hint(
+            title: title(item),
+            isSelected: isSelected,
+            allowsDeselect: allowsDeselect
+        ) {
+            button.accessibilityHint(hint)
+        } else {
+            button
         }
     }
 }
@@ -109,11 +183,11 @@ struct PillRow<Item: Hashable>: View {
 struct TypicalTag: View {
     var body: some View {
         Text("TYPICAL")
-            .font(.system(size: 9, weight: .semibold))
-            .tracking(0.5)
+            .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
+            .tracking(0.6)
             .padding(.horizontal, 5)
             .padding(.vertical, 2.5)
-            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .background(Color.primary.opacity(0.06), in: Capsule())
             .foregroundStyle(.secondary)
             .accessibilityLabel("Typical estimate, not live data")
     }
@@ -137,10 +211,10 @@ struct RushStrip: View {
                     Capsule()
                         .fill(
                             isNow
-                                ? AnyShapeStyle(Color.uciBlue)
+                                ? AnyShapeStyle(Color.ink)
                                 : value == 0
                                     ? AnyShapeStyle(Color.primary.opacity(0.06))
-                                    : AnyShapeStyle(Color.uciBlue.opacity(0.28))
+                                    : AnyShapeStyle(Color.ink.opacity(0.28))
                         )
                         .frame(maxWidth: .infinity)
                         .frame(height: max(3, barMaxHeight * CGFloat(value) / 100))
@@ -155,20 +229,13 @@ struct RushStrip: View {
                     Text("12 PM").position(x: geo.size.width * 12.5 / 24, y: 6)
                     Text("6 PM").position(x: geo.size.width * 18.5 / 24, y: 6)
                 }
-                .font(.system(size: 9, weight: .medium))
+                .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                 .foregroundStyle(.tertiary)
             }
             .frame(height: 12)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilitySummary)
-    }
-
-    private var accessibilitySummary: String {
-        guard let peak = curve.enumerated().max(by: { $0.element < $1.element }), peak.element > 0 else {
-            return "No rush data for today"
-        }
-        return "Today's rush chart. Peak around \(peak.offset % 12 == 0 ? 12 : peak.offset % 12) \(peak.offset < 12 ? "AM" : "PM")"
+        // GymRushCard owns VoiceOver (typical + peak + now + summaries).
+        .accessibilityHidden(true)
     }
 }
 
@@ -218,28 +285,45 @@ struct EmptyStateView: View {
     let message: String
     var actionTitle = "Try Again"
     var retry: (() -> Void)?
+    /// Optional second CTA (e.g. Campus Open Now: View next place + Show closed).
+    var secondaryActionTitle: String? = nil
+    var secondaryRetry: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 36, weight: .ultraLight))
+                .foregroundStyle(Color.inkMuted)
+                .frame(width: 64, height: 64)
+                .background(Color.uciGold.opacity(0.14), in: Circle())
             Text(title)
-                .font(ZotFont.sectionTitle)
+                .font(ZotFont.cardTitle)
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.center)
             Text(message)
                 .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.inkMuted)
                 .multilineTextAlignment(.center)
-            if let retry {
-                Button(actionTitle, action: retry)
-                    .buttonStyle(.bordered)
-                    .tint(.uciBlue)
-                    .padding(.top, 4)
+                .fixedSize(horizontal: false, vertical: true)
+            if retry != nil || secondaryRetry != nil {
+                VStack(spacing: 8) {
+                    if let retry {
+                        Button(actionTitle, action: retry)
+                            .buttonStyle(.bordered)
+                            .tint(.ink)
+                    }
+                    if let secondaryRetry, let secondaryActionTitle {
+                        Button(secondaryActionTitle, action: secondaryRetry)
+                            .buttonStyle(.bordered)
+                            .tint(.secondary)
+                    }
+                }
+                .padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
-        .padding(.horizontal, 24)
+        .padding(.vertical, 52)
+        .padding(.horizontal, 28)
     }
 }
 
@@ -252,26 +336,29 @@ struct ScreenHeader: View {
     var onSettings: (() -> Void)?
 
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(ZotFont.hero())
+                    .foregroundStyle(Color.ink)
+                    .tracking(-0.4)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(ZotFont.face(16, relativeTo: .subheadline))
+                        .foregroundStyle(Color.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             if let onSettings {
                 Button {
                     onSettings()
                     Haptics.selection()
                 } label: {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 34, height: 34)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.inkMuted)
+                        .frame(width: 36, height: 36)
                         .glassIconCircle()
                 }
                 .buttonStyle(.plain)
@@ -280,6 +367,7 @@ struct ScreenHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
+        .padding(.bottom, 2)
     }
 }
 
@@ -318,21 +406,22 @@ extension View {
 
 // MARK: - Status bar backdrop
 
-/// Blurs content that scrolls under the status bar / Dynamic Island on screens
-/// with hidden navigation bars. The zero-height rectangle expands upward into
-/// the ignored top safe area only, so layout is unaffected.
+/// Paints the page background under the status bar / Dynamic Island, and keeps
+/// scrolled list content from showing through the transparent system chrome.
 struct StatusBarBackdrop: ViewModifier {
     func body(content: Content) -> some View {
-        content.overlay(alignment: .top) {
-            // A zero-height view pinned to the top safe-area boundary: ShapeStyle
-            // backgrounds extend into adjacent safe areas by default
-            // (ignoresSafeAreaEdges: .all), so the material fills exactly the
-            // status bar / Dynamic Island region without affecting layout.
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 0)
-                .background(.regularMaterial)
-        }
+        content
+            .background(Color.screen.ignoresSafeArea())
+            .overlay(alignment: .top) {
+                // Zero-height anchor that expands into the top safe area and
+                // sits above ScrollView content as it moves under the status bar.
+                Color.screen
+                    .frame(height: 0)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.screen)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+            }
     }
 }
 
@@ -366,17 +455,9 @@ struct UpdatedAgoText: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            Text("Updated \(relative(to: context.date))")
+            Text(UpdatedAgoCopy.phrase(from: date, now: context.date))
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
         }
-    }
-
-    private func relative(to now: Date) -> String {
-        let seconds = Int(now.timeIntervalSince(date))
-        if seconds < 60 { return "just now" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: now)
     }
 }

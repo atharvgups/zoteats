@@ -18,7 +18,7 @@ public struct CampusService: Sendable {
     private static let menuTTL: TimeInterval = 30 * 60
 
     /// Residential commons already covered by the Eat tab.
-    private static let excludedKeys: Set<String> = ["the-anteatery", "brandywine"]
+    private static var excludedKeys: Set<String> { HallDirectory.campusHubExcludedKeys }
 
     private let http: any HTTPFetching
     private let cache: TTLCache
@@ -152,16 +152,64 @@ public struct CampusService: Sendable {
     // MARK: - Public API
 
     /// All campus retail spots with today's hours and open state, commons excluded.
+    /// Schedule windows are TTL-cached; open/close fields recompute every call so a
+    /// long-lived CampusStore doesn't stay "Open" for up to an hour after close.
     public func places() async throws -> [CampusPlace] {
         let currentDate = now()
         let todayISO = PacificTime.todayISO(now: currentDate)
-        return try await cache.remember("campus:places:\(todayISO)", ttl: Self.locationsTTL) {
+        let schedules = try await placeSchedules(todayISO: todayISO, currentDate: currentDate)
+        let nowMinutes = PacificTime.nowMinutes(now: currentDate)
+        return schedules.map { row in
+            let status = CampusPlaceStatus.evaluate(
+                todayWindows: row.todayWindows,
+                tomorrowWindows: row.tomorrowWindows,
+                nowMinutes: nowMinutes,
+                todayScheduleResolved: row.todayScheduleResolved
+            )
+            return CampusPlace(
+                id: row.id,
+                name: row.name,
+                category: row.category,
+                openNow: status.openNow,
+                todayHours: status.todayHours,
+                hasMenu: row.hasMenu,
+                opensAtMinutes: status.opensAtMinutes,
+                closesAtMinutes: status.closesAtMinutes,
+                currentOpenStartMinutes: status.currentOpenStartMinutes,
+                opensTomorrowAtMinutes: status.opensTomorrowAtMinutes,
+                tomorrowHours: status.tomorrowHours,
+                upcomingWindows: Self.followingOpenings(
+                    windows: row.todayWindows,
+                    nowMinutes: nowMinutes
+                ).map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
+                tomorrowOpenWindows: Self.allOpenings(windows: row.tomorrowWindows)
+                    .map { CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end) },
+            hoursKnown: status.hoursKnown || row.laterOpen != nil,
+                opensNextAtMinutes: row.laterOpen.flatMap { $0.windows.map(\.start).min() },
+                opensNextDayOffset: row.laterOpen?.dayOffset,
+                opensNextWeekday: row.laterOpen?.weekday,
+                nextOpenHours: row.laterOpen?.hours,
+                nextOpenWindows: (row.laterOpen?.windows ?? []).map {
+                    CampusHoursWindow(startMinutes: $0.start, endMinutes: $0.end)
+                }
+            )
+        }
+    }
+
+    private func placeSchedules(todayISO: String, currentDate: Date) async throws -> [PlaceSchedule] {
+        try await cache.remember("campus:schedules:\(todayISO)", ttl: Self.locationsTTL) {
             let query = """
             query($campusUrlKey:String!){getLocations(campusUrlKey:$campusUrlKey){\
             commerceAttributes{url_key hasActiveMenus}aemAttributes{name hoursOfOperation{schedule}}}}
             """
             let data = try await graphQL(LocationsData.self, query: query, variables: #"{"campusUrlKey":"campus"}"#)
-            return (data.getLocations ?? []).compactMap { raw -> CampusPlace? in
+            let calendar = PacificTime.calendar
+            let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+            let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
+            let weekday = PacificTime.weekdayName(now: currentDate)
+            let tomorrowWeekday = PacificTime.weekdayName(now: tomorrowDate)
+
+            return (data.getLocations ?? []).compactMap { raw -> PlaceSchedule? in
                 guard let key = raw.commerceAttributes?.url_key,
                       !Self.excludedKeys.contains(key),
                       let name = raw.aemAttributes?.name?
@@ -170,19 +218,38 @@ public struct CampusService: Sendable {
                       !name.isEmpty
                 else { return nil }
 
-                let windows = Self.todayWindows(
-                    schedules: raw.aemAttributes?.hoursOfOperation?.schedule ?? [],
+                let schedules = raw.aemAttributes?.hoursOfOperation?.schedule ?? []
+                let today = Self.dayWindows(
+                    schedules: schedules,
                     todayISO: todayISO,
-                    weekday: PacificTime.weekdayName(now: currentDate)
+                    weekday: weekday
                 )
-                let nowMinutes = PacificTime.nowMinutes(now: currentDate)
-                return CampusPlace(
+                let tomorrow = Self.dayWindows(
+                    schedules: schedules,
+                    todayISO: tomorrowISO,
+                    weekday: tomorrowWeekday
+                )
+                let laterOpen: LaterOpen? = {
+                    guard tomorrow.windows.isEmpty,
+                          let next = Self.nextOpenDay(schedules: schedules, from: currentDate),
+                          next.dayOffset >= 2
+                    else { return nil }
+                    return LaterOpen(
+                        dayOffset: next.dayOffset,
+                        weekday: next.weekday,
+                        windows: next.windows,
+                        hours: next.hours
+                    )
+                }()
+                return PlaceSchedule(
                     id: key,
                     name: name,
                     category: Self.categorize(name),
-                    openNow: windows.contains { $0.contains(minute: nowMinutes) },
-                    todayHours: Self.format(windows: windows),
-                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false
+                    hasMenu: raw.commerceAttributes?.hasActiveMenus ?? false,
+                    todayWindows: today.windows,
+                    tomorrowWindows: tomorrow.windows,
+                    todayScheduleResolved: today.resolved,
+                    laterOpen: laterOpen
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -191,9 +258,21 @@ public struct CampusService: Sendable {
 
     /// Published menu for a retail spot, grouped by meal period.
     /// Empty when the venue doesn't publish menus (brand-app-only places).
-    public func menu(for placeID: String, date: String? = nil) async throws -> [MenuStation] {
+    /// Pass `forceRefresh` after an empty TTL hit for venues that publish
+    /// (`hasMenu`) so a stale miss doesn't keep saying "not posted".
+    public func menu(
+        for placeID: String,
+        placeName: String? = nil,
+        date: String? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> [MenuStation] {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        return try await cache.remember("campus:menu:\(placeID):\(dateISO)", ttl: Self.menuTTL) {
+        let key = "campus:menu:\(placeID):\(dateISO)"
+        if forceRefresh {
+            await cache.invalidate(key)
+        }
+        let displayName = placeName ?? placeID
+        return try await cache.remember(key, ttl: Self.menuTTL) {
             let query = """
             query($campusUrlKey:String!,$locationUrlKey:String!,$date:String!){\
             getLocationMealPeriodRecipes(campusUrlKey:$campusUrlKey,locationUrlKey:$locationUrlKey,date:$date){\
@@ -202,55 +281,147 @@ public struct CampusService: Sendable {
             """
             let variables = #"{"campusUrlKey":"campus","locationUrlKey":"\#(placeID)","date":"\#(dateISO)"}"#
             let data = try await graphQL(MenuData.self, query: query, variables: variables)
-            guard let menu = data.getLocationMealPeriodRecipes else { return [] }
+            let live: [MenuStation]
+            if let menu = data.getLocationMealPeriodRecipes {
+                var products: [String: MenuItem] = [:]
+                for raw in menu.products ?? [] {
+                    guard let sku = raw.sku, let item = Self.menuItem(from: raw) else { continue }
+                    products[sku] = item
+                }
 
-            var products: [String: MenuItem] = [:]
-            for raw in menu.products ?? [] {
-                guard let sku = raw.sku, let item = Self.menuItem(from: raw) else { continue }
-                products[sku] = item
+                let raw = (menu.locationMealPeriodRecipesData?.mealPeriodSkuMap ?? []).compactMap { period -> MenuStation? in
+                    guard let name = period.name else { return nil }
+                    var seen = Set<String>()
+                    let items = (period.skus ?? [])
+                        .compactMap { products[$0] }
+                        .filter { seen.insert($0.name.lowercased()).inserted }
+                    return items.isEmpty ? nil : MenuStation(name: name, items: items)
+                }
+                live = CampusMenuNormalize.stations(raw)
+            } else {
+                live = []
             }
-
-            return (menu.locationMealPeriodRecipesData?.mealPeriodSkuMap ?? []).compactMap { period in
-                guard let name = period.name else { return nil }
-                var seen = Set<String>()
-                let items = (period.skus ?? [])
-                    .compactMap { products[$0] }
-                    .filter { seen.insert($0.name.lowercased()).inserted }
-                return items.isEmpty ? nil : MenuStation(name: name, items: items)
-            }
+            if !live.isEmpty { return live }
+            // Honest typical pack for common chains when Hub has no SKUs today.
+            return CampusTypicalMenus.stations(forPlaceID: placeID, placeName: displayName) ?? []
         }
     }
 
     // MARK: - Hours parsing
 
-    struct TimeWindow: Equatable {
-        let start: Int
-        let end: Int
+    public struct TimeWindow: Equatable, Sendable {
+        public let start: Int
+        public let end: Int
 
-        func contains(minute: Int) -> Bool {
+        public init(start: Int, end: Int) {
+            self.start = start
+            self.end = end
+        }
+
+        /// 00:00–00:00 (or a full 24h span) means round-the-clock.
+        public var isAllDay: Bool {
+            start == end || end - start >= 24 * 60
+        }
+
+        public func contains(minute: Int) -> Bool {
+            if isAllDay { return true }
             if end > start { return minute >= start && minute < end }
             // Window crossing midnight, e.g. 21:00–02:00.
             return minute >= start || minute < (end % (24 * 60))
         }
     }
 
+    /// Schedule row cached for the day — open state is recomputed on each `places()` read.
+    struct PlaceSchedule: Sendable {
+        let id: String
+        let name: String
+        let category: String
+        let hasMenu: Bool
+        let todayWindows: [TimeWindow]
+        let tomorrowWindows: [TimeWindow]
+        let todayScheduleResolved: Bool
+        /// First open day within the next week when tomorrow is off (Fri→Mon).
+        let laterOpen: LaterOpen?
+    }
+
+    /// Next calendar open after tomorrow (dayOffset ≥ 2).
+    struct LaterOpen: Sendable {
+        let dayOffset: Int
+        let weekday: String
+        let windows: [TimeWindow]
+        let hours: String?
+    }
+
     /// Resolve today's open windows: dated special schedule wins over standard;
     /// within a schedule, union the windows of all meal periods.
     static func todayWindows(schedules: [RawSchedule], todayISO: String, weekday: String) -> [TimeWindow] {
+        dayWindows(schedules: schedules, todayISO: todayISO, weekday: weekday).windows
+    }
+
+    /// First day with open windows in `1...maxDays` from `from` (1 = tomorrow).
+    static func nextOpenDay(
+        schedules: [RawSchedule],
+        from date: Date,
+        maxDays: Int = 7
+    ) -> (dayOffset: Int, weekday: String, windows: [TimeWindow], hours: String?)? {
+        let calendar = PacificTime.calendar
+        for offset in 1...maxDays {
+            let day = calendar.date(byAdding: .day, value: offset, to: date) ?? date
+            let iso = PacificTime.todayISO(now: day)
+            let weekday = PacificTime.weekdayName(now: day)
+            let result = dayWindows(schedules: schedules, todayISO: iso, weekday: weekday)
+            guard result.resolved, !result.windows.isEmpty else { continue }
+            return (
+                dayOffset: offset,
+                weekday: weekday,
+                windows: result.windows,
+                hours: format(windows: result.windows)
+            )
+        }
+        return nil
+    }
+
+    /// Same as `todayWindows`, plus whether an active schedule was found
+    /// (empty windows + resolved = explicit "off"; unresolved = missing feed).
+    static func dayWindows(
+        schedules: [RawSchedule],
+        todayISO: String,
+        weekday: String
+    ) -> (windows: [TimeWindow], resolved: Bool) {
         let active = schedules.first { schedule in
             schedule.type == "special"
                 && (schedule.start_date ?? "9999") <= todayISO
                 && (schedule.end_date ?? "0000") >= todayISO
         } ?? schedules.first { $0.type == "standard" }
 
-        guard let active else { return [] }
+        guard let active else { return ([], false) }
         var windows: [TimeWindow] = []
         for period in active.meal_periods ?? [] {
             if let window = window(from: period.opening_hours, weekday: weekday), !windows.contains(window) {
                 windows.append(window)
             }
         }
-        return windows.sorted { $0.start < $1.start }
+        return (windows.sorted { $0.start < $1.start }, true)
+    }
+
+    /// Earliest window start still ahead of `nowMinutes` — including the next
+    /// reopen while the venue is already open (split lunch/dinner schedules).
+    static func nextOpeningMinutes(windows: [TimeWindow], nowMinutes: Int) -> Int? {
+        followingOpenings(windows: windows, nowMinutes: nowMinutes).first?.start
+    }
+
+    /// Every open window still ahead today (morning + afternoon reopens), sorted
+    /// by start — Opening Alerts / widget boundaries pre-arm the full chain.
+    static func followingOpenings(windows: [TimeWindow], nowMinutes: Int) -> [TimeWindow] {
+        allOpenings(windows: windows).filter { $0.start > nowMinutes }
+    }
+
+    /// Every timed open window on a day, sorted by start (skips all-day spans —
+    /// those have no useful open ping).
+    static func allOpenings(windows: [TimeWindow]) -> [TimeWindow] {
+        windows
+            .filter { !$0.isAllDay }
+            .sorted { $0.start < $1.start }
     }
 
     private static let dayAbbreviations = ["Sunday": "Su", "Monday": "Mo", "Tuesday": "Tu", "Wednesday": "We", "Thursday": "Th", "Friday": "Fr", "Saturday": "Sa"]
@@ -297,6 +468,11 @@ public struct CampusService: Sendable {
 
     static func format(windows: [TimeWindow]) -> String? {
         guard !windows.isEmpty else { return nil }
+        // The feed encodes round-the-clock spots as 00:00-00:00; showing
+        // "12:00 AM – 12:00 AM" is nonsense — say what students need.
+        if windows.contains(where: \.isAllDay) {
+            return "Open 24 hours"
+        }
         return windows
             .map { "\(PacificTime.formatMinutes($0.start)) – \(PacificTime.formatMinutes($0.end % (24 * 60)))" }
             .joined(separator: ", ")
@@ -316,15 +492,73 @@ public struct CampusService: Sendable {
     }
 
     /// Dietary tag ids from the hub's recipe_attributes vocabulary, mapped to the
-    /// same labels the Eat tab uses (verified via attribute metadata query).
+    /// same labels the Eat tab uses (verified via Commerce_customAttributeMetadata).
     private static let dietaryTagIDs: [String: String] = [
         "96": "Vegan",
         "99": "Vegetarian",
         "133": "Halal",
         "87": "Kosher",
-        "78": "Gluten-Free",
+        "78": "Gluten-Free", // hub label is "Gluten Free"
         "102": "Locally Grown",
+        "108": "No Dairy",
+        "831": "Plant Powered",
+        "90": "Plant Forward",
     ]
+
+    /// Hub `allergens_intolerances` option values → chip labels.
+    /// Many grill items leave allergen_statement as "not available" but still
+    /// publish these IDs — use them so Avoid filters and chips have data.
+    static let allergenIntoleranceIDs: [String: String] = [
+        "39": "Eggs",
+        "42": "Fish",
+        "45": "Milk",
+        "48": "Peanuts",
+        "51": "Sesame",
+        "54": "Shellfish",
+        "57": "Soy",
+        "60": "Tree Nuts",
+        "63": "Wheat",
+    ]
+
+    /// Parse hub `allergen_statement`. Real lists look like `Contains: Eggs, Milk`.
+    /// Boilerplate "not available" copy is ignored so UI stays blank.
+    static func allergens(fromStatement statement: String?) -> [String] {
+        guard let statement else { return [] }
+        let trimmed = statement.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let lowered = trimmed.lowercased()
+        if lowered.contains("not available")
+            || lowered.contains("not provided")
+            || lowered.contains("contact the on-site") {
+            return []
+        }
+        guard lowered.hasPrefix("contains") else { return [] }
+        guard let colon = trimmed.firstIndex(of: ":") else { return [] }
+        let list = trimmed[trimmed.index(after: colon)...]
+        return list.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { allergen in
+                !allergen.isEmpty
+                    && allergen.count <= 32
+                    && !allergen.lowercased().contains("available")
+                    && !allergen.lowercased().contains("contact")
+            }
+    }
+
+    /// Map hub allergen option ids ("45,63") or ["45","63"] to labels.
+    static func allergens(fromIntoleranceIDs values: [String]) -> [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+        for raw in values.flatMap({ $0.components(separatedBy: ",") }) {
+            let id = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard id != "0", !id.isEmpty,
+                  let label = allergenIntoleranceIDs[id],
+                  seen.insert(label).inserted
+            else { continue }
+            result.append(label)
+        }
+        return result
+    }
 
     private static func menuItem(from raw: RawProduct) -> MenuItem? {
         guard let sku = raw.sku else { return nil }
@@ -332,16 +566,18 @@ public struct CampusService: Sendable {
         var description: String?
         var calories: Int?
         var serving: String?
-        var allergens: [String] = []
+        var allergensFromStatement: [String] = []
+        var allergensFromIDs: [String] = []
         var dietaryTags: [String] = []
 
         for attribute in raw.attributes ?? [] {
             switch attribute.name {
             case "marketing_name":
-                if let value = attribute.values.first, !value.isEmpty { name = value }
+                if let value = attribute.values.first, !value.isEmpty {
+                    name = DiningService.collapseWhitespace(value) ?? value
+                }
             case "marketing_description":
-                let value = attribute.values.first?.trimmingCharacters(in: .whitespacesAndNewlines)
-                description = (value?.isEmpty ?? true) ? nil : value
+                description = DiningService.collapseWhitespace(attribute.values.first)
             case "calories":
                 if let value = attribute.values.first, let parsed = Double(value) {
                     calories = Int(parsed.rounded())
@@ -349,13 +585,12 @@ public struct CampusService: Sendable {
             case "serving_combined":
                 if let value = attribute.values.first, !value.isEmpty, value != "N/A" { serving = value }
             case "allergen_statement":
-                // "Contains: Eggs, Milk" -> ["Eggs", "Milk"]
-                if let value = attribute.values.first,
-                   let list = value.components(separatedBy: ":").last {
-                    allergens = list.components(separatedBy: ",")
-                        .map { $0.trimmingCharacters(in: .whitespaces) }
-                        .filter { !$0.isEmpty }
-                }
+                // "Contains: Eggs, Milk" -> ["Eggs", "Milk"].
+                // Hub often ships "Complete allergen information is not available…"
+                // — treat that as unknown (blank), never a chip.
+                allergensFromStatement = Self.allergens(fromStatement: attribute.values.first)
+            case "allergens_intolerances":
+                allergensFromIDs = Self.allergens(fromIntoleranceIDs: attribute.values)
             case "recipe_attributes":
                 dietaryTags = attribute.values.flatMap { $0.components(separatedBy: ",") }
                     .compactMap { dietaryTagIDs[$0.trimmingCharacters(in: .whitespaces)] }
@@ -364,15 +599,36 @@ public struct CampusService: Sendable {
             }
         }
 
+        // Prefer statement text when present; otherwise fall back to ID list.
+        // Merge both so neither source alone can wipe the other.
+        let allergens = mergeUniqueLabels(allergensFromStatement, allergensFromIDs)
+
+        // Vegan ⇒ Vegetarian for filter matching.
+        if dietaryTags.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }),
+           !dietaryTags.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+            dietaryTags.append("Vegetarian")
+        }
+
         guard !name.isEmpty else { return nil }
+        let cleanName = DiningService.collapseWhitespace(name) ?? name
         return MenuItem(
             id: sku,
-            name: name,
+            name: cleanName,
             description: description,
             calories: calories,
             servingSize: serving,
             allergens: allergens,
             dietaryTags: dietaryTags
         )
+    }
+
+    private static func mergeUniqueLabels(_ a: [String], _ b: [String]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for label in a + b {
+            let key = label.lowercased()
+            if seen.insert(key).inserted { out.append(label) }
+        }
+        return out
     }
 }

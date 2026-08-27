@@ -6,7 +6,11 @@ import Foundation
 //   GET /restaurants                 -> restaurants with their stations (id + name)
 //   GET /restaurantToday?id=&date=   -> periods -> stationToDishes (station id -> dish ids)
 //   GET /dishes/batch?ids=a,b,c      -> full dish objects (nutrition + diet/allergen flags)
+//   GET /dateRange                   -> { earliest, latest } ISO dates with menu data
 // Responses use the standard { ok, data } envelope. No API key required (rate-limited).
+//
+// Important: restaurantToday returns HTTP 404 + "No data for this day" when a menu
+// isn't published yet. That is "not posted", never a user-facing failure.
 
 public struct DiningService: Sendable {
     private let base = "https://anteaterapi.com/v2/rest/dining"
@@ -17,6 +21,7 @@ public struct DiningService: Sendable {
     private static let stationsTTL: TimeInterval = 24 * 60 * 60
     private static let todayTTL: TimeInterval = 20 * 60
     private static let dishesTTL: TimeInterval = 30 * 60
+    private static let dateRangeTTL: TimeInterval = 60 * 60
 
     public init(
         http: any HTTPFetching = HTTPClient(),
@@ -58,6 +63,26 @@ public struct DiningService: Sendable {
         let periods: [String: APIPeriod]?
     }
 
+    private struct APIDateRange: Decodable, Sendable {
+        let earliest: String
+        let latest: String
+    }
+
+    /// Inclusive ISO-date window the dining feed currently publishes.
+    public struct PublishedDateRange: Sendable, Equatable {
+        public let earliest: String
+        public let latest: String
+
+        public init(earliest: String, latest: String) {
+            self.earliest = earliest
+            self.latest = latest
+        }
+
+        public func contains(_ isoDate: String) -> Bool {
+            isoDate >= earliest && isoDate <= latest
+        }
+    }
+
     private struct APIDietRestriction: Decodable, Sendable {
         let containsEggs: Bool?
         let containsFish: Bool?
@@ -91,7 +116,7 @@ public struct DiningService: Sendable {
         }
 
         var dietaryTags: [String] {
-            [
+            var tags = [
                 (isVegan, "Vegan"),
                 (isVegetarian, "Vegetarian"),
                 (isHalal, "Halal"),
@@ -100,6 +125,13 @@ public struct DiningService: Sendable {
                 (isOrganic, "Organic"),
                 (isLocallyGrown, "Locally Grown"),
             ].filter { $0.0 == true }.map(\.1)
+            // Vegan is a subset of vegetarian — surface both so the Vegetarian
+            // filter doesn't hide explicitly vegan dishes when the API only
+            // sets isVegan.
+            if tags.contains("Vegan"), !tags.contains("Vegetarian") {
+                tags.append("Vegetarian")
+            }
+            return tags
         }
     }
 
@@ -107,23 +139,47 @@ public struct DiningService: Sendable {
         let servingSize: String?
         let servingUnit: String?
         let calories: Double?
+        let proteinG: Double?
+        let totalCarbsG: Double?
+        let totalFatG: Double?
+        let saturatedFatG: Double?
+        let transFatG: Double?
+        let sodiumMg: Double?
+        let sugarsG: Double?
+        let dietaryFiberG: Double?
 
-        // The API sometimes returns calories as a string; accept both.
+        // Anteater sometimes ships numeric fields as strings; accept both.
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             servingSize = try container.decodeIfPresent(String.self, forKey: .servingSize)
             servingUnit = try container.decodeIfPresent(String.self, forKey: .servingUnit)
-            if let number = try? container.decodeIfPresent(Double.self, forKey: .calories) {
-                calories = number
-            } else if let text = try? container.decodeIfPresent(String.self, forKey: .calories) {
-                calories = Double(text)
-            } else {
-                calories = nil
+            calories = Self.flexibleDouble(container, .calories)
+            proteinG = Self.flexibleDouble(container, .proteinG)
+            totalCarbsG = Self.flexibleDouble(container, .totalCarbsG)
+            totalFatG = Self.flexibleDouble(container, .totalFatG)
+            saturatedFatG = Self.flexibleDouble(container, .saturatedFatG)
+            transFatG = Self.flexibleDouble(container, .transFatG)
+            sodiumMg = Self.flexibleDouble(container, .sodiumMg)
+            sugarsG = Self.flexibleDouble(container, .sugarsG)
+            dietaryFiberG = Self.flexibleDouble(container, .dietaryFiberG)
+        }
+
+        private static func flexibleDouble(
+            _ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys
+        ) -> Double? {
+            if let number = try? container.decodeIfPresent(Double.self, forKey: key) {
+                return number
             }
+            if let text = try? container.decodeIfPresent(String.self, forKey: key) {
+                return Double(text)
+            }
+            return nil
         }
 
         private enum CodingKeys: String, CodingKey {
             case servingSize, servingUnit, calories
+            case proteinG, totalCarbsG, totalFatG, saturatedFatG, transFatG
+            case sodiumMg, sugarsG, dietaryFiberG
         }
     }
 
@@ -132,6 +188,7 @@ public struct DiningService: Sendable {
         let stationId: String
         let name: String
         let description: String?
+        let ingredients: String?
         let dietRestriction: APIDietRestriction?
         let nutritionInfo: APINutrition?
     }
@@ -170,10 +227,64 @@ public struct DiningService: Sendable {
         return map
     }
 
-    private func today(for hall: String, dateISO: String) async throws -> APIRestaurantToday {
-        try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL) {
-            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)")
+    private func today(
+        for hall: String,
+        dateISO: String,
+        forceRefresh: Bool = false
+    ) async throws -> APIRestaurantToday {
+        let key = "dining:today:\(hall):\(dateISO)"
+        if forceRefresh {
+            await cache.invalidate(key)
         }
+        return try await cache.remember(key, ttl: Self.todayTTL) {
+            do {
+                return try await getData(
+                    APIRestaurantToday.self,
+                    path: "/restaurantToday?id=\(hall)&date=\(dateISO)"
+                )
+            } catch HTTPError.badStatus(let code, _) where code == 404 {
+                // Unpublished day — empty periods, not a transport failure.
+                return APIRestaurantToday(id: hall, periods: [:])
+            }
+        }
+    }
+
+    /// Days the Anteater dining feed currently has menus for (clamps the day strip).
+    public func publishedDateRange(forceRefresh: Bool = false) async -> PublishedDateRange? {
+        do {
+            if forceRefresh {
+                await cache.invalidate("dining:dateRange")
+            }
+            return try await cache.remember("dining:dateRange", ttl: Self.dateRangeTTL) {
+                let raw = try await getData(APIDateRange.self, path: "/dateRange")
+                return PublishedDateRange(earliest: raw.earliest, latest: raw.latest)
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    /// ISO dates in `[fromISO, throughISO]` that actually have a posted board.
+    /// `/dateRange` is a window — midweek days inside it can still 404.
+    public func postedMenuDates(
+        hall: String,
+        fromISO: String,
+        throughISO: String,
+        forceRefresh: Bool = false
+    ) async -> Set<String> {
+        var posted: Set<String> = []
+        var iso = fromISO
+        var steps = 0
+        while iso <= throughISO, steps < 28 {
+            let periods = await mealPeriods(for: hall, dateISO: iso, forceRefresh: forceRefresh)
+            if !periods.isEmpty {
+                posted.insert(iso)
+            }
+            guard let next = UCITime.nextISO(after: iso) else { break }
+            iso = next
+            steps += 1
+        }
+        return posted
     }
 
     private func dishes(ids: [String]) async throws -> [String: APIDish] {
@@ -216,18 +327,108 @@ public struct DiningService: Sendable {
 
     private static func menuItem(from dish: APIDish) -> MenuItem {
         let serving: String? = dish.nutritionInfo?.servingSize.map { size in
-            if let unit = dish.nutritionInfo?.servingUnit { return "\(size) \(unit)" }
+            if let unit = dish.nutritionInfo?.servingUnit {
+                let combined = "\(size) \(unit)".trimmingCharacters(in: .whitespaces)
+                // Anteater sometimes ships unit as bare "fl" for fluid ounces.
+                if combined.range(of: #"^\d+(\.\d+)?\s*fl$"#, options: .regularExpression) != nil {
+                    return combined.replacingOccurrences(of: "fl", with: "fl oz")
+                }
+                return combined
+            }
             return size
         }
-        let description = dish.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description = Self.collapseWhitespace(dish.description)
+        let ingredients = Self.collapseWhitespace(dish.ingredients)
+        let facts = dish.nutritionInfo.map { info in
+            NutritionFacts(
+                proteinG: info.proteinG,
+                totalCarbsG: info.totalCarbsG,
+                totalFatG: info.totalFatG,
+                saturatedFatG: info.saturatedFatG,
+                transFatG: info.transFatG,
+                sodiumMg: info.sodiumMg,
+                sugarsG: info.sugarsG,
+                dietaryFiberG: info.dietaryFiberG,
+                ingredients: ingredients
+            )
+        }
         return MenuItem(
             id: dish.id,
-            name: dish.name,
-            description: (description?.isEmpty ?? true) ? nil : description,
+            name: Self.collapseWhitespace(dish.name) ?? dish.name,
+            description: description,
             calories: dish.nutritionInfo?.calories.map { Int($0.rounded()) },
             servingSize: serving,
             allergens: dish.dietRestriction?.allergens ?? [],
-            dietaryTags: dish.dietRestriction?.dietaryTags ?? []
+            dietaryTags: dish.dietRestriction?.dietaryTags ?? [],
+            nutrition: facts
+        )
+    }
+
+    /// Anteater names/descriptions often include double spaces ("Banana  Berry").
+    static func collapseWhitespace(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let collapsed = text
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return collapsed.isEmpty ? nil : collapsed
+    }
+
+    /// The Twisted Root is UCI's dedicated plant-based station at **both**
+    /// The Anteatery and Brandywine. The feed often ships every diet flag as
+    /// false — trust the station so Vegan / Vegetarian filters never hide it.
+    public static let twistedRootStationIDs: Set<String> = [
+        "1929", // The Anteatery
+        "1893", // Brandywine
+    ]
+
+    public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
+        let lowered = stationName.lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return lowered.contains("twisted root") || lowered.contains("twistedroot")
+    }
+
+    public static func applyStationTags(
+        _ items: [MenuItem],
+        station: String,
+        stationID: String? = nil
+    ) -> [MenuItem] {
+        guard isTwistedRoot(stationName: station, stationID: stationID) else { return items }
+        return items.map { item in
+            var tags = item.dietaryTags
+            if !tags.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }) {
+                tags.insert("Vegan", at: 0)
+            }
+            if !tags.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+                tags.append("Vegetarian")
+            }
+            guard tags != item.dietaryTags else { return item }
+            return MenuItem(
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                calories: item.calories,
+                servingSize: item.servingSize,
+                allergens: item.allergens,
+                dietaryTags: tags,
+                nutrition: item.nutrition
+            )
+        }
+    }
+
+    /// Re-apply Twisted Root overrides on an already-built menu (UI filter path).
+    public static func withStationDietOverrides(_ menu: DiningMenu) -> DiningMenu {
+        DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: menu.stations.map { station in
+                MenuStation(
+                    name: station.name,
+                    items: applyStationTags(station.items, station: station.name)
+                )
+            }
         )
     }
 
@@ -235,7 +436,13 @@ public struct DiningService: Sendable {
 
     /// Every dining commons the live API lists (a new hall shows up here
     /// automatically) with today's hours, open state, and served meal periods.
-    public func locations() async -> [DiningLocation] {
+    /// Pass `forceRefresh` at publish probes / pull-to-refresh so a stale
+    /// empty or breakfast-only board — and tomorrow / next-open metadata —
+    /// is not reused for up to 20 minutes.
+    public func locations(
+        forceRefresh: Bool = false,
+        includeAdjacentDays: Bool = true
+    ) async -> [DiningLocation] {
         let dateISO = PacificTime.todayISO(now: now())
         let nowMinutes = PacificTime.nowMinutes(now: now())
 
@@ -246,7 +453,13 @@ public struct DiningService: Sendable {
         await withTaskGroup(of: DiningLocation.self) { group in
             for hall in hallIDs {
                 group.addTask {
-                    await location(for: hall, dateISO: dateISO, nowMinutes: nowMinutes)
+                    await location(
+                        for: hall,
+                        dateISO: dateISO,
+                        nowMinutes: nowMinutes,
+                        forceRefresh: forceRefresh,
+                        includeAdjacentDays: includeAdjacentDays
+                    )
                 }
             }
             for await location in group {
@@ -254,12 +467,80 @@ public struct DiningService: Sendable {
             }
         }
         // TaskGroup completion order is nondeterministic; present halls in a stable order.
-        return hallIDs.compactMap { id in results.first { $0.id == id } }
+        var ordered = hallIDs.compactMap { id in results.first { $0.id == id } }
+        // Hub already advertises The Oasis (Coming Soon) while Anteater API still
+        // only lists Anteatery + Brandywine — surface an honest card, no fake menu.
+        if !ordered.contains(where: { HallDirectory.isOasis($0.id) }) {
+            ordered.append(Self.oasisComingSoonLocation())
+        }
+        return ordered
     }
 
-    private func location(for hall: String, dateISO: String, nowMinutes: Int) async -> DiningLocation {
+    /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
+    /// Mon–Fri; meal plans start Sept 21 2026. No invented live board.
+    public static func oasisComingSoonLocation() -> DiningLocation {
+        DiningLocation(
+            id: HallDirectory.oasisComingSoonID,
+            name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+            area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
+            openNow: false,
+            todayHours: nil,
+            availablePeriods: [],
+            periods: [],
+            hoursApproximate: true,
+            comingSoonSubtitle: "Coming Soon"
+        )
+    }
+
+    /// Meal-period windows for a hall on a specific Irvine ISO date.
+    /// Empty when unpublished (404) or offline — never throws.
+    public func mealPeriods(
+        for hall: String,
+        dateISO: String,
+        forceRefresh: Bool = false
+    ) async -> [MealPeriodWindow] {
         do {
-            let periods = Self.servedPeriods(try await today(for: hall, dateISO: dateISO))
+            let periods = Self.servedPeriods(
+                try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+            )
+            return periods.map {
+                MealPeriodWindow(
+                    name: $0.name,
+                    startMinutes: PacificTime.parseMinutes($0.startTime),
+                    endMinutes: PacificTime.parseMinutes($0.endTime)
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
+    private func location(
+        for hall: String,
+        dateISO: String,
+        nowMinutes: Int,
+        forceRefresh: Bool = false,
+        includeAdjacentDays: Bool = true
+    ) async -> DiningLocation {
+        let calendar = PacificTime.calendar
+        let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: now()) ?? now()
+        let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
+        // Force-refresh must also re-fetch tomorrow / next-open boards — otherwise
+        // pull-to-refresh can leave "Closed for today" / Monday chrome stuck on a
+        // cached empty next day while today's board updates.
+        async let tomorrowWindows: [MealPeriodWindow] = {
+            guard includeAdjacentDays else { return [] }
+            return await mealPeriods(
+                for: hall,
+                dateISO: tomorrowISO,
+                forceRefresh: forceRefresh
+            )
+        }()
+
+        do {
+            let periods = Self.servedPeriods(
+                try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+            )
             let starts = periods.compactMap { PacificTime.parseMinutes($0.startTime) }
             let ends = periods.compactMap { PacificTime.parseMinutes($0.endTime) }
             let openNow = periods.contains { period in
@@ -271,6 +552,14 @@ public struct DiningService: Sendable {
             let todayHours: String? = (starts.isEmpty || ends.isEmpty)
                 ? nil
                 : "\(PacificTime.formatMinutes(starts.min()!)) – \(PacificTime.formatMinutes(ends.max()!))"
+            let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
+            let next = includeAdjacentDays
+                ? await nextOpenBeyondTomorrow(
+                    hall: hall,
+                    tomorrowMinutes: tomorrow.minutes,
+                    forceRefresh: forceRefresh
+                )
+                : nil
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -285,9 +574,24 @@ public struct DiningService: Sendable {
                         endMinutes: PacificTime.parseMinutes($0.endTime)
                     )
                 },
-                hoursApproximate: false
+                hoursApproximate: false,
+                opensTomorrowAtMinutes: tomorrow.minutes,
+                opensTomorrowPeriod: tomorrow.period,
+                opensNextAtMinutes: next?.minutes,
+                opensNextDayOffset: next?.dayOffset,
+                opensNextWeekday: next?.weekday,
+                opensNextPeriod: next?.period,
+                opensNextDateISO: next?.dateISO
             )
         } catch {
+            let tomorrow = await Self.tomorrowOpening(from: tomorrowWindows)
+            let next = includeAdjacentDays
+                ? await nextOpenBeyondTomorrow(
+                    hall: hall,
+                    tomorrowMinutes: tomorrow.minutes,
+                    forceRefresh: forceRefresh
+                )
+                : nil
             return DiningLocation(
                 id: hall,
                 name: HallDirectory.displayName(for: hall),
@@ -296,42 +600,281 @@ public struct DiningService: Sendable {
                 todayHours: nil,
                 availablePeriods: [],
                 periods: [],
-                hoursApproximate: false
+                hoursApproximate: false,
+                opensTomorrowAtMinutes: tomorrow.minutes,
+                opensTomorrowPeriod: tomorrow.period,
+                opensNextAtMinutes: next?.minutes,
+                opensNextDayOffset: next?.dayOffset,
+                opensNextWeekday: next?.weekday,
+                opensNextPeriod: next?.period,
+                opensNextDateISO: next?.dateISO
             )
         }
     }
 
-    /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
-    public func menu(for hall: String, period: String, date: String? = nil) async throws -> DiningMenu {
-        let dateISO = date ?? PacificTime.todayISO(now: now())
-        let today = try await today(for: hall, dateISO: dateISO)
+    /// When tomorrow is unpublished, scan further days inside `/dateRange`.
+    private func nextOpenBeyondTomorrow(
+        hall: String,
+        tomorrowMinutes: Int?,
+        forceRefresh: Bool = false
+    ) async -> DiningNextOpen.Result? {
+        guard tomorrowMinutes == nil else { return nil }
+        let latest = await publishedDateRange(forceRefresh: forceRefresh)?.latest
+        return await DiningNextOpen.find(
+            from: now(),
+            latestISO: latest,
+            periodsForDay: { iso in
+                await mealPeriods(for: hall, dateISO: iso, forceRefresh: forceRefresh)
+            }
+        )
+    }
 
-        guard let match = (today.periods ?? [:]).values
-            .first(where: { $0.name.lowercased() == period.lowercased() })
-        else {
+    /// Earliest timed meal on tomorrow's board (for after-hours status).
+    private static func tomorrowOpening(
+        from periods: [MealPeriodWindow]
+    ) -> (minutes: Int?, period: String?) {
+        guard let minutes = OpeningAlertPlanner.earliestOpening(periods: periods) else {
+            return (nil, nil)
+        }
+        let period = periods.first { $0.startMinutes == minutes }?.name
+        return (minutes, period)
+    }
+
+    /// Always-visible Eat meal chips. Breakfast / Lunch / Dinner stay on screen
+    /// even when the live board has only posted one period (Atharv 7am peek).
+    public static let mealSelectorPills = ["Breakfast", "Lunch", "Dinner"]
+
+    /// Primary meal pills present on a board. Brunch maps into Breakfast;
+    /// All Day is folded into each meal as "Available all day" (no own pill).
+    /// Prefer `mealSelectorPills` for the Eat chip row so unposted meals stay tappable.
+    public static func primaryPeriods(from available: [String]) -> [String] {
+        var result: [String] = []
+        if available.contains(where: { $0.caseInsensitiveCompare("Breakfast") == .orderedSame })
+            || available.contains(where: { $0.caseInsensitiveCompare("Brunch") == .orderedSame }) {
+            result.append("Breakfast")
+        }
+        if available.contains(where: { $0.caseInsensitiveCompare("Lunch") == .orderedSame }) {
+            result.append("Lunch")
+        }
+        if available.contains(where: {
+            $0.caseInsensitiveCompare("Dinner") == .orderedSame
+                || $0.caseInsensitiveCompare("Limited Dinner") == .orderedSame
+        }) {
+            result.append("Dinner")
+        }
+        return result
+    }
+
+    /// Resolve a primary pill to the real API period name for a hall.
+    public static func resolvePeriod(_ primary: String, available: [String]) -> String {
+        let match: (String) -> String? = { name in
+            available.first { $0.caseInsensitiveCompare(name) == .orderedSame }
+        }
+        switch primary.lowercased() {
+        case "breakfast":
+            return match("Breakfast") ?? match("Brunch") ?? primary
+        case "dinner":
+            return match("Dinner") ?? match("Limited Dinner") ?? primary
+        default:
+            return match(primary) ?? primary
+        }
+    }
+
+    /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
+    /// All Day stations fold into the bottom as "Available all day".
+    /// Unpublished days (API 404) return an empty menu — never throw.
+    ///
+    /// Hub diet-tag merge hits Campus GraphQL. Pass `includeHubDietTags: false`
+    /// to paint the Anteater board first, then call again with `true` (the
+    /// board is already in TTL).
+    public func menu(
+        for hall: String,
+        period: String,
+        date: String? = nil,
+        forceRefresh: Bool = false,
+        includeHubDietTags: Bool = true
+    ) async throws -> DiningMenu {
+        let dateISO = date ?? PacificTime.todayISO(now: now())
+        let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+        let available = (today.periods ?? [:]).values.map(\.name)
+
+        // No periods published for this day yet (404 mapped to empty, or blank payload).
+        guard !available.isEmpty else {
             return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
         }
 
+        let resolved = Self.resolvePeriod(period, available: available)
+        let stationNames = try await stationMap()
+
+        var mealStations = try await stations(
+            for: resolved, in: today, stationNames: stationNames
+        )
+
+        let periodMatched = available.contains {
+            $0.caseInsensitiveCompare(resolved) == .orderedSame
+        }
+        if periodMatched,
+           !resolved.localizedCaseInsensitiveContains("all day"),
+           available.contains(where: { $0.localizedCaseInsensitiveContains("all day") }) {
+            let allDayName = available.first { $0.localizedCaseInsensitiveContains("all day") }!
+            let allDayStations = try await stations(
+                for: allDayName, in: today, stationNames: stationNames
+            )
+            if !allDayStations.isEmpty {
+                let items = allDayStations.flatMap(\.items)
+                var seen = Set<String>()
+                let unique = items.filter { seen.insert($0.name.lowercased()).inserted }
+                if !unique.isEmpty {
+                    mealStations.append(MenuStation(name: "Available all day", items: unique))
+                }
+            }
+        }
+
+        let built = DiningMenu(
+            locationId: hall, date: dateISO, period: resolved, stations: mealStations
+        )
+        // Anteater API often leaves every is* flag false; the dining hub carries
+        // much richer recipe_attributes. Merge by dish name (soft-fail).
+        guard includeHubDietTags else { return built }
+        return await enrichDietTags(built)
+    }
+
+    /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.
+    private func enrichDietTags(_ menu: DiningMenu) async -> DiningMenu {
+        guard let hubKey = HallDirectory.campusHubKey(for: menu.locationId) else { return menu }
+        let hubStations: [MenuStation]
+        do {
+            hubStations = try await CampusService(http: http, cache: cache, now: now)
+                .menu(for: hubKey, date: menu.date)
+        } catch {
+            return menu
+        }
+        guard !hubStations.isEmpty else { return menu }
+
+        var tagsByKey: [String: [String]] = [:]
+        var allergensByKey: [String: [String]] = [:]
+        for item in hubStations.flatMap(\.items) {
+            for key in Self.dietLookupKeys(for: item.name) {
+                if !item.dietaryTags.isEmpty {
+                    tagsByKey[key] = Self.mergeUnique(tagsByKey[key] ?? [], item.dietaryTags)
+                }
+                if !item.allergens.isEmpty {
+                    allergensByKey[key] = Self.mergeUnique(allergensByKey[key] ?? [], item.allergens)
+                }
+            }
+        }
+        guard !tagsByKey.isEmpty || !allergensByKey.isEmpty else { return menu }
+
+        let stations = menu.stations.map { station in
+            MenuStation(
+                name: station.name,
+                items: station.items.map { item in
+                    let hubTags = Self.dietLookupKeys(for: item.name)
+                        .compactMap { tagsByKey[$0] }.first ?? []
+                    let hubAllergens = Self.dietLookupKeys(for: item.name)
+                        .compactMap { allergensByKey[$0] }.first ?? []
+                    let tags = Self.mergeUnique(item.dietaryTags, hubTags)
+                    let allergens = Self.mergeUnique(item.allergens, hubAllergens)
+                    guard tags != item.dietaryTags || allergens != item.allergens else { return item }
+                    return MenuItem(
+                        id: item.id,
+                        name: item.name,
+                        description: item.description,
+                        calories: item.calories,
+                        servingSize: item.servingSize,
+                        allergens: allergens,
+                        dietaryTags: tags,
+                        nutrition: item.nutrition
+                    )
+                }
+            )
+        }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: stations
+        )
+    }
+
+    /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
+    static func dietLookupKeys(for name: String) -> [String] {
+        let lower = (collapseWhitespace(name) ?? name)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var keys = [lower]
+
+        var stripped = lower
+        // Anteater sometimes prefixes "AE "; hub omits it.
+        if stripped.hasPrefix("ae ") {
+            stripped = String(stripped.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            keys.append(stripped)
+        }
+        for suffix in [" sandwich", " burger", " wrap"] {
+            if stripped.hasSuffix(suffix) {
+                let base = String(stripped.dropLast(suffix.count)).trimmingCharacters(in: .whitespaces)
+                if !base.isEmpty { keys.append(base) }
+            }
+        }
+
+        let withoutUCI = stripped.replacingOccurrences(
+            of: #"\s+uci$"#, with: "", options: .regularExpression
+        )
+        if withoutUCI != stripped { keys.append(withoutUCI) }
+
+        for variant in keys {
+            let normalized = variant.replacingOccurrences(
+                of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
+            )
+            if !normalized.isEmpty { keys.append(normalized) }
+        }
+        // Preserve order, drop dupes.
+        var seen = Set<String>()
+        return keys.filter { seen.insert($0).inserted }
+    }
+
+    private static func mergeUnique(_ base: [String], _ extra: [String]) -> [String] {
+        var seen = Set(base.map { $0.lowercased() })
+        var result = base
+        for tag in extra where seen.insert(tag.lowercased()).inserted {
+            result.append(tag)
+        }
+        // Vegan ⇒ Vegetarian for filter matching.
+        if result.contains(where: { $0.caseInsensitiveCompare("Vegan") == .orderedSame }),
+           !result.contains(where: { $0.caseInsensitiveCompare("Vegetarian") == .orderedSame }) {
+            result.append("Vegetarian")
+        }
+        return result
+    }
+
+    private func stations(
+        for period: String,
+        in today: APIRestaurantToday,
+        stationNames: [String: String]
+    ) async throws -> [MenuStation] {
+        guard let match = (today.periods ?? [:]).values
+            .first(where: { $0.name.lowercased() == period.lowercased() })
+        else { return [] }
+
         let stationToDishes = match.stationToDishes ?? [:]
         let allIDs = stationToDishes.values.flatMap(\.self)
-        async let dishMapTask = dishes(ids: allIDs)
-        async let stationMapTask = stationMap()
-        let (dishMap, stationNames) = try await (dishMapTask, stationMapTask)
+        let dishMap = try await dishes(ids: allIDs)
 
         var stations: [MenuStation] = []
         for (stationID, dishIDs) in stationToDishes.sorted(by: { $0.key < $1.key }) {
-            // The API occasionally lists multiple dish ids that resolve to the same
-            // dish name within one station; keep the first of each.
             var seenNames = Set<String>()
+            let stationName = stationNames[stationID] ?? "Menu"
             let items = dishIDs
                 .compactMap { dishMap[$0] }
                 .map(Self.menuItem(from:))
                 .filter { seenNames.insert($0.name.lowercased()).inserted }
             if !items.isEmpty {
-                stations.append(MenuStation(name: stationNames[stationID] ?? "Menu", items: items))
+                stations.append(MenuStation(
+                    name: stationName,
+                    items: Self.applyStationTags(items, station: stationName, stationID: stationID)
+                ))
             }
         }
-
-        return DiningMenu(locationId: hall, date: dateISO, period: period, stations: stations)
+        return stations
     }
 }

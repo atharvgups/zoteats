@@ -41,9 +41,10 @@ public struct HTTPClient: HTTPFetching {
     public init(timeout: TimeInterval = 12) {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = timeout
+        config.timeoutIntervalForResource = timeout
         config.httpAdditionalHeaders = [
             "Accept": "application/json",
-            "User-Agent": "ZotEats/1.0 (UCI student utility)",
+            "User-Agent": "Anteats/1.0 (UCI student utility)",
         ]
         self.session = URLSession(configuration: config)
         self.timeout = timeout

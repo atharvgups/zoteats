@@ -1,8 +1,8 @@
-# ZotEats Privacy Policy
+# Anteats Privacy Policy
 
-_Last updated: July 2026_
+_Last updated: August 2026_
 
-ZotEats is an unofficial student project for the UC Irvine community. The short
+Anteats is an unofficial student project for the UC Irvine community. The short
 version: **the app collects no personal data at all.**
 
 ## What we collect
@@ -15,29 +15,37 @@ Nothing.
 
 ## What stays on your device
 
-Your preferences — favorited dishes and your dietary filter — are stored locally on
-your device using Apple's UserDefaults. They never leave your device, and we have no
-way to see them. Deleting the app deletes them.
+Your preferences — favorited dishes and campus spots, dish ratings and notes, dietary filters, opening /
+favorite / menu-drop alerts, appearance, and today's Plate Builder tally — are
+stored locally on your device using Apple's UserDefaults (including an App Group
+shared with the Anteats widgets). They never leave your device, and we have no
+way to see them. Deleting the app deletes them. The plate resets each Irvine
+calendar day.
 
 ## Network requests
 
-The app fetches public campus data (dining menus, gym hours, facility busyness) from
-exactly two services:
+The app fetches public campus data over standard, read-only HTTPS with no account
+identifiers or personal data attached. Sources:
 
-- `anteaterapi.com` — public UCI dining/menu data (Anteater API)
-- `waitz.io` — public live occupancy data for UCI facilities
+- `anteaterapi.com` — public UCI dining / menu data (Anteater API)
+- `api.elevate-dxp.com` — UCI Dining Hub campus food hours and retail menus
+- `waitz.io` — public live occupancy for UCI libraries (and related facilities)
+- `uci.libcal.com` — official Langson + Science library building hours
 
-These are standard, read-only HTTPS requests with no account identifiers or personal
-data attached. Like any web request, the operators of those services may see your IP
-address as part of serving the request; ZotEats sends nothing else. We do not operate
-those services — see their own policies for details.
+Like any web request, the operators of those services may see your IP address as
+part of serving the request; Anteats sends nothing else. We do not operate those
+services — see their own policies for details.
 
 ## App Store Connect "App Privacy" answers
 
-For the App Privacy section in App Store Connect, ZotEats qualifies for
+For the App Privacy section in App Store Connect, Anteats qualifies for
 **"Data Not Collected"**: the app does not collect any data from this app, for any
 purpose, in any category (no contact info, identifiers, usage data, diagnostics,
-location, or anything else).
+location, or anything else). Preferences and plate totals stay on-device only.
+
+The shipping binary includes a Privacy Nutrition Label manifest
+(`PrivacyInfo.xcprivacy`) declaring no collected data types, no tracking, and
+Required Reason API access for UserDefaults (app + App Group for widgets).
 
 ## Changes
 

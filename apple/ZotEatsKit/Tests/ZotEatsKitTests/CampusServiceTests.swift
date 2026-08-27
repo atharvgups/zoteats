@@ -34,6 +34,37 @@ struct CampusServiceTests {
         #expect(starbucks != nil)
         #expect(starbucks?.openNow == true) // Monday 10 AM within 07:30-16:00
         #expect(starbucks?.todayHours?.contains("7:30 AM") == true)
+        // Open venues expose close minutes so Campus Open widgets can reload at the boundary.
+        #expect(starbucks?.closesAtMinutes == 16 * 60)
+        // Single continuous window — no later reopen today.
+        #expect(starbucks?.opensAtMinutes == nil)
+    }
+
+    @Test func nextOpeningMinutesFindsLaterWindowWhileOpen() {
+        let windows = [
+            CampusService.TimeWindow(start: 7 * 60 + 30, end: 11 * 60),
+            CampusService.TimeWindow(start: 16 * 60 + 30, end: 21 * 60),
+        ]
+        // 10 AM inside the morning window — still schedule the evening reopen.
+        #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 10 * 60) == 16 * 60 + 30)
+        // Before either window — morning open.
+        #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 6 * 60) == 7 * 60 + 30)
+        // After the last window.
+        #expect(CampusService.nextOpeningMinutes(windows: windows, nowMinutes: 22 * 60) == nil)
+    }
+
+    @Test func followingOpeningsReturnsEveryRemainingWindow() {
+        let windows = [
+            CampusService.TimeWindow(start: 16 * 60 + 30, end: 21 * 60),
+            CampusService.TimeWindow(start: 7 * 60 + 30, end: 11 * 60),
+            CampusService.TimeWindow(start: 0, end: 0), // all-day — skipped
+        ]
+        let morning = CampusService.followingOpenings(windows: windows, nowMinutes: 6 * 60)
+        #expect(morning.map(\.start) == [7 * 60 + 30, 16 * 60 + 30])
+        let duringMorning = CampusService.followingOpenings(windows: windows, nowMinutes: 10 * 60)
+        #expect(duringMorning.map(\.start) == [16 * 60 + 30])
+        #expect(CampusService.followingOpenings(windows: windows, nowMinutes: 22 * 60).isEmpty)
+        #expect(CampusService.allOpenings(windows: windows).map(\.start) == [7 * 60 + 30, 16 * 60 + 30])
     }
 
     @Test func weekendOffMeansClosedWithNoHours() async throws {
@@ -41,6 +72,28 @@ struct CampusServiceTests {
         let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
         #expect(starbucks?.openNow == false)
         #expect(starbucks?.todayHours == nil)
+        #expect(starbucks?.closesAtMinutes == nil)
+        #expect(starbucks?.hoursKnown == true)
+        // Sunday evening watchers still need Monday's open for opening alerts.
+        #expect(starbucks?.opensTomorrowAtMinutes == 7 * 60 + 30)
+        #expect(starbucks?.hoursLine == "Opens tomorrow at 7:30 AM")
+    }
+
+    @Test func fridayAfterCloseNamesMondayOpen() async throws {
+        // Friday 2026-07-10, 4:30 PM Pacific — Starbucks closed; Saturday/Sunday off.
+        let fridayAfternoon = ISO8601DateFormatter().date(from: "2026-07-10T23:30:00Z")!
+        let service = CampusService(http: FixtureHTTP(), now: { fridayAfternoon })
+        let starbucks = try await service.places().first { $0.id == "starbucks-at-student-center" }
+        #expect(starbucks?.openNow == false)
+        #expect(starbucks?.todayHours?.contains("7:30 AM") == true)
+        #expect(starbucks?.opensAtMinutes == nil)
+        #expect(starbucks?.opensTomorrowAtMinutes == nil) // Sat off
+        #expect(starbucks?.opensNextWeekday == "Monday")
+        #expect(starbucks?.opensNextDayOffset == 3)
+        #expect(starbucks?.opensNextAtMinutes == 7 * 60 + 30)
+        #expect(starbucks?.hoursKnown == true)
+        #expect(starbucks?.hoursLine == "Opens Monday at 7:30 AM")
+        #expect(!starbucks!.nextOpenWindows.isEmpty)
     }
 
     @Test func openingHoursRuleParsing() {
@@ -52,6 +105,32 @@ struct CampusServiceTests {
         #expect(CampusService.window(from: "Mo-Su off", weekday: "Monday") == nil)
         #expect(CampusService.window(from: "Mo,We,Fr 09:00-14:00", weekday: "Friday") == .init(start: 540, end: 840))
         #expect(CampusService.window(from: "Mo,We,Fr 09:00-14:00", weekday: "Tuesday") == nil)
+    }
+
+    @Test func midnightToMidnightMeansOpenAllDay() {
+        let allDay = CampusService.TimeWindow(start: 0, end: 0)
+        #expect(allDay.isAllDay)
+        #expect(allDay.contains(minute: 0))
+        #expect(allDay.contains(minute: 12 * 60))
+        #expect(allDay.contains(minute: 23 * 60 + 59))
+        #expect(CampusService.format(windows: [allDay]) == "Open 24 hours")
+    }
+
+    @Test func allergenStatementIgnoresUnavailableBoilerplate() {
+        #expect(
+            CampusService.allergens(
+                fromStatement: "Complete allergen information is not available. Please contact the on-site manager for assistance."
+            ).isEmpty
+        )
+        #expect(CampusService.allergens(fromStatement: "Contains:") == [])
+        #expect(CampusService.allergens(fromStatement: "Contains: Eggs, Milk") == ["Eggs", "Milk"])
+        #expect(CampusService.allergens(fromStatement: nil).isEmpty)
+    }
+
+    @Test func allergenIntoleranceIDsMapToLabels() {
+        #expect(CampusService.allergens(fromIntoleranceIDs: ["45", "63", "39"]) == ["Milk", "Wheat", "Eggs"])
+        #expect(CampusService.allergens(fromIntoleranceIDs: ["0"]).isEmpty)
+        #expect(CampusService.allergens(fromIntoleranceIDs: ["45,57"]) == ["Milk", "Soy"])
     }
 
     @Test func publishedMenuMapsDietaryTagsAndAllergens() async throws {
@@ -67,6 +146,11 @@ struct CampusServiceTests {
         #expect(eggs?.allergens.contains("Eggs") == true)
         #expect(eggs?.dietaryTags.contains("Halal") == true)
         #expect(eggs?.dietaryTags.contains("Vegetarian") == true)
+        // Turmeric Tofu uses allergens_intolerances id 57 + Plant Forward recipe attr.
+        let tofu = items.first { $0.name == "Turmeric Tofu Scramble" }
+        #expect(tofu?.allergens.contains("Soy") == true)
+        #expect(tofu?.dietaryTags.contains("Plant Forward") == true)
+        #expect(tofu?.dietaryTags.contains("Vegan") == true)
     }
 
     @Test func networkFailurePropagates() async {
