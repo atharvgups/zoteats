@@ -64,6 +64,7 @@ final class DiningStore {
         menus = menus.filter { !DiningDayMath.isLiveTodayMenuKey($0.key) }
         dayPeriods = [:]
         postedMenuDates = [:]
+        postedDatesScheduled = false
         locationsDateISO = nil
         dayEpoch += 1
         return true
@@ -115,10 +116,12 @@ final class DiningStore {
             WidgetSnapshotStore.saveDiningLocations(loaded)
             WidgetReloader.reloadEatWidgets()
         }
-        // Day-strip dots can land a moment later — halls and today's board
-        // should not wait on a multi-day posted-date scan.
-        Task { await self.refreshPostedMenuDates(forceRefresh: forceRefresh) }
+        if forceRefresh {
+            Task { await self.refreshPostedMenuDates(forceRefresh: true) }
+        }
     }
+
+    private var postedDatesScheduled = false
 
     func refreshPostedMenuDates(forceRefresh: Bool = false) async {
         let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
@@ -243,6 +246,10 @@ final class DiningStore {
                 if reloadWidgets {
                     WidgetReloader.reloadEatWidgets()
                 }
+            }
+            if date == nil, !postedDatesScheduled {
+                postedDatesScheduled = true
+                Task { await self.refreshPostedMenuDates(forceRefresh: false) }
             }
             if !next.stations.isEmpty {
                 let dining = service
