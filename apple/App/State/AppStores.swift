@@ -79,6 +79,14 @@ final class DiningStore {
     }
 
     func loadLocations(forceRefresh: Bool = false) async {
+        if !forceRefresh, locations.value != nil {
+            Task { await self.fetchLocations(forceRefresh: false) }
+            return
+        }
+        await fetchLocations(forceRefresh: forceRefresh)
+    }
+
+    private func fetchLocations(forceRefresh: Bool) async {
         if locations.value == nil { locations = .loading }
         async let range = service.publishedDateRange(forceRefresh: forceRefresh)
         let result = await service.locations(forceRefresh: forceRefresh)
@@ -87,6 +95,7 @@ final class DiningStore {
             publishedDateRange = nextRange
         }
         locationsDateISO = UCITime.todayISO()
+        let previous = locations.value
         // The service degrades per-hall; treat "no data at all" as an error
         // only when we have nothing to paint (keep last-known halls on screen).
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
@@ -98,7 +107,7 @@ final class DiningStore {
         }
         // App Group snapshot so Home Screen widgets show real text without
         // waiting on a cold network fetch inside the extension process.
-        if let loaded = locations.value, !loaded.isEmpty {
+        if locations.value != previous, let loaded = locations.value, !loaded.isEmpty {
             WidgetSnapshotStore.saveDiningLocations(loaded)
             WidgetReloader.reloadEatWidgets()
         }
@@ -181,6 +190,37 @@ final class DiningStore {
                 menus[key] = .loading
             }
         }
+        if !forceRefresh, let current = menus[key]?.value, !current.stations.isEmpty {
+            Task {
+                await self.fetchMenu(
+                    hall: hall,
+                    period: period,
+                    date: date,
+                    forceRefresh: false,
+                    reloadWidgets: reloadWidgets,
+                    key: key
+                )
+            }
+            return
+        }
+        await fetchMenu(
+            hall: hall,
+            period: period,
+            date: date,
+            forceRefresh: forceRefresh,
+            reloadWidgets: reloadWidgets,
+            key: key
+        )
+    }
+
+    private func fetchMenu(
+        hall: String,
+        period: String,
+        date: String?,
+        forceRefresh: Bool,
+        reloadWidgets: Bool,
+        key: String
+    ) async {
         do {
             let next = try await service.menu(
                 for: hall,
@@ -190,10 +230,11 @@ final class DiningStore {
                 includeHubDietTags: false
             )
             // Paint the Anteater board immediately; hub tags merge next.
-            if menus[key]?.value != next {
+            let changed = menus[key]?.value != next
+            if changed {
                 menus[key] = .loaded(next)
             }
-            if date == nil {
+            if date == nil, changed {
                 WidgetSnapshotStore.saveDiningMenu(next)
                 if reloadWidgets {
                     WidgetReloader.reloadEatWidgets()
@@ -222,7 +263,9 @@ final class DiningStore {
                 }
             }
         } catch {
-            menus[key] = .failed(error.localizedDescription)
+            if menus[key]?.value == nil {
+                menus[key] = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -320,10 +363,11 @@ final class CampusStore {
             let next = try await service.places()
             // Boundary ticks recompute openNow from the same schedule — skip
             // churn when nothing actually changed (smoother Campus scroll).
-            if places.value != next {
+            let changed = places.value != next
+            if changed {
                 places = .loaded(next)
             }
-            if let loaded = places.value, !loaded.isEmpty {
+            if changed, let loaded = places.value, !loaded.isEmpty {
                 WidgetSnapshotStore.saveCampusPlaces(loaded)
                 WidgetReloader.reloadCampusOpen()
             }
@@ -394,10 +438,10 @@ final class BusynessStore {
             } ?? false
             if !unchanged {
                 facilities = .loaded(next)
-            }
-            if let loaded = facilities.value, !loaded.isEmpty {
-                WidgetSnapshotStore.saveBusynessPlaces(loaded)
-                WidgetReloader.reloadStudyWidgets()
+                if let loaded = facilities.value, !loaded.isEmpty {
+                    WidgetSnapshotStore.saveBusynessPlaces(loaded)
+                    WidgetReloader.reloadStudyWidgets()
+                }
             }
         } catch {
             if facilities.value == nil {
