@@ -89,8 +89,8 @@ struct CampusPlaceLiveOpenTests {
             category: "Coffee & Cafés",
             openNow: openNow,
             todayHours: "7:30 AM – 4:00 PM",
-            currentOpenStartMinutes: currentStart,
             closesAtMinutes: closesAt,
+            currentOpenStartMinutes: currentStart,
             upcomingWindows: upcoming
         )
     }
