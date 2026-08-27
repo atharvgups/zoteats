@@ -41,8 +41,12 @@ enum FavoriteAlerts {
         guard !favorites.isEmpty else { return }
 
         let service = DiningService()
-        let locations = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay()
-            ?? await service.locations()
+        let locations: [DiningLocation]
+        if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
+            locations = cached
+        } else {
+            locations = await service.locations()
+        }
         let hallNames = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0.name) })
 
         var menus: [DiningMenu] = []

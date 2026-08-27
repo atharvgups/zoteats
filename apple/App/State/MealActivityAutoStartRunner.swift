@@ -9,8 +9,12 @@ enum MealActivityAutoStartRunner {
     static func run(service: DiningService = DiningService()) async {
         let manager = MealActivityManager()
         manager.syncFromSystem()
-        let locations = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay()
-            ?? await service.locations()
+        let locations: [DiningLocation]
+        if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
+            locations = cached
+        } else {
+            locations = await service.locations()
+        }
         // Refresh baked post-close even when already tracking (board grew).
         manager.refreshPostCloseIfNeeded(locations: locations)
         guard MealActivityManager.autoStartEnabled else { return }
