@@ -107,6 +107,17 @@ struct CampusPlaceLiveOpenTests {
         #expect(!place.isOpen(nowMinutes: 17 * 60))
     }
 
+    @Test func closeTimeAloneStaysOpenUntilThatMinute() {
+        let place = starbucks(
+            openNow: true,
+            currentStart: nil,
+            closesAt: 16 * 60,
+            upcoming: []
+        )
+        #expect(place.isOpen(nowMinutes: 12 * 60))
+        #expect(!place.isOpen(nowMinutes: 16 * 60))
+    }
+
     @Test func upcomingWindowFlipsOpenWithoutRefetch() {
         let place = starbucks(
             openNow: false,

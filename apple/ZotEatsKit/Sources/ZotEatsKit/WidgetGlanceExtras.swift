@@ -62,11 +62,13 @@ public enum WidgetGlanceExtras {
         places: [CampusPlace],
         favoriteIDs: Set<String>,
         favoritesOnly: Bool,
-        limit: Int
+        limit: Int,
+        nowMinutes: Int = UCITime.nowMinutes()
     ) -> (rows: [CampusRow], totalOpen: Int) {
         var open = CampusPlaceSort.sortOpenForWidget(
             places: places,
-            favoriteIDs: favoriteIDs
+            favoriteIDs: favoriteIDs,
+            nowMinutes: nowMinutes
         )
         if favoritesOnly {
             open = open.filter { favoriteIDs.contains($0.id) }

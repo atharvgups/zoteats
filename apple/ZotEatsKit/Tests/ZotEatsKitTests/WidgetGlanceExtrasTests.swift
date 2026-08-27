@@ -93,13 +93,15 @@ struct WidgetGlanceExtrasTests {
             places: places,
             favoriteIDs: ["sb"],
             favoritesOnly: false,
-            limit: 4
+            limit: 4,
+            nowMinutes: 12 * 60
         )
         let hearts = WidgetGlanceExtras.campusRows(
             places: places,
             favoriteIDs: ["sb"],
             favoritesOnly: true,
-            limit: 4
+            limit: 4,
+            nowMinutes: 12 * 60
         )
         #expect(all.totalOpen == 2)
         #expect(hearts.totalOpen == 1)

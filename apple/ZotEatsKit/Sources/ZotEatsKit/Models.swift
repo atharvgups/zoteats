@@ -519,8 +519,17 @@ public struct CampusPlace: Codable, Sendable, Identifiable, Equatable {
         }) {
             return true
         }
-        if currentOpenStartMinutes != nil || closesAtMinutes != nil || !upcomingWindows.isEmpty {
+        if let end = closesAtMinutes, nowMinutes >= end {
             return false
+        }
+        if let start = currentOpenStartMinutes, nowMinutes < start {
+            return false
+        }
+        if !upcomingWindows.isEmpty {
+            return false
+        }
+        if closesAtMinutes != nil {
+            return true
         }
         return openNow
     }
