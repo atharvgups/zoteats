@@ -55,9 +55,12 @@ struct WidgetSnapshotStoreTests {
         #expect(loaded?.count == 1)
         #expect(loaded?.first?.id == "anteatery")
         #expect(WidgetSnapshotStore.savedAt(for: key) != nil)
+        #expect(WidgetSnapshotStore.savedOnCurrentIrvineDay(key))
+        #expect(WidgetSnapshotStore.loadDiningLocationsIfCurrentDay()?.first?.id == "anteatery")
 
         SharedDefaults.suite.removeObject(forKey: key)
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() == nil)
     }
 
     @Test func diningMenuRoundTripViaSuite() {

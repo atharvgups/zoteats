@@ -45,6 +45,10 @@ final class DiningStore {
 
     init(service: DiningService = DiningService()) {
         self.service = service
+        if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
+            locations = .loaded(cached)
+            locationsDateISO = UCITime.todayISO()
+        }
     }
 
     /// Purge stale live menus after Irvine midnight. Returns true when a refetch is needed.
@@ -83,9 +87,12 @@ final class DiningStore {
             publishedDateRange = nextRange
         }
         locationsDateISO = UCITime.todayISO()
-        // The service degrades per-hall; treat "no data at all" as an error state.
+        // The service degrades per-hall; treat "no data at all" as an error
+        // only when we have nothing to paint (keep last-known halls on screen).
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
-            locations = .failed("UCI Dining isn't reachable right now.")
+            if locations.value == nil {
+                locations = .failed("UCI Dining isn't reachable right now.")
+            }
         } else if locations.value != result {
             locations = .loaded(result)
         }
@@ -96,9 +103,36 @@ final class DiningStore {
             WidgetReloader.reloadEatWidgets()
         }
         let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
-        for hall in halls {
-            await loadPostedMenuDates(hall: hall, forceRefresh: forceRefresh)
+        let fromISO = fromISOForPostedDates
+        let throughISO = throughISOForPostedDates
+        let diningService = service
+        await withTaskGroup(of: (String, Set<String>).self) { group in
+            for hall in halls {
+                group.addTask {
+                    let dates = await diningService.postedMenuDates(
+                        hall: hall,
+                        fromISO: fromISO,
+                        throughISO: throughISO,
+                        forceRefresh: forceRefresh
+                    )
+                    return (hall, dates)
+                }
+            }
+            for await (hall, dates) in group {
+                if postedMenuDates[hall] != dates {
+                    postedMenuDates[hall] = dates
+                }
+            }
         }
+    }
+
+    private var fromISOForPostedDates: String {
+        let today = UCITime.todayISO()
+        return max(today, publishedDateRange?.earliest ?? today)
+    }
+
+    private var throughISOForPostedDates: String {
+        publishedDateRange?.latest ?? UCITime.todayISO()
     }
 
     func loadPostedMenuDates(hall: String, forceRefresh: Bool = false) async {
@@ -128,7 +162,18 @@ final class DiningStore {
         reloadWidgets: Bool = true
     ) async {
         let key = "\(hall)|\(period)|\(date ?? "today")"
-        if menus[key]?.value == nil { menus[key] = .loading }
+        if menus[key]?.value == nil {
+            if date == nil,
+               let cached = WidgetSnapshotStore.loadDiningMenu(
+                   hall: hall,
+                   period: period,
+                   dateISO: UCITime.todayISO()
+               ) {
+                menus[key] = .loaded(cached)
+            } else {
+                menus[key] = .loading
+            }
+        }
         do {
             let next = try await service.menu(
                 for: hall,
@@ -236,6 +281,9 @@ final class CampusStore {
 
     init(service: CampusService = CampusService()) {
         self.service = service
+        if let cached = WidgetSnapshotStore.loadCampusPlacesIfCurrentDay() {
+            places = .loaded(cached)
+        }
     }
 
     func loadPlaces() async {
@@ -252,7 +300,9 @@ final class CampusStore {
                 WidgetReloader.reloadCampusOpen()
             }
         } catch {
-            places = .failed(error.localizedDescription)
+            if places.value == nil {
+                places = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -298,6 +348,9 @@ final class BusynessStore {
     ) {
         self.service = service
         self.libraryHoursService = libraryHoursService
+        if let cached = WidgetSnapshotStore.loadBusynessPlacesIfPresent() {
+            facilities = .loaded(cached)
+        }
     }
 
     func load() async {
@@ -319,7 +372,9 @@ final class BusynessStore {
                 WidgetReloader.reloadStudyWidgets()
             }
         } catch {
-            facilities = .failed(error.localizedDescription)
+            if facilities.value == nil {
+                facilities = .failed(error.localizedDescription)
+            }
         }
         if let hours = try? await hoursTask, hours != libraryHours {
             libraryHours = hours

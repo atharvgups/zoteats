@@ -47,18 +47,21 @@ enum FavoriteAlerts {
         var menus: [DiningMenu] = []
         var hallPeriods: [String: (timed: [MealPeriodWindow], available: [String])] = [:]
         let nowMinutes = UCITime.nowMinutes()
-        for location in locations {
-            hallPeriods[location.id] = (location.periods, location.availablePeriods)
-            // Live/upcoming primary pills only — skip ended Breakfast after lunch
-            // and all today leftovers after hours.
-            for period in FavoriteAlertPeriods.eligible(
-                timedPeriods: location.periods,
-                availablePeriods: location.availablePeriods,
-                nowMinutes: nowMinutes
-            ) {
-                if let menu = try? await service.menu(for: location.id, period: period) {
-                    menus.append(menu)
+        await withTaskGroup(of: DiningMenu?.self) { group in
+            for location in locations {
+                hallPeriods[location.id] = (location.periods, location.availablePeriods)
+                for period in FavoriteAlertPeriods.eligible(
+                    timedPeriods: location.periods,
+                    availablePeriods: location.availablePeriods,
+                    nowMinutes: nowMinutes
+                ) {
+                    group.addTask {
+                        try? await service.menu(for: location.id, period: period)
+                    }
                 }
+            }
+            for await menu in group {
+                if let menu { menus.append(menu) }
             }
         }
 

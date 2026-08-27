@@ -468,25 +468,36 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
         libraryReopenMinutes: [Int],
         libraryCloseMinutes: [Int]
     ) {
-        // Cache-first: App Group snapshot from the main app paints real hall
-        // names immediately; network refreshes when the extension budget allows.
         let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
-        let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
-        let networkLooksLive = networked.contains {
-            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
-        }
+        let busynessCached = WidgetSnapshotStore.loadBusynessPlaces()
+        async let waitzFetch = BusynessService(http: HTTPClient(timeout: 6)).all()
+
         let locations: [DiningLocation]
-        if networkLooksLive {
-            WidgetSnapshotStore.saveDiningLocations(networked)
-            locations = networked
-        } else if !cached.isEmpty {
+        if !cached.isEmpty {
             locations = cached
+            Task {
+                let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
+                let networkLooksLive = networked.contains {
+                    !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
+                }
+                if networkLooksLive {
+                    WidgetSnapshotStore.saveDiningLocations(networked)
+                }
+            }
         } else {
+            let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
+            let networkLooksLive = networked.contains {
+                !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
+            }
+            if networkLooksLive {
+                WidgetSnapshotStore.saveDiningLocations(networked)
+            }
             locations = networked
         }
 
         let nowMinutes = UCITime.nowMinutes()
         guard !locations.isEmpty else {
+            _ = try? await waitzFetch
             return (
                 DiningStatusEntry(date: .now, halls: [], needsAppRefresh: true),
                 [],
@@ -573,8 +584,8 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
         let quietest: QuietestLibraryGlance.DiningStatusTip?
         let libraryReopenMinutes: [Int]
         let libraryCloseMinutes: [Int]
-        let busynessCached = WidgetSnapshotStore.loadBusynessPlaces()
-        if let places = try? await BusynessService(http: HTTPClient(timeout: 6)).all() {
+        let waitzPlaces = try? await waitzFetch
+        if let places = waitzPlaces {
             WidgetSnapshotStore.saveBusynessPlaces(places)
             quietest = QuietestLibraryGlance.diningStatusTip(from: places)
             libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
@@ -1680,44 +1691,50 @@ struct FavoritesTodayProvider: TimelineProvider {
         let service = DiningService(http: HTTPClient(timeout: 8))
         let todayISO = UCITime.todayISO()
         var boards: [FavoritesOnMenuPick.Board] = []
-        for hall in liveHalls {
-            let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
-            let choice = TodaysMenuPeriodPick.choose(
-                timedPeriods: timed,
-                availablePeriods: hall.availablePeriods,
-                nowMinutes: nowMinutes
-            )
-            let pill = choice.period
-            guard !pill.isEmpty else { continue }
-
-            let cachedMenu = WidgetSnapshotStore.loadDiningMenu(
-                hall: hall.id,
-                period: pill,
-                dateISO: todayISO
-            )
-            let menu: DiningMenu?
-            if let cachedMenu, !cachedMenu.stations.isEmpty {
-                menu = cachedMenu
-            } else if let networkedMenu = try? await service.menu(for: hall.id, period: pill) {
-                WidgetSnapshotStore.saveDiningMenu(networkedMenu)
-                menu = networkedMenu
-            } else {
-                menu = cachedMenu
-            }
-            guard let menu, !menu.stations.isEmpty else { continue }
-
-            let displayPeriod = MealPeriodDisplay.label(
-                live: choice.livePeriodName,
-                pill: pill
-            )
-            boards.append(
-                FavoritesOnMenuPick.Board(
-                    hallID: hall.id,
-                    hallName: hall.name,
-                    period: displayPeriod,
-                    stations: menu.stations
+        await withTaskGroup(of: FavoritesOnMenuPick.Board?.self) { group in
+            for hall in liveHalls {
+                let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+                let choice = TodaysMenuPeriodPick.choose(
+                    timedPeriods: timed,
+                    availablePeriods: hall.availablePeriods,
+                    nowMinutes: nowMinutes
                 )
-            )
+                let pill = choice.period
+                guard !pill.isEmpty else { continue }
+                let hallID = hall.id
+                let hallName = hall.name
+                let livePeriodName = choice.livePeriodName
+                group.addTask {
+                    let cachedMenu = WidgetSnapshotStore.loadDiningMenu(
+                        hall: hallID,
+                        period: pill,
+                        dateISO: todayISO
+                    )
+                    let menu: DiningMenu?
+                    if let cachedMenu, !cachedMenu.stations.isEmpty {
+                        menu = cachedMenu
+                    } else if let networkedMenu = try? await service.menu(for: hallID, period: pill) {
+                        WidgetSnapshotStore.saveDiningMenu(networkedMenu)
+                        menu = networkedMenu
+                    } else {
+                        menu = cachedMenu
+                    }
+                    guard let menu, !menu.stations.isEmpty else { return nil }
+                    let displayPeriod = MealPeriodDisplay.label(
+                        live: livePeriodName,
+                        pill: pill
+                    )
+                    return FavoritesOnMenuPick.Board(
+                        hallID: hallID,
+                        hallName: hallName,
+                        period: displayPeriod,
+                        stations: menu.stations
+                    )
+                }
+            }
+            for await board in group {
+                if let board { boards.append(board) }
+            }
         }
 
         if let pick = FavoritesOnMenuPick.best(favorites: favorites, boards: boards) {

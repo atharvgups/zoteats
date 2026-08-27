@@ -117,16 +117,27 @@ struct RootTabView: View {
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
     @State private var pendingDeepLink: AnteatsDeepLink?
 
-    // App-lifetime stores: the iOS 26 tab system unloads off-screen tabs, so
-    // per-view stores were recreated (and refetched everything) on every tab
-    // switch. Owning them here makes switching instant after the first load.
-    @State private var diningStore = DiningStore()
-    @State private var campusStore = CampusStore()
-    @State private var busynessStore = BusynessStore()
+    // App-lifetime stores share one TTL cache so Eat / Campus / Study don't
+    // each hammer Anteater + Waitz for the same payloads.
+    @State private var diningStore: DiningStore
+    @State private var campusStore: CampusStore
+    @State private var busynessStore: BusynessStore
     @State private var preferences = Preferences()
     @State private var plate = PlateStore()
     /// Bumps after each meal wrap-up tick so Auto meal countdown fires off Eat.
     @State private var wrapUpEpoch = 0
+
+    init() {
+        let cache = TTLCache()
+        _diningStore = State(initialValue: DiningStore(service: DiningService(cache: cache)))
+        _campusStore = State(initialValue: CampusStore(service: CampusService(cache: cache)))
+        _busynessStore = State(
+            initialValue: BusynessStore(
+                service: BusynessService(cache: cache),
+                libraryHoursService: LibraryHoursService(cache: cache)
+            )
+        )
+    }
 
     private var wrapUpWatchID: String {
         "\(wrapUpEpoch)|\(diningStore.dayEpoch)|\(diningStore.locations.value?.map(\.id).joined() ?? "")"

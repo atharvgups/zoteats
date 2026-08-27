@@ -80,6 +80,36 @@ public enum WidgetSnapshotStore {
         suite.object(forKey: key + savedAtSuffix) as? Date
     }
 
+    /// Snapshot is from today's Irvine calendar day — safe to paint Eat / Campus.
+    public static func savedOnCurrentIrvineDay(_ key: String, now: Date = .now) -> Bool {
+        guard let saved = savedAt(for: key) else { return false }
+        return UCITime.todayISO(now: saved) == UCITime.todayISO(now: now)
+    }
+
+    /// Instant Eat paint: last-known halls from this Irvine day, else nil.
+    public static func loadDiningLocationsIfCurrentDay(now: Date = .now) -> [DiningLocation]? {
+        guard savedOnCurrentIrvineDay(diningLocationsKey, now: now),
+              let locations = loadDiningLocations(),
+              !locations.isEmpty
+        else { return nil }
+        return locations
+    }
+
+    /// Instant Campus paint: last-known places from this Irvine day, else nil.
+    public static func loadCampusPlacesIfCurrentDay(now: Date = .now) -> [CampusPlace]? {
+        guard savedOnCurrentIrvineDay(campusPlacesKey, now: now),
+              let places = loadCampusPlaces(),
+              !places.isEmpty
+        else { return nil }
+        return places
+    }
+
+    /// Instant Study paint: last Waitz reading, even if a few minutes old.
+    public static func loadBusynessPlacesIfPresent() -> [BusynessPoint]? {
+        guard let places = loadBusynessPlaces(), !places.isEmpty else { return nil }
+        return places
+    }
+
     // MARK: - Codable helpers
 
     private static func save<T: Encodable>(_ value: T, key: String) {
