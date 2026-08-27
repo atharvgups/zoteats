@@ -1226,7 +1226,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 dateISO: todayISO
             )
             let menu: DiningMenu?
-            if let cachedMenu {
+            if let cachedMenu, !cachedMenu.stations.isEmpty {
                 menu = cachedMenu
                 let hallID = hall.id
                 Task {
@@ -1240,7 +1240,7 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 if let networkedMenu {
                     WidgetSnapshotStore.saveDiningMenu(networkedMenu)
                 }
-                menu = networkedMenu
+                menu = networkedMenu ?? cachedMenu
             }
             if let menu {
                 let built = SharedDefaults.todaysMenuDishes(
