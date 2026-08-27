@@ -990,6 +990,19 @@ struct DiningView: View {
                     preferredPeriod: period
                 )
             }
+            // Peek Breakfast/Lunch/Dinner without waiting on the open pill.
+            let force = forceRefresh
+            for pill in DiningService.mealSelectorPills where pill != period {
+                Task {
+                    await store.loadMenu(
+                        hall: hall,
+                        period: pill,
+                        date: nil,
+                        forceRefresh: force,
+                        reloadWidgets: false
+                    )
+                }
+            }
         }
     }
 

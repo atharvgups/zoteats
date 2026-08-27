@@ -40,7 +40,7 @@ struct BusynessView: View {
                 .padding(.bottom, 24)
             }
             .refreshable {
-                await store.load()
+                await store.load(forceRefresh: true)
                 boundaryEpoch += 1
             }
             .statusBarBackdrop()
@@ -85,8 +85,8 @@ struct BusynessView: View {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
         guard !Task.isCancelled else { return }
-        await store.load()
         boundaryEpoch += 1
+        await store.load()
     }
 
     private func applyPendingDeepLinkIfNeeded() {

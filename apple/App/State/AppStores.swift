@@ -433,7 +433,15 @@ final class BusynessStore {
         }
     }
 
-    func load() async {
+    func load(forceRefresh: Bool = false) async {
+        if !forceRefresh, facilities.value != nil {
+            Task { await self.fetchFacilities() }
+            return
+        }
+        await fetchFacilities()
+    }
+
+    private func fetchFacilities() async {
         if facilities.value == nil { facilities = .loading }
         async let facilitiesTask = service.all()
         async let hoursTask = libraryHoursService.today()
