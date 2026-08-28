@@ -76,7 +76,7 @@ struct DiningView: View {
         // Flat ScrollView (no searchable / empty nav bar) so Eat title sits under
         // the status bar like Campus — Atharv: kill search + top inset gap.
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 20) {
                 ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
 
                 hallSelector
@@ -84,8 +84,8 @@ struct DiningView: View {
 
                 content
             }
-            .padding(.top, 8)
-            .padding(.bottom, 32)
+            .padding(.top, 12)
+            .padding(.bottom, 40)
         }
         .statusBarBackdrop()
         .refreshable { await refresh() }
@@ -444,11 +444,11 @@ struct DiningView: View {
         let locations = store.locations.value
         let live = (locations ?? []).filter { !$0.isComingSoon }
         let soon = (locations ?? []).filter(\.isComingSoon)
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             HStack(spacing: 10) {
                 if live.isEmpty, locations == nil {
-                    SkeletonCard(height: 76)
-                    SkeletonCard(height: 76)
+                    SkeletonCard(height: 88)
+                    SkeletonCard(height: 88)
                 } else {
                     ForEach(live) { location in
                         hallCard(for: location, compact: false)
@@ -490,31 +490,31 @@ struct DiningView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                 } else {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text(HallDirectory.compactName(for: location.id))
-                            .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
+                            .font(ZotFont.face(21, relativeTo: .title3))
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                         Text(status.text)
-                            .font(ZotFont.face(14, relativeTo: .subheadline).weight(.medium))
+                            .font(ZotFont.caption)
                             .foregroundStyle(status.tint)
                             .lineLimit(1)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected ? Color.selectWash : Color.card,
-                in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                in: RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.28) : Color.cardBorder,
                         lineWidth: 1
                     )
             )
@@ -653,7 +653,7 @@ struct DiningView: View {
     private func menuList(menu: DiningMenu, stations: [MenuStation]) -> some View {
         // Generous spacing between stations welds each header to its own
         // section instead of floating between two.
-        LazyVStack(alignment: .leading, spacing: 30) {
+        LazyVStack(alignment: .leading, spacing: 28) {
             HStack(spacing: 8) {
                 Text(
                     EatPostedDays.browseCaption(
@@ -672,16 +672,14 @@ struct DiningView: View {
             let favorites = favoriteItems(in: stations)
             let hits = hitItems(in: stations)
             if !favorites.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     sectionHeader(
                         title: "Favorites today",
                         count: favorites.count,
                         icon: "heart.fill",
-                        tint: .pink
+                        tint: .accent
                     )
-                    ForEach(favorites) { item in
-                        dishRow(item)
-                    }
+                    groupedDishes(favorites)
                 }
                 .padding(.horizontal, 20)
                 .transition(.opacity)
@@ -689,16 +687,14 @@ struct DiningView: View {
             }
 
             if !hits.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     sectionHeader(
                         title: "Hits",
                         count: hits.count,
                         icon: "star.fill",
-                        tint: .uciGold
+                        tint: .accent
                     )
-                    ForEach(hits) { item in
-                        dishRow(item)
-                    }
+                    groupedDishes(hits)
                 }
                 .padding(.horizontal, 20)
                 .transition(.opacity)
@@ -707,7 +703,7 @@ struct DiningView: View {
 
             ForEach(stations) { station in
                 let isAllDay = CampusMenuNormalize.isAvailableAllDay(station.name)
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     if isAllDay {
                         Button {
                             withAnimation(.snappy(duration: 0.25)) {
@@ -715,26 +711,11 @@ struct DiningView: View {
                             }
                             Haptics.selection()
                         } label: {
-                            HStack(spacing: 9) {
-                                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                                    .fill(Color.uciGold)
-                                    .frame(width: 5, height: 21)
-                                Text(station.name)
-                                    .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
-                                    .foregroundStyle(.primary)
-                                Spacer(minLength: 8)
-                                Text("\(station.items.count)")
-                                    .font(ZotFont.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(.quaternary, in: Capsule())
-                                Image(systemName: allDayExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                                    .frame(width: 18, height: 18)
-                            }
-                            .contentShape(Rectangle())
+                            sectionHeader(
+                                title: station.name,
+                                count: station.items.count,
+                                chevron: allDayExpanded ? "chevron.up" : "chevron.down"
+                            )
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Available all day, \(station.items.count) items")
@@ -745,16 +726,12 @@ struct DiningView: View {
                         )
 
                         if allDayExpanded {
-                            ForEach(station.items) { item in
-                                dishRow(item)
-                            }
-                            .transition(.opacity)
+                            groupedDishes(station.items)
+                                .transition(.opacity)
                         }
                     } else {
                         sectionHeader(title: station.name, count: station.items.count)
-                        ForEach(station.items) { item in
-                            dishRow(item)
-                        }
+                        groupedDishes(station.items)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -872,34 +849,54 @@ struct DiningView: View {
         }
     }
 
+    private func groupedDishes(_ items: [MenuItem]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                dishRow(item)
+                if index < items.count - 1 {
+                    ZotHairline(leading: 16)
+                }
+            }
+        }
+        .zotCard()
+    }
+
     private func sectionHeader(
         title: String,
         count: Int,
         icon: String? = nil,
-        tint: Color = .uciGold
+        tint: Color = Color.accent,
+        chevron: String? = nil
     ) -> some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 8) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(tint)
             } else {
-                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
                     .fill(tint)
-                    .frame(width: 5, height: 21)
+                    .frame(width: 3, height: 14)
             }
-            // A full step above dish names so station boundaries scan clearly.
             Text(title)
-                .font(ZotFont.face(20, relativeTo: .title3).weight(.medium))
-            Spacer()
+                .font(ZotFont.sectionTitle)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.ink)
+            Spacer(minLength: 8)
             Text("\(count)")
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(.quaternary, in: Capsule())
+                .font(ZotFont.caption)
+                .foregroundStyle(Color.inkMuted)
+                .monospacedDigit()
                 .accessibilityLabel("\(count) dishes")
+            if let chevron {
+                Image(systemName: chevron)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 18, height: 18)
+            }
         }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -1519,7 +1516,7 @@ private struct DishRowCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(item.name)
-                        .font(ZotFont.body.weight(.semibold))
+                        .font(ZotFont.body)
                         .multilineTextAlignment(.leading)
 
                     StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
@@ -1552,15 +1549,11 @@ private struct DishRowCard: View {
                     }
                 }
             }
-            .padding(14)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .zotCard()
-        .overlay(
-            RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                .strokeBorder(Color.uciGold.opacity(isFavorite ? 0.65 : 0), lineWidth: 1.5)
-        )
         .accessibilityLabel(
             DishRowAccessibility.label(
                 dishName: item.name,
@@ -1632,9 +1625,8 @@ private struct CalorieBadge: View {
                 .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(Color.ink.opacity(0.1), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
         .accessibilityLabel("\(calories) calories")
     }
 }

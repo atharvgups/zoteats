@@ -22,23 +22,17 @@ struct StatusPill: View {
         return isOpen ? .openGreen : .secondary
     }
 
-    private var fillColor: Color {
-        if onAccent { return .white.opacity(0.18) }
-        return (isOpen ? Color.openGreen : Color.secondary).opacity(0.12)
-    }
-
     var body: some View {
-        HStack(spacing: 5) {
+        // Type + a dot — no capsule fill. Status is hierarchy, not chrome.
+        HStack(spacing: 6) {
             Circle()
                 .fill(dotColor)
-                .frame(width: 7, height: 7)
+                .frame(width: 6, height: 6)
             Text(isOpen ? openText : closedText)
-                .font(ZotFont.pill)
+                .font(ZotFont.kicker)
+                .tracking(0.4)
                 .foregroundStyle(textColor)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(fillColor, in: Capsule())
         .accessibilityLabel(isOpen ? openText : closedText)
     }
 }
@@ -51,10 +45,11 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(ZotFont.caption.weight(.medium))
+            .font(ZotFont.kicker)
+            .tracking(0.2)
             .padding(.horizontal, 7)
-            .padding(.vertical, 3.5)
-            .background(color.opacity(0.12), in: Capsule())
+            .padding(.vertical, 3)
+            .background(color.opacity(0.10), in: Capsule())
             .foregroundStyle(color)
     }
 }
@@ -73,7 +68,7 @@ struct StarRatingControl: View {
                 let filled = value <= stars
                 let star = Image(systemName: filled ? "star.fill" : "star")
                     .font(.system(size: size, weight: .semibold))
-                    .foregroundStyle(filled ? Color.uciGold : Color.inkMuted.opacity(stars == 0 ? 0.28 : 0.4))
+                    .foregroundStyle(filled ? Color.accent : Color.inkMuted.opacity(stars == 0 ? 0.28 : 0.4))
                 if interactive, let onRate {
                     star
                         .symbolEffect(.bounce, value: stars == value)
@@ -149,13 +144,13 @@ struct PillRow<Item: Hashable>: View {
                 .padding(.horizontal, fillsWidth ? 8 : 14)
                 .padding(.vertical, fillsWidth ? 8 : 9)
                 .background(
-                    isSelected ? Color.selectWash : Color.card,
+                    isSelected ? Color.selectWash : Color.clear,
                     in: Capsule()
                 )
                 .foregroundStyle(Color.ink)
                 .overlay(
                     Capsule().strokeBorder(
-                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.28) : Color.cardBorder,
                         lineWidth: 1
                     )
                 )
@@ -252,7 +247,7 @@ struct OccupancyBar: View {
                 Capsule().fill(.quaternary)
                 if let percent {
                     Capsule()
-                        .fill(level.color.gradient)
+                        .fill(level.color)
                         .frame(width: max(height, geo.size.width * CGFloat(percent) / 100))
                 }
             }
@@ -290,12 +285,10 @@ struct EmptyStateView: View {
     var secondaryRetry: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 36, weight: .ultraLight))
+                .font(.system(size: 28, weight: .ultraLight))
                 .foregroundStyle(Color.inkMuted)
-                .frame(width: 64, height: 64)
-                .background(Color.uciGold.opacity(0.14), in: Circle())
             Text(title)
                 .font(ZotFont.cardTitle)
                 .foregroundStyle(Color.ink)
@@ -337,14 +330,14 @@ struct ScreenHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(title)
                     .font(ZotFont.hero())
                     .foregroundStyle(Color.ink)
-                    .tracking(-0.4)
+                    .tracking(-0.8)
                 if let subtitle {
                     Text(subtitle)
-                        .font(ZotFont.face(16, relativeTo: .subheadline))
+                        .font(ZotFont.face(15, relativeTo: .subheadline))
                         .foregroundStyle(Color.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -367,7 +360,7 @@ struct ScreenHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.bottom, 2)
+        .padding(.bottom, 8)
     }
 }
 

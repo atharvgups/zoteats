@@ -44,32 +44,32 @@ private enum WidgetChrome {
 
     static let canvas = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 28 / 255, green: 28 / 255, blue: 26 / 255, alpha: 1)
+            ? UIColor(red: 16 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
             : UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
     })
 
     static let card = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 40 / 255, green: 40 / 255, blue: 37 / 255, alpha: 1)
-            : UIColor(red: 241 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
+            ? UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
+            : UIColor(red: 250 / 255, green: 249 / 255, blue: 242 / 255, alpha: 1)
     })
 
     static let ink = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
-            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 1)
+            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 1)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
     })
 
     static let muted = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 0.58)
-            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 0.52)
+            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 0.58)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.50)
     })
 
     static let hairline = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.08)
-            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 0.08)
+            ? UIColor(white: 1, alpha: 0.10)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.10)
     })
 
     /// Gold on parchment; brighter gold on charcoal so it still reads in Dark Mode.
@@ -80,7 +80,7 @@ private enum WidgetChrome {
     })
 
     static func display(_ size: CGFloat) -> Font {
-        .custom("Instrument Sans", size: size).weight(.medium)
+        .custom("Instrument Sans", size: size)
     }
 
     static func kicker(_ size: CGFloat) -> Font {
@@ -88,7 +88,7 @@ private enum WidgetChrome {
     }
 
     static func row(_ size: CGFloat) -> Font {
-        .custom("Instrument Sans", size: size).weight(.medium)
+        .custom("Instrument Sans", size: size)
     }
 
     static func meta(_ size: CGFloat) -> Font {
@@ -127,10 +127,10 @@ private struct WidgetInsetCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 WidgetChrome.card,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(WidgetChrome.hairline, lineWidth: 1)
             )
     }

@@ -31,13 +31,13 @@ struct BusynessView: View {
         let _ = boundaryEpoch
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     ScreenHeader(title: "Study", subtitle: "Where it’s calm right now", onSettings: openSettings)
                     content
                         .padding(.horizontal, 20)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
             }
             .refreshable {
                 await store.load()
@@ -218,19 +218,15 @@ struct QuietestNowCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.uciGold)
-                .frame(width: 40, height: 40)
-                .background(
-                    Color.uciGold.opacity(0.16),
-                    in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                )
+            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                .fill(Color.accent)
+                .frame(width: 3, height: 28)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("QUIETEST RIGHT NOW")
-                    .font(ZotFont.face(10, relativeTo: .caption2).weight(.medium))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Quietest right now")
+                    .font(ZotFont.kicker)
                     .tracking(0.8)
+                    .textCase(.uppercase)
                     .foregroundStyle(Color.inkMuted)
                 Text(pick.title)
                     .font(ZotFont.cardTitle)
@@ -241,33 +237,19 @@ struct QuietestNowCard: View {
 
             Spacer(minLength: 8)
 
-            VStack(spacing: 1) {
+            VStack(alignment: .trailing, spacing: 1) {
                 Text("\(pick.percent)%")
-                    .font(ZotFont.face(22, relativeTo: .title2).weight(.medium))
+                    .font(ZotFont.face(24, relativeTo: .title2))
                     .monospacedDigit()
                     .foregroundStyle(Color.ink)
                 Text("full")
-                    .font(ZotFont.face(10, relativeTo: .caption2))
+                    .font(ZotFont.kicker)
                     .foregroundStyle(Color.inkMuted)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color.ink.opacity(0.08),
-                    Color.uciGold.opacity(0.07),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                .strokeBorder(Color.ink.opacity(0.18), lineWidth: 1)
-        )
+        .zotCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             QuietestLibraryAccessibilityLabel.label(
@@ -289,42 +271,23 @@ struct QuietestClosedCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "moon.zzz.fill")
-                .font(.system(size: 17, weight: .semibold))
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Quietest right now")
+                .font(ZotFont.kicker)
+                .tracking(0.8)
+                .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
-                .frame(width: 40, height: 40)
-                .background(
-                    Color.primary.opacity(0.05),
-                    in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("QUIETEST RIGHT NOW")
-                    .font(ZotFont.face(10, relativeTo: .caption2).weight(.medium))
-                    .tracking(0.8)
-                    .foregroundStyle(Color.inkMuted)
-                Text(QuietestLibraryGlance.closedTitle)
-                    .font(ZotFont.cardTitle)
-                    .foregroundStyle(Color.ink)
-                Text(detail)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(Color.inkMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
+            Text(QuietestLibraryGlance.closedTitle)
+                .font(ZotFont.cardTitle)
+                .foregroundStyle(Color.ink)
+            Text(detail)
+                .font(ZotFont.caption)
+                .foregroundStyle(Color.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.card,
-            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-                .strokeBorder(Color.cardBorder, lineWidth: 1)
-        )
+        .zotCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(QuietestLibraryGlance.closedTitle). \(detail)")
     }
@@ -338,10 +301,10 @@ private struct LibraryHoursTodayCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Today’s hours")
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(ZotFont.kicker)
+                .tracking(0.8)
                 .textCase(.uppercase)
-                .tracking(0.4)
+                .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
 
             HStack(alignment: .center, spacing: 0) {
@@ -356,7 +319,7 @@ private struct LibraryHoursTodayCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Text(building.shortName)
-                                .font(ZotFont.body.weight(.semibold))
+                                .font(ZotFont.body)
                                 .foregroundStyle(Color.ink)
                             Text(building.isOpen ? "Open" : "Closed")
                                 .font(ZotFont.caption.weight(.semibold))
@@ -376,13 +339,10 @@ private struct LibraryHoursTodayCard: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.primary.opacity(0.04),
-            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-        )
+        .zotCard()
     }
 }
 
@@ -395,10 +355,10 @@ private struct StudentCenterStudyCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Student Center")
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(Color.inkMuted)
+                .font(ZotFont.kicker)
+                .tracking(0.8)
                 .textCase(.uppercase)
-                .tracking(0.4)
+                .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
 
             ForEach(spaces) { space in
@@ -423,13 +383,10 @@ private struct StudentCenterStudyCard: View {
                 )
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.primary.opacity(0.04),
-            in: RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
-        )
+        .zotCard()
     }
 
     private func shortName(_ name: String) -> String {
@@ -456,7 +413,9 @@ struct BusynessGroupSection: View {
             if showHeader {
                 Text(category)
                     .font(ZotFont.sectionTitle)
-                    .foregroundStyle(.secondary)
+                    .tracking(0.6)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.inkMuted)
                     .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)
             }
@@ -512,7 +471,7 @@ struct BusynessFacilityCard: View {
                     if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
                        let percent = facility.percent {
                         Text("\(percent)%")
-                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
+                            .font(ZotFont.face(28, relativeTo: .title))
                             .monospacedDigit()
                             .foregroundStyle(facility.level.color)
                         Text(facility.level.label)
@@ -708,7 +667,6 @@ struct BusynessZoneRowView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             StudyZoneAccessibilityLabel.label(

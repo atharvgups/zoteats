@@ -29,10 +29,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 20) {
                     ScreenHeader(title: "Settings", subtitle: "Appearance, alerts, widgets")
 
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
                         alertsCard
                         reviewsCard
@@ -42,8 +42,8 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 20)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
             }
             .background(Color.screen)
             .toolbar(.hidden, for: .navigationBar)
@@ -79,6 +79,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Appearance")
                 .font(ZotFont.sectionTitle)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
 
             HStack(spacing: 10) {
                 ForEach(AppearanceSetting.allCases) { option in
@@ -110,6 +113,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Notifications")
                 .font(ZotFont.sectionTitle)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
 
             Toggle(isOn: $alertsEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -270,7 +276,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Ratings")
                 .font(ZotFont.sectionTitle)
-                .foregroundStyle(Color.ink)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
 
             if prefs.mealReviews.isEmpty {
                 Text("Star a dish on Eat. It stays on this iPhone.")
@@ -317,7 +325,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Widgets")
                 .font(ZotFont.sectionTitle)
-                .foregroundStyle(Color.ink)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
 
             Text("Home Screen → Edit → Anteats")
                 .font(ZotFont.caption)
@@ -363,6 +373,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("About")
                 .font(ZotFont.sectionTitle)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
 
             Text("Anteats is an unofficial student project for UC Irvine — dining menus, campus food hours, and live library busyness in one place. Not affiliated with UC Irvine.")
                 .font(ZotFont.caption)
@@ -405,6 +418,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Data Sources")
                 .font(ZotFont.sectionTitle)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
 
             sourceRow(
                 icon: "fork.knife",
@@ -434,7 +450,7 @@ struct SettingsView: View {
                 url: "https://www.lib.uci.edu/hours"
             )
 
-            Text("All data comes from public, community sources and may change without notice. Library busyness is live sensor data.")
+            Text("Hall menus are live from Anteater API. Campus retail uses Dining Hub when a board exists; otherwise a labeled typical menu — never shown as today’s live board.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 4)
@@ -532,14 +548,14 @@ private struct AppearanceOption: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
-                isSelected ? Color.ink.opacity(0.1) : Color.primary.opacity(0.03),
+                isSelected ? Color.selectWash : Color.clear,
                 in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.ink.opacity(0.4) : Color.cardBorder,
-                        lineWidth: isSelected ? 1.5 : 1
+                        isSelected ? Color.ink.opacity(0.28) : Color.cardBorder,
+                        lineWidth: 1
                     )
             )
         }

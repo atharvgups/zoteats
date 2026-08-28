@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
-@Suite("WidgetSnapshotStore + countdown copy")
+@Suite("WidgetSnapshotStore + countdown copy", .serialized)
 struct WidgetSnapshotStoreTests {
     @Test func countdownShortFormats() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)

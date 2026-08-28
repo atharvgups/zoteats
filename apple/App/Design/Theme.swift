@@ -1,62 +1,69 @@
 import SwiftUI
 
-// Anteats design language — warm analog parchment (Tolan-adjacent) with UCI
-// gold as a quiet accent. Chrome stays charcoal; type is one grotesque family.
-// Instrument Sans (SIL OFL) stands in for Tolan’s GT America, which we can’t
-// ship without a commercial license.
+// Anteats visual system — quiet paper, one gold accent, type as hierarchy.
+// Light is warm parchment; dark is a first-class near-black, not a dimmed
+// invert. Chrome is hairlines. Presence comes from size and air, not weight
+// or colored pills. Instrument Sans (SIL OFL) is the one grotesque.
 
 extension Color {
-    /// UCI primary blue (#0064A4) — kept for the cheer easter egg, not chrome.
+    /// UCI primary blue (#0064A4) — cheer easter egg only, never chrome.
     static let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
-    /// UCI gold (#FFD200).
+    /// UCI gold (#FFD200) — the one accent.
     static let uciGold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
     /// Deeper blue for the cheer gradient (#004A7C).
     static let uciBlueDeep = Color(red: 0 / 255, green: 74 / 255, blue: 124 / 255)
 
-    /// Charcoal ink on parchment; parchment ink in dark.
+    /// Primary ink — charcoal on paper, cream on dark.
     static let ink = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
-            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 1)
+            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 1)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
     })
 
     /// Secondary copy — same ink, quieter.
     static let inkMuted = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 0.58)
-            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 0.52)
+            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 0.58)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.50)
     })
 
-    /// Page canvas — Tolan parchment #F4F2E7 / warm charcoal in dark.
+    /// Page canvas — parchment #F4F2E7 / near-black in dark (not a grey lift).
     static let screen = Color(uiColor: UIColor { traits in
         if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 28 / 255, green: 28 / 255, blue: 26 / 255, alpha: 1)
+            return UIColor(red: 16 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
         }
         return UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
     })
 
-    /// Card surface, a hair off the canvas (#F1F0E8).
+    /// Raised surface — a hair brighter than the page, so cards don't box.
     static let card = Color(uiColor: UIColor { traits in
         if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 40 / 255, green: 40 / 255, blue: 37 / 255, alpha: 1)
+            return UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
         }
-        return UIColor(red: 241 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
+        return UIColor(red: 250 / 255, green: 249 / 255, blue: 242 / 255, alpha: 1)
     })
 
-    /// Hairline — opacity, not a drawn shadow.
+    /// Hairline — opacity, never a shadow.
     static let cardBorder = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.08)
-            : UIColor(red: 44 / 255, green: 44 / 255, blue: 44 / 255, alpha: 0.08)
+            ? UIColor(white: 1, alpha: 0.10)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.10)
     })
 
-    /// Selected wash — charcoal at 8%, never a loud campus blue.
-    static let selectWash = Color.ink.opacity(0.08)
+    /// Selected wash — charcoal at 6%, never campus blue.
+    static let selectWash = Color.ink.opacity(0.06)
 
-    /// Open / positive — Tolan green #01A858.
+    /// Gold that still reads on parchment (full #FFD200 washes out in light).
+    static let accent = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
+            : UIColor(red: 168 / 255, green: 122 / 255, blue: 0 / 255, alpha: 1)
+    })
+
+    /// Open / positive — quiet green, not a second brand color.
     static let openGreen = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
-    static let busyOrange = Color(red: 245 / 255, green: 158 / 255, blue: 11 / 255)
-    static let crowdedRed = Color(red: 225 / 255, green: 29 / 255, blue: 72 / 255)
+    static let busyOrange = Color(red: 214 / 255, green: 140 / 255, blue: 32 / 255)
+    static let crowdedRed = Color(red: 196 / 255, green: 62 / 255, blue: 74 / 255)
 }
 
 enum ZotFont {
@@ -67,32 +74,35 @@ enum ZotFont {
         .custom(family, size: size, relativeTo: style)
     }
 
-    /// Screen titles — regular, like Tolan. Presence from size, not weight.
-    static func hero(_ size: CGFloat = 34) -> Font {
+    /// Screen titles — regular. Presence from size and tracking, not weight.
+    static func hero(_ size: CGFloat = 36) -> Font {
         face(size, relativeTo: .largeTitle)
     }
 
-    static let cardTitle = face(17, relativeTo: .headline).weight(.medium)
-    static let sectionTitle = face(15, relativeTo: .subheadline).weight(.medium)
-    static let body = face(17, relativeTo: .body)
+    static let cardTitle = face(18, relativeTo: .headline)
+    static let sectionTitle = face(13, relativeTo: .subheadline).weight(.medium)
+    static let body = face(16, relativeTo: .body)
     static let caption = face(13, relativeTo: .caption)
-    static let pill = face(15, relativeTo: .subheadline).weight(.medium)
+    static let pill = face(14, relativeTo: .subheadline).weight(.medium)
+    static let kicker = face(11, relativeTo: .caption2).weight(.medium)
 }
 
 // MARK: - Motion (soft springs — presence, not bounce)
 
 enum ZotMotion {
-    static let select = Animation.spring(response: 0.34, dampingFraction: 0.78)
-    static let soft = Animation.spring(response: 0.48, dampingFraction: 0.86)
-    static let appear = Animation.spring(response: 0.55, dampingFraction: 0.88)
+    static let select = Animation.spring(response: 0.38, dampingFraction: 0.86)
+    static let soft = Animation.spring(response: 0.52, dampingFraction: 0.90)
+    static let appear = Animation.spring(response: 0.60, dampingFraction: 0.92)
 }
 
-// MARK: - Radius tokens (one language of rounding everywhere)
+// MARK: - Radius tokens
 
-/// Cards and sheets — Tolan’s 15pt language.
-let zotCardRadius: CGFloat = 15
-/// Rows and tiles nested inside cards.
-let zotInnerRadius: CGFloat = 12
+/// Eat hall heroes — large rounded, not the list language.
+let zotHallRadius: CGFloat = 20
+/// Cards and sheets.
+let zotCardRadius: CGFloat = 16
+/// Rows nested inside cards.
+let zotInnerRadius: CGFloat = 10
 /// Chips — fully pill.
 let zotChipRadius: CGFloat = 999
 
@@ -111,6 +121,17 @@ struct CardStyle: ViewModifier {
 extension View {
     func zotCard() -> some View {
         modifier(CardStyle())
+    }
+}
+
+/// Hairline rule — leading inset so lists read as one surface, not boxes.
+struct ZotHairline: View {
+    var leading: CGFloat = 16
+
+    var body: some View {
+        Color.cardBorder
+            .frame(height: 1)
+            .padding(.leading, leading)
     }
 }
 

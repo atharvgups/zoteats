@@ -35,7 +35,7 @@ struct CampusView: View {
         // re-render after each boundary tick.
         let _ = boundaryEpoch
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 20) {
                 ScreenHeader(title: "Campus", subtitle: "Cafés, courts, and markets", onSettings: openSettings)
 
                 filterBar
@@ -43,8 +43,8 @@ struct CampusView: View {
                 content
                     .padding(.horizontal, 20)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.top, 12)
+            .padding(.bottom, 32)
         }
         .refreshable {
             await store.loadPlaces()
@@ -375,6 +375,9 @@ struct CampusView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Favorites")
                 .font(ZotFont.sectionTitle)
+                .tracking(0.6)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
@@ -427,21 +430,13 @@ private struct CampusVenueGlyph: View {
         CampusDirectorySection.grouping(forHubCategory: category)
     }
 
-    private var tint: Color {
-        switch section {
-        case .coffee: return Color.uciGold
-        case .food: return TagPalette.clay
-        case .markets: return TagPalette.sage
-        }
-    }
-
     var body: some View {
         Image(systemName: section.symbolName)
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(isOpen ? tint : Color.inkMuted)
-            .frame(width: 40, height: 40)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(isOpen ? Color.ink : Color.inkMuted)
+            .frame(width: 36, height: 36)
             .background(
-                tint.opacity(isOpen ? 0.16 : 0.08),
+                Color.ink.opacity(isOpen ? 0.06 : 0.04),
                 in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
             )
             .accessibilityHidden(true)
@@ -545,7 +540,7 @@ private struct CampusPlaceRow: View {
                     CampusVenueGlyph(category: place.category, isOpen: place.openNow)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(displayName)
-                            .font(ZotFont.body.weight(.semibold))
+                            .font(ZotFont.body)
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
@@ -761,6 +756,9 @@ struct CampusMenuSheet: View {
                         HStack {
                             Text(station.name)
                                 .font(ZotFont.sectionTitle)
+                                .tracking(0.6)
+                                .textCase(.uppercase)
+                                .foregroundStyle(Color.ink)
                             Spacer()
                             Text("\(station.items.count)")
                                 .font(ZotFont.caption.weight(.semibold))
@@ -778,22 +776,37 @@ struct CampusMenuSheet: View {
                     .accessibilityAddTraits(.isHeader)
 
                     if allDayExpanded {
-                        ForEach(station.items) { item in
-                            CampusMenuItemRow(item: item, prefs: prefs) {
-                                selectedDish = item
+                        VStack(spacing: 0) {
+                            ForEach(Array(station.items.enumerated()), id: \.element.id) { index, item in
+                                CampusMenuItemRow(item: item, prefs: prefs) {
+                                    selectedDish = item
+                                }
+                                if index < station.items.count - 1 {
+                                    ZotHairline(leading: 16)
+                                }
                             }
                         }
+                        .zotCard()
                         .transition(.opacity)
                     }
                 } else {
                     Text(station.name)
                         .font(ZotFont.sectionTitle)
+                        .tracking(0.6)
+                        .textCase(.uppercase)
+                        .foregroundStyle(Color.ink)
                         .accessibilityAddTraits(.isHeader)
-                    ForEach(station.items) { item in
-                        CampusMenuItemRow(item: item, prefs: prefs) {
-                            selectedDish = item
+                    VStack(spacing: 0) {
+                        ForEach(Array(station.items.enumerated()), id: \.element.id) { index, item in
+                            CampusMenuItemRow(item: item, prefs: prefs) {
+                                selectedDish = item
+                            }
+                            if index < station.items.count - 1 {
+                                ZotHairline(leading: 16)
+                            }
                         }
                     }
+                    .zotCard()
                 }
             }
             .padding(.horizontal, 20)
@@ -802,19 +815,27 @@ struct CampusMenuSheet: View {
 
     /// Honest label when Hub had no live SKUs and we filled a typical brand pack.
     private func typicalMenuBanner(_ station: MenuStation) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(CampusTypicalMenus.bannerStationName)
-                .font(ZotFont.sectionTitle)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(Color.accent)
+                    .frame(width: 3, height: 14)
+                Text(CampusTypicalMenus.bannerStationName)
+                    .font(ZotFont.sectionTitle)
+                    .tracking(0.6)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.ink)
+            }
             if let note = station.items.first?.name {
                 Text(note)
                     .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .zotCard()
         .padding(.horizontal, 20)
         .accessibilityElement(children: .combine)
     }
@@ -901,7 +922,7 @@ private struct CampusMenuItemRow: View {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.name)
-                        .font(ZotFont.body.weight(.semibold))
+                        .font(ZotFont.body)
                     StarRatingControl(stars: stars, size: 12) { value in
                         prefs.setReview(
                             dishName: item.name,
@@ -938,19 +959,13 @@ private struct CampusMenuItemRow: View {
                             .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(
-                        Color.ink.opacity(0.1),
-                        in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                    )
                 }
             }
-            .padding(11)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .zotCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             DishRowAccessibility.label(
