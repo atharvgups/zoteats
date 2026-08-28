@@ -103,7 +103,8 @@ struct BusynessView: View {
         case .waitForFacilities:
             return
         case .discard:
-            // Unknown / failed — drop pin so Quietest auto-expand can win again.
+            // Unknown / failed — drop pin so a later Quietest tap isn't stuck
+            // on a stale closed library.
             deepLinkFacilityID = StudyFacilityExpand.pinAfterApplying(linkFacilityID: nil)
             pendingDeepLink = nil
         case .apply(let facilityID):
@@ -353,40 +354,54 @@ private struct StudentCenterStudyCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Student Center")
-                .font(ZotFont.kicker)
-                .tracking(0.8)
-                .textCase(.uppercase)
-                .foregroundStyle(Color.inkMuted)
-                .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Student Center")
+                    .font(ZotFont.kicker)
+                    .tracking(0.8)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.inkMuted)
+                    .accessibilityAddTraits(.isHeader)
+                Text(StudentCenterStudyHours.occupancyNote)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(Color.inkMuted)
+            }
+            .padding(.horizontal, 4)
 
             ForEach(spaces) { space in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(space.isOpen ? Color.openGreen : Color.secondary.opacity(0.35))
-                        .frame(width: 6, height: 6)
-                    Text(shortName(space.name))
-                        .font(ZotFont.body.weight(.semibold))
-                        .foregroundStyle(Color.ink)
-                        .lineLimit(1)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(shortName(space.name))
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                        Text(space.location)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                            .lineLimit(1)
+                    }
                     Spacer(minLength: 8)
-                    Text(space.hours)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(Color.inkMuted)
-                        .lineLimit(1)
-                        .layoutPriority(1)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(space.isOpen ? "Open" : "Closed")
+                            .font(ZotFont.caption.weight(.medium))
+                            .foregroundStyle(space.isOpen ? Color.openGreen : Color.inkMuted)
+                        Text(space.hours)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .zotCard()
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
                     "\(space.name), \(space.location), \(space.isOpen ? "open" : "closed"), \(space.hours)"
                 )
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
     }
 
     private func shortName(_ name: String) -> String {
@@ -402,7 +417,7 @@ struct BusynessGroupSection: View {
     let category: String
     let facilities: [BusynessPoint]
     var showHeader = true
-    /// Auto-expand the quietest library’s floors when Study recommends it.
+    /// Deep-link facility to expand. Quietest never auto-opens floors.
     var expandFacilityID: Int? = nil
     /// Increments on facility deep links so warm re-taps re-expand collapsed floors.
     var expandPulse: Int = 0
@@ -459,98 +474,103 @@ struct BusynessFacilityCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(facility.name)
-                        .font(ZotFont.cardTitle)
-                        .lineLimit(2)
-                    Spacer(minLength: 8)
-                    StatusPill(isOpen: effectivelyOpen)
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
-                       let percent = facility.percent {
-                        Text("\(percent)%")
-                            .font(ZotFont.face(28, relativeTo: .title).weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(facility.level.color)
-                        Text(facility.level.label)
-                            .font(ZotFont.pill)
-                            .foregroundStyle(facility.level.color)
-                    } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
-                        Text("—")
-                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
-                            .foregroundStyle(.secondary)
-                        Text(facility.level.label)
-                            .font(ZotFont.pill)
-                            .foregroundStyle(facility.level.color)
-                    } else {
-                        Text("—")
-                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
-                            .foregroundStyle(.secondary)
-                        Text(StudyFacilityCrowding.closedLevelLabel)
-                            .font(ZotFont.pill)
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(facility.name)
+                            .font(ZotFont.cardTitle)
+                            .lineLimit(2)
+                        Spacer(minLength: 8)
+                        StatusPill(isOpen: effectivelyOpen)
                     }
-                    Spacer()
-                }
 
-                if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
-                    OccupancyBar(percent: facility.percent, level: facility.level)
-                    if let openLine = StudyIdleCopy.facilityOpenDetail(
-                        hoursSummary: facility.hoursSummary,
-                        libraryHours: libraryHours
-                    ) {
-                        Text(openLine)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
+                           let percent = facility.percent {
+                            Text("\(percent)%")
+                                .font(ZotFont.face(28, relativeTo: .title).weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(facility.level.color)
+                            Text(facility.level.label)
+                                .font(ZotFont.pill)
+                                .foregroundStyle(facility.level.color)
+                        } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
+                            Text("—")
+                                .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
+                                .foregroundStyle(.secondary)
+                            Text(facility.level.label)
+                                .font(ZotFont.pill)
+                                .foregroundStyle(facility.level.color)
+                        } else {
+                            Text("—")
+                                .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
+                                .foregroundStyle(.secondary)
+                            Text(StudyFacilityCrowding.closedLevelLabel)
+                                .font(ZotFont.pill)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
                     }
-                } else {
-                    Text(
-                        StudyIdleCopy.facilityClosedDetail(
+
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
+                        OccupancyBar(percent: facility.percent, level: facility.level)
+                        if let openLine = StudyIdleCopy.facilityOpenDetail(
                             hoursSummary: facility.hoursSummary,
                             libraryHours: libraryHours
+                        ) {
+                            Text(openLine)
+                                .font(ZotFont.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(
+                            StudyIdleCopy.facilityClosedDetail(
+                                hoursSummary: facility.hoursSummary,
+                                libraryHours: libraryHours
+                            )
                         )
-                    )
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack {
-                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
-                       let count = facility.count, let capacity = facility.capacity {
-                        Text("\(count) / \(capacity) people")
                             .font(ZotFont.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    UpdatedAgoText(date: facility.updatedAt)
+
+                    HStack {
+                        if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
+                           let count = facility.count, let capacity = facility.capacity {
+                            Text("\(count) / \(capacity) people")
+                                .font(ZotFont.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        UpdatedAgoText(date: facility.updatedAt)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    StudyFacilityAccessibilityLabel.label(
+                        name: facility.name,
+                        isOpen: effectivelyOpen,
+                        percent: facility.percent,
+                        levelLabel: facility.level.label,
+                        peopleCount: facility.count,
+                        capacity: facility.capacity,
+                        updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt),
+                        hoursSummary: facility.hoursSummary
+                    )
+                )
+
+                // Floor % goes stale overnight — only expand while the building is open.
+                if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
+                    expandToggle
                 }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                StudyFacilityAccessibilityLabel.label(
-                    name: facility.name,
-                    isOpen: effectivelyOpen,
-                    percent: facility.percent,
-                    levelLabel: facility.level.label,
-                    peopleCount: facility.count,
-                    capacity: facility.capacity,
-                    updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt),
-                    hoursSummary: facility.hoursSummary
-                )
-            )
+            .padding(16)
+            .zotCard()
 
-            // Floor % goes stale overnight — only expand while the building is open.
-            if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
-                expandToggle
-                if isExpanded {
-                    floorsList
-                }
+            if hasFloors,
+               StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
+               isExpanded {
+                floorsList
             }
         }
-        .padding(16)
-        .zotCard()
         .onAppear {
             expandIfRequested()
         }
@@ -574,7 +594,7 @@ struct BusynessFacilityCard: View {
     }
 
     private var floorsList: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(floors) { floor in
                 BusynessFloorBlock(floor: floor)
             }
@@ -635,7 +655,7 @@ private struct BusynessFloorBlock: View {
                     .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)
 
-                VStack(spacing: 6) {
+                VStack(spacing: 10) {
                     ForEach(floor.zones) { zone in
                         BusynessZoneRowView(zone: zone)
                     }
@@ -651,7 +671,7 @@ struct BusynessZoneRowView: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(zone.displayName)
-                .font(ZotFont.caption)
+                .font(ZotFont.body.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -665,8 +685,9 @@ struct BusynessZoneRowView: View {
                 .foregroundStyle(zone.level.color)
                 .frame(width: 40, alignment: .trailing)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .zotCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             StudyZoneAccessibilityLabel.label(
