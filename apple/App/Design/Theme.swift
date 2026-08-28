@@ -2,8 +2,7 @@ import SwiftUI
 
 // Anteats visual system — quiet paper, one gold accent, type as hierarchy.
 // Light is warm parchment; dark is a first-class near-black, not a dimmed
-// invert. Chrome is hairlines. Presence comes from size and air, not weight
-// or colored pills. Instrument Sans (SIL OFL) is the one grotesque.
+// invert. Chrome is hairlines. Type is SF Pro at normal app weights.
 
 extension Color {
     /// UCI primary blue (#0064A4) — cheer easter egg only, never chrome.
@@ -67,24 +66,22 @@ extension Color {
 }
 
 enum ZotFont {
-    /// PostScript family registered via UIAppFonts (variable wght/wdth).
-    static let family = "Instrument Sans"
-
-    static func face(_ size: CGFloat, relativeTo style: Font.TextStyle = .body) -> Font {
-        .custom(family, size: size, relativeTo: style)
+    /// Sized SF Pro. Callers add medium / semibold / bold.
+    static func face(_ size: CGFloat, relativeTo _: Font.TextStyle = .body) -> Font {
+        .system(size: size, weight: .regular)
     }
 
-    /// Screen titles — regular. Presence from size and tracking, not weight.
+    /// Screen titles — bold SF Pro, same sizes as the quiet visual pass.
     static func hero(_ size: CGFloat = 36) -> Font {
-        face(size, relativeTo: .largeTitle)
+        .system(size: size, weight: .bold)
     }
 
-    static let cardTitle = face(18, relativeTo: .headline)
-    static let sectionTitle = face(13, relativeTo: .subheadline).weight(.medium)
-    static let body = face(16, relativeTo: .body)
-    static let caption = face(13, relativeTo: .caption)
-    static let pill = face(14, relativeTo: .subheadline).weight(.medium)
-    static let kicker = face(11, relativeTo: .caption2).weight(.medium)
+    static let cardTitle = Font.system(size: 18, weight: .semibold)
+    static let sectionTitle = Font.system(size: 13, weight: .semibold)
+    static let body = Font.system(size: 16, weight: .regular)
+    static let caption = Font.system(size: 13, weight: .regular)
+    static let pill = Font.system(size: 14, weight: .medium)
+    static let kicker = Font.system(size: 11, weight: .semibold)
 }
 
 // MARK: - Motion (soft springs — presence, not bounce)

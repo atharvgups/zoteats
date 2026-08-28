@@ -880,7 +880,7 @@ struct CampusMenuSheet: View {
         let kind = CampusMenuEmptyCopy.kind(hasMenuFlag: place.hasMenu, category: place.category)
         return VStack(spacing: 8) {
             Image(systemName: "menucard")
-                .font(.system(size: 32, weight: .light))
+                .font(.system(size: 32, weight: .medium))
                 .foregroundStyle(.secondary)
             Text(CampusMenuEmptyCopy.title(kind))
                 .font(ZotFont.sectionTitle)

@@ -36,8 +36,8 @@ private extension View {
     }
 }
 
-/// Home Screen widget chrome — parchment canvas, nested cards, one grotesque
-/// (Instrument Sans), gold accent. No expanded-black shout.
+/// Home Screen widget chrome — parchment canvas, nested cards, SF Pro at
+/// normal weights, gold accent. No expanded-black shout.
 /// Colors follow the Home Screen appearance so Dark Mode actually flips.
 private enum WidgetChrome {
     static let open = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
@@ -80,19 +80,19 @@ private enum WidgetChrome {
     })
 
     static func display(_ size: CGFloat) -> Font {
-        .custom("Instrument Sans", size: size)
+        .system(size: size, weight: .bold)
     }
 
     static func kicker(_ size: CGFloat) -> Font {
-        .custom("Instrument Sans", size: size).weight(.medium)
+        .system(size: size, weight: .semibold)
     }
 
     static func row(_ size: CGFloat) -> Font {
-        .custom("Instrument Sans", size: size)
+        .system(size: size, weight: .medium)
     }
 
     static func meta(_ size: CGFloat) -> Font {
-        .custom("Instrument Sans", size: size)
+        .system(size: size, weight: .regular)
     }
 }
 

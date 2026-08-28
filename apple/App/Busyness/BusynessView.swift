@@ -239,7 +239,7 @@ struct QuietestNowCard: View {
 
             VStack(alignment: .trailing, spacing: 1) {
                 Text("\(pick.percent)%")
-                    .font(ZotFont.face(24, relativeTo: .title2))
+                    .font(ZotFont.face(24, relativeTo: .title2).weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(Color.ink)
                 Text("full")
@@ -471,7 +471,7 @@ struct BusynessFacilityCard: View {
                     if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
                        let percent = facility.percent {
                         Text("\(percent)%")
-                            .font(ZotFont.face(28, relativeTo: .title))
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.semibold))
                             .monospacedDigit()
                             .foregroundStyle(facility.level.color)
                         Text(facility.level.label)

@@ -492,7 +492,7 @@ struct DiningView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(HallDirectory.compactName(for: location.id))
-                            .font(ZotFont.face(21, relativeTo: .title3))
+                            .font(ZotFont.face(21, relativeTo: .title3).weight(.semibold))
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)

@@ -287,7 +287,7 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 28, weight: .ultraLight))
+                .font(.system(size: 28, weight: .medium))
                 .foregroundStyle(Color.inkMuted)
             Text(title)
                 .font(ZotFont.cardTitle)
@@ -334,7 +334,6 @@ struct ScreenHeader: View {
                 Text(title)
                     .font(ZotFont.hero())
                     .foregroundStyle(Color.ink)
-                    .tracking(-0.8)
                 if let subtitle {
                     Text(subtitle)
                         .font(ZotFont.face(15, relativeTo: .subheadline))
