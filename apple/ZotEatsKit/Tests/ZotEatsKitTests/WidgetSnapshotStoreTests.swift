@@ -55,6 +55,37 @@ struct WidgetSnapshotStoreTests {
         #expect(loaded?.count == 1)
         #expect(loaded?.first?.id == "anteatery")
         #expect(WidgetSnapshotStore.savedAt(for: key) != nil)
+        #expect(WidgetSnapshotStore.savedOnCurrentIrvineDay(key))
+        #expect(WidgetSnapshotStore.loadDiningLocationsIfCurrentDay()?.first?.id == "anteatery")
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() == nil)
+    }
+
+    @Test func yesterdayHallSnapshotDoesNotHydrateToday() {
+        let key = WidgetSnapshotStore.diningLocationsKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let hall = DiningLocation(
+            id: "anteatery",
+            name: "The Anteatery",
+            area: "Middle Earth",
+            openNow: true,
+            todayHours: "7:00 AM – 9:00 PM",
+            availablePeriods: ["Lunch"],
+            periods: [.init(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60)],
+            hoursApproximate: false
+        )
+        WidgetSnapshotStore.saveDiningLocations([hall])
+        let now = Date(timeIntervalSince1970: 1_777_420_800)
+        SharedDefaults.suite.set(
+            now.addingTimeInterval(-36 * 3600),
+            forKey: key + WidgetSnapshotStore.savedAtSuffix
+        )
+        #expect(WidgetSnapshotStore.loadDiningLocationsIfCurrentDay(now: now) == nil)
+        #expect(WidgetSnapshotStore.loadDiningLocations()?.first?.id == "anteatery")
 
         SharedDefaults.suite.removeObject(forKey: key)
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
@@ -105,6 +136,69 @@ struct WidgetSnapshotStoreTests {
 
         SharedDefaults.suite.removeObject(forKey: key)
         SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+    }
+
+    @Test func todayMenusHydrateWhenSavedThisIrvineDay() {
+        let key = WidgetSnapshotStore.diningMenusKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let today = UCITime.todayISO()
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: today,
+            period: "Lunch",
+            stations: [
+                MenuStation(
+                    name: "Grill",
+                    items: [
+                        MenuItem(
+                            id: "1",
+                            name: "Crispy Okra",
+                            description: nil,
+                            calories: nil,
+                            servingSize: nil,
+                            allergens: [],
+                            dietaryTags: []
+                        ),
+                    ]
+                ),
+            ]
+        )
+        WidgetSnapshotStore.saveDiningMenu(menu)
+        let loaded = WidgetSnapshotStore.loadDiningMenusIfCurrentDay()
+        #expect(loaded.contains { $0.locationId == "anteatery" && $0.period == "Lunch" })
+        #expect(loaded.first?.stations.first?.items.first?.name == "Crispy Okra")
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadDiningMenusIfCurrentDay().isEmpty)
+    }
+
+    @Test func waitzSnapshotPaintsEvenIfAFewMinutesOld() {
+        let key = WidgetSnapshotStore.busynessPlacesKey
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+
+        let point = BusynessPoint(
+            id: 1,
+            name: "Langson Library",
+            category: "Library",
+            count: 80,
+            capacity: 600,
+            percent: 12,
+            level: .notBusy,
+            isOpen: true,
+            hoursSummary: "open",
+            updatedAt: Date(),
+            subLocations: nil
+        )
+        WidgetSnapshotStore.saveBusynessPlaces([point])
+        #expect(WidgetSnapshotStore.loadBusynessPlacesIfPresent()?.first?.id == 1)
+
+        SharedDefaults.suite.removeObject(forKey: key)
+        SharedDefaults.suite.removeObject(forKey: key + WidgetSnapshotStore.savedAtSuffix)
+        #expect(WidgetSnapshotStore.loadBusynessPlacesIfPresent() == nil)
     }
 
     @Test func emptyCopyIsReadable() {

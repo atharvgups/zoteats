@@ -468,22 +468,14 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
         libraryReopenMinutes: [Int],
         libraryCloseMinutes: [Int]
     ) {
-        // Cache-first: App Group snapshot from the main app paints real hall
-        // names immediately; network refreshes when the extension budget allows.
-        let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
-        let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
-        let networkLooksLive = networked.contains {
-            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
-        }
-        let locations: [DiningLocation]
-        if networkLooksLive {
-            WidgetSnapshotStore.saveDiningLocations(networked)
-            locations = networked
-        } else if !cached.isEmpty {
-            locations = cached
-        } else {
-            locations = networked
-        }
+        // Cache-first: today's App Group snapshot paints real hall names
+        // immediately; network only runs when that snapshot is missing.
+        async let locationsTask = WidgetSnapshotPaint.diningLocations()
+        async let waitzTask = WidgetSnapshotPaint.busynessPlaces()
+        async let campusTask = WidgetSnapshotPaint.campusPlaces()
+        let locations = await locationsTask
+        let waitzPlaces = await waitzTask
+        let campusPlaces = await campusTask
 
         let nowMinutes = UCITime.nowMinutes()
         guard !locations.isEmpty else {
@@ -573,16 +565,10 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
         let quietest: QuietestLibraryGlance.DiningStatusTip?
         let libraryReopenMinutes: [Int]
         let libraryCloseMinutes: [Int]
-        let busynessCached = WidgetSnapshotStore.loadBusynessPlaces()
-        if let places = try? await BusynessService(http: HTTPClient(timeout: 6)).all() {
-            WidgetSnapshotStore.saveBusynessPlaces(places)
-            quietest = QuietestLibraryGlance.diningStatusTip(from: places)
-            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
-            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: places)
-        } else if let places = busynessCached {
-            quietest = QuietestLibraryGlance.diningStatusTip(from: places)
-            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: places)
-            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: places)
+        if !waitzPlaces.isEmpty {
+            quietest = QuietestLibraryGlance.diningStatusTip(from: waitzPlaces)
+            libraryReopenMinutes = QuietestLibraryReload.reopenMinutes(from: waitzPlaces)
+            libraryCloseMinutes = QuietestLibraryReload.closeMinutes(from: waitzPlaces)
         } else {
             quietest = nil
             libraryReopenMinutes = []
@@ -621,7 +607,6 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
             }
         }
 
-        let campusPlaces = WidgetSnapshotStore.loadCampusPlaces() ?? []
         let campus = WidgetGlanceExtras.campusRows(
             places: campusPlaces,
             favoriteIDs: Set(SharedDefaults.favoriteCampusPlaceIDs()),
@@ -929,6 +914,74 @@ struct DiningHallEntity: AppEntity, Equatable {
     }
 }
 
+private enum WidgetSnapshotPaint {
+    private static let http = HTTPClient(timeout: 8)
+    private static let waitzHTTP = HTTPClient(timeout: 6)
+
+    static func diningService() -> DiningService {
+        DiningService(http: http)
+    }
+
+    static func diningLocations() async -> [DiningLocation] {
+        if let cached = WidgetSnapshotStore.loadDiningLocationsIfCurrentDay() {
+            Task { await refreshDiningLocations() }
+            return cached
+        }
+        return await refreshDiningLocations()
+    }
+
+    @discardableResult
+    private static func refreshDiningLocations() async -> [DiningLocation] {
+        let networked = await DiningService(http: http).locations()
+        let networkLooksLive = networked.contains {
+            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
+        }
+        if networkLooksLive {
+            WidgetSnapshotStore.saveDiningLocations(networked)
+            return networked
+        }
+        return WidgetSnapshotStore.loadDiningLocations() ?? networked
+    }
+
+    static func campusPlaces() async -> [CampusPlace] {
+        if let cached = WidgetSnapshotStore.loadCampusPlacesIfCurrentDay() {
+            Task { await refreshCampusPlaces() }
+            return cached
+        }
+        return await refreshCampusPlaces()
+    }
+
+    @discardableResult
+    private static func refreshCampusPlaces() async -> [CampusPlace] {
+        let cached = WidgetSnapshotStore.loadCampusPlaces() ?? []
+        if let networked = try? await CampusService(http: http).places(),
+           !networked.isEmpty {
+            WidgetSnapshotStore.saveCampusPlaces(networked)
+            return networked
+        }
+        return cached
+    }
+
+    static func busynessPlaces() async -> [BusynessPoint] {
+        if let cached = WidgetSnapshotStore.loadBusynessPlacesIfPresent() {
+            Task { await refreshBusynessPlaces() }
+            return cached
+        }
+        return await refreshBusynessPlaces()
+    }
+
+    @discardableResult
+    private static func refreshBusynessPlaces() async -> [BusynessPoint] {
+        let cached = WidgetSnapshotStore.loadBusynessPlaces() ?? []
+        if let networked = try? await BusynessService(http: waitzHTTP).all(),
+           !networked.isEmpty {
+            WidgetSnapshotStore.saveBusynessPlaces(networked)
+            return networked
+        }
+        return cached
+    }
+}
+
 struct DiningHallEntityQuery: EntityQuery {
     func entities(for identifiers: [DiningHallEntity.ID]) async throws -> [DiningHallEntity] {
         let all = await Self.allEntities()
@@ -949,7 +1002,7 @@ struct DiningHallEntityQuery: EntityQuery {
     }
 
     private static func allEntities() async -> [DiningHallEntity] {
-        let locations = await DiningService().locations()
+        let locations = await WidgetSnapshotPaint.diningLocations()
         return TodaysMenuHallChoices.options(from: locations).map {
             DiningHallEntity(id: $0.id, title: $0.title)
         }
@@ -1106,14 +1159,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
     }
 
     private func fetchEntry(for configuration: TodaysMenuConfigurationIntent) async -> TodaysMenuEntry {
-        let service = DiningService(http: HTTPClient(timeout: 8))
-        let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
-        let networked = await service.locations()
-        let networkLooksLive = networked.contains {
-            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
-        }
-        let locations = networkLooksLive ? networked : (cached.isEmpty ? networked : cached)
-        if networkLooksLive { WidgetSnapshotStore.saveDiningLocations(networked) }
+        let service = WidgetSnapshotPaint.diningService()
+        let locations = await WidgetSnapshotPaint.diningLocations()
         let nowMinutes = UCITime.nowMinutes()
 
         let hall: DiningLocation?
@@ -1157,11 +1204,23 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                 period: pill,
                 dateISO: todayISO
             )
-            let networkedMenu = try? await service.menu(for: hall.id, period: pill)
-            if let networkedMenu {
-                WidgetSnapshotStore.saveDiningMenu(networkedMenu)
+            let menu: DiningMenu?
+            if let cachedMenu, !cachedMenu.stations.isEmpty {
+                menu = cachedMenu
+                let hallID = hall.id
+                Task {
+                    if let networkedMenu = try? await WidgetSnapshotPaint.diningService()
+                        .menu(for: hallID, period: pill) {
+                        WidgetSnapshotStore.saveDiningMenu(networkedMenu)
+                    }
+                }
+            } else {
+                let networkedMenu = try? await service.menu(for: hall.id, period: pill)
+                if let networkedMenu {
+                    WidgetSnapshotStore.saveDiningMenu(networkedMenu)
+                }
+                menu = networkedMenu ?? cachedMenu
             }
-            let menu = networkedMenu ?? cachedMenu
             if let menu {
                 let built = SharedDefaults.todaysMenuDishes(
                     stations: menu.stations,
@@ -1633,13 +1692,7 @@ struct FavoritesTodayProvider: TimelineProvider {
         )
         // Cache-first multi-hall scan — App Group boards from Eat open; network
         // only fills gaps so Favorites isn't stuck on Auto hall alone.
-        let cached = WidgetSnapshotStore.loadDiningLocations() ?? []
-        let networked = await DiningService(http: HTTPClient(timeout: 8)).locations()
-        let networkLooksLive = networked.contains {
-            !$0.availablePeriods.isEmpty || $0.todayHours != nil || !$0.periods.isEmpty
-        }
-        let locations = networkLooksLive ? networked : (cached.isEmpty ? networked : cached)
-        if networkLooksLive { WidgetSnapshotStore.saveDiningLocations(networked) }
+        let locations = await WidgetSnapshotPaint.diningLocations()
         let nowMinutes = UCITime.nowMinutes()
         let reloadBoundaries = TodaysMenuReload.boundaries(
             locations: locations,
@@ -1677,7 +1730,7 @@ struct FavoritesTodayProvider: TimelineProvider {
             )
         }
 
-        let service = DiningService(http: HTTPClient(timeout: 8))
+        let service = WidgetSnapshotPaint.diningService()
         let todayISO = UCITime.todayISO()
         var boards: [FavoritesOnMenuPick.Board] = []
         for hall in liveHalls {
@@ -1935,13 +1988,7 @@ struct CampusOpenProvider: TimelineProvider {
     }
 
     private func loadPlaces() async -> [CampusPlace] {
-        let cached = WidgetSnapshotStore.loadCampusPlaces() ?? []
-        if let networked = try? await CampusService(http: HTTPClient(timeout: 8)).places(),
-           !networked.isEmpty {
-            WidgetSnapshotStore.saveCampusPlaces(networked)
-            return networked
-        }
-        return cached
+        await WidgetSnapshotPaint.campusPlaces()
     }
 
     private func entry(from places: [CampusPlace]) -> CampusOpenEntry {
@@ -2192,13 +2239,7 @@ struct QuietestLibraryProvider: TimelineProvider {
     }
 
     private func fetchEntry() async -> QuietestLibraryEntry {
-        let cached = WidgetSnapshotStore.loadBusynessPlaces() ?? []
-        if let networked = try? await BusynessService(http: HTTPClient(timeout: 6)).all(),
-           !networked.isEmpty {
-            WidgetSnapshotStore.saveBusynessPlaces(networked)
-            return Self.entry(from: networked)
-        }
-        return Self.entry(from: cached)
+        Self.entry(from: await WidgetSnapshotPaint.busynessPlaces())
     }
 
     private static func entry(from facilities: [BusynessPoint]) -> QuietestLibraryEntry {
@@ -2421,25 +2462,10 @@ struct CampusStudyProvider: AppIntentTimelineProvider {
     }
 
     private func fetchEntry(favoritesOnly: Bool) async -> CampusStudyEntry {
-        let cachedCampus = WidgetSnapshotStore.loadCampusPlaces() ?? []
-        let campusPlaces: [CampusPlace]
-        if let networked = try? await CampusService(http: HTTPClient(timeout: 8)).places(),
-           !networked.isEmpty {
-            WidgetSnapshotStore.saveCampusPlaces(networked)
-            campusPlaces = networked
-        } else {
-            campusPlaces = cachedCampus
-        }
-
-        let cachedStudy = WidgetSnapshotStore.loadBusynessPlaces() ?? []
-        let facilities: [BusynessPoint]
-        if let networked = try? await BusynessService(http: HTTPClient(timeout: 6)).all(),
-           !networked.isEmpty {
-            WidgetSnapshotStore.saveBusynessPlaces(networked)
-            facilities = networked
-        } else {
-            facilities = cachedStudy
-        }
+        async let campusTask = WidgetSnapshotPaint.campusPlaces()
+        async let waitzTask = WidgetSnapshotPaint.busynessPlaces()
+        let campusPlaces = await campusTask
+        let facilities = await waitzTask
 
         let campus = WidgetGlanceExtras.campusRows(
             places: campusPlaces,
