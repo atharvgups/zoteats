@@ -53,11 +53,13 @@ extension Color {
     static let selectWash = Color.ink.opacity(0.06)
 
     /// Gold that still reads on parchment (full #FFD200 washes out in light).
-    static let accent = Color(uiColor: UIColor { traits in
+    static let accentUIColor = UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
             : UIColor(red: 168 / 255, green: 122 / 255, blue: 0 / 255, alpha: 1)
-    })
+    }
+
+    static let accent = Color(uiColor: accentUIColor)
 
     /// Open / positive — quiet green, not a second brand color.
     static let openGreen = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
@@ -82,6 +84,16 @@ enum ZotFont {
     static let caption = Font.system(size: 13, weight: .regular)
     static let pill = Font.system(size: 14, weight: .medium)
     static let kicker = Font.system(size: 11, weight: .semibold)
+}
+
+/// System UISwitch — gray well off, gold on, white thumb.
+/// App chrome tints with cream ink; without this, dark-mode switches fill as
+/// white pills with no visible knob.
+enum ZotSwitch {
+    static func configure() {
+        UISwitch.appearance().onTintColor = Color.accentUIColor
+        UISwitch.appearance().thumbTintColor = .white
+    }
 }
 
 // MARK: - Motion (soft springs — presence, not bounce)

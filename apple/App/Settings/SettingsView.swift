@@ -70,6 +70,7 @@ struct SettingsView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .tint(Color.accent)
     }
 
     // MARK: - Appearance

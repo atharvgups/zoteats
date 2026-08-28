@@ -59,6 +59,7 @@ struct ZotEatsApp: App {
 
     init() {
         NotificationRouter.shared.install()
+        ZotSwitch.configure()
     }
 
     var body: some Scene {
@@ -139,6 +140,7 @@ struct RootTabView: View {
             .environment(\.openSettings) { showSettings = true }
             .sheet(isPresented: $showSettings) {
                 SettingsView(prefs: preferences)
+                    .tint(Color.accent)
             }
             .task(id: wrapUpWatchID) {
                 await watchMealWrapUps()
