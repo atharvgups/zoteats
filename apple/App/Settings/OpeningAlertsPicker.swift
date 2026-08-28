@@ -112,7 +112,8 @@ struct OpeningAlertsPicker: View {
                     .lineLimit(1)
             }
         }
-        .tint(.ink)
+        .toggleStyle(.switch)
+        .tint(Color.accent)
         .padding(.vertical, 6)
         .accessibilityIdentifier("openAlert-\(id)")
     }

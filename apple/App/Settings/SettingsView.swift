@@ -122,7 +122,8 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .tint(.ink)
+            .toggleStyle(.switch)
+            .tint(Color.accent)
             .accessibilityIdentifier("favorite-alerts-toggle")
             .onChange(of: alertsEnabled) { _, enabled in
                 guard enabled else {
@@ -156,7 +157,8 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .tint(.ink)
+            .toggleStyle(.switch)
+            .tint(Color.accent)
             .accessibilityIdentifier("menu-drop-alerts-toggle")
             .onChange(of: menuDropEnabled) { _, enabled in
                 guard enabled else {
@@ -221,7 +223,8 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .tint(.ink)
+            .toggleStyle(.switch)
+            .tint(Color.accent)
             .accessibilityIdentifier("auto-meal-activity-toggle")
             .onChange(of: autoMealActivity) { _, enabled in
                 MealActivityManager.autoStartEnabled = enabled

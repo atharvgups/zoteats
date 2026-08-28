@@ -214,15 +214,11 @@ struct CampusView: View {
     private var content: some View {
         switch store.places {
         case .idle, .loading:
-            VStack(spacing: 0) {
-                ForEach(0..<6, id: \.self) { index in
-                    SkeletonCard(height: 56)
-                    if index < 5 {
-                        CampusListHairline()
-                    }
+            VStack(spacing: 10) {
+                ForEach(0..<6, id: \.self) { _ in
+                    SkeletonCard(height: 76)
                 }
             }
-            .zotCard()
         case .failed(let message):
             EmptyStateView(
                 icon: "cup.and.saucer",
@@ -246,8 +242,8 @@ struct CampusView: View {
                     favoritesShelf(partition.favorites)
                 }
 
-                VStack(spacing: 0) {
-                    ForEach(Array(brands.enumerated()), id: \.element.brand) { index, entry in
+                VStack(spacing: 10) {
+                    ForEach(Array(brands.enumerated()), id: \.element.brand) { _, entry in
                         if entry.places.count == 1 {
                             CampusPlaceRow(
                                 place: entry.places[0],
@@ -269,12 +265,8 @@ struct CampusView: View {
                                 Haptics.selection()
                             }
                         }
-                        if index < brands.count - 1 {
-                            CampusListHairline()
-                        }
                     }
                 }
-                .zotCard()
             }
         }
     }
@@ -380,8 +372,8 @@ struct CampusView: View {
                 .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
 
-            VStack(spacing: 0) {
-                ForEach(Array(favorites.enumerated()), id: \.element.id) { index, place in
+            VStack(spacing: 10) {
+                ForEach(favorites) { place in
                     CampusPlaceRow(
                         place: place,
                         showBrandOnly: false,
@@ -391,12 +383,8 @@ struct CampusView: View {
                         selectedPlace = place
                         Haptics.selection()
                     }
-                    if index < favorites.count - 1 {
-                        CampusListHairline()
-                    }
                 }
             }
-            .zotCard()
         }
         .padding(.bottom, 4)
         .animation(.snappy(duration: 0.25), value: prefs.favoriteCampusPlaceIDs)
@@ -412,15 +400,6 @@ struct CampusView: View {
 }
 
 // MARK: - Expandable multi-location brand row
-
-private struct CampusListHairline: View {
-    var body: some View {
-        Rectangle()
-            .fill(Color.cardBorder)
-            .frame(height: 1)
-            .padding(.leading, 64)
-    }
-}
 
 private struct CampusVenueGlyph: View {
     let category: String
@@ -461,7 +440,7 @@ private struct CampusBrandGroupRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 10) {
             Button {
                 withAnimation(.snappy(duration: 0.3)) {
                     isExpanded.toggle()
@@ -473,7 +452,7 @@ private struct CampusBrandGroupRow: View {
                         category: places.first?.category ?? "Food Courts",
                         isOpen: openCount > 0
                     )
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(brand)
                             .font(ZotFont.body.weight(.semibold))
                             .foregroundStyle(Color.ink)
@@ -491,18 +470,18 @@ private struct CampusBrandGroupRow: View {
                         .foregroundStyle(.tertiary)
                         .frame(width: 16, height: 16)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .zotCard()
             .accessibilityLabel("\(brand), \(places.count) locations, \(openCount) open")
             .accessibilityHint(isExpanded ? "Hides locations" : "Shows locations")
 
             if isExpanded {
                 ForEach(places) { place in
-                    CampusListHairline()
                     CampusPlaceRow(
                         place: place,
                         title: place.locationDetail ?? place.name,
@@ -538,9 +517,9 @@ private struct CampusPlaceRow: View {
             Button(action: onOpen) {
                 HStack(spacing: 12) {
                     CampusVenueGlyph(category: place.category, isOpen: place.openNow)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(displayName)
-                            .font(ZotFont.body)
+                            .font(ZotFont.body.weight(.semibold))
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
@@ -560,17 +539,18 @@ private struct CampusPlaceRow: View {
 
             Button(action: onToggleFavorite) {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(isFavorite ? Color.ink : Color.secondary.opacity(0.45))
-                    .frame(width: 32, height: 40)
+                    .frame(width: 36, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 8)
-        .padding(.vertical, 10)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 16)
+        .zotCard()
         .accessibilityIdentifier("campus-place-\(place.id)")
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
