@@ -478,12 +478,12 @@ struct DiningView: View {
                 if compact {
                     HStack(spacing: 10) {
                         Text(HallDirectory.compactName(for: location.id))
-                            .font(ZotFont.face(16, relativeTo: .headline).weight(.medium))
+                            .font(ZotFont.body.weight(.semibold))
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                         Spacer(minLength: 8)
                         Text(status.text)
-                            .font(ZotFont.face(13, relativeTo: .caption).weight(.medium))
+                            .font(ZotFont.caption.weight(.medium))
                             .foregroundStyle(status.tint)
                             .lineLimit(1)
                     }
@@ -880,7 +880,6 @@ struct DiningView: View {
             }
             Text(title)
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.ink)
             Spacer(minLength: 8)
@@ -1268,7 +1267,7 @@ private struct DayStrip: View {
                             to: day.isoDate
                            ) {
                             Text("···")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(ZotFont.kicker)
                                 .foregroundStyle(.tertiary)
                                 .accessibilityHidden(true)
                         }
@@ -1281,7 +1280,7 @@ private struct DayStrip: View {
                         } label: {
                             VStack(spacing: 2) {
                                 Text(day.label)
-                                    .font(ZotFont.face(13, relativeTo: .caption).weight(isSelected ? .medium : .regular))
+                                    .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
                                     .foregroundStyle(isSelected ? Color.ink : .secondary)
                                 Capsule()
                                     .fill(isSelected ? Color.ink : .clear)
@@ -1298,7 +1297,7 @@ private struct DayStrip: View {
             }
             if days.count > 3 {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 4)
                     .accessibilityHidden(true)
@@ -1516,7 +1515,7 @@ private struct DishRowCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(item.name)
-                        .font(ZotFont.body)
+                        .font(ZotFont.body.weight(.semibold))
                         .multilineTextAlignment(.leading)
 
                     StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
@@ -1619,10 +1618,10 @@ private struct CalorieBadge: View {
     var body: some View {
         VStack(spacing: -1) {
             Text("\(calories)")
-                .font(ZotFont.face(14, relativeTo: .caption).weight(.medium))
+                .font(ZotFont.body.weight(.semibold))
                 .foregroundStyle(Color.ink)
             Text("cal")
-                .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
+                .font(ZotFont.caption.weight(.medium))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 8)

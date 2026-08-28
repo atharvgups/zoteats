@@ -80,19 +80,19 @@ private enum WidgetChrome {
     })
 
     static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .bold)
+        .system(size: max(size, 15), weight: .bold)
     }
 
     static func kicker(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold)
+        .system(size: max(size, 13), weight: .semibold)
     }
 
     static func row(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .medium)
+        .system(size: max(size, 15), weight: .medium)
     }
 
     static func meta(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .regular)
+        .system(size: max(size, 13), weight: .regular)
     }
 }
 
@@ -104,7 +104,6 @@ private struct WidgetKicker: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
                 .font(WidgetChrome.kicker(11))
-                .tracking(0.8)
                 .foregroundStyle(WidgetChrome.accent)
             Spacer(minLength: 4)
             if let trailing {
@@ -738,7 +737,6 @@ struct DiningStatusView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text((entry.boardHallName ?? "Board").uppercased())
                         .font(WidgetChrome.kicker(10))
-                        .tracking(0.8)
                         .foregroundStyle(WidgetChrome.accent)
                     ForEach(dishes, id: \.self) { dish in
                         Link(destination: AnteatsDeepLink.eat(
@@ -796,7 +794,6 @@ struct DiningStatusView: View {
                         HStack {
                             Text("STUDY")
                                 .font(WidgetChrome.kicker(10))
-                                .tracking(0.8)
                                 .foregroundStyle(WidgetChrome.accent)
                             Spacer(minLength: 4)
                             Text("\(name.uppercased()) · \(percent)%")
@@ -840,7 +837,6 @@ struct DiningStatusView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text(subtitle.uppercased())
                     .font(WidgetChrome.meta(isCompact ? 9 : 10))
-                    .tracking(0.5)
                     .foregroundStyle(WidgetChrome.muted)
                     .lineLimit(1)
                     .opacity(subtitle.isEmpty ? 0 : 1)
@@ -1457,7 +1453,6 @@ struct TodaysMenuView: View {
             if let hint = entry.filterHint, !entry.filtersEmptiedMenu {
                 Text(hint.uppercased())
                     .font(WidgetChrome.meta(10))
-                    .tracking(0.6)
                     .foregroundStyle(WidgetChrome.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -1535,7 +1530,6 @@ struct TodaysMenuView: View {
                         if entry.dishes.count > dishLimit {
                             Text("+\(entry.dishes.count - dishLimit) MORE")
                                 .font(WidgetChrome.kicker(10))
-                                .tracking(0.8)
                                 .foregroundStyle(WidgetChrome.muted)
                                 .padding(.top, 2)
                         }
@@ -1841,7 +1835,6 @@ struct FavoritesTodayView: View {
             if let hall = entry.hallName, !entry.dishes.isEmpty {
                 Text((hall.hasPrefix("The ") ? String(hall.dropFirst(4)) : hall).uppercased())
                     .font(WidgetChrome.meta(10))
-                    .tracking(0.5)
                     .foregroundStyle(WidgetChrome.muted)
                     .lineLimit(1)
             }
@@ -1849,7 +1842,6 @@ struct FavoritesTodayView: View {
             if let hint = entry.filterHint {
                 Text(hint.uppercased())
                     .font(WidgetChrome.meta(10))
-                    .tracking(0.5)
                     .foregroundStyle(WidgetChrome.muted)
                     .lineLimit(1)
             }
@@ -1885,7 +1877,6 @@ struct FavoritesTodayView: View {
                         if entry.dishes.count > dishLimit {
                             Text("+\(entry.dishes.count - dishLimit) MORE")
                                 .font(WidgetChrome.kicker(10))
-                                .tracking(0.8)
                                 .foregroundStyle(WidgetChrome.muted)
                         }
                     }
@@ -2107,7 +2098,6 @@ struct CampusOpenView: View {
                 if entry.totalOpen > 1 {
                     Text("+\(entry.totalOpen - 1) MORE OPEN")
                         .font(WidgetChrome.kicker(10))
-                        .tracking(0.8)
                         .foregroundStyle(WidgetChrome.muted)
                 }
                 Spacer(minLength: 0)
@@ -2138,7 +2128,6 @@ struct CampusOpenView: View {
                         if entry.totalOpen > rowLimit {
                             Text("+\(entry.totalOpen - rowLimit) MORE")
                                 .font(WidgetChrome.kicker(10))
-                                .tracking(0.8)
                                 .foregroundStyle(WidgetChrome.muted)
                         }
                     }
@@ -2341,7 +2330,6 @@ struct QuietestLibraryView: View {
                             .foregroundStyle(WidgetChrome.accent)
                         Text("% FULL · QUIETEST NOW")
                             .font(WidgetChrome.kicker(10))
-                            .tracking(0.6)
                             .foregroundStyle(WidgetChrome.muted)
                     } else {
                         Text(
@@ -2581,7 +2569,6 @@ struct CampusStudyView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("STUDY")
                                 .font(WidgetChrome.kicker(10))
-                                .tracking(0.8)
                                 .foregroundStyle(WidgetChrome.accent)
                             Text(entry.libraryName.uppercased())
                                 .font(WidgetChrome.row(12))

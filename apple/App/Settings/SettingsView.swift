@@ -79,7 +79,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Appearance")
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
 
@@ -109,7 +108,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Alerts")
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)
@@ -291,7 +289,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("This iPhone")
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)
@@ -356,7 +353,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Sources")
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)
@@ -427,7 +423,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("About")
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)

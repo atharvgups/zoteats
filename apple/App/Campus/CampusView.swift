@@ -367,7 +367,6 @@ struct CampusView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Favorites")
                 .font(ZotFont.sectionTitle)
-                .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
@@ -736,7 +735,6 @@ struct CampusMenuSheet: View {
                         HStack {
                             Text(station.name)
                                 .font(ZotFont.sectionTitle)
-                                .tracking(0.6)
                                 .textCase(.uppercase)
                                 .foregroundStyle(Color.ink)
                             Spacer()
@@ -772,7 +770,6 @@ struct CampusMenuSheet: View {
                 } else {
                     Text(station.name)
                         .font(ZotFont.sectionTitle)
-                        .tracking(0.6)
                         .textCase(.uppercase)
                         .foregroundStyle(Color.ink)
                         .accessibilityAddTraits(.isHeader)
@@ -802,7 +799,6 @@ struct CampusMenuSheet: View {
                     .frame(width: 3, height: 14)
                 Text(CampusTypicalMenus.bannerStationName)
                     .font(ZotFont.sectionTitle)
-                    .tracking(0.6)
                     .textCase(.uppercase)
                     .foregroundStyle(Color.ink)
             }
@@ -933,10 +929,10 @@ private struct CampusMenuItemRow: View {
                 if let calories = item.calories {
                     VStack(spacing: -1) {
                         Text("\(calories)")
-                            .font(ZotFont.face(14, relativeTo: .caption).weight(.medium))
+                            .font(ZotFont.body.weight(.semibold))
                             .foregroundStyle(Color.ink)
                         Text("cal")
-                            .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
+                            .font(ZotFont.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                     }
                 }

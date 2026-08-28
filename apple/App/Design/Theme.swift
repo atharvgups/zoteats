@@ -73,17 +73,18 @@ enum ZotFont {
         .system(size: size, weight: .regular)
     }
 
-    /// Screen titles — bold SF Pro, same sizes as the quiet visual pass.
-    static func hero(_ size: CGFloat = 36) -> Font {
+    /// Screen titles — bold SF Pro.
+    static func hero(_ size: CGFloat = 34) -> Font {
         .system(size: size, weight: .bold)
     }
 
-    static let cardTitle = Font.system(size: 18, weight: .semibold)
-    static let sectionTitle = Font.system(size: 13, weight: .semibold)
-    static let body = Font.system(size: 16, weight: .regular)
-    static let caption = Font.system(size: 13, weight: .regular)
-    static let pill = Font.system(size: 14, weight: .medium)
-    static let kicker = Font.system(size: 11, weight: .semibold)
+    /// Stock iOS text styles at normal weights — not the 11–13pt skinny tokens.
+    static let cardTitle = Font.headline.weight(.semibold)
+    static let sectionTitle = Font.body.weight(.semibold)
+    static let body = Font.body
+    static let caption = Font.callout
+    static let pill = Font.subheadline.weight(.semibold)
+    static let kicker = Font.subheadline.weight(.semibold)
 }
 
 /// System UISwitch — gray well off, gold on, white thumb.

@@ -226,7 +226,6 @@ struct QuietestNowCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Quietest right now")
                     .font(ZotFont.kicker)
-                    .tracking(0.8)
                     .textCase(.uppercase)
                     .foregroundStyle(Color.inkMuted)
                 Text(pick.title)
@@ -275,7 +274,6 @@ struct QuietestClosedCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Quietest right now")
                 .font(ZotFont.kicker)
-                .tracking(0.8)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
             Text(QuietestLibraryGlance.closedTitle)
@@ -303,7 +301,6 @@ private struct LibraryHoursTodayCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Today’s hours")
                 .font(ZotFont.kicker)
-                .tracking(0.8)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
@@ -358,7 +355,6 @@ private struct StudentCenterStudyCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Student Center")
                     .font(ZotFont.kicker)
-                    .tracking(0.8)
                     .textCase(.uppercase)
                     .foregroundStyle(Color.inkMuted)
                     .accessibilityAddTraits(.isHeader)
@@ -428,7 +424,6 @@ struct BusynessGroupSection: View {
             if showHeader {
                 Text(category)
                     .font(ZotFont.sectionTitle)
-                    .tracking(0.6)
                     .textCase(.uppercase)
                     .foregroundStyle(Color.inkMuted)
                     .padding(.horizontal, 4)
@@ -648,9 +643,8 @@ private struct BusynessFloorBlock: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text(floor.floorLabel)
-                    .font(ZotFont.face(11, relativeTo: .caption2).weight(.medium))
+                    .font(ZotFont.kicker)
                     .foregroundStyle(.secondary)
-                    .tracking(0.3)
                     .textCase(.uppercase)
                     .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)

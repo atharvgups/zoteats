@@ -30,7 +30,6 @@ struct StatusPill: View {
                 .frame(width: 6, height: 6)
             Text(isOpen ? openText : closedText)
                 .font(ZotFont.kicker)
-                .tracking(0.4)
                 .foregroundStyle(textColor)
         }
         .accessibilityLabel(isOpen ? openText : closedText)
@@ -46,7 +45,6 @@ struct TagChip: View {
     var body: some View {
         Text(text)
             .font(ZotFont.kicker)
-            .tracking(0.2)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.10), in: Capsule())
@@ -178,10 +176,9 @@ struct PillRow<Item: Hashable>: View {
 struct TypicalTag: View {
     var body: some View {
         Text("TYPICAL")
-            .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
-            .tracking(0.6)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2.5)
+            .font(ZotFont.kicker)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
             .background(Color.primary.opacity(0.06), in: Capsule())
             .foregroundStyle(.secondary)
             .accessibilityLabel("Typical estimate, not live data")
@@ -224,7 +221,7 @@ struct RushStrip: View {
                     Text("12 PM").position(x: geo.size.width * 12.5 / 24, y: 6)
                     Text("6 PM").position(x: geo.size.width * 18.5 / 24, y: 6)
                 }
-                .font(ZotFont.face(9, relativeTo: .caption2).weight(.medium))
+                .font(ZotFont.kicker)
                 .foregroundStyle(.tertiary)
             }
             .frame(height: 12)
@@ -336,7 +333,7 @@ struct ScreenHeader: View {
                     .foregroundStyle(Color.ink)
                 if let subtitle {
                     Text(subtitle)
-                        .font(ZotFont.face(15, relativeTo: .subheadline))
+                        .font(ZotFont.body)
                         .foregroundStyle(Color.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
