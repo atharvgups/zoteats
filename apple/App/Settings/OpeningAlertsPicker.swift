@@ -45,7 +45,7 @@ struct OpeningAlertsPicker: View {
                                             name: hall.name,
                                             detail: hall.hoursLine()
                                         )
-                                        if hall.id != filteredHalls.last?.id { Divider() }
+                                        if hall.id != filteredHalls.last?.id { ZotHairline(leading: 0) }
                                     }
                                 }
                             }
@@ -59,7 +59,7 @@ struct OpeningAlertsPicker: View {
                                                 name: place.name,
                                                 detail: place.hoursLine
                                             )
-                                            if place.id != group.last?.id { Divider() }
+                                            if place.id != group.last?.id { ZotHairline(leading: 0) }
                                         }
                                     }
                                 }

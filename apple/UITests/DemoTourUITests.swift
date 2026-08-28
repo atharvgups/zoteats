@@ -148,7 +148,7 @@ final class DemoTourUITests: XCTestCase {
         pause(2)
         tapIfPresent(app.buttons["System appearance"])
         pause(1.5)
-        // Scroll to notifications / widgets tips.
+        // Scroll to alerts / sources.
         app.swipeUp()
         pause(1.5)
         // Accept the system notification permission alert if it appears.

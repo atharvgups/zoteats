@@ -1,7 +1,7 @@
 import SwiftUI
 import ZotEatsKit
 
-// Settings — appearance control plus honest app/data-source info.
+// Settings — quiet cards for appearance, alerts, this iPhone, and honest sources.
 
 struct SettingsView: View {
     let prefs: Preferences
@@ -30,15 +30,14 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ScreenHeader(title: "Settings", subtitle: "Appearance, alerts, widgets")
+                    ScreenHeader(title: "Settings", subtitle: "Alerts, sources, and this iPhone")
 
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
                         alertsCard
-                        reviewsCard
-                        widgetsCard
+                        thisIPhoneCard
+                        sourcesCard
                         aboutCard
-                        dataSourcesCard
                     }
                     .padding(.horizontal, 20)
                 }
@@ -97,31 +96,28 @@ struct SettingsView: View {
                     }
                 }
             }
-
-            Text("System follows your iPhone — light by day, dark at night.")
-                .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
 
-    // MARK: - Notifications (+ Live Activity)
+    // MARK: - Alerts (+ Live Activity)
 
     private var alertsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Notifications")
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Alerts")
                 .font(ZotFont.sectionTitle)
                 .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
+                .padding(.bottom, 8)
 
             Toggle(isOn: $alertsEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Favorite dish alerts")
+                    Text("Favorite dishes")
                         .font(ZotFont.body)
-                    Text("Ping when a hearted dish is on today's menu.")
+                    Text("Ping when a hearted dish is on today’s hall menu.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -147,12 +143,15 @@ struct SettingsView: View {
                     }
                 }
             }
+            .padding(.vertical, 10)
+
+            ZotHairline(leading: 0)
 
             Toggle(isOn: $menuDropEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Menu-drop alerts")
+                    Text("Menu drop")
                         .font(ZotFont.body)
-                    Text("Ping when a future day's menu posts.")
+                    Text("Ping when a future hall day posts.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -177,13 +176,16 @@ struct SettingsView: View {
                     }
                 }
             }
+            .padding(.vertical, 10)
+
+            ZotHairline(leading: 0)
 
             Button {
                 showOpeningAlerts = true
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Opening alerts")
+                        Text("Opening")
                             .font(ZotFont.body)
                             .foregroundStyle(.primary)
                         Text("Watch a hall or café — ping when it opens.")
@@ -206,12 +208,15 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("opening-alerts-row")
+            .padding(.vertical, 10)
+
+            ZotHairline(leading: 0)
 
             Toggle(isOn: $autoMealActivity) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Auto meal countdown")
+                    Text("Meal countdown")
                         .font(ZotFont.body)
-                    Text("Start Island / Lock Screen timer in the last \(MealActivityManager.autoStartWindowMinutes) minutes of a meal.")
+                    Text("Island / Lock Screen in the last \(MealActivityManager.autoStartWindowMinutes) minutes of a meal.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -222,19 +227,23 @@ struct SettingsView: View {
                 MealActivityManager.autoStartEnabled = enabled
                 Haptics.selection()
             }
+            .padding(.vertical, 10)
 
             if !MealActivityManager.systemActivitiesEnabled {
+                ZotHairline(leading: 0)
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
                     Text("Live Activities are off — open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
                 }
+                .padding(.vertical, 10)
                 .accessibilityIdentifier("live-activities-off-link")
             }
 
             // Dogfood verify only when an alert path is actually on — keep
-            // Notifications from feeling like a permanent QA panel.
+            // Alerts from feeling like a permanent QA panel.
             if alertsEnabled || menuDropEnabled || !watchedPlaces.isEmpty {
+                ZotHairline(leading: 0)
                 Button {
                     Task {
                         let granted = await FavoriteAlerts.requestPermission()
@@ -253,16 +262,18 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 2)
+                .padding(.vertical, 10)
                 .accessibilityIdentifier("test-notification-button")
             }
 
             if alertsDenied {
+                ZotHairline(leading: 0)
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
                     Text("Notifications are off — open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
                 }
+                .padding(.vertical, 10)
             }
         }
         .padding(14)
@@ -270,22 +281,24 @@ struct SettingsView: View {
         .zotCard()
     }
 
-    // MARK: - Reviews
+    // MARK: - This iPhone (ratings + plate honesty)
 
-    private var reviewsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Ratings")
+    private var thisIPhoneCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("This iPhone")
                 .font(ZotFont.sectionTitle)
                 .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
+                .padding(.bottom, 8)
 
             if prefs.mealReviews.isEmpty {
-                Text("Star a dish on Eat. It stays on this iPhone.")
+                Text("Star a dish on Eat. Ratings stay on this iPhone.")
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
             } else {
-                ForEach(MealReviewLogic.sortedForDisplay(prefs.mealReviews)) { review in
+                ForEach(Array(MealReviewLogic.sortedForDisplay(prefs.mealReviews).enumerated()), id: \.element.id) { index, review in
                     HStack(alignment: .top, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(review.dishName)
@@ -310,76 +323,117 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove rating for \(review.dishName)")
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 8)
+                    if index < prefs.mealReviews.count - 1 {
+                        ZotHairline(leading: 0)
+                    }
                 }
             }
+
+            ZotHairline(leading: 0)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nutrition and Plate")
+                    .font(ZotFont.body)
+                Text("Macros come from Anteater API when a dish posts them. Plate is local and resets each Irvine day.")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 10)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
 
-    // MARK: - Widgets
+    // MARK: - Sources
 
-    private var widgetsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Widgets")
+    private var sourcesCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Sources")
                 .font(ZotFont.sectionTitle)
                 .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
+                .padding(.bottom, 8)
 
-            Text("Home Screen → Edit → Anteats")
-                .font(ZotFont.caption)
-                .foregroundStyle(Color.inkMuted)
-
-            VStack(alignment: .leading, spacing: 8) {
-                widgetTip(icon: "building.2.fill", title: "Dining Halls", detail: "Meal + until when")
-                widgetTip(icon: "fork.knife", title: "Today's Menu", detail: "Meal glance + filters")
-                widgetTip(icon: "heart.fill", title: "Favorites Today", detail: "Hearted dishes on the board")
-                widgetTip(icon: "cup.and.saucer.fill", title: "Campus Open Now", detail: "Cafés open right now")
-                widgetTip(icon: "books.vertical.fill", title: "Quietest Library", detail: "Lock Screen / StandBy")
-            }
-
-            Text("Open Eat once after install so menu widgets can load.")
-                .font(ZotFont.caption)
-                .foregroundStyle(Color.inkMuted)
-                .padding(.top, 2)
+            sourceRow(
+                icon: "fork.knife",
+                title: "Anteater API",
+                subtitle: "Live hall menus, plus nutrition when a dish posts it.",
+                url: "https://anteaterapi.com"
+            )
+            ZotHairline(leading: 0)
+            sourceRow(
+                icon: "cup.and.saucer.fill",
+                title: "Dining Hub",
+                subtitle: "Retail hours. Live café board only when Hub publishes; typical packs stay labeled, never as today. Oasis is still Coming Soon.",
+                url: "https://uci.campusdish.com"
+            )
+            ZotHairline(leading: 0)
+            sourceRow(
+                icon: "chart.bar.fill",
+                title: "Waitz",
+                subtitle: "Live occupancy for Langson and Science — not Student Center.",
+                url: "https://waitz.io/irvine"
+            )
+            ZotHairline(leading: 0)
+            sourceRow(
+                icon: "books.vertical.fill",
+                title: "LibCal",
+                subtitle: "Official Langson and Science building hours.",
+                url: "https://www.lib.uci.edu/hours"
+            )
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
     }
 
-    private func widgetTip(icon: String, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.ink)
-                .frame(width: 22)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(ZotFont.body.weight(.medium))
-                Text(detail)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
+    private func sourceRow(icon: String, title: String, subtitle: String, url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 26)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(ZotFont.body)
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
             }
+            .padding(.vertical, 10)
         }
+        .accessibilityLabel("\(title). Opens in browser.")
     }
 
     // MARK: - About
 
     private var aboutCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("About")
                 .font(ZotFont.sectionTitle)
                 .tracking(0.6)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
+                .padding(.bottom, 8)
 
-            Text("Anteats is an unofficial student project for UC Irvine — dining menus, campus food hours, and live library busyness in one place. Not affiliated with UC Irvine.")
+            Text("Unofficial student project for UC Irvine. Not affiliated with the university.")
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
+                .padding(.vertical, 8)
+
+            ZotHairline(leading: 0)
 
             HStack {
                 Text("Version")
@@ -389,7 +443,7 @@ struct SettingsView: View {
                     .font(ZotFont.body)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 4)
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
             .onTapGesture {
                 versionTaps += 1
@@ -406,82 +460,17 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
-    }
 
-    // MARK: - Data sources
+            ZotHairline(leading: 0)
 
-    private var dataSourcesCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Data Sources")
-                .font(ZotFont.sectionTitle)
-                .tracking(0.6)
-                .textCase(.uppercase)
-                .foregroundStyle(Color.inkMuted)
-
-            sourceRow(
-                icon: "fork.knife",
-                title: "Dining — Anteater API",
-                subtitle: "Community-maintained UCI hall menus",
-                url: "https://anteaterapi.com"
-            )
-            Divider()
-            sourceRow(
-                icon: "cup.and.saucer.fill",
-                title: "Campus food — UCI Dining Hub",
-                subtitle: "Retail hours and menus (Starbucks, cafés, markets)",
-                url: "https://uci.campusdish.com"
-            )
-            Divider()
-            sourceRow(
-                icon: "chart.bar.fill",
-                title: "Busyness — Waitz",
-                subtitle: "Live library occupancy sensors",
-                url: "https://waitz.io/irvine"
-            )
-            Divider()
-            sourceRow(
-                icon: "books.vertical.fill",
-                title: "Library hours — UCI LibCal",
-                subtitle: "Official Langson + Science building hours",
-                url: "https://www.lib.uci.edu/hours"
-            )
-
-            Text("Hall menus are live from Anteater API. Campus retail uses Dining Hub when a board exists; otherwise a labeled typical menu — never shown as today’s live board.")
+            Text("Home Screen → Add Anteats. Open Eat once so glances paint from today’s snapshot.")
                 .font(ZotFont.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 4)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 10)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
-    }
-
-    private func sourceRow(icon: String, title: String, subtitle: String, url: String) -> some View {
-        Link(destination: URL(string: url)!) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-                    .frame(width: 26)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(ZotFont.body)
-                        .foregroundStyle(.primary)
-                    Text(subtitle)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .accessibilityLabel("\(title). Opens in browser.")
     }
 
     private static var versionString: String {
