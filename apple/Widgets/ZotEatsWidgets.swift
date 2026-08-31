@@ -80,7 +80,7 @@ private enum WidgetChrome {
     })
 
     static func display(_ size: CGFloat) -> Font {
-        .system(size: max(size, 15), weight: .bold)
+        .system(size: max(size, 15), weight: .semibold)
     }
 
     static func kicker(_ size: CGFloat) -> Font {
@@ -612,11 +612,18 @@ struct DiningStatusProvider: AppIntentTimelineProvider {
     }
 
     func placeholder(for configuration: DiningHallsConfigurationIntent, in context: Context) -> DiningStatusEntry {
-        _ = context
-        if let cached = DiningStatusPaint.fromDisk(showComingSoon: configuration.showComingSoon) {
-            return cached
+        let cached = DiningStatusPaint.fromDisk(showComingSoon: configuration.showComingSoon)
+        switch WidgetPlaceholderHonesty.source(
+            hasSnapshot: cached != nil,
+            isPreview: context.isPreview
+        ) {
+        case .snapshot:
+            return cached!
+        case .gallery:
+            return DiningStatusPaint.gallerySample()
+        case .needsRefresh:
+            return DiningStatusEntry(date: .now, halls: [], needsAppRefresh: true)
         }
-        return DiningStatusEntry(date: .now, halls: [], needsAppRefresh: true)
     }
 
     func snapshot(for configuration: DiningHallsConfigurationIntent, in context: Context) async -> DiningStatusEntry {
@@ -707,14 +714,14 @@ struct DiningStatusWidget: Widget {
         ) { entry in
             DiningStatusView(entry: entry)
                 .anteatsWidgetContent()
-                .containerBackground(for: .widget) {
-                    WidgetChrome.canvas
-                }
                 .widgetURL(AnteatsWidgetURL.eat)
         }
         .configurationDisplayName("Dining Halls")
-        .description("Hall clocks. Medium adds today’s dishes; Large adds campus and study.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .description("Hall clocks. Medium adds today’s dishes; Large adds campus and study. Lock Screen shows the next meal.")
+        .supportedFamilies([
+            .systemSmall, .systemMedium, .systemLarge,
+            .accessoryRectangular, .accessoryCircular,
+        ])
     }
 }
 
@@ -729,16 +736,40 @@ struct DiningStatusView: View {
     let entry: DiningStatusEntry
     @Environment(\.widgetFamily) private var family
 
-    private var isCompact: Bool { family == .systemSmall }
+    private var isCompact: Bool { family == .systemSmall || isAccessory }
     private var isLarge: Bool { family == .systemLarge }
+    private var isAccessory: Bool {
+        switch family {
+        case .accessoryRectangular, .accessoryCircular, .accessoryInline:
+            return true
+        default:
+            return false
+        }
+    }
     private var visibleHalls: ArraySlice<DiningStatusEntry.HallStatus> {
         entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact, isLarge: isLarge))
     }
     private var hallCount: Int { visibleHalls.count }
 
     var body: some View {
+        Group {
+            switch family {
+            case .accessoryCircular:
+                lockCircular
+            case .accessoryRectangular:
+                lockGlance
+            default:
+                homeScreen
+            }
+        }
+        .containerBackground(for: .widget) {
+            isAccessory ? Color.clear : WidgetChrome.canvas
+        }
+    }
+
+    private var homeScreen: some View {
         let spacing = DiningStatusLayout.rowSpacing(isCompact: isCompact, hallCount: hallCount)
-        VStack(alignment: .leading, spacing: spacing) {
+        return VStack(alignment: .leading, spacing: spacing) {
             WidgetKicker(title: "EAT")
 
             if entry.needsAppRefresh || entry.halls.isEmpty {
@@ -783,6 +814,53 @@ struct DiningStatusView: View {
                     .padding(.trailing, 2)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
+            }
+        }
+    }
+
+    /// Lock Screen / StandBy — next meal clocks, no occupancy.
+    private var lockGlance: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if entry.needsAppRefresh || entry.halls.isEmpty {
+                Text(WidgetLoadEmptyCopy.title)
+                    .font(WidgetChrome.row(13))
+                    .lineLimit(2)
+            } else {
+                ForEach(Array(visibleHalls.prefix(3)), id: \.id) { hall in
+                    let raw = DiningStatusWidgetLine.tighten(hall.statusText)
+                    let split = DiningStatusWidgetLine.splitMealAndClock(raw)
+                    let clock = hall.isComingSoon ? "Soon" : (split.clock ?? split.meal)
+                    HStack(spacing: 6) {
+                        Text(shortName(hall.name))
+                            .font(WidgetChrome.row(13))
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(clock)
+                            .font(WidgetChrome.display(13))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
+            }
+        }
+    }
+
+    private var lockCircular: some View {
+        let focus = visibleHalls.first(where: { $0.isOpen }) ?? visibleHalls.first
+        let raw = focus.map { DiningStatusWidgetLine.tighten($0.statusText) } ?? ""
+        let split = DiningStatusWidgetLine.splitMealAndClock(raw)
+        let meal = focus?.isComingSoon == true ? "Soon" : (split.meal.isEmpty ? "Eat" : split.meal)
+        return VStack(spacing: 2) {
+            Text(meal)
+                .font(WidgetChrome.display(14))
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            if let focus {
+                Text(shortName(focus.name))
+                    .font(WidgetChrome.meta(10))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
     }
@@ -1183,6 +1261,39 @@ struct TodaysMenuEntry: TimelineEntry {
 
 struct TodaysMenuProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> TodaysMenuEntry {
+        let menus = WidgetSnapshotStore.loadDiningMenusIfCurrentDay()
+        let hasSnapshot = !menus.isEmpty
+        switch WidgetPlaceholderHonesty.source(hasSnapshot: hasSnapshot, isPreview: context.isPreview) {
+        case .snapshot:
+            if let menu = menus.first, !menu.stations.isEmpty {
+                let dishes = menu.stations.flatMap(\.items).map(\.name)
+                return TodaysMenuEntry(
+                    date: .now,
+                    hallName: HallDirectory.displayName(for: menu.locationId),
+                    hallID: menu.locationId,
+                    period: menu.period,
+                    dishes: Array(dishes.prefix(5)),
+                    favorited: [],
+                    periodEndsAt: nil
+                )
+            }
+            return Self.gallerySample()
+        case .gallery:
+            return Self.gallerySample()
+        case .needsRefresh:
+            return TodaysMenuEntry(
+                date: .now,
+                hallName: WidgetLoadEmptyCopy.title,
+                hallID: nil,
+                period: "",
+                dishes: [],
+                favorited: [],
+                periodEndsAt: nil
+            )
+        }
+    }
+
+    private static func gallerySample() -> TodaysMenuEntry {
         TodaysMenuEntry(
             date: .now,
             hallName: "The Anteatery",
@@ -1570,7 +1681,7 @@ struct TodaysMenuView: View {
                                 HStack(spacing: 8) {
                                     if entry.favorited.contains(dish) {
                                         Image(systemName: "heart.fill")
-                                            .font(.system(size: 8, weight: .bold))
+                                            .font(.system(size: 8, weight: .semibold))
                                             .foregroundStyle(WidgetChrome.accent)
                                     } else {
                                         Circle()
@@ -1922,7 +2033,7 @@ struct FavoritesTodayView: View {
                             Link(destination: entry.dishDeepLinkURL(dish)) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "heart.fill")
-                                        .font(.system(size: 8, weight: .bold))
+                                        .font(.system(size: 8, weight: .semibold))
                                         .foregroundStyle(WidgetChrome.accent)
                                     Text(dish)
                                         .font(WidgetChrome.row(12))
@@ -2002,17 +2113,23 @@ struct CampusOpenEntry: TimelineEntry {
 
 struct CampusOpenProvider: TimelineProvider {
     func placeholder(in context: Context) -> CampusOpenEntry {
-        _ = context
         let places = WidgetSnapshotStore.loadCampusPlacesIfCurrentDay() ?? []
-        if !places.isEmpty {
+        switch WidgetPlaceholderHonesty.source(
+            hasSnapshot: !places.isEmpty,
+            isPreview: context.isPreview
+        ) {
+        case .snapshot:
             return entry(from: places)
+        case .gallery:
+            return Self.gallerySample()
+        case .needsRefresh:
+            return CampusOpenEntry(
+                date: .now,
+                openPlaces: [],
+                totalOpen: 0,
+                needsAppRefresh: true
+            )
         }
-        return CampusOpenEntry(
-            date: .now,
-            openPlaces: [],
-            totalOpen: 0,
-            needsAppRefresh: true
-        )
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CampusOpenEntry) -> Void) {
@@ -2096,14 +2213,14 @@ struct CampusOpenWidget: Widget {
         StaticConfiguration(kind: "ZotEatsCampusOpen", provider: CampusOpenProvider()) { entry in
             CampusOpenView(entry: entry)
                 .anteatsWidgetContent()
-                .containerBackground(for: .widget) {
-                    WidgetChrome.canvas
-                }
                 .widgetURL(AnteatsWidgetURL.campus)
         }
         .configurationDisplayName("Campus Open Now")
-        .description("Which cafés and food courts are open right now.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .description("Which cafés and food courts are open right now. Lock Screen shows the next open spot.")
+        .supportedFamilies([
+            .systemSmall, .systemMedium, .systemLarge,
+            .accessoryRectangular,
+        ])
     }
 }
 
@@ -2120,6 +2237,52 @@ struct CampusOpenView: View {
     }
 
     var body: some View {
+        Group {
+            if family == .accessoryRectangular {
+                lockGlance
+            } else {
+                homeScreen
+            }
+        }
+        .containerBackground(for: .widget) {
+            family == .accessoryRectangular ? Color.clear : WidgetChrome.canvas
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            CampusOpenAccessibilityLabel.label(
+                totalOpen: entry.totalOpen,
+                openPlaceNames: entry.openPlaces.map { $0.name },
+                nextOpenLine: entry.nextOpen?.line
+            )
+        )
+    }
+
+    private var lockGlance: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let first = entry.openPlaces.first {
+                Text(first.name)
+                    .font(WidgetChrome.row(13))
+                    .lineLimit(1)
+                Text(first.hours)
+                    .font(WidgetChrome.meta(12))
+                    .lineLimit(1)
+            } else if let hint = entry.nextOpen {
+                Text(hint.line)
+                    .font(WidgetChrome.row(13))
+                    .lineLimit(2)
+            } else if entry.needsAppRefresh {
+                Text(WidgetLoadEmptyCopy.title)
+                    .font(WidgetChrome.row(12))
+                    .lineLimit(2)
+            } else {
+                Text("Nothing's open right now.")
+                    .font(WidgetChrome.meta(12))
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private var homeScreen: some View {
         VStack(alignment: .leading, spacing: family == .systemSmall ? 8 : 8) {
             WidgetKicker(title: "CAMPUS", trailing: entry.totalOpen == 0 ? nil : "\(entry.totalOpen) OPEN")
 
@@ -2212,14 +2375,6 @@ struct CampusOpenView: View {
                 Spacer(minLength: 0)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            CampusOpenAccessibilityLabel.label(
-                totalOpen: entry.totalOpen,
-                openPlaceNames: entry.openPlaces.map { $0.name },
-                nextOpenLine: entry.nextOpen?.line
-            )
-        )
     }
 }
 
@@ -2273,16 +2428,27 @@ struct QuietestLibraryEntry: TimelineEntry {
 
 struct QuietestLibraryProvider: TimelineProvider {
     func placeholder(in context: Context) -> QuietestLibraryEntry {
-        _ = context
-        if let facilities = WidgetSnapshotStore.loadBusynessPlacesIfPresent() {
-            return Self.entry(from: facilities)
+        let facilities = WidgetSnapshotStore.loadBusynessPlacesIfPresent()
+        switch WidgetPlaceholderHonesty.source(
+            hasSnapshot: facilities != nil,
+            isPreview: context.isPreview
+        ) {
+        case .snapshot:
+            return Self.entry(from: facilities ?? [])
+        case .gallery:
+            return QuietestLibraryEntry(
+                date: .now,
+                name: "Langson · 4th Floor",
+                percent: WidgetPlaceholderHonesty.galleryLibraryPercent
+            )
+        case .needsRefresh:
+            return QuietestLibraryEntry(
+                date: .now,
+                name: WidgetLoadEmptyCopy.title,
+                percent: nil,
+                needsAppRefresh: true
+            )
         }
-        return QuietestLibraryEntry(
-            date: .now,
-            name: WidgetLoadEmptyCopy.title,
-            percent: nil,
-            needsAppRefresh: true
-        )
     }
 
     func getSnapshot(in context: Context, completion: @escaping (QuietestLibraryEntry) -> Void) {
@@ -2501,7 +2667,7 @@ struct QuietestLibraryView: View {
 #Preview(as: .accessoryCircular) {
     QuietestLibraryWidget()
 } timeline: {
-    QuietestLibraryEntry(date: .now, name: "Langson · 4th Floor", percent: 8)
+    QuietestLibraryEntry(date: .now, name: "Langson · 4th Floor", percent: nil)
 }
 
 // MARK: - Campus + Study combo
@@ -2539,7 +2705,7 @@ struct CampusStudyProvider: AppIntentTimelineProvider {
         let facilities = WidgetSnapshotStore.loadBusynessPlacesIfPresent() ?? []
         switch WidgetPlaceholderHonesty.source(
             hasSnapshot: !campusPlaces.isEmpty || !facilities.isEmpty,
-            isPreview: false
+            isPreview: context.isPreview
         ) {
         case .snapshot:
             return Self.makeEntry(
@@ -2547,7 +2713,9 @@ struct CampusStudyProvider: AppIntentTimelineProvider {
                 facilities: facilities,
                 favoritesOnly: configuration.favoritesOnly
             )
-        case .gallery, .needsRefresh:
+        case .gallery:
+            return Self.gallerySample()
+        case .needsRefresh:
             return CampusStudyEntry(
                 date: .now,
                 campusOpen: [],

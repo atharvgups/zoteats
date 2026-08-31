@@ -25,6 +25,14 @@ struct WidgetPlaceholderHonestyTests {
         )
     }
 
+    @Test func previewWithoutCacheUsesGalleryNotEmptyRefresh() {
+        #expect(
+            WidgetPlaceholderHonesty.source(hasSnapshot: false, isPreview: true) == .gallery
+        )
+        #expect(WidgetPlaceholderHonesty.galleryHallOccupancy == nil)
+        #expect(WidgetPlaceholderHonesty.galleryLibraryPercent == nil)
+    }
+
     @Test func libraryPercentOnlyFromWaitzSnapshot() {
         #expect(
             WidgetPlaceholderHonesty.libraryPercent(waitzPercent: 8, source: .snapshot) == 8
