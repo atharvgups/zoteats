@@ -464,12 +464,57 @@ public struct DiningService: Sendable {
         }
         // TaskGroup completion order is nondeterministic; present halls in a stable order.
         var ordered = hallIDs.compactMap { id in results.first { $0.id == id } }
-        // Hub already advertises The Oasis (Coming Soon) while Anteater API still
-        // only lists Anteatery + Brandywine — surface an honest card, no fake menu.
-        if !ordered.contains(where: { HallDirectory.isOasis($0.id) }) {
-            ordered.append(Self.oasisComingSoonLocation())
+        return await withHonestOasis(ordered, dateISO: dateISO)
+    }
+
+    /// Hub already lists The Oasis (Coming Soon, no active menus) while Anteater
+    /// API only has Anteatery + Brandywine. Keep Coming Soon until Anteater or
+    /// Hub posts a real board — never invent dishes, hours occupancy, or busy-%.
+    private func withHonestOasis(
+        _ ordered: [DiningLocation],
+        dateISO: String
+    ) async -> [DiningLocation] {
+        if ordered.contains(where: {
+            HallDirectory.isOasis($0.id) && !$0.isComingSoon && !$0.availablePeriods.isEmpty
+        }) {
+            return ordered
         }
-        return ordered
+        var next = ordered.filter { !HallDirectory.isOasis($0.id) }
+        let hub = CampusService(http: http, cache: cache, now: now)
+        switch await hub.oasisHubListing() {
+        case .liveBoard(let urlKey):
+            let recipes = (try? await hub.menu(
+                for: urlKey,
+                placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+                date: dateISO,
+                allowTypicalFallback: false
+            )) ?? []
+            if !recipes.isEmpty {
+                next.append(Self.oasisLocationFromHubRecipes(recipes))
+                return next
+            }
+            next.append(Self.oasisComingSoonLocation())
+            return next
+        case .comingSoon, .notListed:
+            next.append(Self.oasisComingSoonLocation())
+            return next
+        }
+    }
+
+    /// Hub posted SKUs — meal-period names become available periods. No hours,
+    /// openNow, or occupancy are invented when the listing has none.
+    private static func oasisLocationFromHubRecipes(_ recipes: [MenuStation]) -> DiningLocation {
+        let periods = recipes.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return DiningLocation(
+            id: HallDirectory.oasisComingSoonID,
+            name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+            area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
+            openNow: false,
+            todayHours: nil,
+            availablePeriods: periods,
+            periods: [],
+            hoursApproximate: true
+        )
     }
 
     /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
@@ -484,7 +529,7 @@ public struct DiningService: Sendable {
             availablePeriods: [],
             periods: [],
             hoursApproximate: true,
-            comingSoonSubtitle: "Coming Soon"
+            comingSoonSubtitle: OasisComingSoonCopy.cardStatus
         )
     }
 
@@ -678,6 +723,16 @@ public struct DiningService: Sendable {
         forceRefresh: Bool = false
     ) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
+        if HallDirectory.isOasis(hall) {
+            if let hubMenu = await oasisHubMenu(
+                period: period,
+                dateISO: dateISO,
+                forceRefresh: forceRefresh
+            ) {
+                return hubMenu
+            }
+            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+        }
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
         let available = (today.periods ?? [:]).values.map(\.name)
 
@@ -719,6 +774,37 @@ public struct DiningService: Sendable {
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
         return await enrichDietTags(built)
+    }
+
+    /// Scrape Dining Hub recipes when Oasis is populated. Empty Hub / Coming Soon
+    /// / typical-menu packs all resolve to nil so Eat never invents a board.
+    private func oasisHubMenu(
+        period: String,
+        dateISO: String,
+        forceRefresh: Bool
+    ) async -> DiningMenu? {
+        let hub = CampusService(http: http, cache: cache, now: now)
+        guard case .liveBoard(let urlKey) = await hub.oasisHubListing() else {
+            return nil
+        }
+        let stations = (try? await hub.menu(
+            for: urlKey,
+            placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+            date: dateISO,
+            forceRefresh: forceRefresh,
+            allowTypicalFallback: false
+        )) ?? []
+        guard !stations.isEmpty else { return nil }
+        let available = stations.map(\.name)
+        let resolved = Self.resolvePeriod(period, available: available)
+        let matched = stations.filter { $0.name.caseInsensitiveCompare(resolved) == .orderedSame }
+        let board = matched.isEmpty ? stations : matched
+        return DiningMenu(
+            locationId: HallDirectory.oasisComingSoonID,
+            date: dateISO,
+            period: resolved,
+            stations: board
+        )
     }
 
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.

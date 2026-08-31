@@ -2,6 +2,8 @@
 """Read-only App Store Connect status for Anteats. No submit / cancel / mutate.
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
+
+Launch-loop peek 2026-08-31 ~12:16 PT — read-only. Leave 1.0.284 in review.
 """
 
 from __future__ import annotations

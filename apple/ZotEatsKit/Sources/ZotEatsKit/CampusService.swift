@@ -196,20 +196,45 @@ public struct CampusService: Sendable {
         }
     }
 
-    private func placeSchedules(todayISO: String, currentDate: Date) async throws -> [PlaceSchedule] {
-        try await cache.remember("campus:schedules:\(todayISO)", ttl: Self.locationsTTL) {
+    /// Raw Hub listing (commons included). Shared by Campus retail + Oasis peek.
+    private func hubLocations() async throws -> [RawLocation] {
+        try await cache.remember("campus:hub-locations", ttl: Self.locationsTTL) {
             let query = """
             query($campusUrlKey:String!){getLocations(campusUrlKey:$campusUrlKey){\
             commerceAttributes{url_key hasActiveMenus}aemAttributes{name hoursOfOperation{schedule}}}}
             """
-            let data = try await graphQL(LocationsData.self, query: query, variables: #"{"campusUrlKey":"campus"}"#)
+            let data = try await graphQL(
+                LocationsData.self,
+                query: query,
+                variables: #"{"campusUrlKey":"campus"}"#
+            )
+            return data.getLocations ?? []
+        }
+    }
+
+    /// Honest Oasis Hub status — listed Coming Soon until `hasActiveMenus`.
+    public func oasisHubListing() async -> OasisHubListing {
+        do {
+            let rows = try await hubLocations().compactMap { raw -> (String, Bool)? in
+                guard let key = raw.commerceAttributes?.url_key, !key.isEmpty else { return nil }
+                return (key, raw.commerceAttributes?.hasActiveMenus ?? false)
+            }
+            return OasisHubListing.resolve(rows)
+        } catch {
+            return .notListed
+        }
+    }
+
+    private func placeSchedules(todayISO: String, currentDate: Date) async throws -> [PlaceSchedule] {
+        try await cache.remember("campus:schedules:\(todayISO)", ttl: Self.locationsTTL) {
+            let rawLocations = try await hubLocations()
             let calendar = PacificTime.calendar
             let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
             let tomorrowISO = PacificTime.todayISO(now: tomorrowDate)
             let weekday = PacificTime.weekdayName(now: currentDate)
             let tomorrowWeekday = PacificTime.weekdayName(now: tomorrowDate)
 
-            return (data.getLocations ?? []).compactMap { raw -> PlaceSchedule? in
+            return rawLocations.compactMap { raw -> PlaceSchedule? in
                 guard let key = raw.commerceAttributes?.url_key,
                       !Self.excludedKeys.contains(key),
                       let name = raw.aemAttributes?.name?
@@ -264,10 +289,11 @@ public struct CampusService: Sendable {
         for placeID: String,
         placeName: String? = nil,
         date: String? = nil,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        allowTypicalFallback: Bool = true
     ) async throws -> [MenuStation] {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        let key = "campus:menu:\(placeID):\(dateISO)"
+        let key = "campus:menu:\(placeID):\(dateISO)\(allowTypicalFallback ? "" : ":posted")"
         if forceRefresh {
             await cache.invalidate(key)
         }
@@ -303,6 +329,8 @@ public struct CampusService: Sendable {
             }
             if !live.isEmpty { return live }
             // Honest typical pack for common chains when Hub has no SKUs today.
+            // Oasis and other commons must never take this path (no invented board).
+            guard allowTypicalFallback else { return [] }
             return CampusTypicalMenus.stations(forPlaceID: placeID, placeName: displayName) ?? []
         }
     }

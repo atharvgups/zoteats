@@ -355,7 +355,7 @@ struct DiningView: View {
         return EmptyStateView(
             icon: "building.2",
             title: "\(name) · Coming Soon",
-            message: "Opens Sept 21 · Lunch & Dinner"
+            message: OasisComingSoonCopy.selectedLine
         )
     }
 
@@ -437,33 +437,28 @@ struct DiningView: View {
         )
     }
 
-    /// Live halls as two wide buttons (actually bigger). Coming Soon (Oasis)
-    /// sits as a short full-width strip so the row isn’t three tall skinny cards.
+    /// Equal-width 3-up hall cards — all visible, no sideways scroll.
+    /// Big presence like the old two-up cards (taller, roomy padding) while
+    /// staying three-across and round. Status is the next meal name only.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        let live = (locations ?? []).filter { !$0.isComingSoon }
-        let soon = (locations ?? []).filter(\.isComingSoon)
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                if live.isEmpty, locations == nil {
-                    SkeletonCard(height: 88)
-                    SkeletonCard(height: 88)
-                } else {
-                    ForEach(live) { location in
-                        hallCard(for: location, compact: false)
-                    }
+        HStack(spacing: 10) {
+            if let locations, !locations.isEmpty {
+                ForEach(locations) { location in
+                    hallCard(for: location)
                 }
-            }
-            ForEach(soon) { location in
-                hallCard(for: location, compact: true)
+            } else {
+                SkeletonCard(height: 112)
+                SkeletonCard(height: 112)
+                SkeletonCard(height: 112)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Dining hall")
     }
 
-    private func hallCard(for location: DiningLocation, compact: Bool) -> some View {
+    private func hallCard(for location: DiningLocation) -> some View {
         let isSelected = location.id == selectedHall
         let status = HallChromeStatus.resolve(for: location)
         return Button {
@@ -474,39 +469,22 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            Group {
-                if compact {
-                    HStack(spacing: 10) {
-                        Text(HallDirectory.compactName(for: location.id))
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text(status.text)
-                            .font(ZotFont.caption.weight(.medium))
-                            .foregroundStyle(status.tint)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(HallDirectory.compactName(for: location.id))
-                            .font(ZotFont.face(21, relativeTo: .title3).weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                        Text(status.text)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(status.tint)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
-                }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(HallDirectory.compactName(for: location.id))
+                    .font(ZotFont.face(18, relativeTo: .title3).weight(.semibold))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(status.text)
+                    .font(ZotFont.caption.weight(.medium))
+                    .foregroundStyle(status.tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
             .background(
                 isSelected ? Color.selectWash : Color.card,
                 in: RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
@@ -1471,7 +1449,7 @@ struct DietFilterSheet: View {
 private enum HallChromeStatus {
     static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
         if location.comingSoonSubtitle != nil {
-            return ("Coming Soon", .secondary)
+            return (OasisComingSoonCopy.cardStatus, .secondary)
         }
         switch location.openState(nowMinutes: nowMinutes) {
         case .open(let period, _):

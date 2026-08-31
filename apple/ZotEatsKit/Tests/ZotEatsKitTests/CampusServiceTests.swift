@@ -15,6 +15,7 @@ struct CampusServiceTests {
         let places = try await service.places()
         #expect(!places.isEmpty)
         #expect(!places.contains { $0.id == "the-anteatery" || $0.id == "brandywine" })
+        #expect(!places.contains { $0.id == "the-oasis-dining-hall" || $0.name.contains("Oasis") })
         #expect(places.contains { $0.name.contains("Starbucks") })
         #expect(places.contains { $0.name.contains("Panda Express") })
     }
@@ -165,6 +166,26 @@ struct CampusServiceTests {
         let places = try await service.places()
         #expect(places.first { $0.id == "halal-shack" }?.hasMenu == true)
         #expect(places.first { $0.id == "starbucks-at-student-center" }?.hasMenu == false)
+    }
+
+    @Test func oasisHubListingIsComingSoonUntilMenusExist() async {
+        let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
+        #expect(await service.oasisHubListing() == .comingSoon)
+        #expect(
+            OasisHubListing.resolve([
+                ("the-anteatery", true),
+                ("the-oasis-dining-hall", false),
+            ]) == .comingSoon
+        )
+        #expect(
+            OasisHubListing.resolve([
+                ("the-oasis-dining-hall", true),
+            ]) == .liveBoard(urlKey: "the-oasis-dining-hall")
+        )
+        #expect(OasisHubListing.resolve([("brandywine", true)]) == .notListed)
+        #expect(OasisComingSoonCopy.selectedLine == "Opens Sept 21 · Lunch & Dinner")
+        #expect(!OasisComingSoonCopy.selectedLine.contains("meal-plan"))
+        #expect(!OasisComingSoonCopy.selectedLine.contains("Mon"))
     }
 
     @Test func brandAndLocationSplitting() {

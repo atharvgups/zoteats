@@ -49,6 +49,46 @@ struct FailingHTTP: HTTPFetching {
     }
 }
 
+/// Hub marked Oasis live but posted no SKUs — still Coming Soon, no typical pack.
+struct OasisEmptyLiveHubHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        if url.host?.contains("elevate-dxp.com") == true {
+            let query = url.query ?? ""
+            if query.contains("getLocationMealPeriodRecipes") {
+                return Data(
+                    #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8
+                )
+            }
+            return Data(
+                #"{"data":{"getLocations":[{"commerceAttributes":{"url_key":"the-oasis-dining-hall","hasActiveMenus":true},"aemAttributes":{"name":"The Oasis"}}]}}"#.utf8
+            )
+        }
+        return try await FixtureHTTP().data(from: url)
+    }
+}
+
+/// Anteater halls plus a Hub Oasis listing that actually posted recipes.
+struct OasisLiveHubHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        if url.host?.contains("elevate-dxp.com") == true {
+            let query = url.query ?? ""
+            if query.contains("getLocationMealPeriodRecipes") {
+                return Data(
+                    """
+                    {"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[{"name":"Lunch","skus":["1"]}]},"products":[{"name":"Rice Bowl","sku":"1","attributes":[]}]}}}
+                    """.utf8
+                )
+            }
+            return Data(
+                """
+                {"data":{"getLocations":[{"commerceAttributes":{"url_key":"the-oasis-dining-hall","hasActiveMenus":true},"aemAttributes":{"name":"The Oasis"}}]}}
+                """.utf8
+            )
+        }
+        return try await FixtureHTTP().data(from: url)
+    }
+}
+
 /// Stub that answers every request with HTTP 404 (unpublished menu day).
 struct NotFoundHTTP: HTTPFetching {
     func data(from url: URL) async throws -> Data {

@@ -89,8 +89,40 @@ struct DiningServiceTests {
         #expect(oasis.isComingSoon)
         #expect(oasis.availablePeriods.isEmpty)
         #expect(oasis.periods.isEmpty)
-        #expect(oasis.comingSoonSubtitle == "Coming Soon")
+        #expect(oasis.openNow == false)
+        #expect(oasis.todayHours == nil)
+        #expect(oasis.comingSoonSubtitle == OasisComingSoonCopy.cardStatus)
         #expect(HallDirectory.campusHubKey(for: oasis.id) == "the-oasis-dining-hall")
+        #expect(CampusTypicalMenus.kind(forPlaceID: "the-oasis-dining-hall", placeName: "The Oasis") == nil)
+    }
+
+    @Test func locationsKeepOasisComingSoonWhenHubHasNoMenus() async {
+        let locations = await service().locations()
+        let oasis = locations.first { HallDirectory.isOasis($0.id) }
+        #expect(oasis?.isComingSoon == true)
+        #expect(oasis?.availablePeriods.isEmpty == true)
+        #expect(oasis?.periods.isEmpty == true)
+        let empty = try? await service().menu(for: "oasis", period: "Lunch", date: "2026-07-09")
+        #expect(empty?.stations.isEmpty == true)
+        #expect(empty?.stations.contains { $0.name == CampusTypicalMenus.bannerStationName } != true)
+    }
+
+    @Test func hubLiveFlagWithoutRecipesStaysComingSoon() async {
+        let service = DiningService(http: OasisEmptyLiveHubHTTP(), now: { fixtureNoon })
+        let oasis = await service.locations().first { HallDirectory.isOasis($0.id) }
+        #expect(oasis?.isComingSoon == true)
+        #expect(oasis?.availablePeriods.isEmpty == true)
+    }
+        let service = DiningService(http: OasisLiveHubHTTP(), now: { fixtureNoon })
+        let locations = await service.locations()
+        let oasis = locations.first { HallDirectory.isOasis($0.id) }
+        #expect(oasis?.isComingSoon == false)
+        #expect(oasis?.availablePeriods.contains("Lunch") == true)
+        #expect(oasis?.openNow == false)
+        #expect(oasis?.todayHours == nil)
+        let menu = try await service.menu(for: "oasis", period: "Lunch", date: "2026-07-09")
+        #expect(menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
+        #expect(!menu.stations.contains { $0.name == CampusTypicalMenus.bannerStationName })
     }
 
     @Test func resolvePeriodMapsBreakfastToBrunch() {
