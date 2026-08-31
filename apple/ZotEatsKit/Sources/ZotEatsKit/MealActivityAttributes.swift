@@ -1,9 +1,11 @@
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && os(iOS)
 import ActivityKit
 import Foundation
 
 /// Shared contract between the app (which starts the Live Activity) and the
 /// widget extension (which renders it): "this meal at this hall ends at X".
+/// ActivityKit can be imported on macOS but `ActivityAttributes` is unavailable
+/// there — gate on iOS so SwiftPM host tests (`swift test`) compile.
 public struct MealActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         /// When the tracked meal period ends; the UI counts down to it.

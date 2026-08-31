@@ -189,12 +189,13 @@ jobs:
 
   # OS-beta canary: builds against the NEWEST Xcode on the runner (including
   # betas, e.g. Xcode 27 / iOS 27) so SDK breakage surfaces before Apple's
-  # September GA. Never blocks anything — informational only.
+  # September GA. Informational only — step continue-on-error keeps the job
+  # check green (job-level continue-on-error still posts a failed check and
+  # fires ci-failed on every Monday run).
   beta-canary:
     name: iOS beta canary (informational)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-26
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -209,10 +210,16 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec apple/project.yml --project apple/
 
+      # SwiftPM host is macOS; Linux kit-tests already cover fixtures.
+      # iOS SDK breakage is the simulator build below.
       - name: Kit tests on newest SDK
+        id: kit
+        continue-on-error: true
         run: swift test --package-path apple/ZotEatsKit
 
       - name: Build for newest iOS Simulator
+        id: ios-build
+        continue-on-error: true
         run: |
           set -o pipefail
           xcodebuild \
@@ -222,3 +229,9 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Report canary outcome
+        if: steps.kit.outcome == 'failure' || steps['ios-build'].outcome == 'failure'
+        run: |
+          echo "::warning::iOS beta canary found a failure (informational; does not block)."
+          echo "kit=${{ steps.kit.outcome }} ios-build=${{ steps['ios-build'].outcome }}"
