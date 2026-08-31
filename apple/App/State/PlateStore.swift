@@ -22,9 +22,12 @@ final class PlateStore {
     init() {
         let today = Self.todayISO()
         dateISO = today
-        guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
-              let saved = try? JSONDecoder().decode(Saved.self, from: data)
-        else { return }
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else { return }
+        guard let saved = try? JSONDecoder().decode(Saved.self, from: data) else {
+            // Corrupt blob — drop it so a later launch can't resurrect junk.
+            UserDefaults.standard.removeObject(forKey: Self.storageKey)
+            return
+        }
 
         entries = PlateDayMath.entriesIfCurrentDay(
             savedDateISO: saved.dateISO,

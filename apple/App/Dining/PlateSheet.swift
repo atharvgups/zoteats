@@ -20,28 +20,42 @@ struct PlateSheet: View {
                 }
                 .padding(.trailing, 44)
 
-                if plate.isEmpty {
-                    EmptyStateView(
-                        icon: "fork.knife.circle",
-                        title: PlateEmptyCopy.title,
-                        message: PlateEmptyCopy.message
+                HStack(spacing: 12) {
+                    totalCard(
+                        value: "\(plate.totalCalories)",
+                        label: "Calories",
+                        tint: .orange,
+                        announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
                     )
-                } else {
-                    HStack(spacing: 12) {
-                        totalCard(
-                            value: "\(plate.totalCalories)",
-                            label: "Calories",
-                            tint: .orange,
-                            announce: true
-                        )
-                        totalCard(
-                            value: "\(plate.totalProteinG)g",
-                            label: "Protein",
-                            tint: TagPalette.sage,
-                            announce: true
-                        )
-                    }
+                    totalCard(
+                        value: "\(plate.totalProteinG)g",
+                        label: "Protein",
+                        tint: TagPalette.sage,
+                        announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
+                    )
+                }
+                .opacity(plate.isEmpty ? 0.55 : 1)
 
+                if plate.isEmpty {
+                    VStack(spacing: 8) {
+                        Text(PlateEmptyCopy.title)
+                            .font(ZotFont.cardTitle)
+                            .foregroundStyle(Color.ink)
+                            .multilineTextAlignment(.center)
+                        Text(PlateEmptyCopy.message)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(PlateEmptyCopy.footnote)
+                            .font(ZotFont.caption.weight(.medium))
+                            .foregroundStyle(Color.inkMuted)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 28)
+                    .padding(.horizontal, 8)
+                    .accessibilityElement(children: .combine)
+                } else {
                     VStack(spacing: 8) {
                         ForEach(plate.entries) { entry in
                             HStack(spacing: 10) {
@@ -67,12 +81,17 @@ struct PlateSheet: View {
                                     }
                                     Haptics.soft()
                                 } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundStyle(.secondary, .quaternary)
+                                    Text(PlateRemoveCopy.button)
+                                        .font(ZotFont.caption.weight(.semibold))
+                                        .foregroundStyle(Color.ink)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(Color.ink.opacity(0.08), in: Capsule())
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("Remove \(entry.dishName) from plate")
+                                .accessibilityLabel(
+                                    PlateRemoveCopy.accessibilityLabel(dishName: entry.dishName)
+                                )
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 11)

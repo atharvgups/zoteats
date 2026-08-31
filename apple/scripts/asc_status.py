@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Read-only App Store Connect status for Anteats. No submit / cancel / mutate."""
+"""Read-only App Store Connect status for Anteats. No submit / cancel / mutate.
+
+Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
+"""
 
 from __future__ import annotations
 
