@@ -113,6 +113,8 @@ struct DiningServiceTests {
         #expect(oasis?.isComingSoon == true)
         #expect(oasis?.availablePeriods.isEmpty == true)
     }
+
+    @Test func hubRecipesPromoteOasisWithoutInventingOccupancy() async throws {
         let service = DiningService(http: OasisLiveHubHTTP(), now: { fixtureNoon })
         let locations = await service.locations()
         let oasis = locations.first { HallDirectory.isOasis($0.id) }
