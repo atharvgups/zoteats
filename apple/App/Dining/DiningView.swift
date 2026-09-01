@@ -360,7 +360,8 @@ struct DiningView: View {
         )
     }
 
-    /// Compact inline chip — idle like Filters; blue only while the plate sheet is open.
+    /// Compact inline chip — idle like Filters unless the plate sheet is open.
+    /// Never inherit a tinted/filled look while browsing Eat.
     private var myPlateChip: some View {
         let active = showPlate
         return Button {
@@ -368,7 +369,7 @@ struct DiningView: View {
             Haptics.selection()
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "fork.knife.circle")
+                Image(systemName: active ? "fork.knife.circle.fill" : "fork.knife.circle")
                     .font(.system(size: 13, weight: .semibold))
                 Text("Plate")
                     .font(ZotFont.pill.weight(active ? .semibold : .medium))
@@ -379,7 +380,7 @@ struct DiningView: View {
                 active ? Color.ink.opacity(0.12) : Color.card,
                 in: Capsule()
             )
-            .foregroundStyle(active ? Color.ink : Color.primary)
+            .foregroundStyle(active ? Color.ink : Color.inkMuted)
             .overlay(
                 Capsule().strokeBorder(
                     active ? Color.ink.opacity(0.35) : Color.cardBorder,
@@ -388,6 +389,7 @@ struct DiningView: View {
             )
         }
         .buttonStyle(.plain)
+        .tint(Color.ink)
         .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
         .accessibilityIdentifier("my-plate-chip")
         .accessibilityLabel("My Plate, empty")
@@ -439,20 +441,20 @@ struct DiningView: View {
     }
 
     /// Equal-width 3-up hall cards — all visible, no sideways scroll.
-    /// Big presence like the old two-up cards (taller, roomy padding) while
-    /// staying three-across and round. Status is the next meal name only.
+    /// Another real size bump toward the old two-up boxes: two-up type (21)
+    /// and taller faces, still three-across and round.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             if let locations, !locations.isEmpty {
                 ForEach(locations) { location in
                     hallCard(for: location)
                 }
             } else {
-                SkeletonCard(height: 112)
-                SkeletonCard(height: 112)
-                SkeletonCard(height: 112)
+                SkeletonCard(height: 136)
+                SkeletonCard(height: 136)
+                SkeletonCard(height: 136)
             }
         }
         .accessibilityElement(children: .contain)
@@ -472,10 +474,10 @@ struct DiningView: View {
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(ZotFont.face(18, relativeTo: .title3).weight(.semibold))
+                    .font(ZotFont.face(21, relativeTo: .title3).weight(.semibold))
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.65)
                 Text(status.text)
                     .font(ZotFont.caption.weight(.medium))
                     .foregroundStyle(status.tint)
@@ -483,9 +485,9 @@ struct DiningView: View {
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
+            .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
             .background(
                 isSelected ? Color.selectWash : Color.card,
                 in: RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
@@ -1607,9 +1609,9 @@ private struct DishRowCard: View {
 
     private func plateButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle.fill")
+            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(isOnPlate ? Color.ink : Color.ink.opacity(0.85))
+                .foregroundStyle(isOnPlate ? Color.ink : Color.inkMuted)
                 .symbolEffect(.bounce, value: isOnPlate)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 30, height: 30)
