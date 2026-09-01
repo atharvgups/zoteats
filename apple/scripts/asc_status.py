@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-01 ~9:12 PT — read-only. Confirm 1.0.284 after review-complete email.
+Launch-loop peek 2026-09-01 ~12:12 PT — read-only. Confirm 1.0.287 after this morning’s store submit. Leave it if still in review.
 """
 
 from __future__ import annotations
