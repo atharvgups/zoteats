@@ -100,12 +100,13 @@ jobs:
               if [ "$tab" = dining ]; then
                 xcrun simctl launch --terminate-running-process booted \
                   com.atharvgupta.zoteats -initialTab dining -preferLiveHall
+                # Hall hop + live board need extra time vs Campus/Study.
+                sleep 14
               else
                 xcrun simctl launch --terminate-running-process booted \
                   com.atharvgupta.zoteats -initialTab "$tab"
+                sleep 12
               fi
-              # The app fetches live UCI data on launch; give it time to render.
-              sleep 12
               xcrun simctl io booted screenshot "screenshots/${tab}_${mode}.png"
             done
             # Settings is a sheet (top-right gear); -showSettings presents it at launch.
