@@ -878,7 +878,7 @@ struct CampusMenuSheet: View {
             dietFilters: prefs.dietFilters,
             allergenAvoids: prefs.allergenAvoids
         )
-        return banner + filtered
+        return banner + DiningService.pinTwistedRootFirst(filtered)
     }
 }
 

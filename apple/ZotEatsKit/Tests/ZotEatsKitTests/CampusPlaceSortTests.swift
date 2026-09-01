@@ -183,4 +183,16 @@ struct CampusMenuNormalizeTests {
         ])
         #expect(stations.map(\.name) == ["Lunch"])
     }
+
+    @Test func pinsTwistedRootFirstAndAllDayLast() {
+        let stations = CampusMenuNormalize.stations([
+            MenuStation(name: "All Day", items: [item("Fruit")]),
+            MenuStation(name: "Grill", items: [item("Burger")]),
+            MenuStation(name: "The Twisted Root", items: [item("Tofu")]),
+        ])
+        #expect(
+            stations.map(\.name)
+                == ["The Twisted Root", "Grill", CampusMenuNormalize.availableAllDay]
+        )
+    }
 }

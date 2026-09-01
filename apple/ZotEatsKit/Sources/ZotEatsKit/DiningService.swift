@@ -432,6 +432,15 @@ public struct DiningService: Sendable {
         )
     }
 
+    /// Owner vegan preference: Twisted Root leads Eat and Campus food lists.
+    /// Relative order of everything else is preserved (Available all day stays last
+    /// when the caller already pinned it there).
+    public static func pinTwistedRootFirst(_ stations: [MenuStation]) -> [MenuStation] {
+        let twisted = stations.filter { isTwistedRoot(stationName: $0.name) }
+        let rest = stations.filter { !isTwistedRoot(stationName: $0.name) }
+        return twisted + rest
+    }
+
     // MARK: - Public API
 
     /// Every dining commons the live API lists (a new hall shows up here

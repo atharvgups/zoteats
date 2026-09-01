@@ -26,10 +26,11 @@ public enum CampusMenuNormalize {
             }
         }
 
+        let pinned = DiningService.pinTwistedRootFirst(others)
         if !allDayItems.isEmpty {
-            others.append(MenuStation(name: availableAllDay, items: allDayItems))
+            return pinned + [MenuStation(name: availableAllDay, items: allDayItems)]
         }
-        return others
+        return pinned
     }
 
     public static func isAvailableAllDay(_ stationName: String) -> Bool {

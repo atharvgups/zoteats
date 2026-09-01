@@ -225,6 +225,23 @@ struct DiningServiceTests {
         #expect(twisted!.items.allSatisfy { $0.dietaryTags.contains("Vegan") })
         #expect(twisted!.items.allSatisfy { $0.dietaryTags.contains("Vegetarian") })
     }
+
+    @Test func pinTwistedRootFirstLeadsCampusAndEatFoodLists() {
+        let dish = MenuItem(
+            id: "x", name: "Tofu", description: nil, calories: 200,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        let stations = [
+            MenuStation(name: "Sizzle Grill", items: [dish]),
+            MenuStation(name: "The Twisted Root", items: [dish]),
+            MenuStation(name: "Home", items: [dish]),
+            MenuStation(name: CampusMenuNormalize.availableAllDay, items: [dish]),
+        ]
+        #expect(
+            DiningService.pinTwistedRootFirst(stations).map(\.name)
+                == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay]
+        )
+    }
 }
 
 @Suite("HallOpenState")

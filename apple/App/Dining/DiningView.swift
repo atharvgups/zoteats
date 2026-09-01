@@ -903,9 +903,7 @@ struct DiningView: View {
             let items = station.items.filter(matches)
             return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
         }
-        let twisted = stations.filter { DiningService.isTwistedRoot(stationName: $0.name) }
-        let rest = stations.filter { !DiningService.isTwistedRoot(stationName: $0.name) }
-        return twisted + rest
+        return DiningService.pinTwistedRootFirst(stations)
     }
 
     /// Favorited dishes being served right now, deduplicated by name.
