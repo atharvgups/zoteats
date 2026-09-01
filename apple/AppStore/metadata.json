@@ -16,14 +16,10 @@
   "review_notes": "No login or account is required. The app reads public endpoints only (Anteater API dining, Dining Hub campus food, Waitz library occupancy, LibCal library hours). Preferences and My Plate stay on-device (UserDefaults / App Group). Privacy Nutrition Label: Data Not Collected; PrivacyInfo.xcprivacy is in the app and widget targets.\n\nThere is NO Gym tab in this build. ARC gym busyness was removed until live sensors exist — reviewers should not expect a Gym tab or ARC crowdedness charts.\n\nDemo path for review:\n1. Open the Eat tab — menus load for today’s meal. Optional: Filters chip + Clear when filters are on; scroll to Available all day (collapsed disclosure).\n2. Tap a dish — blue Add to My Plate (or + on a row); Favorites heart is secondary.\n3. Open My Plate via the My Plate chip (empty) or blue tally bar (filled). Remove with minus / Remove from My Plate; Clear plate confirms for 2+ dishes.\n4. Campus — tap any place (blue Menu label) for the menu sheet or an honest empty/error with Retry.\n5. Settings (gear) → Notifications — enable an alert path to reveal Send test notification; optionally enable Opening alerts. Data Sources lists each public feed.\n6. Study — quietest library + Today’s hours (Langson + Science).\n7. Optional: Home Screen widgets (Dining Halls, Today’s Menu, Favorites Today, Campus Open Now, Quietest Library).\n\nPrivacy: Data Not Collected in App Store Connect (must be Published by the account holder). Unofficial student project; not affiliated with UC Irvine.",
   "screenshot_files": [
     "docs/screenshots/eat_light.png",
-    "docs/screenshots/dish_nutrition_light.png",
-    "docs/screenshots/plate_light.png",
     "docs/screenshots/campus.png",
     "docs/screenshots/study.png",
     "docs/screenshots/settings.png",
     "docs/screenshots/eat_dark.png",
-    "docs/screenshots/dish_nutrition_dark.png",
-    "docs/screenshots/campus_menu.png",
-    "docs/screenshots/plate_dark.png"
+    "docs/screenshots/campus_menu.png"
   ]
 }

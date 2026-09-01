@@ -35,7 +35,6 @@
 <p align="center">
   <img src="docs/screenshots/campus_menu.png" width="24%" alt="Menu sheet" />
   <img src="docs/screenshots/eat_dark.png" width="24%" alt="Dark mode" />
-  <img src="docs/screenshots/plate_light.png" width="24%" alt="My Plate" />
 </p>
 
 ## Data sources

@@ -97,8 +97,13 @@ jobs:
             xcrun simctl ui booted appearance "$mode"
             # Gym tab removed from shipping until live ARC sensors exist.
             for tab in dining campus busyness; do
-              xcrun simctl launch --terminate-running-process booted \
-                com.atharvgupta.zoteats -initialTab "$tab"
+              if [ "$tab" = dining ]; then
+                xcrun simctl launch --terminate-running-process booted \
+                  com.atharvgupta.zoteats -initialTab dining -preferLiveHall
+              else
+                xcrun simctl launch --terminate-running-process booted \
+                  com.atharvgupta.zoteats -initialTab "$tab"
+              fi
               # The app fetches live UCI data on launch; give it time to render.
               sleep 12
               xcrun simctl io booted screenshot "screenshots/${tab}_${mode}.png"

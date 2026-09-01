@@ -113,6 +113,7 @@ struct DiningView: View {
             syncPeriodSelection()
             considerAutoMealActivity()
             applyPendingDeepLinkIfNeeded()
+            applyScreenshotLaunchArgsIfNeeded()
         }
         .onChange(of: store.publishedDateRange) { syncDateSelection() }
         .onChange(of: selectedHall) {
@@ -1148,31 +1149,66 @@ struct DiningView: View {
         pendingDishName = nil
     }
 
-    /// CI helpers: open a labeled dish sheet and/or seed My Plate for screenshots.
+    /// CI helpers: hop off a closed/empty default hall so listing shots show a
+    /// live board, then open a labeled dish sheet and/or seed My Plate.
     private func applyScreenshotLaunchArgsIfNeeded() {
         guard !didApplyScreenshotArgs else { return }
         let args = ProcessInfo.processInfo.arguments
         let wantDish = args.contains("-showDishDetail")
         let wantPlate = args.contains("-showPlate")
-        guard wantDish || wantPlate else { return }
+        let preferLive = args.contains("-preferLiveHall") || wantDish || wantPlate
+        guard preferLive else { return }
 
-        guard case .loaded(let menu) = currentMenuState else { return }
-        let items = menu.stations.flatMap(\.items)
-        guard !items.isEmpty else { return }
+        if let items = screenshotBoardItems() {
+            didApplyScreenshotArgs = true
+            if wantPlate {
+                for item in items.prefix(3) where !plate.isOnPlate(item.name) {
+                    plate.toggle(item)
+                }
+                if !wantDish {
+                    showPlate = true
+                }
+            }
+            if wantDish {
+                selectedDish = items.first { $0.nutrition?.hasMacros == true } ?? items.first
+            }
+            return
+        }
+
+        guard let pick = screenshotLiveHallPick() else { return }
+        if pick.hall != selectedHall || pick.period != selectedPeriod {
+            selectedHall = pick.hall
+            selectedPeriod = pick.period
+            return
+        }
         didApplyScreenshotArgs = true
+    }
 
-        if wantPlate {
-            for item in items.prefix(3) where !plate.isOnPlate(item.name) {
-                plate.toggle(item)
-            }
-            if !wantDish {
-                showPlate = true
+    private func screenshotBoardItems() -> [MenuItem]? {
+        guard case .loaded(let menu) = currentMenuState else { return nil }
+        let items = menu.stations.flatMap(\.items)
+        return items.isEmpty ? nil : items
+    }
+
+    /// First hall+period with a warmed board, else the first hall still serving today.
+    private func screenshotLiveHallPick() -> (hall: String, period: String)? {
+        guard let locations = store.locations.value else { return nil }
+
+        for loc in locations where !loc.isComingSoon {
+            for period in loc.availablePeriods {
+                if case .loaded(let menu) = store.menuState(hall: loc.id, period: period),
+                   !menu.stations.flatMap(\.items).isEmpty {
+                    return (loc.id, period)
+                }
             }
         }
 
-        if wantDish {
-            selectedDish = items.first { $0.nutrition?.hasMacros == true } ?? items.first
+        guard let loc = locations.first(where: { !$0.isComingSoon && !$0.availablePeriods.isEmpty })
+        else { return nil }
+        let dinner = loc.availablePeriods.first {
+            $0.caseInsensitiveCompare("Dinner") == .orderedSame
         }
+        return (loc.id, dinner ?? loc.availablePeriods[0])
     }
 
     /// Keeps the period selection on a primary pill (Breakfast/Lunch/Dinner),
