@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-01 ~6:08 PT — read-only. Confirm 1.0.287; leave WAITING_FOR_REVIEW / IN_REVIEW. Do not submit Internal.
+Launch-loop peek 2026-09-02 morning PT — read-only. Apple mail: 1.0.287 review complete. Confirm READY_FOR_SALE vs still waiting. Do not submit Internal. Never cancel live READY_FOR_SALE.
 """
 
 from __future__ import annotations

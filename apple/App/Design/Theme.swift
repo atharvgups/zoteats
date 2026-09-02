@@ -87,13 +87,13 @@ enum ZotFont {
     static let kicker = Font.subheadline.weight(.semibold)
 }
 
-/// System UISwitch — gray well off, gold on, white thumb.
-/// App chrome tints with cream ink; without this, dark-mode switches fill as
-/// white pills with no visible knob.
+/// System UISwitch — gold when on, system well + knob when off.
+/// The app root tints cream ink; forcing a white thumb made dark-mode
+/// switches fill as solid cream/white pills with no visible knob.
 enum ZotSwitch {
     static func configure() {
         UISwitch.appearance().onTintColor = Color.accentUIColor
-        UISwitch.appearance().thumbTintColor = .white
+        UISwitch.appearance().thumbTintColor = nil
     }
 }
 
