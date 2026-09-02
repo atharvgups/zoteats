@@ -87,6 +87,10 @@ final class PlateStore {
 
     private func persist() {
         dateISO = Self.todayISO()
+        if PlateDayMath.shouldDropStorage(entries: entries) {
+            UserDefaults.standard.removeObject(forKey: Self.storageKey)
+            return
+        }
         let saved = Saved(dateISO: dateISO, entries: entries)
         if let data = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)

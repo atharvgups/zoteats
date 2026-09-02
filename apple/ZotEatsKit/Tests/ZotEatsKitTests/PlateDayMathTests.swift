@@ -37,4 +37,9 @@ struct PlateDayMathTests {
         #expect(PlateDayMath.shouldClear(savedDateISO: nil, todayISO: "2026-07-16") == false)
         #expect(PlateDayMath.shouldClear(savedDateISO: "", todayISO: "2026-07-16") == false)
     }
+
+    @Test func emptyPlateDropsStorageBlob() {
+        #expect(PlateDayMath.shouldDropStorage(entries: []) == true)
+        #expect(PlateDayMath.shouldDropStorage(entries: [bowl]) == false)
+    }
 }

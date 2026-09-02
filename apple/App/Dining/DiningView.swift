@@ -198,8 +198,12 @@ struct DiningView: View {
                 Text(PlateTallyCopy.barTitle(count: plate.entries.count))
                     .font(ZotFont.pill.weight(.semibold))
                 Spacer()
-                Text("\(plate.totalCalories) cal · \(plate.totalProteinG)g protein")
+                Text(PlateTallyCopy.macrosLine(
+                    calories: plate.totalCalories,
+                    proteinG: plate.totalProteinG
+                ))
                     .font(ZotFont.pill.weight(.medium))
+                    .contentTransition(.numericText())
                     .opacity(0.9)
             }
             .padding(.horizontal, 16)
@@ -229,8 +233,12 @@ struct DiningView: View {
                 Text(PlateTallyCopy.browseAheadTitle(count: plate.entries.count))
                     .font(ZotFont.pill.weight(.semibold))
                 Spacer()
-                Text("View")
-                    .font(ZotFont.pill.weight(.semibold))
+                Text(PlateTallyCopy.macrosLine(
+                    calories: plate.totalCalories,
+                    proteinG: plate.totalProteinG
+                ))
+                    .font(ZotFont.pill.weight(.medium))
+                    .contentTransition(.numericText())
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -243,7 +251,7 @@ struct DiningView: View {
         .padding(.bottom, 6)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityLabel(
-            "Today's plate: \(plate.entries.count) dishes. Opens My Plate."
+            "Today's plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein. Opens My Plate."
         )
         .accessibilityIdentifier("plate-browse-ahead-bar")
     }

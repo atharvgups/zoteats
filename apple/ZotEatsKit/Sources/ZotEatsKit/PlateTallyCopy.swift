@@ -16,4 +16,19 @@ public enum PlateTallyCopy {
     public static func browseAheadTitle(count: Int) -> String {
         count == 1 ? "Today's plate · 1" : "Today's plate · \(max(count, 0))"
     }
+
+    /// Calorie card / bar figure — honest zero when the plate is empty.
+    public static func caloriesValue(_ calories: Int) -> String {
+        "\(max(calories, 0)) cal"
+    }
+
+    /// Protein card figure.
+    public static func proteinValue(_ proteinG: Int) -> String {
+        "\(max(proteinG, 0))g"
+    }
+
+    /// Running macros on the floating tally (today and browse-ahead).
+    public static func macrosLine(calories: Int, proteinG: Int) -> String {
+        "\(caloriesValue(calories)) · \(proteinValue(proteinG)) protein"
+    }
 }

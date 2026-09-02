@@ -20,6 +20,25 @@ struct PlateTotalsTests {
         #expect(PlateTotals.proteinGrams(from: []) == 0)
     }
 
+    @Test func addThenRemoveKeepsRunningTotalHonest() {
+        var entries: [PlateEntry] = []
+        entries.append(PlateEntry(dishName: "Bowl", calories: 420, proteinG: 14))
+        #expect(PlateTotals.calories(from: entries) == 420)
+        #expect(PlateTotals.proteinGrams(from: entries) == 14)
+
+        entries.append(PlateEntry(dishName: "Soup", calories: 180, proteinG: 8.6))
+        #expect(PlateTotals.calories(from: entries) == 600)
+        #expect(PlateTotals.proteinGrams(from: entries) == 23)
+
+        entries.removeAll { $0.dishName == "Bowl" }
+        #expect(PlateTotals.calories(from: entries) == 180)
+        #expect(PlateTotals.proteinGrams(from: entries) == 9)
+
+        entries.removeAll()
+        #expect(PlateTotals.calories(from: entries) == 0)
+        #expect(PlateTotals.proteinGrams(from: entries) == 0)
+    }
+
     @Test func nutritionFactsHasMacrosAndDetails() {
         let empty = NutritionFacts()
         #expect(!empty.hasMacros)

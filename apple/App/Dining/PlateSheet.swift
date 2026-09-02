@@ -22,19 +22,21 @@ struct PlateSheet: View {
 
                 HStack(spacing: 12) {
                     totalCard(
-                        value: "\(plate.totalCalories)",
+                        value: PlateTallyCopy.caloriesValue(plate.totalCalories),
                         label: "Calories",
                         tint: .orange,
                         announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
                     )
                     totalCard(
-                        value: "\(plate.totalProteinG)g",
+                        value: PlateTallyCopy.proteinValue(plate.totalProteinG),
                         label: "Protein",
                         tint: TagPalette.sage,
                         announce: PlateTotalsAccessibility.shouldAnnounceTotals(isEmpty: plate.isEmpty)
                     )
                 }
                 .opacity(plate.isEmpty ? 0.55 : 1)
+                .animation(.snappy(duration: 0.2), value: plate.totalCalories)
+                .animation(.snappy(duration: 0.2), value: plate.totalProteinG)
 
                 if plate.isEmpty {
                     VStack(spacing: 8) {
@@ -175,6 +177,7 @@ struct PlateSheet: View {
             Text(value)
                 .font(ZotFont.face(22, relativeTo: .title2).weight(.medium))
                 .foregroundStyle(tint)
+                .contentTransition(.numericText())
             Text(label)
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)

@@ -21,4 +21,9 @@ public enum PlateDayMath {
         guard let savedDateISO, !savedDateISO.isEmpty else { return false }
         return savedDateISO != todayISO
     }
+
+    /// Empty plate must not leave a blob that can decode into yesterday's dishes.
+    public static func shouldDropStorage(entries: [PlateEntry]) -> Bool {
+        entries.isEmpty
+    }
 }
