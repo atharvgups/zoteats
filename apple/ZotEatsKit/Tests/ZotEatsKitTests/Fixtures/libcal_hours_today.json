@@ -1,0 +1,39 @@
+{
+  "locations": [
+    {
+      "lid": 10394,
+      "name": "LL - Building",
+      "category": "library",
+      "day": "Wednesday",
+      "times": {
+        "status": "open",
+        "hours": [{ "from": "8am", "to": "8pm" }],
+        "currently_open": true
+      },
+      "rendered": "8am - 8pm"
+    },
+    {
+      "lid": 15773,
+      "name": "SL - Building",
+      "category": "library",
+      "day": "Wednesday",
+      "times": {
+        "status": "open",
+        "hours": [{ "from": "8am", "to": "8pm" }],
+        "currently_open": true
+      },
+      "rendered": "8am - 8pm"
+    },
+    {
+      "lid": 1,
+      "name": "GML - Building & Service Desk",
+      "category": "library",
+      "times": {
+        "status": "closed",
+        "hours": [],
+        "currently_open": false
+      },
+      "rendered": "Closed"
+    }
+  ]
+}

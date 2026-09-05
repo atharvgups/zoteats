@@ -1,4 +1,4 @@
-# ZotEats — native iOS app
+# Anteats — native iOS app
 
 This directory contains the native SwiftUI app and its data layer.
 
@@ -8,4 +8,12 @@ This directory contains the native SwiftUI app and its data layer.
 - `project.yml` — [XcodeGen](https://github.com/yonaskolb/XcodeGen) spec; the Xcode project is generated, never committed: `xcodegen generate --spec apple/project.yml --project apple/`.
 - `AppStore/` — listing metadata and privacy policy.
 
-CI (`.github/workflows/ios.yml`) runs package tests on every push; the macOS build + simulator screenshots + demo recording run on demand (commits containing `[demo]`, or manual dispatch). TestFlight uploads run via the `testflight-*` tag or manual dispatch (`.github/workflows/testflight.yml`).
+CI (`.github/workflows/ios.yml`) runs package tests on every push; the macOS build + simulator screenshots + demo recording run on demand (commits containing `[demo]`, or manual dispatch). TestFlight uploads run via the `testflight-*` tag or manual dispatch (`.github/workflows/testflight.yml`). App Store listing prep + App Review submission run via `appstore-*` tags or the **App Store** workflow (`.github/workflows/appstore.yml`) using `apple/scripts/submit_app_store.py` and `apple/AppStore/metadata.json`.
+
+### TestFlight external testers (auto, one behind)
+
+**Always push + tag:** after dogfood-ready iOS changes, push the branch and a new `testflight-x.y.z` (prefer a fresh bump; don’t force-retag the same version).
+
+After each successful upload of build **N** (Internal Testing — you), CI promotes the previous VALID build (**N−1**) to the External Testing group and submits/notifies. Example: you just got **1.0.29** internally; externals stay on **1.0.28** until the next tag.
+
+External Testing group: **`Zot Eats Testers!`** (override with repo variable `TESTFLIGHT_EXTERNAL_GROUP_NAME`). First external build of a marketing version still needs Apple Beta App Review.

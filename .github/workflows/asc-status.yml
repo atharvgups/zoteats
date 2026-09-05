@@ -1,0 +1,42 @@
+# Read-only App Store Connect status (no submit / cancel / upload).
+name: ASC Status
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/asc-status.yml"
+      - "apple/scripts/asc_status.py"
+
+jobs:
+  status:
+    name: Query ASC review state
+    runs-on: ubuntu-latest
+    env:
+      APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          for name in APP_STORE_CONNECT_API_KEY_P8 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name"
+              exit 1
+            fi
+          done
+
+      - name: ASC status (read-only)
+        run: |
+          mkdir -p "$HOME/private_keys"
+          echo "$APP_STORE_CONNECT_API_KEY_P8" | base64 --decode \
+            > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          export APP_STORE_CONNECT_API_KEY_PATH="$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          python3 -m venv "$RUNNER_TEMP/asc-venv"
+          # shellcheck disable=SC1091
+          source "$RUNNER_TEMP/asc-venv/bin/activate"
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet 'PyJWT[crypto]'
+          python apple/scripts/asc_status.py

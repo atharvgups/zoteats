@@ -1,0 +1,118 @@
+import Foundation
+import Testing
+@testable import ZotEatsKit
+
+@Suite("DiningMenuIdleAction")
+struct DiningMenuIdleActionTests {
+    @Test func locationsStillLoadingKeepsSkeleton() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: false,
+                availablePeriods: nil,
+                selectedPeriod: nil
+            ) == .loading
+        )
+    }
+
+    @Test func emptyPeriodsMeansNoMenu() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: [],
+                selectedPeriod: nil
+            ) == .emptyNoMenu
+        )
+    }
+
+    @Test func selectedUnpostedMealKeepsLoadingNotHallEmpty() {
+        // Peek Lunch on an empty / breakfast-only board — load honest empty.
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: ["Breakfast"],
+                selectedPeriod: "Lunch"
+            ) == .loading
+        )
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: [],
+                selectedPeriod: "Dinner"
+            ) == .loading
+        )
+    }
+
+    @Test func allDayOnlyMeansNoMenu() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: ["All Day"],
+                selectedPeriod: nil
+            ) == .emptyNoMenu
+        )
+    }
+
+    @Test func primaryPillsWithSelectionKeepLoading() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: ["Breakfast", "Lunch", "Dinner"],
+                selectedPeriod: "Lunch"
+            ) == .loading
+        )
+    }
+
+    @Test func primaryPillsWithoutSelectionMeansNoMenu() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: ["Breakfast", "Lunch"],
+                selectedPeriod: nil
+            ) == .emptyNoMenu
+        )
+    }
+
+    @Test func browseDayPeriodsPendingKeepsSkeleton() {
+        #expect(
+            DiningMenuIdleAction.resolve(
+                locationsLoaded: true,
+                availablePeriods: nil,
+                selectedPeriod: nil,
+                browseDayPeriodsPending: true
+            ) == .loading
+        )
+    }
+
+    @Test func emptyKindHonorsPartialBoardOverNoMenuPosted() {
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: .awaitingMoreMeals
+            ) == .awaitingMoreMeals
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: .closedForToday
+            ) == .afterHours
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: .open(period: "Lunch", closesAt: 900)
+            ) == .noMenuPosted
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: false,
+                openState: .awaitingMoreMeals
+            ) == .noMenuPosted
+        )
+        #expect(
+            DiningMenuIdleEmptyKind.resolve(
+                browsingToday: true,
+                openState: nil
+            ) == .noMenuPosted
+        )
+    }
+}
