@@ -80,7 +80,8 @@ enum ZotFont {
 
     /// Stock iOS text styles at normal weights — not the 11–13pt skinny tokens.
     static let cardTitle = Font.headline.weight(.semibold)
-    static let sectionTitle = Font.body.weight(.semibold)
+    /// Station / section headers — same thick SF Pro as dish names, a touch larger.
+    static let sectionTitle = Font.system(size: 18, weight: .semibold)
     static let body = Font.body
     static let caption = Font.callout
     static let pill = Font.subheadline.weight(.semibold)

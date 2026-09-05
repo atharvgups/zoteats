@@ -367,7 +367,6 @@ struct CampusView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Favorites")
                 .font(ZotFont.sectionTitle)
-                .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
 
@@ -735,7 +734,6 @@ struct CampusMenuSheet: View {
                         HStack {
                             Text(station.name)
                                 .font(ZotFont.sectionTitle)
-                                .textCase(.uppercase)
                                 .foregroundStyle(Color.ink)
                             Spacer()
                             Text("\(station.items.count)")
@@ -770,7 +768,6 @@ struct CampusMenuSheet: View {
                 } else {
                     Text(station.name)
                         .font(ZotFont.sectionTitle)
-                        .textCase(.uppercase)
                         .foregroundStyle(Color.ink)
                         .accessibilityAddTraits(.isHeader)
                     VStack(spacing: 0) {
@@ -799,7 +796,6 @@ struct CampusMenuSheet: View {
                     .frame(width: 3, height: 14)
                 Text(CampusTypicalMenus.bannerStationName)
                     .font(ZotFont.sectionTitle)
-                    .textCase(.uppercase)
                     .foregroundStyle(Color.ink)
             }
             if let note = station.items.first?.name {

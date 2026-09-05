@@ -21,6 +21,7 @@ struct DiningView: View {
     /// Eat meal boards: Available-all-day station stays collapsed until tapped.
     @State private var allDayExpanded = false
     @State private var mealActivity = MealActivityManager()
+    @AppStorage("zoteats.didShowTrackMealTip") private var didShowTrackMealTip = false
     /// CI screenshot launch args (`-showDishDetail` / `-showPlate`) fire once.
     @State private var didApplyScreenshotArgs = false
     /// Dish name from a notification tap — opened once the menu finishes loading.
@@ -80,7 +81,7 @@ struct DiningView: View {
                 ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
 
                 hallSelector
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 16)
 
                 content
             }
@@ -449,20 +450,19 @@ struct DiningView: View {
     }
 
     /// Equal-width 3-up hall cards — all visible, no sideways scroll.
-    /// Another real size bump toward the old two-up boxes: two-up type (21)
-    /// and taller faces, still three-across and round.
+    /// Taller faces + larger type so three-across still reads like real cards.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if let locations, !locations.isEmpty {
                 ForEach(locations) { location in
                     hallCard(for: location)
                 }
             } else {
-                SkeletonCard(height: 136)
-                SkeletonCard(height: 136)
-                SkeletonCard(height: 136)
+                SkeletonCard(height: 152)
+                SkeletonCard(height: 152)
+                SkeletonCard(height: 152)
             }
         }
         .accessibilityElement(children: .contain)
@@ -480,22 +480,24 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(ZotFont.face(21, relativeTo: .title3).weight(.semibold))
+                    .font(ZotFont.face(23, relativeTo: .title2).weight(.semibold))
                     .foregroundStyle(Color.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(status.text)
-                    .font(ZotFont.caption.weight(.medium))
+                    .font(ZotFont.body.weight(.medium))
                     .foregroundStyle(status.tint)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 18)
-            .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, minHeight: 152, alignment: .topLeading)
             .background(
                 isSelected ? Color.selectWash : Color.card,
                 in: RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
@@ -654,7 +656,7 @@ struct DiningView: View {
                     .font(ZotFont.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                trackMealButton(menu: menu)
+                trackMealButton(menu: menu, stations: stations)
             }
             .padding(.horizontal, 20)
 
@@ -751,9 +753,9 @@ struct DiningView: View {
         .accessibilityIdentifier("dish-row")
     }
 
-    /// Live Activity control: only for today's currently-serving meal.
+    /// Live Activity + add this meal’s favorite dishes to My Plate.
     @ViewBuilder
-    private func trackMealButton(menu: DiningMenu) -> some View {
+    private func trackMealButton(menu: DiningMenu, stations: [MenuStation]) -> some View {
         if selectedDate == nil,
            let location = selectedLocation,
            let window = location.periods.first(where: {
@@ -765,64 +767,86 @@ struct DiningView: View {
             if now >= start && now < end {
                 if mealActivity.isAvailable {
                     let tracking = mealActivity.isTracking(hall: location.id, period: menu.period)
-                    Button {
-                        Task {
-                            if tracking {
-                                await mealActivity.endAll()
-                                Haptics.selection()
-                            } else {
-                                let postClose = MealActivityPostClose.destination(
-                                    currentPeriodEndMinutes: end,
-                                    timedPeriods: location.periods,
-                                    opensTomorrowPeriod: location.opensTomorrowPeriod,
-                                    opensNextPeriod: location.opensNextPeriod,
-                                    opensNextDayOffset: location.opensNextDayOffset,
-                                    opensNextDateISO: location.opensNextDateISO
-                                )
-                                _ = await mealActivity.track(
-                                    hallName: location.name,
-                                    hallID: location.id,
-                                    period: menu.period,
-                                    endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
-                                    postClosePeriod: postClose.period,
-                                    postCloseDate: postClose.date,
-                                    opensTomorrowPeriod: MealActivityPostClose
-                                        .contentOpensTomorrowPeriod(
-                                            postClose: postClose,
-                                            hallOpensTomorrowPeriod: location.opensTomorrowPeriod
-                                        )
-                                )
-                            }
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if !didShowTrackMealTip, !tracking {
+                            Text(TrackMealCopy.firstTapTip)
+                                .font(ZotFont.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: 220, alignment: .trailing)
                         }
-                    } label: {
-                        Label(
-                            tracking ? "Tracking" : "Track meal",
-                            systemImage: tracking ? "timer.circle.fill" : "timer"
-                        )
-                        .font(ZotFont.caption.weight(.medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            tracking ? Color.ink.opacity(0.12) : Color.card,
-                            in: Capsule()
-                        )
-                        .foregroundStyle(tracking ? Color.ink : .secondary)
-                        .overlay(
-                            Capsule().strokeBorder(
-                                tracking ? Color.ink.opacity(0.35) : Color.cardBorder,
-                                lineWidth: 1
+                        Button {
+                            Task {
+                                if tracking {
+                                    await mealActivity.endAll()
+                                    Haptics.selection()
+                                } else {
+                                    plate.addMissing(
+                                        TrackMealPlateItems.favorites(
+                                            from: stations,
+                                            favoriteNames: prefs.favoriteDishNames
+                                        )
+                                    )
+                                    didShowTrackMealTip = true
+                                    let postClose = MealActivityPostClose.destination(
+                                        currentPeriodEndMinutes: end,
+                                        timedPeriods: location.periods,
+                                        opensTomorrowPeriod: location.opensTomorrowPeriod,
+                                        opensNextPeriod: location.opensNextPeriod,
+                                        opensNextDayOffset: location.opensNextDayOffset,
+                                        opensNextDateISO: location.opensNextDateISO
+                                    )
+                                    _ = await mealActivity.track(
+                                        hallName: location.name,
+                                        hallID: location.id,
+                                        period: menu.period,
+                                        endsAt: MealTrackMath.endsAt(endMinutes: end, nowMinutes: now),
+                                        postClosePeriod: postClose.period,
+                                        postCloseDate: postClose.date,
+                                        opensTomorrowPeriod: MealActivityPostClose
+                                            .contentOpensTomorrowPeriod(
+                                                postClose: postClose,
+                                                hallOpensTomorrowPeriod: location.opensTomorrowPeriod
+                                            )
+                                    )
+                                }
+                            }
+                        } label: {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Label(
+                                    tracking
+                                        ? TrackMealCopy.trackingLabel
+                                        : TrackMealCopy.idleLabel(period: menu.period),
+                                    systemImage: tracking ? "timer.circle.fill" : "fork.knife.circle"
+                                )
+                                if !tracking {
+                                    Text(TrackMealCopy.subtitle)
+                                        .font(ZotFont.caption.weight(.medium))
+                                }
+                            }
+                            .font(ZotFont.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                tracking ? Color.ink.opacity(0.12) : Color.card,
+                                in: Capsule()
                             )
-                        )
+                            .foregroundStyle(tracking ? Color.ink : .secondary)
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    tracking ? Color.ink.opacity(0.35) : Color.cardBorder,
+                                    lineWidth: 1
+                                )
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel(
                         tracking
-                            ? "Stop tracking \(menu.period)"
-                            : "Track \(menu.period) — live countdown on your lock screen"
+                            ? TrackMealCopy.accessibilityTracking(period: menu.period)
+                            : TrackMealCopy.accessibilityIdle(period: menu.period)
                     )
                 } else {
-                    // Honest affordance — don't hide Track when the meal is live
-                    // but system Live Activities are off.
                     Label("Live Activities off", systemImage: "timer")
                         .font(ZotFont.caption.weight(.medium))
                         .padding(.horizontal, 10)
@@ -869,7 +893,6 @@ struct DiningView: View {
             }
             Text(title)
                 .font(ZotFont.sectionTitle)
-                .textCase(.uppercase)
                 .foregroundStyle(Color.ink)
             Spacer(minLength: 8)
             Text("\(count)")
@@ -1489,34 +1512,27 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — meal name only (Atharv: no “tomorrow · 7:15 AM” essays).
+/// Short card subtext — meal now / next, no clock essays.
 private enum HallChromeStatus {
     static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
+        let state = location.openState(nowMinutes: nowMinutes)
+        let text = EatHallCardChrome.statusText(
+            comingSoon: location.comingSoonSubtitle != nil,
+            state: state,
+            opensTomorrowPeriod: location.opensTomorrowPeriod,
+            opensNextPeriod: location.opensNextPeriod
+        )
         if location.comingSoonSubtitle != nil {
-            return (OasisComingSoonCopy.cardStatus, .secondary)
+            return (text, .secondary)
         }
-        switch location.openState(nowMinutes: nowMinutes) {
-        case .open(let period, _):
-            return (mealLabel(period), .openGreen)
-        case .openingLater(let period, _):
-            return (mealLabel(period), .busyOrange)
-        case .awaitingMoreMeals:
-            return ("Later", .busyOrange)
-        case .closedForToday:
-            if let meal = location.opensTomorrowPeriod {
-                return (mealLabel(meal), .secondary)
-            }
-            if let meal = location.opensNextPeriod {
-                return (mealLabel(meal), .secondary)
-            }
-            return ("Closed", .secondary)
-        case .unknown:
-            return ("Soon", .secondary)
+        switch state {
+        case .open:
+            return (text, .openGreen)
+        case .openingLater, .awaitingMoreMeals:
+            return (text, .busyOrange)
+        case .closedForToday, .unknown:
+            return (text, .secondary)
         }
-    }
-
-    private static func mealLabel(_ live: String) -> String {
-        MealPeriodPill.canonical(live)
     }
 }
 

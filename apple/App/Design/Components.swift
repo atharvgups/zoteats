@@ -111,7 +111,7 @@ struct PillRow<Item: Hashable>: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 2)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {

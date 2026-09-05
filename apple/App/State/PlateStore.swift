@@ -57,6 +57,25 @@ final class PlateStore {
         entries.contains { $0.dishName == dishName }
     }
 
+    /// Add dishes that aren't already on today's plate (Track Meal favorites).
+    func addMissing(_ items: [MenuItem]) {
+        guard !items.isEmpty else { return }
+        ensureCurrentDay()
+        var added = false
+        for item in items where !isOnPlate(item.name) {
+            entries.append(PlateEntry(
+                dishName: item.name,
+                calories: item.calories,
+                proteinG: item.nutrition?.proteinG
+            ))
+            added = true
+        }
+        if added {
+            Haptics.soft()
+            persist()
+        }
+    }
+
     /// One tap adds, a second tap removes — no separate delete mode needed.
     func toggle(_ item: MenuItem) {
         ensureCurrentDay()

@@ -466,103 +466,39 @@ struct BusynessFacilityCard: View {
         facility.isEffectivelyOpen(nowMinutes: UCITime.nowMinutes())
     }
 
+    private var canRevealFloors: Bool {
+        StudyLibraryTap.canRevealFloors(hasFloors: hasFloors, isOpen: effectivelyOpen)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(facility.name)
-                            .font(ZotFont.cardTitle)
-                            .lineLimit(2)
-                        Spacer(minLength: 8)
-                        StatusPill(isOpen: effectivelyOpen)
-                    }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
-                           let percent = facility.percent {
-                            Text("\(percent)%")
-                                .font(ZotFont.face(28, relativeTo: .title).weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(facility.level.color)
-                            Text(facility.level.label)
-                                .font(ZotFont.pill)
-                                .foregroundStyle(facility.level.color)
-                        } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
-                            Text("—")
-                                .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
-                                .foregroundStyle(.secondary)
-                            Text(facility.level.label)
-                                .font(ZotFont.pill)
-                                .foregroundStyle(facility.level.color)
-                        } else {
-                            Text("—")
-                                .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
-                                .foregroundStyle(.secondary)
-                            Text(StudyFacilityCrowding.closedLevelLabel)
-                                .font(ZotFont.pill)
-                                .foregroundStyle(.secondary)
+            Group {
+                if canRevealFloors {
+                    Button {
+                        withAnimation(.snappy(duration: 0.3)) {
+                            isExpanded.toggle()
                         }
-                        Spacer()
+                        Haptics.selection()
+                    } label: {
+                        facilitySummary
                     }
-
-                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
-                        OccupancyBar(percent: facility.percent, level: facility.level)
-                        if let openLine = StudyIdleCopy.facilityOpenDetail(
-                            hoursSummary: facility.hoursSummary,
-                            libraryHours: libraryHours
-                        ) {
-                            Text(openLine)
-                                .font(ZotFont.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Text(
-                            StudyIdleCopy.facilityClosedDetail(
-                                hoursSummary: facility.hoursSummary,
-                                libraryHours: libraryHours
-                            )
-                        )
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack {
-                        if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
-                           let count = facility.count, let capacity = facility.capacity {
-                            Text("\(count) / \(capacity) people")
-                                .font(ZotFont.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        UpdatedAgoText(date: facility.updatedAt)
-                    }
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    StudyFacilityAccessibilityLabel.label(
-                        name: facility.name,
-                        isOpen: effectivelyOpen,
-                        percent: facility.percent,
-                        levelLabel: facility.level.label,
-                        peopleCount: facility.count,
-                        capacity: facility.capacity,
-                        updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt),
-                        hoursSummary: facility.hoursSummary
+                    .buttonStyle(.plain)
+                    .accessibilityHint(
+                        isExpanded
+                            ? "Hides floors inside \(facility.name)"
+                            : "Shows floors inside \(facility.name)"
                     )
-                )
-
-                // Floor % goes stale overnight — only expand while the building is open.
-                if hasFloors, StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
-                    expandToggle
+                    .accessibilityLabel(
+                        isExpanded
+                            ? "Hide floors inside \(facility.name)"
+                            : "Show floors inside \(facility.name)"
+                    )
+                } else {
+                    facilitySummary
                 }
             }
-            .padding(16)
-            .zotCard()
 
-            if hasFloors,
-               StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
-               isExpanded {
+            if canRevealFloors, isExpanded {
                 floorsList
             }
         }
@@ -575,6 +511,101 @@ struct BusynessFacilityCard: View {
         .onChange(of: expandPulse) { _, _ in
             if initiallyExpanded { expandIfRequested() }
         }
+    }
+
+    private var facilitySummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(facility.name)
+                        .font(ZotFont.cardTitle)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    StatusPill(isOpen: effectivelyOpen)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
+                       let percent = facility.percent {
+                        Text("\(percent)%")
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(facility.level.color)
+                        Text(facility.level.label)
+                            .font(ZotFont.pill)
+                            .foregroundStyle(facility.level.color)
+                    } else if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
+                        Text("—")
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Text(facility.level.label)
+                            .font(ZotFont.pill)
+                            .foregroundStyle(facility.level.color)
+                    } else {
+                        Text("—")
+                            .font(ZotFont.face(28, relativeTo: .title).weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Text(StudyFacilityCrowding.closedLevelLabel)
+                            .font(ZotFont.pill)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+
+                if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen) {
+                    OccupancyBar(percent: facility.percent, level: facility.level)
+                    if let openLine = StudyIdleCopy.facilityOpenDetail(
+                        hoursSummary: facility.hoursSummary,
+                        libraryHours: libraryHours
+                    ) {
+                        Text(openLine)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text(
+                        StudyIdleCopy.facilityClosedDetail(
+                            hoursSummary: facility.hoursSummary,
+                            libraryHours: libraryHours
+                        )
+                    )
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    if StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
+                       let count = facility.count, let capacity = facility.capacity {
+                        Text("\(count) / \(capacity) people")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    UpdatedAgoText(date: facility.updatedAt)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityHidden(canRevealFloors)
+            .accessibilityLabel(
+                StudyFacilityAccessibilityLabel.label(
+                    name: facility.name,
+                    isOpen: effectivelyOpen,
+                    percent: facility.percent,
+                    levelLabel: facility.level.label,
+                    peopleCount: facility.count,
+                    capacity: facility.capacity,
+                    updatedRelative: UpdatedAgoCopy.relative(from: facility.updatedAt),
+                    hoursSummary: facility.hoursSummary
+                )
+            )
+
+            if canRevealFloors {
+                expandToggle
+            }
+        }
+        .padding(16)
+        .zotCard()
+        .contentShape(Rectangle())
     }
 
     private func expandIfRequested() {
@@ -598,31 +629,17 @@ struct BusynessFacilityCard: View {
     }
 
     private var expandToggle: some View {
-        Button {
-            withAnimation(.snappy(duration: 0.3)) {
-                isExpanded.toggle()
-            }
-            Haptics.selection()
-        } label: {
-            // Collapsed = chevron.down (“more”); expanded = chevron.up. No
-            // rotation games — and this toggle only renders when expandable.
-            HStack(spacing: 6) {
-                Text(isExpanded ? "Hide floors" : "\(floors.count) floors")
-                    .font(ZotFont.pill.weight(.semibold))
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 18, height: 18)
-            }
-            .foregroundStyle(Color.ink)
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
+        // Visual affordance only — the whole library card is the tap target.
+        HStack(spacing: 6) {
+            Text(isExpanded ? "Hide floors" : "\(floors.count) floors")
+                .font(ZotFont.pill.weight(.semibold))
+            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                .font(.caption.weight(.semibold))
+                .frame(width: 18, height: 18)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            isExpanded
-                ? "Hide floors inside \(facility.name)"
-                : "Show floors inside \(facility.name)"
-        )
+        .foregroundStyle(Color.ink)
+        .padding(.vertical, 4)
+        .accessibilityHidden(true)
     }
 }
 
