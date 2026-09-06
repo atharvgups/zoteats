@@ -36,29 +36,160 @@ struct StatusPill: View {
     }
 }
 
-/// Themed Eat hall mark — SF Symbol, Oasis adds a simple dune under the drop.
+/// Custom hall marks — Mesa Court earth, abstract hobbit door, desert water.
+/// Not generic SF Symbols (building / leaf / drop).
 struct EatHallTileIcon: View {
     let hallID: String
 
     var body: some View {
-        let symbol = EatHallTileMark.symbolName(forHallID: hallID)
-        if HallDirectory.isOasis(hallID) {
-            VStack(spacing: 3) {
-                Image(systemName: symbol)
-                    .font(.system(size: 20, weight: .semibold))
-                Capsule()
-                    .fill(Color.ink.opacity(0.28))
-                    .frame(width: 16, height: 3)
+        Group {
+            switch EatHallTileMark.kind(forHallID: hallID) {
+            case .mesa: MesaCourtMark()
+            case .hobbit: HobbitHillMark()
+            case .oasis: OasisDesertWaterMark()
             }
-            .foregroundStyle(Color.ink)
-            .frame(height: 28)
-            .accessibilityHidden(true)
-        } else {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(Color.ink)
-                .frame(height: 28)
-                .accessibilityHidden(true)
+        }
+        .frame(width: 36, height: 32)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Mesa Court — canyon plateau + small residential hall, warm earth.
+struct MesaCourtMark: View {
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            let backEarth = Color(red: 196 / 255, green: 148 / 255, blue: 96 / 255)
+            let frontEarth = Color(red: 147 / 255, green: 110 / 255, blue: 90 / 255)
+            let hall = Color(red: 92 / 255, green: 64 / 255, blue: 48 / 255)
+            let window = Color(red: 232 / 255, green: 196 / 255, blue: 140 / 255)
+
+            var ridge = Path()
+            ridge.move(to: CGPoint(x: w * 0.18, y: h * 0.72))
+            ridge.addLine(to: CGPoint(x: w * 0.30, y: h * 0.26))
+            ridge.addLine(to: CGPoint(x: w * 0.58, y: h * 0.26))
+            ridge.addLine(to: CGPoint(x: w * 0.68, y: h * 0.72))
+            ridge.closeSubpath()
+            context.fill(ridge, with: .color(backEarth))
+
+            var mesa = Path()
+            mesa.move(to: CGPoint(x: w * 0.04, y: h * 0.94))
+            mesa.addLine(to: CGPoint(x: w * 0.16, y: h * 0.54))
+            mesa.addLine(to: CGPoint(x: w * 0.28, y: h * 0.54))
+            mesa.addLine(to: CGPoint(x: w * 0.34, y: h * 0.38))
+            mesa.addLine(to: CGPoint(x: w * 0.78, y: h * 0.38))
+            mesa.addLine(to: CGPoint(x: w * 0.84, y: h * 0.54))
+            mesa.addLine(to: CGPoint(x: w * 0.92, y: h * 0.54))
+            mesa.addLine(to: CGPoint(x: w * 0.96, y: h * 0.94))
+            mesa.closeSubpath()
+            context.fill(mesa, with: .color(frontEarth))
+
+            let block = CGRect(x: w * 0.40, y: h * 0.12, width: w * 0.32, height: h * 0.26)
+            context.fill(
+                Path(roundedRect: block, cornerRadius: 1.6),
+                with: .color(hall)
+            )
+            context.fill(
+                Path(ellipseIn: CGRect(x: w * 0.45, y: h * 0.18, width: w * 0.07, height: h * 0.11)),
+                with: .color(window)
+            )
+            context.fill(
+                Path(ellipseIn: CGRect(x: w * 0.58, y: h * 0.18, width: w * 0.07, height: h * 0.11)),
+                with: .color(window)
+            )
+        }
+    }
+}
+
+/// Brandywine — abstract round door in a green hill. Not a licensed mark.
+struct HobbitHillMark: View {
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            let hill = Color(red: 68 / 255, green: 131 / 255, blue: 97 / 255)
+            let shade = Color(red: 52 / 255, green: 100 / 255, blue: 76 / 255)
+            let ring = Color(red: 158 / 255, green: 124 / 255, blue: 76 / 255)
+            let door = Color(red: 72 / 255, green: 48 / 255, blue: 28 / 255)
+
+            var mound = Path()
+            mound.move(to: CGPoint(x: 0, y: h))
+            mound.addQuadCurve(
+                to: CGPoint(x: w, y: h),
+                control: CGPoint(x: w * 0.50, y: h * 0.02)
+            )
+            mound.closeSubpath()
+            context.fill(mound, with: .color(hill))
+
+            var shadow = Path()
+            shadow.move(to: CGPoint(x: w * 0.48, y: h))
+            shadow.addQuadCurve(
+                to: CGPoint(x: w, y: h),
+                control: CGPoint(x: w * 0.74, y: h * 0.30)
+            )
+            context.fill(shadow, with: .color(shade.opacity(0.45)))
+
+            let ringRect = CGRect(x: w * 0.30, y: h * 0.40, width: w * 0.40, height: w * 0.40)
+            context.fill(Path(ellipseIn: ringRect.insetBy(dx: -1.6, dy: -1.6)), with: .color(ring))
+            context.fill(Path(ellipseIn: ringRect), with: .color(door))
+            context.fill(
+                Path(ellipseIn: CGRect(x: w * 0.56, y: h * 0.60, width: w * 0.07, height: w * 0.07)),
+                with: .color(ring)
+            )
+        }
+    }
+}
+
+/// Oasis — aqua drop over warm sand dunes (pavilion / mirage mood).
+struct OasisDesertWaterMark: View {
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            let sandBack = Color(red: 196 / 255, green: 160 / 255, blue: 110 / 255)
+            let sandFront = Color(red: 178 / 255, green: 132 / 255, blue: 78 / 255)
+            let water = Color(red: 56 / 255, green: 168 / 255, blue: 196 / 255)
+            let waterDeep = Color(red: 28 / 255, green: 122 / 255, blue: 158 / 255)
+
+            var back = Path()
+            back.move(to: CGPoint(x: 0, y: h))
+            back.addQuadCurve(
+                to: CGPoint(x: w * 0.70, y: h),
+                control: CGPoint(x: w * 0.30, y: h * 0.28)
+            )
+            back.closeSubpath()
+            context.fill(back, with: .color(sandBack))
+
+            var front = Path()
+            front.move(to: CGPoint(x: w * 0.22, y: h))
+            front.addQuadCurve(
+                to: CGPoint(x: w, y: h),
+                control: CGPoint(x: w * 0.68, y: h * 0.32)
+            )
+            front.closeSubpath()
+            context.fill(front, with: .color(sandFront))
+
+            var drop = Path()
+            let cx = w * 0.48
+            drop.move(to: CGPoint(x: cx, y: h * 0.06))
+            drop.addQuadCurve(
+                to: CGPoint(x: cx + w * 0.18, y: h * 0.46),
+                control: CGPoint(x: cx + w * 0.18, y: h * 0.24)
+            )
+            drop.addQuadCurve(
+                to: CGPoint(x: cx - w * 0.18, y: h * 0.46),
+                control: CGPoint(x: cx, y: h * 0.68)
+            )
+            drop.addQuadCurve(
+                to: CGPoint(x: cx, y: h * 0.06),
+                control: CGPoint(x: cx - w * 0.18, y: h * 0.24)
+            )
+            context.fill(drop, with: .color(water))
+            context.fill(
+                Path(ellipseIn: CGRect(x: cx - w * 0.05, y: h * 0.22, width: w * 0.07, height: h * 0.10)),
+                with: .color(waterDeep.opacity(0.35))
+            )
         }
     }
 }

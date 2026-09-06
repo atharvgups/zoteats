@@ -36,35 +36,23 @@ private extension View {
     }
 }
 
-/// Home Screen widget chrome — parchment canvas, nested cards, SF Pro at
+/// Home Screen widget chrome — Settings gray canvas, white cards, SF Pro at
 /// normal weights, gold accent. No expanded-black shout.
 /// Colors follow the Home Screen appearance so Dark Mode actually flips.
 private enum WidgetChrome {
     static let open = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
 
-    static let canvas = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 16 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
-            : UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
-    })
+    static let canvas = Color(uiColor: .systemGroupedBackground)
 
     static let card = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
-            : UIColor(red: 250 / 255, green: 249 / 255, blue: 242 / 255, alpha: 1)
+            ? .secondarySystemGroupedBackground
+            : .white
     })
 
-    static let ink = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 1)
-            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
-    })
+    static let ink = Color(uiColor: .label)
 
-    static let muted = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 0.58)
-            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.50)
-    })
+    static let muted = Color(uiColor: .secondaryLabel)
 
     static let hairline = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
@@ -72,7 +60,7 @@ private enum WidgetChrome {
             : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.10)
     })
 
-    /// Gold on parchment; brighter gold on charcoal so it still reads in Dark Mode.
+    /// Gold on gray; brighter gold on charcoal so it still reads in Dark Mode.
     static let accent = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)

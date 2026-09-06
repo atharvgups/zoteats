@@ -1,8 +1,8 @@
 import SwiftUI
 
-// Anteats visual system — quiet paper, one gold accent, type as hierarchy.
-// Light is warm parchment; dark is a first-class near-black, not a dimmed
-// invert. Chrome is hairlines. Type is SF Pro at normal app weights.
+// Anteats visual system — iOS Settings gray canvas, white cards, one gold
+// accent. Dark is honest system dark, not a cream invert. Chrome is hairlines.
+// Type is SF Pro at normal app weights.
 
 extension Color {
     /// UCI primary blue (#0064A4) — cheer easter egg only, never chrome.
@@ -12,34 +12,21 @@ extension Color {
     /// Deeper blue for the cheer gradient (#004A7C).
     static let uciBlueDeep = Color(red: 0 / 255, green: 74 / 255, blue: 124 / 255)
 
-    /// Primary ink — charcoal on paper, cream on dark.
-    static let ink = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 1)
-            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
-    })
+    /// Primary ink — system label (cool, not cream).
+    static let ink = Color(uiColor: .label)
 
-    /// Secondary copy — same ink, quieter.
-    static let inkMuted = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 247 / 255, green: 244 / 255, blue: 234 / 255, alpha: 0.58)
-            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.50)
-    })
+    /// Secondary copy — system secondary label.
+    static let inkMuted = Color(uiColor: .secondaryLabel)
 
-    /// Page canvas — parchment #F4F2E7 / near-black in dark (not a grey lift).
-    static let screen = Color(uiColor: UIColor { traits in
-        if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 16 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
-        }
-        return UIColor(red: 244 / 255, green: 242 / 255, blue: 231 / 255, alpha: 1)
-    })
+    /// Page canvas — iOS Settings gray (#F2F2F7) / system grouped in dark.
+    static let screen = Color(uiColor: .systemGroupedBackground)
 
-    /// Raised surface — a hair brighter than the page, so cards don't box.
+    /// Raised surface — pure white in light, system elevated in dark.
     static let card = Color(uiColor: UIColor { traits in
         if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 1)
+            return .secondarySystemGroupedBackground
         }
-        return UIColor(red: 250 / 255, green: 249 / 255, blue: 242 / 255, alpha: 1)
+        return .white
     })
 
     /// Hairline — opacity, never a shadow.
@@ -52,7 +39,7 @@ extension Color {
     /// Selected wash — charcoal at 6%, never campus blue.
     static let selectWash = Color.ink.opacity(0.06)
 
-    /// Gold that still reads on parchment (full #FFD200 washes out in light).
+    /// Gold that still reads on gray (full #FFD200 washes out in light).
     static let accentUIColor = UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
@@ -89,8 +76,7 @@ enum ZotFont {
 }
 
 /// System UISwitch — gold when on, system well + knob when off.
-/// The app root tints cream ink; forcing a white thumb made dark-mode
-/// switches fill as solid cream/white pills with no visible knob.
+/// Leave the thumb system-default so dark-mode switches keep a visible knob.
 enum ZotSwitch {
     static func configure() {
         UISwitch.appearance().onTintColor = Color.accentUIColor
@@ -148,7 +134,7 @@ struct ZotHairline: View {
 
 // MARK: - Dietary tag colors
 
-/// Soft desaturated tags that sit calmly on warm paper.
+/// Soft desaturated tags that sit calmly on white cards.
 enum TagPalette {
     static let sage = Color(red: 68 / 255, green: 131 / 255, blue: 97 / 255)
     static let eucalyptus = Color(red: 89 / 255, green: 148 / 255, blue: 132 / 255)

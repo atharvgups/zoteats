@@ -2,18 +2,8 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
-@Suite("TrackMealCopy")
-struct TrackMealCopyTests {
-    @Test func idleLabelUsesMealName() {
-        #expect(TrackMealCopy.idleLabel(period: "Lunch") == "Track lunch")
-        #expect(TrackMealCopy.idleLabel(period: "Limited Dinner") == "Track dinner")
-    }
-
-    @Test func subtitleMentionsPlate() {
-        #expect(TrackMealCopy.subtitle.contains("My Plate"))
-        #expect(TrackMealCopy.firstTapTip.contains("My Plate"))
-    }
-
+@Suite("TrackMealPlateItems")
+struct TrackMealPlateItemsTests {
     @Test func favoritesOnThisBoardOnly() {
         let burger = MenuItem(
             id: "1", name: "Burger", description: nil, calories: 400,

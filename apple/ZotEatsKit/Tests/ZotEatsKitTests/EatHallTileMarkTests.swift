@@ -8,16 +8,20 @@ struct EatHallTileMarkTests {
         #expect(EatHallTileMark.namePointSize == 15)
     }
 
-    @Test func mesaLodgeForAnteatery() {
-        #expect(EatHallTileMark.symbolName(forHallID: "anteatery") == "building.2.fill")
+    @Test func tilesAreRoundedRectsNotCircles() {
+        #expect(EatHallTileMark.tileMinHeight == 112)
     }
 
-    @Test func leafRingForBrandywine() {
-        #expect(EatHallTileMark.symbolName(forHallID: "brandywine") == "leaf.circle.fill")
+    @Test func mesaForAnteatery() {
+        #expect(EatHallTileMark.kind(forHallID: "anteatery") == .mesa)
+    }
+
+    @Test func hobbitForBrandywine() {
+        #expect(EatHallTileMark.kind(forHallID: "brandywine") == .hobbit)
     }
 
     @Test func oasisWaterForEveryOasisID() {
-        #expect(EatHallTileMark.symbolName(forHallID: "oasis") == "drop.fill")
-        #expect(EatHallTileMark.symbolName(forHallID: "the-oasis-dining-hall") == "drop.fill")
+        #expect(EatHallTileMark.kind(forHallID: "oasis") == .oasis)
+        #expect(EatHallTileMark.kind(forHallID: "the-oasis-dining-hall") == .oasis)
     }
 }
