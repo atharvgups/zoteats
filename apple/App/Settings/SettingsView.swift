@@ -7,6 +7,8 @@ struct SettingsView: View {
     let prefs: Preferences
     @AppStorage(AppearanceSetting.storageKey)
     private var appearanceRaw: String = AppearanceSetting.system.rawValue
+    @AppStorage(AppCanvasPreset.storageKey)
+    private var canvasRaw: String = AppCanvasPreset.fallback.rawValue
 
     @Environment(\.dismiss) private var dismiss
 
@@ -92,6 +94,33 @@ struct SettingsView: View {
                             appearanceRaw = option.rawValue
                         }
                         option.apply()
+                        Haptics.selection()
+                    }
+                }
+            }
+
+            Text("App background")
+                .font(ZotFont.sectionTitle)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.inkMuted)
+                .padding(.top, 8)
+
+            Text("Sunrise in Light, sunset in Dark.")
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                spacing: 8
+            ) {
+                ForEach(AppCanvasPreset.allCases) { option in
+                    CanvasPresetOption(
+                        preset: option,
+                        isSelected: AppCanvasPreset.resolved(raw: canvasRaw) == option
+                    ) {
+                        withAnimation(.snappy(duration: 0.25)) {
+                            canvasRaw = option.rawValue
+                        }
                         Haptics.selection()
                     }
                 }
@@ -549,6 +578,49 @@ private struct AppearanceOption: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(option.label) appearance")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+private struct CanvasPresetOption: View {
+    let preset: AppCanvasPreset
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 7) {
+                AppCanvasSwatch(preset: preset)
+                    .frame(height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.cardBorder, lineWidth: 1)
+                    )
+                Text(preset.label)
+                    .font(ZotFont.caption.weight(isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? Color.ink : .primary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(
+                isSelected ? Color.selectWash : Color.clear,
+                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.ink.opacity(0.28) : Color.cardBorder,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(preset.label)
+        .accessibilityIdentifier("canvas-preset-\(preset.rawValue)")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

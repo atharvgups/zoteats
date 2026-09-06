@@ -133,22 +133,69 @@ extension View {
     }
 }
 
-/// Shared UCI horizon — washed blue → gold → white (sunrise) / navy → amber → black (sunset).
+/// Shared canvas — follows Settings → App background (persisted).
 struct AppCanvas: View {
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(AppCanvasPreset.storageKey) private var presetRaw = AppCanvasPreset.fallback.rawValue
 
     var body: some View {
-        LinearGradient(
-            stops: (colorScheme == .dark ? AppCanvasRecipe.sunset : AppCanvasRecipe.sunrise).map {
-                Gradient.Stop(
-                    color: Color(red: $0.red, green: $0.green, blue: $0.blue),
-                    location: $0.location
-                )
-            },
-            startPoint: .top,
-            endPoint: .bottom
+        AppCanvasPaint(
+            preset: AppCanvasPreset.resolved(raw: presetRaw),
+            dark: colorScheme == .dark
         )
         .ignoresSafeArea()
+        .animation(.snappy(duration: 0.28), value: presetRaw)
+        .animation(.snappy(duration: 0.28), value: colorScheme)
+    }
+}
+
+/// Paints one preset in light or dark — used by the page fill and Settings swatches.
+struct AppCanvasPaint: View {
+    let preset: AppCanvasPreset
+    var dark: Bool
+
+    var body: some View {
+        Group {
+            if preset.usesSystemFill {
+                Color(uiColor: dark ? .systemBackground : UIColor(red: 242 / 255, green: 242 / 255, blue: 247 / 255, alpha: 1))
+            } else if preset.usesMesh, let colors = preset.meshColors(dark: dark) {
+                MeshGradient(
+                    width: 3,
+                    height: 3,
+                    points: [
+                        .init(0.0, 0.0), .init(0.5, 0.04), .init(1.0, 0.0),
+                        .init(0.04, 0.5), .init(0.48, 0.52), .init(0.96, 0.48),
+                        .init(0.0, 1.0), .init(0.5, 0.96), .init(1.0, 1.0)
+                    ],
+                    colors: colors.map { Color(red: $0.red, green: $0.green, blue: $0.blue) }
+                )
+            } else if let stops = preset.linearStops(dark: dark) {
+                LinearGradient(
+                    stops: stops.map {
+                        Gradient.Stop(
+                            color: Color(red: $0.red, green: $0.green, blue: $0.blue),
+                            location: $0.location
+                        )
+                    },
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            } else {
+                Color(uiColor: .systemGroupedBackground)
+            }
+        }
+    }
+}
+
+/// Tiny sunrise | sunset thumbnail for the Settings picker.
+struct AppCanvasSwatch: View {
+    let preset: AppCanvasPreset
+
+    var body: some View {
+        HStack(spacing: 0) {
+            AppCanvasPaint(preset: preset, dark: false)
+            AppCanvasPaint(preset: preset, dark: true)
+        }
     }
 }
 
