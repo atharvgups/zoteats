@@ -55,7 +55,7 @@ struct DishDetailSheet: View {
             .padding(.top, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color.screen)
+        .appCanvas()
         .overlay(alignment: .topTrailing) {
             closeButton
         }

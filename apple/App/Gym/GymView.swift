@@ -465,5 +465,5 @@ struct GymApproximateHoursFootnote: View {
         }
         .padding(.vertical, 16)
     }
-    .background(Color.screen)
+    .appCanvas()
 }

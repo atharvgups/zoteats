@@ -553,22 +553,10 @@ extension View {
 
 // MARK: - Status bar backdrop
 
-/// Paints the page background under the status bar / Dynamic Island, and keeps
-/// scrolled list content from showing through the transparent system chrome.
+/// Paints AppCanvas under the status bar / Dynamic Island so every tab matches.
 struct StatusBarBackdrop: ViewModifier {
     func body(content: Content) -> some View {
-        content
-            .background(Color.screen.ignoresSafeArea())
-            .overlay(alignment: .top) {
-                // Zero-height anchor that expands into the top safe area and
-                // sits above ScrollView content as it moves under the status bar.
-                Color.screen
-                    .frame(height: 0)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.screen)
-                    .ignoresSafeArea(edges: .top)
-                    .allowsHitTesting(false)
-            }
+        content.appCanvas()
     }
 }
 

@@ -78,7 +78,7 @@ struct OpeningAlertsPicker: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)
             }
-            .background(Color.screen)
+            .appCanvas()
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .topTrailing) {
                 Button {

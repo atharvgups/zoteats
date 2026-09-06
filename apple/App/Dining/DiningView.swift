@@ -1348,7 +1348,7 @@ struct DietFilterSheet: View {
         .padding(20)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .background(Color.screen)
+        .appCanvas()
         .animation(.snappy(duration: 0.2), value: prefs.dietFilters)
         .animation(.snappy(duration: 0.2), value: prefs.allergenAvoids)
     }

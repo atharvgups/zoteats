@@ -44,7 +44,7 @@ struct SettingsView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
-            .background(Color.screen)
+            .appCanvas()
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .topTrailing) {
                 Button {

@@ -608,7 +608,7 @@ struct CampusMenuSheet: View {
                 .padding(.top, 20)
                 .padding(.bottom, 32)
             }
-            .background(Color.screen)
+            .appCanvas()
             .overlay(alignment: .topTrailing) {
                 Button {
                     dismiss()

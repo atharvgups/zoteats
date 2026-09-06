@@ -122,7 +122,7 @@ struct PlateSheet: View {
             }
             .padding(20)
         }
-        .background(Color.screen)
+        .appCanvas()
         .overlay(alignment: .topTrailing) {
             Button {
                 dismiss()

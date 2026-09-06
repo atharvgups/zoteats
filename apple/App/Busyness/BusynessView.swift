@@ -821,7 +821,7 @@ struct BusynessZoneRowView: View {
         }
         .padding(.vertical, 16)
     }
-    .background(Color.screen)
+    .appCanvas()
 }
 
 #Preview("Empty") {
@@ -833,5 +833,5 @@ struct BusynessZoneRowView: View {
     )
     .zotCard()
     .padding(20)
-    .background(Color.screen)
+    .appCanvas()
 }

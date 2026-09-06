@@ -36,13 +36,18 @@ private extension View {
     }
 }
 
-/// Home Screen widget chrome — Settings gray canvas, white cards, SF Pro at
-/// normal weights, gold accent. No expanded-black shout.
+/// Home Screen widget chrome — sunrise/sunset foot wash, white cards, SF Pro
+/// at normal weights, gold accent. No expanded-black shout.
 /// Colors follow the Home Screen appearance so Dark Mode actually flips.
 private enum WidgetChrome {
     static let open = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
 
-    static let canvas = Color(uiColor: .systemGroupedBackground)
+    static let canvas = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark {
+            return UIColor(red: 10 / 255, green: 10 / 255, blue: 11 / 255, alpha: 1)
+        }
+        return UIColor(red: 252 / 255, green: 251 / 255, blue: 248 / 255, alpha: 1)
+    })
 
     static let card = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
