@@ -449,20 +449,19 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width 3-up hall cards — all visible, no sideways scroll.
-    /// Taller faces + larger type so three-across still reads like real cards.
+    /// Three equal pill tiles — separate capsules, not a segmented slider.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if let locations, !locations.isEmpty {
                 ForEach(locations) { location in
                     hallCard(for: location)
                 }
             } else {
-                SkeletonCard(height: 152)
-                SkeletonCard(height: 152)
-                SkeletonCard(height: 152)
+                SkeletonCard(height: 108)
+                SkeletonCard(height: 108)
+                SkeletonCard(height: 108)
             }
         }
         .accessibilityElement(children: .contain)
@@ -480,32 +479,32 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 6) {
+                EatHallTileIcon(hallID: location.id)
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(ZotFont.face(23, relativeTo: .title2).weight(.semibold))
+                    .font(.system(size: EatHallTileMark.namePointSize, weight: .bold))
                     .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.7)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(status.text)
-                    .font(ZotFont.body.weight(.medium))
+                    .font(ZotFont.caption.weight(.medium))
                     .foregroundStyle(status.tint)
+                    .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.8)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity, minHeight: 152, alignment: .topLeading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
             .background(
                 isSelected ? Color.selectWash : Color.card,
-                in: RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
+                in: Capsule()
             )
             .overlay(
-                RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
+                Capsule()
                     .strokeBorder(
-                        isSelected ? Color.ink.opacity(0.28) : Color.cardBorder,
+                        isSelected ? Color.ink.opacity(0.22) : Color.cardBorder,
                         lineWidth: 1
                     )
             )

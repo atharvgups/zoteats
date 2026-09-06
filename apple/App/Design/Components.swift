@@ -36,6 +36,33 @@ struct StatusPill: View {
     }
 }
 
+/// Themed Eat hall mark — SF Symbol, Oasis adds a simple dune under the drop.
+struct EatHallTileIcon: View {
+    let hallID: String
+
+    var body: some View {
+        let symbol = EatHallTileMark.symbolName(forHallID: hallID)
+        if HallDirectory.isOasis(hallID) {
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .semibold))
+                Capsule()
+                    .fill(Color.ink.opacity(0.28))
+                    .frame(width: 16, height: 3)
+            }
+            .foregroundStyle(Color.ink)
+            .frame(height: 28)
+            .accessibilityHidden(true)
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(Color.ink)
+                .frame(height: 28)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 // MARK: - Small colored tag chip (diet tags / allergens)
 
 struct TagChip: View {
