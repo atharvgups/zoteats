@@ -863,15 +863,12 @@ struct DiningView: View {
     }
 
     private func groupedDishes(_ items: [MenuItem]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        VStack(spacing: EatDishListLayout.cardSpacing) {
+            ForEach(items) { item in
                 dishRow(item)
-                if index < items.count - 1 {
-                    ZotHairline(leading: 16)
-                }
+                    .zotCard()
             }
         }
-        .zotCard()
     }
 
     private func sectionHeader(
