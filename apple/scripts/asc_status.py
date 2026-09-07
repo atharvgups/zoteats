@@ -166,6 +166,30 @@ def main() -> None:
             in_flight = True
 
     print("--- testFlight ---", flush=True)
+    latest_q = urllib.parse.urlencode(
+        {
+            "filter[app]": app_id,
+            "sort": "-uploadedDate",
+            "limit": "12",
+            "include": "preReleaseVersion",
+            "fields[builds]": "version,processingState,uploadedDate,expired",
+            "fields[preReleaseVersions]": "version",
+        }
+    )
+    latest = api("GET", f"/v1/builds?{latest_q}", token)
+    trains = {
+        row["id"]: row
+        for row in (latest.get("included") or [])
+        if row.get("type") == "preReleaseVersions"
+    }
+    latest_builds = latest.get("data") or []
+    train_by_build = {}
+    for build in latest_builds:
+        rel = ((build.get("relationships") or {}).get("preReleaseVersion") or {}).get("data") or {}
+        train_by_build[build.get("id")] = (
+            ((trains.get(rel.get("id") or "") or {}).get("attributes") or {}).get("version")
+        )
+
     gq = urllib.parse.urlencode({"filter[app]": app_id, "limit": "50"})
     groups = api("GET", f"/v1/betaGroups?{gq}", token).get("data") or []
     if not groups:
@@ -177,33 +201,28 @@ def main() -> None:
             f"group={gattrs.get('name')!r} kind={kind} id={group.get('id')}",
             flush=True,
         )
-        bq = urllib.parse.urlencode(
-            {
-                "limit": "5",
-                "include": "preReleaseVersion",
-                "fields[builds]": "version,processingState,uploadedDate,expired",
-                "fields[preReleaseVersions]": "version",
-            }
-        )
         payload = api(
             "GET",
-            f"/v1/betaGroups/{group['id']}/builds?{bq}",
+            f"/v1/betaGroups/{group['id']}/builds?limit=5",
             token,
             ok_empty=True,
         )
-        trains = {
-            row["id"]: row
-            for row in (payload.get("included") or [])
-            if row.get("type") == "preReleaseVersions"
-        }
         builds = payload.get("data") or []
         if not builds:
             print("  (no builds)", flush=True)
             continue
         for build in builds:
             battrs = build.get("attributes") or {}
-            rel = ((build.get("relationships") or {}).get("preReleaseVersion") or {}).get("data") or {}
-            train = ((trains.get(rel.get("id") or "") or {}).get("attributes") or {}).get("version")
+            bid = build.get("id")
+            train = train_by_build.get(bid)
+            if not train and bid:
+                linked = api(
+                    "GET",
+                    f"/v1/builds/{bid}/preReleaseVersion",
+                    token,
+                    ok_empty=True,
+                )
+                train = ((linked.get("data") or {}).get("attributes") or {}).get("version")
             print(
                 f"  version={train or '—'} "
                 f"build={battrs.get('version')} "
@@ -212,29 +231,11 @@ def main() -> None:
                 flush=True,
             )
 
-    bq = urllib.parse.urlencode(
-        {
-            "filter[app]": app_id,
-            "sort": "-uploadedDate",
-            "limit": "8",
-            "include": "preReleaseVersion",
-            "fields[builds]": "version,processingState,uploadedDate,expired",
-            "fields[preReleaseVersions]": "version",
-        }
-    )
-    latest = api("GET", f"/v1/builds?{bq}", token)
-    trains = {
-        row["id"]: row
-        for row in (latest.get("included") or [])
-        if row.get("type") == "preReleaseVersions"
-    }
     print("--- latestBuilds ---", flush=True)
-    for build in latest.get("data") or []:
+    for build in latest_builds[:8]:
         battrs = build.get("attributes") or {}
-        rel = ((build.get("relationships") or {}).get("preReleaseVersion") or {}).get("data") or {}
-        train = ((trains.get(rel.get("id") or "") or {}).get("attributes") or {}).get("version")
         print(
-            f"version={train or '—'} "
+            f"version={train_by_build.get(build.get('id')) or '—'} "
             f"build={battrs.get('version')} "
             f"processing={battrs.get('processingState')} "
             f"expired={battrs.get('expired')}",
