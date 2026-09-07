@@ -241,7 +241,7 @@ def main() -> None:
             flush=True,
         )
 
-    print("--- bottleneck ---", flush=True))
+    print("--- bottleneck ---", flush=True)
     states = [
         ((v.get("attributes") or {}).get("versionString"), (v.get("attributes") or {}).get("appStoreState"))
         for v in (versions.get("data") or [])
