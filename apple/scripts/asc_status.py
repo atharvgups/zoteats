@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-04 ~6:13 PM PT — read-only. Confirm 1.0.292 still live and nothing in review. Leave Internal 1.0.293 unpublished. Never cancel live READY_FOR_SALE.
+Launch-loop peek 2026-09-07 ~9:09 AM PT — read-only. Confirm live store, review queue, Internal 1.0.299 / External 1.0.298. Never cancel live READY_FOR_SALE.
 """
 
 from __future__ import annotations
@@ -165,7 +165,83 @@ def main() -> None:
         if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
             in_flight = True
 
-    print("--- bottleneck ---", flush=True)
+    print("--- testFlight ---", flush=True)
+    gq = urllib.parse.urlencode({"filter[app]": app_id, "limit": "50"})
+    groups = api("GET", f"/v1/betaGroups?{gq}", token).get("data") or []
+    if not groups:
+        print("(no beta groups)", flush=True)
+    for group in groups:
+        gattrs = group.get("attributes") or {}
+        kind = "internal" if gattrs.get("isInternalGroup") else "external"
+        print(
+            f"group={gattrs.get('name')!r} kind={kind} id={group.get('id')}",
+            flush=True,
+        )
+        bq = urllib.parse.urlencode(
+            {
+                "limit": "5",
+                "include": "preReleaseVersion",
+                "fields[builds]": "version,processingState,uploadedDate,expired",
+                "fields[preReleaseVersions]": "version",
+            }
+        )
+        payload = api(
+            "GET",
+            f"/v1/betaGroups/{group['id']}/builds?{bq}",
+            token,
+            ok_empty=True,
+        )
+        trains = {
+            row["id"]: row
+            for row in (payload.get("included") or [])
+            if row.get("type") == "preReleaseVersions"
+        }
+        builds = payload.get("data") or []
+        if not builds:
+            print("  (no builds)", flush=True)
+            continue
+        for build in builds:
+            battrs = build.get("attributes") or {}
+            rel = ((build.get("relationships") or {}).get("preReleaseVersion") or {}).get("data") or {}
+            train = ((trains.get(rel.get("id") or "") or {}).get("attributes") or {}).get("version")
+            print(
+                f"  version={train or '—'} "
+                f"build={battrs.get('version')} "
+                f"processing={battrs.get('processingState')} "
+                f"expired={battrs.get('expired')}",
+                flush=True,
+            )
+
+    bq = urllib.parse.urlencode(
+        {
+            "filter[app]": app_id,
+            "sort": "-uploadedDate",
+            "limit": "8",
+            "include": "preReleaseVersion",
+            "fields[builds]": "version,processingState,uploadedDate,expired",
+            "fields[preReleaseVersions]": "version",
+        }
+    )
+    latest = api("GET", f"/v1/builds?{bq}", token)
+    trains = {
+        row["id"]: row
+        for row in (latest.get("included") or [])
+        if row.get("type") == "preReleaseVersions"
+    }
+    print("--- latestBuilds ---", flush=True)
+    for build in latest.get("data") or []:
+        battrs = build.get("attributes") or {}
+        rel = ((build.get("relationships") or {}).get("preReleaseVersion") or {}).get("data") or {}
+        train = ((trains.get(rel.get("id") or "") or {}).get("attributes") or {}).get("version")
+        print(
+            f"version={train or '—'} "
+            f"build={battrs.get('version')} "
+            f"processing={battrs.get('processingState')} "
+            f"expired={battrs.get('expired')}",
+            flush=True,
+        )
+
+    print("--- bottleneck ---", flush=True))
     states = [
         ((v.get("attributes") or {}).get("versionString"), (v.get("attributes") or {}).get("appStoreState"))
         for v in (versions.get("data") or [])
