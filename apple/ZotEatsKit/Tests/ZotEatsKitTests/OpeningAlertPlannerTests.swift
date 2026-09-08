@@ -440,6 +440,60 @@ struct OpeningAlertPlannerTests {
         #expect(plan.deepLinkDate == nil)
         #expect(plan.identifier == "open:dining:anteatery:2026-07-16:Dinner")
     }
+
+    @Test func closingSoonFiresTwentyMinutesBeforeClose() {
+        let plans = OpeningAlertPlanner.planClosingSoon(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 11 * 60,
+                    mealPeriod: "Lunch",
+                    closesAtMinutes: 14 * 60 + 30
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: sevenAM
+        )
+        let plan = try! #require(plans.first)
+        #expect(plan.isClosing)
+        #expect(plan.identifier == "close:dining:anteatery:2026-07-16:Lunch")
+        #expect(PacificTime.nowMinutes(now: plan.fireDate) == 14 * 60 + 10)
+    }
+
+    @Test func closingSoonSkipsOnceLeadHasPassed() {
+        let onePM = sevenAM.addingTimeInterval(6 * 3600)
+        let plans = OpeningAlertPlanner.planClosingSoon(
+            candidates: [
+                .init(
+                    id: "dining:anteatery",
+                    name: "The Anteatery",
+                    opensAtMinutes: 11 * 60,
+                    mealPeriod: "Lunch",
+                    closesAtMinutes: 14 * 60 + 30
+                ),
+            ],
+            watchedIDs: ["dining:anteatery"],
+            now: onePM
+        )
+        #expect(plans.isEmpty)
+    }
+
+    @Test func closingSoonSkipsWindowsShorterThanLead() {
+        let plans = OpeningAlertPlanner.planClosingSoon(
+            candidates: [
+                .init(
+                    id: "campus:kiosk",
+                    name: "Kiosk",
+                    opensAtMinutes: 12 * 60,
+                    closesAtMinutes: 12 * 60 + 10
+                ),
+            ],
+            watchedIDs: ["campus:kiosk"],
+            now: sevenAM
+        )
+        #expect(plans.isEmpty)
+    }
 }
 
 @Suite("OpeningAlertPlanner — dining next opening")
@@ -534,59 +588,5 @@ struct DiningNextOpeningTests {
         #expect(chain.map(\.dayOffset) == [3, 3, 3])
         #expect(chain.map(\.closesAtMinutes) == [11 * 60, 14 * 60 + 30, 21 * 60])
         #expect(chain.first?.opensAtMinutes == 7 * 60 + 15)
-    }
-
-    @Test func closingSoonFiresTwentyMinutesBeforeClose() {
-        let plans = OpeningAlertPlanner.planClosingSoon(
-            candidates: [
-                .init(
-                    id: "dining:anteatery",
-                    name: "The Anteatery",
-                    opensAtMinutes: 11 * 60,
-                    mealPeriod: "Lunch",
-                    closesAtMinutes: 14 * 60 + 30
-                ),
-            ],
-            watchedIDs: ["dining:anteatery"],
-            now: sevenAM
-        )
-        let plan = try! #require(plans.first)
-        #expect(plan.isClosing)
-        #expect(plan.identifier == "close:dining:anteatery:2026-07-16:Lunch")
-        #expect(PacificTime.nowMinutes(now: plan.fireDate) == 14 * 60 + 10)
-    }
-
-    @Test func closingSoonSkipsOnceLeadHasPassed() {
-        let onePM = sevenAM.addingTimeInterval(6 * 3600)
-        let plans = OpeningAlertPlanner.planClosingSoon(
-            candidates: [
-                .init(
-                    id: "dining:anteatery",
-                    name: "The Anteatery",
-                    opensAtMinutes: 11 * 60,
-                    mealPeriod: "Lunch",
-                    closesAtMinutes: 14 * 60 + 30
-                ),
-            ],
-            watchedIDs: ["dining:anteatery"],
-            now: onePM
-        )
-        #expect(plans.isEmpty)
-    }
-
-    @Test func closingSoonSkipsWindowsShorterThanLead() {
-        let plans = OpeningAlertPlanner.planClosingSoon(
-            candidates: [
-                .init(
-                    id: "campus:kiosk",
-                    name: "Kiosk",
-                    opensAtMinutes: 12 * 60,
-                    closesAtMinutes: 12 * 60 + 10
-                ),
-            ],
-            watchedIDs: ["campus:kiosk"],
-            now: sevenAM
-        )
-        #expect(plans.isEmpty)
     }
 }
