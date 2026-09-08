@@ -81,6 +81,8 @@ public enum OpeningAlertPlanner {
         public let closesAtMinutes: Int?
         /// Campus continuous hours for the fire day (fallback when no close).
         public let hoursSpan: String?
+        /// Closing-soon banner (T−20) vs meal/place open.
+        public let isClosing: Bool
 
         public init(
             identifier: String,
@@ -90,7 +92,8 @@ public enum OpeningAlertPlanner {
             mealPeriod: String? = nil,
             deepLinkDate: String? = nil,
             closesAtMinutes: Int? = nil,
-            hoursSpan: String? = nil
+            hoursSpan: String? = nil,
+            isClosing: Bool = false
         ) {
             self.identifier = identifier
             self.placeID = placeID
@@ -100,6 +103,7 @@ public enum OpeningAlertPlanner {
             self.deepLinkDate = deepLinkDate
             self.closesAtMinutes = closesAtMinutes
             self.hoursSpan = hoursSpan
+            self.isClosing = isClosing
         }
     }
 
@@ -121,9 +125,31 @@ public enum OpeningAlertPlanner {
         return "open:\(placeID):\(dateISO)"
     }
 
+    /// Closing-soon id — same keys as open, `close:` prefix so both can pend.
+    public static func closingIdentifier(
+        placeID: String,
+        dateISO: String,
+        mealPeriod: String?,
+        windowStartMinutes: Int? = nil
+    ) -> String {
+        let openID = alertIdentifier(
+            placeID: placeID,
+            dateISO: dateISO,
+            mealPeriod: mealPeriod,
+            windowStartMinutes: windowStartMinutes
+        )
+        if openID.hasPrefix("open:") {
+            return "close:" + openID.dropFirst("open:".count)
+        }
+        return "close:\(openID)"
+    }
+
     /// How long after a meal/window open we still fire a one-shot catch-up
     /// when BG / board publish landed late (missed the exact open minute).
     public static let openCatchUpGraceMinutes = 20
+
+    /// Minutes before close for "closing soon" banners.
+    public static let closingLeadMinutes = 20
 
     /// Alerts for every watched place that opens later today **or** tomorrow
     /// (remaining meals while already open, or morning after today's windows end).
@@ -177,6 +203,55 @@ public enum OpeningAlertPlanner {
                 deepLinkDate: candidate.dayOffset >= 1 ? dateISO : nil,
                 closesAtMinutes: candidate.closesAtMinutes,
                 hoursSpan: candidate.hoursSpan
+            )
+        }
+        .sorted { $0.fireDate < $1.fireDate }
+    }
+
+    /// Closing-soon banners at T−`leadMinutes`. No catch-up if that minute already
+    /// passed — a late BG should not dump "closing soon" after the window ended.
+    public static func planClosingSoon(
+        candidates: [Candidate],
+        watchedIDs: Set<String>,
+        now: Date = Date(),
+        leadMinutes: Int = closingLeadMinutes
+    ) -> [PlannedAlert] {
+        let nowMinutes = PacificTime.nowMinutes(now: now)
+        let calendar = PacificTime.calendar
+        let startOfToday = calendar.startOfDay(for: now)
+
+        return candidates.compactMap { candidate -> PlannedAlert? in
+            guard watchedIDs.contains(candidate.id),
+                  let closesAt = candidate.closesAtMinutes
+            else { return nil }
+
+            let fireMinutes = closesAt - leadMinutes
+            guard fireMinutes > (candidate.opensAtMinutes ?? -1) else { return nil }
+
+            if candidate.dayOffset == 0, fireMinutes <= nowMinutes {
+                return nil
+            }
+
+            guard let day = calendar.date(byAdding: .day, value: candidate.dayOffset, to: startOfToday)
+            else { return nil }
+            let fireDate = day.addingTimeInterval(TimeInterval(fireMinutes * 60))
+            let dateISO = PacificTime.todayISO(now: fireDate)
+            let windowStart = candidate.mealPeriod == nil ? candidate.windowStartMinutes : nil
+            return PlannedAlert(
+                identifier: closingIdentifier(
+                    placeID: candidate.id,
+                    dateISO: dateISO,
+                    mealPeriod: candidate.mealPeriod,
+                    windowStartMinutes: windowStart
+                ),
+                placeID: candidate.id,
+                placeName: candidate.name,
+                fireDate: fireDate,
+                mealPeriod: candidate.mealPeriod,
+                deepLinkDate: candidate.dayOffset >= 1 ? dateISO : nil,
+                closesAtMinutes: candidate.closesAtMinutes,
+                hoursSpan: candidate.hoursSpan,
+                isClosing: true
             )
         }
         .sorted { $0.fireDate < $1.fireDate }

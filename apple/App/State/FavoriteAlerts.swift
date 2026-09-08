@@ -197,7 +197,7 @@ enum FavoriteAlerts {
         guard granted else { return }
         let content = UNMutableNotificationContent()
         content.title = "Anteats alerts are on"
-        content.body = "You'll get a ping when a hearted dish is on today's menu."
+        content.body = "Halls, campus favorites, and libraries you turned on will ping here."
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         try? await UNUserNotificationCenter.current().add(

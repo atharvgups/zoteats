@@ -7,8 +7,6 @@ struct SettingsView: View {
     let prefs: Preferences
     @AppStorage(AppearanceSetting.storageKey)
     private var appearanceRaw: String = AppearanceSetting.system.rawValue
-    @AppStorage(AppCanvasPreset.storageKey)
-    private var canvasRaw: String = AppCanvasPreset.fallback.rawValue
 
     @Environment(\.dismiss) private var dismiss
 
@@ -16,8 +14,10 @@ struct SettingsView: View {
     @State private var versionTaps = 0
     @State private var showZot = false
 
-    @State private var alertsEnabled = FavoriteAlerts.isEnabled
-    @State private var menuDropEnabled = MenuDropAlerts.isEnabled
+    @State private var diningOpenEnabled = OpeningAlerts.diningOpenEnabled
+    @State private var diningClosingEnabled = OpeningAlerts.diningClosingEnabled
+    @State private var campusHoursEnabled = OpeningAlerts.campusHoursEnabled
+    @State private var libraryBusyEnabled = LibraryBusyAlerts.isEnabled
     @State private var autoMealActivity = MealActivityManager.autoStartEnabled
     @State private var alertsDenied = false
     @State private var watchedPlaces = OpeningAlerts.watchedIDs
@@ -98,33 +98,6 @@ struct SettingsView: View {
                     }
                 }
             }
-
-            Text("App background")
-                .font(ZotFont.sectionTitle)
-                .textCase(.uppercase)
-                .foregroundStyle(Color.inkMuted)
-                .padding(.top, 8)
-
-            Text("Sunrise in Light, sunset in Dark.")
-                .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
-
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
-                spacing: 8
-            ) {
-                ForEach(AppCanvasPreset.allCases) { option in
-                    CanvasPresetOption(
-                        preset: option,
-                        isSelected: AppCanvasPreset.resolved(raw: canvasRaw) == option
-                    ) {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            canvasRaw = option.rawValue
-                        }
-                        Haptics.selection()
-                    }
-                }
-            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,72 +114,32 @@ struct SettingsView: View {
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)
 
-            Toggle(isOn: $alertsEnabled) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Favorite dishes")
-                        .font(ZotFont.body)
-                    Text("Ping when a hearted dish is on today’s hall menu.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
+            alertToggle(
+                isOn: $diningOpenEnabled,
+                title: "Halls opening",
+                caption: "Ping when a watched hall’s meal starts.",
+                identifier: "dining-open-alerts-toggle"
+            ) { enabled in
+                OpeningAlerts.diningOpenEnabled = enabled
+                if enabled {
+                    await OpeningAlerts.refreshSchedules()
+                    await FavoriteAlerts.scheduleNextRefresh()
+                } else {
+                    await OpeningAlerts.refreshSchedules()
                 }
             }
-            .toggleStyle(.switch)
-            .tint(Color.accent)
-            .accessibilityIdentifier("favorite-alerts-toggle")
-            .onChange(of: alertsEnabled) { _, enabled in
-                guard enabled else {
-                    FavoriteAlerts.isEnabled = false
-                    return
-                }
-                Task {
-                    let granted = await FavoriteAlerts.requestPermission()
-                    FavoriteAlerts.isEnabled = granted
-                    if granted {
-                        await FavoriteAlerts.runCheck()
-                        await OpeningAlerts.refreshSchedules()
-                        await FavoriteAlerts.scheduleNextRefresh()
-                        WidgetReloader.reloadAll()
-                    } else {
-                        alertsEnabled = false
-                        alertsDenied = true
-                    }
-                }
-            }
-            .padding(.vertical, 10)
 
             ZotHairline(leading: 0)
 
-            Toggle(isOn: $menuDropEnabled) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Menu drop")
-                        .font(ZotFont.body)
-                    Text("Ping when a future hall day posts.")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                }
+            alertToggle(
+                isOn: $diningClosingEnabled,
+                title: "Halls closing soon",
+                caption: "Twenty minutes before that meal ends.",
+                identifier: "dining-closing-alerts-toggle"
+            ) { enabled in
+                OpeningAlerts.diningClosingEnabled = enabled
+                await OpeningAlerts.refreshSchedules()
             }
-            .toggleStyle(.switch)
-            .tint(Color.accent)
-            .accessibilityIdentifier("menu-drop-alerts-toggle")
-            .onChange(of: menuDropEnabled) { _, enabled in
-                guard enabled else {
-                    MenuDropAlerts.isEnabled = false
-                    return
-                }
-                Task {
-                    let granted = await FavoriteAlerts.requestPermission()
-                    MenuDropAlerts.isEnabled = granted
-                    if granted {
-                        await MenuDropAlerts.runCheck()
-                        await FavoriteAlerts.scheduleNextRefresh()
-                        WidgetReloader.reloadAll()
-                    } else {
-                        menuDropEnabled = false
-                        alertsDenied = true
-                    }
-                }
-            }
-            .padding(.vertical, 10)
 
             ZotHairline(leading: 0)
 
@@ -215,10 +148,10 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Opening")
+                        Text("Halls to watch")
                             .font(ZotFont.body)
                             .foregroundStyle(.primary)
-                        Text("Watch a hall or café — ping when it opens.")
+                        Text("Anteatery is the default if you pick none.")
                             .font(ZotFont.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -239,6 +172,32 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("opening-alerts-row")
             .padding(.vertical, 10)
+
+            ZotHairline(leading: 0)
+
+            alertToggle(
+                isOn: $campusHoursEnabled,
+                title: "Campus favorites",
+                caption: "Open and closing pings for hearted cafés with posted hours.",
+                identifier: "campus-hours-alerts-toggle"
+            ) { enabled in
+                OpeningAlerts.campusHoursEnabled = enabled
+                await OpeningAlerts.refreshSchedules()
+            }
+
+            ZotHairline(leading: 0)
+
+            alertToggle(
+                isOn: $libraryBusyEnabled,
+                title: "Library getting busy",
+                caption: "When Waitz shows a library at \(LibraryBusyAlertMath.percentThreshold)% or busier. Real occupancy only.",
+                identifier: "library-busy-alerts-toggle"
+            ) { enabled in
+                LibraryBusyAlerts.isEnabled = enabled
+                if enabled {
+                    await LibraryBusyAlerts.runCheck()
+                }
+            }
 
             ZotHairline(leading: 0)
 
@@ -271,9 +230,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("live-activities-off-link")
             }
 
-            // Dogfood verify only when an alert path is actually on — keep
-            // Alerts from feeling like a permanent QA panel.
-            if alertsEnabled || menuDropEnabled || !watchedPlaces.isEmpty {
+            if diningOpenEnabled || diningClosingEnabled || campusHoursEnabled || libraryBusyEnabled {
                 ZotHairline(leading: 0)
                 Button {
                     Task {
@@ -310,6 +267,45 @@ struct SettingsView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    private func alertToggle(
+        isOn: Binding<Bool>,
+        title: String,
+        caption: String,
+        identifier: String,
+        onEnable: @escaping (Bool) async -> Void
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(ZotFont.body)
+                Text(caption)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(Color.accent)
+        .accessibilityIdentifier(identifier)
+        .onChange(of: isOn.wrappedValue) { _, enabled in
+            guard enabled else {
+                Task { await onEnable(false) }
+                return
+            }
+            Task {
+                let granted = await FavoriteAlerts.requestPermission()
+                if granted {
+                    alertsDenied = false
+                    await onEnable(true)
+                    await FavoriteAlerts.scheduleNextRefresh()
+                } else {
+                    isOn.wrappedValue = false
+                    alertsDenied = true
+                }
+            }
+        }
+        .padding(.vertical, 10)
     }
 
     // MARK: - This iPhone (ratings + plate honesty)
@@ -578,49 +574,6 @@ private struct AppearanceOption: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(option.label) appearance")
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-    }
-}
-
-private struct CanvasPresetOption: View {
-    let preset: AppCanvasPreset
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 7) {
-                AppCanvasSwatch(preset: preset)
-                    .frame(height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color.cardBorder, lineWidth: 1)
-                    )
-                Text(preset.label)
-                    .font(ZotFont.caption.weight(isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? Color.ink : .primary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
-            .background(
-                isSelected ? Color.selectWash : Color.clear,
-                in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.ink.opacity(0.28) : Color.cardBorder,
-                        lineWidth: 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(preset.label)
-        .accessibilityIdentifier("canvas-preset-\(preset.rawValue)")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

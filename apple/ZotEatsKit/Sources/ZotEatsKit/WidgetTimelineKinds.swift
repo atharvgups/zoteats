@@ -12,16 +12,16 @@ public enum WidgetTimelineKinds {
     /// Parked with the ARC Gym widget until live sensors exist — not in `all`.
     public static let arcStatus = "ZotEatsArcStatus"
     public static let quietestLibrary = "ZotEatsQuietestLibrary"
+    /// Removed from the shipping gallery — combo duplicated Campus Open + Quietest.
     public static let campusStudy = "ZotEatsCampusStudy"
 
-    /// Every Home Screen / Lock Screen / StandBy timeline the app ships.
-    /// ARC Gym / Campus Next are intentionally omitted from the gallery.
+    /// Every Home Screen / Lock Screen timeline the app ships.
+    /// ARC Gym / Campus Next / Campus+Study are omitted from the gallery.
     public static let all: [String] = [
         diningStatus,
         todaysMenu,
         favoritesToday,
         campusOpen,
-        campusStudy,
         quietestLibrary,
     ]
 
@@ -36,6 +36,5 @@ public enum WidgetTimelineKinds {
     /// Campus glances that should wake when Campus hearts change.
     public static let campus: [String] = [
         campusOpen,
-        campusStudy,
     ]
 }

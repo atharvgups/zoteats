@@ -6,8 +6,9 @@ import AppIntents
 import ZotEatsKit
 
 // Home-screen + lock-screen widgets for Anteats.
-// Focused gallery (no Gym/ARC): Dining Status, Today's Menu, Favorites Today,
-// Campus Open Now, Quietest Library + Meal Live Activity.
+// Tight gallery (~7 surfaces): Dining Halls small + lock, Today's Menu medium,
+// Favorites Today small, Campus Open Now small + medium, Quietest Library small.
+// Live Activity meal countdown stays (not a Home Screen widget). Gym is cut.
 //
 // CRITICAL: every glance root uses `.unredacted()`. Without it, WidgetKit can
 // leave Home Screen widgets stuck on system redacted placeholder bars (colored
@@ -23,7 +24,6 @@ struct ZotEatsWidgetBundle: WidgetBundle {
         TodaysMenuWidget()
         FavoritesTodayWidget()
         CampusOpenWidget()
-        CampusStudyWidget()
         QuietestLibraryWidget()
         MealCountdownActivity()
     }
@@ -710,10 +710,10 @@ struct DiningStatusWidget: Widget {
                 .widgetURL(AnteatsWidgetURL.eat)
         }
         .configurationDisplayName("Dining Halls")
-        .description("Hall clocks. Medium adds today’s dishes; Large adds campus and study. Lock Screen shows the next meal.")
+        .description("Which halls are open and when the next meal starts.")
         .supportedFamilies([
-            .systemSmall, .systemMedium, .systemLarge,
-            .accessoryRectangular, .accessoryCircular,
+            .systemSmall,
+            .accessoryRectangular,
         ])
     }
 }
@@ -1469,8 +1469,7 @@ struct TodaysMenuWidget: Widget {
         }
         .configurationDisplayName("Today's Menu")
         .description("Today's meal at a glance — Eat Filters hint + favorites. Pick a hall or auto.")
-        // system* for Home Screen; accessoryRectangular for Lock Screen / StandBy glance.
-        .supportedFamilies([.systemMedium, .systemLarge, .accessoryRectangular])
+        .supportedFamilies([.systemMedium])
     }
 }
 
@@ -1977,7 +1976,7 @@ struct FavoritesTodayWidget: Widget {
         }
         .configurationDisplayName("Favorites Today")
         .description("Hearted dishes on today's board — open Anteats once if empty.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall])
     }
 }
 
@@ -2209,10 +2208,9 @@ struct CampusOpenWidget: Widget {
                 .widgetURL(AnteatsWidgetURL.campus)
         }
         .configurationDisplayName("Campus Open Now")
-        .description("Which cafés and food courts are open right now. Lock Screen shows the next open spot.")
+        .description("Which cafés and food courts are open right now. Medium lists a few more.")
         .supportedFamilies([
-            .systemSmall, .systemMedium, .systemLarge,
-            .accessoryRectangular,
+            .systemSmall, .systemMedium,
         ])
     }
 }
@@ -2525,8 +2523,8 @@ struct QuietestLibraryWidget: Widget {
                 .widgetURL(AnteatsDeepLink.study(facilityID: entry.facilityID).url)
         }
         .configurationDisplayName("Quietest Library")
-        .description("The quietest library floor right now — home screen or lock screen.")
-        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
+        .description("The quietest library floor right now — live Waitz when you have a snapshot.")
+        .supportedFamilies([.systemSmall])
     }
 }
 

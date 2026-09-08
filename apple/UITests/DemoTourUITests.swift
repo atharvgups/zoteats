@@ -154,7 +154,7 @@ final class DemoTourUITests: XCTestCase {
         // Accept the system notification permission alert if it appears.
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let allow = springboard.buttons["Allow"]
-        tapIfPresent(app.buttons["favorite-alerts-toggle"])
+        tapIfPresent(app.buttons["dining-open-alerts-toggle"])
         pause(1)
         if allow.waitForExistence(timeout: 2) { allow.tap() }
         pause(1.5)

@@ -17,7 +17,7 @@ final class MealActivityManager {
     /// When on, Eat auto-starts the countdown once a meal is in its final window.
     static var autoStartEnabled: Bool {
         get {
-            if UserDefaults.standard.object(forKey: autoEnabledKey) == nil { return true }
+            if UserDefaults.standard.object(forKey: autoEnabledKey) == nil { return false }
             return UserDefaults.standard.bool(forKey: autoEnabledKey)
         }
         set { UserDefaults.standard.set(newValue, forKey: autoEnabledKey) }

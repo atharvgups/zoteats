@@ -10,12 +10,12 @@ struct WidgetTimelineKindsTests {
             "ZotEatsTodaysMenu",
             "ZotEatsFavoritesToday",
             "ZotEatsCampusOpen",
-            "ZotEatsCampusStudy",
             "ZotEatsQuietestLibrary",
         ])
         #expect(Set(WidgetTimelineKinds.all).count == WidgetTimelineKinds.all.count)
         #expect(!WidgetTimelineKinds.all.contains(WidgetTimelineKinds.arcStatus))
         #expect(!WidgetTimelineKinds.all.contains(WidgetTimelineKinds.campusNext))
+        #expect(!WidgetTimelineKinds.all.contains(WidgetTimelineKinds.campusStudy))
     }
 
     @Test("Eat reload group includes Favorites Today")
@@ -33,7 +33,6 @@ struct WidgetTimelineKindsTests {
     @Test func campusGroupIsOpenNowOnly() {
         #expect(WidgetTimelineKinds.campus == [
             WidgetTimelineKinds.campusOpen,
-            WidgetTimelineKinds.campusStudy,
         ])
     }
 }

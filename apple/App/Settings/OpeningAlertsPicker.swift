@@ -1,8 +1,7 @@
 import SwiftUI
 import ZotEatsKit
 
-// The "watchlist" picker behind Settings → Notifications → Opening alerts.
-// Pick any dining hall or campus spot; iOS pings you the moment it opens.
+// The dining-hall watchlist behind Settings → Alerts → Halls to watch.
 
 struct OpeningAlertsPicker: View {
     @Environment(\.dismiss) private var dismiss
@@ -11,7 +10,6 @@ struct OpeningAlertsPicker: View {
     @Binding var watched: Set<String>
 
     @State private var halls: [DiningLocation] = []
-    @State private var places: [CampusPlace] = []
     @State private var isLoading = true
     @State private var searchText = ""
     @State private var permissionDenied = false
@@ -21,8 +19,8 @@ struct OpeningAlertsPicker: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     ScreenHeader(
-                        title: "Opening Alerts",
-                        subtitle: "Get pinged the moment a spot opens"
+                        title: "Halls to watch",
+                        subtitle: "Ping these dining halls at meal start and closing soon"
                     )
 
                     VStack(alignment: .leading, spacing: 16) {
@@ -34,7 +32,7 @@ struct OpeningAlertsPicker: View {
                                 .foregroundStyle(TagPalette.terracotta)
                         }
 
-                        if isLoading && halls.isEmpty && places.isEmpty {
+                        if isLoading && halls.isEmpty {
                             SkeletonCard(height: 200)
                         } else {
                             if !filteredHalls.isEmpty {
@@ -49,26 +47,11 @@ struct OpeningAlertsPicker: View {
                                     }
                                 }
                             }
-                            ForEach(campusCategories, id: \.self) { category in
-                                let group = filteredPlaces.filter { $0.category == category }
-                                if !group.isEmpty {
-                                    section(title: category) {
-                                        ForEach(group) { place in
-                                            placeRow(
-                                                id: "campus:\(place.id)",
-                                                name: place.name,
-                                                detail: place.hoursLine
-                                            )
-                                            if place.id != group.last?.id { ZotHairline(leading: 0) }
-                                        }
-                                    }
-                                }
-                            }
-                            if filteredHalls.isEmpty && filteredPlaces.isEmpty {
+                            if filteredHalls.isEmpty {
                                 EmptyStateView(
                                     icon: "magnifyingglass",
-                                    title: "No spots match",
-                                    message: "Try a different name — halls, cafés, and markets are all here."
+                                    title: "No halls match",
+                                    message: "Try Anteatery, Brandywine, or Oasis."
                                 )
                             }
                         }
@@ -157,7 +140,7 @@ struct OpeningAlertsPicker: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("Search spots", text: $searchText)
+            TextField("Search halls", text: $searchText)
                 .font(ZotFont.body)
                 .autocorrectionDisabled()
         }
@@ -174,25 +157,12 @@ struct OpeningAlertsPicker: View {
         return halls.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
-    private var filteredPlaces: [CampusPlace] {
-        guard !query.isEmpty else { return places }
-        return places.filter { $0.name.localizedCaseInsensitiveContains(query) }
-    }
-
-    private var campusCategories: [String] {
-        var seen = Set<String>()
-        return filteredPlaces.map(\.category).filter { seen.insert($0).inserted }
-    }
-
     private var query: String {
         searchText.trimmingCharacters(in: .whitespaces)
     }
 
     private func load() async {
-        async let hallsTask = DiningService().locations()
-        async let placesTask = (try? CampusService().places()) ?? []
-        halls = await hallsTask
-        places = await placesTask
+        halls = await DiningService().locations()
         isLoading = false
     }
 }
