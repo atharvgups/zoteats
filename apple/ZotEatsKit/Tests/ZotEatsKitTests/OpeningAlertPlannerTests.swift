@@ -462,7 +462,8 @@ struct OpeningAlertPlannerTests {
     }
 
     @Test func closingSoonSkipsOnceLeadHasPassed() {
-        let onePM = sevenAM.addingTimeInterval(6 * 3600)
+        // 2:15 PM — closing-soon fire (2:10) already passed.
+        let quarterPastTwo = sevenAM.addingTimeInterval((7 * 60 + 15) * 60)
         let plans = OpeningAlertPlanner.planClosingSoon(
             candidates: [
                 .init(
@@ -474,7 +475,7 @@ struct OpeningAlertPlannerTests {
                 ),
             ],
             watchedIDs: ["dining:anteatery"],
-            now: onePM
+            now: quarterPastTwo
         )
         #expect(plans.isEmpty)
     }
