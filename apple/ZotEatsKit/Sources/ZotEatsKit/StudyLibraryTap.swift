@@ -1,6 +1,6 @@
 import Foundation
 
-/// Langson / Science (Gateway when Waitz reports it): tap reveals floors
+/// Langson / Gateway (Waitz: Science Library): tap reveals floors
 /// only while open and the feed has real sub-locations. No invented %.
 public enum StudyLibraryTap: Sendable {
     public static func canRevealFloors(hasFloors: Bool, isOpen: Bool) -> Bool {

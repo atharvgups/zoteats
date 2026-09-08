@@ -23,7 +23,7 @@ struct LibraryHoursServiceTests {
         let hours = try await LibraryHoursService(http: FixtureHTTP()).today()
         #expect(hours.map(\.id) == ["langson", "science"])
         #expect(hours[0].shortName == "Langson")
-        #expect(hours[1].shortName == "Science")
+        #expect(hours[1].shortName == "Gateway")
         #expect(hours[0].isOpen)
         #expect(hours[0].openMinutes == 8 * 60)
         #expect(hours[0].closeMinutes == 20 * 60)
@@ -43,7 +43,7 @@ struct LibraryHoursServiceTests {
             ),
             LibraryBuildingHours(
                 id: "science",
-                shortName: "Science",
+                shortName: "Gateway",
                 rendered: "8:00 AM – 8:00 PM",
                 isOpen: true,
                 openMinutes: 8 * 60,
@@ -52,6 +52,7 @@ struct LibraryHoursServiceTests {
         ]
         #expect(LibraryHoursMatch.buildingID(forFacilityName: "Langson Library") == "langson")
         #expect(LibraryHoursMatch.buildingID(forFacilityName: "Science Library") == "science")
+        #expect(LibraryHoursMatch.buildingID(forFacilityName: "Gateway") == "science")
         #expect(LibraryHoursMatch.hours(forFacilityName: "Langson Library", from: hours)?.id == "langson")
         #expect(LibraryHoursMatch.hours(forFacilityName: "ARC", from: hours) == nil)
     }

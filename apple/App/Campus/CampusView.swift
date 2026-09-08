@@ -214,7 +214,7 @@ struct CampusView: View {
     private var content: some View {
         switch store.places {
         case .idle, .loading:
-            VStack(spacing: 10) {
+            VStack(spacing: 16) {
                 ForEach(0..<6, id: \.self) { _ in
                     SkeletonCard(height: 76)
                 }
@@ -242,7 +242,7 @@ struct CampusView: View {
                     favoritesShelf(partition.favorites)
                 }
 
-                VStack(spacing: 10) {
+                VStack(spacing: 16) {
                     ForEach(Array(brands.enumerated()), id: \.element.brand) { _, entry in
                         if entry.places.count == 1 {
                             CampusPlaceRow(
@@ -370,7 +370,7 @@ struct CampusView: View {
                 .foregroundStyle(Color.inkMuted)
                 .accessibilityAddTraits(.isHeader)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 16) {
                 ForEach(favorites) { place in
                     CampusPlaceRow(
                         place: place,

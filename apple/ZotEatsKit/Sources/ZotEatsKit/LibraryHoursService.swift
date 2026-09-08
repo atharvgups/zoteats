@@ -35,7 +35,9 @@ public enum LibraryHoursMatch {
     public static func buildingID(forFacilityName name: String) -> String? {
         let lower = name.lowercased()
         if lower.contains("langson") { return "langson" }
-        if lower.contains("science") || lower.contains("sci lib") { return "science" }
+        if lower.contains("science") || lower.contains("sci lib") || lower.contains("gateway") {
+            return "science"
+        }
         return nil
     }
 
@@ -54,7 +56,7 @@ public struct LibraryHoursService: Sendable {
 
     private static let locationMap: [(libcalName: String, id: String, shortName: String)] = [
         ("LL - Building", "langson", "Langson"),
-        ("SL - Building", "science", "Science"),
+        ("SL - Building", "science", "Gateway"),
     ]
 
     private let http: any HTTPFetching

@@ -16,7 +16,8 @@ struct BusynessView: View {
     /// Bumps after each Quietest / Waitz tick so hero + crowding re-render.
     @State private var boundaryEpoch = 0
 
-    private static let categoryOrder = ["Library", "Recreation", "Dining", "Campus"]
+    /// Libraries only — gym / dining / campus lounges stay off this tab.
+    private static let categoryOrder = ["Library"]
 
     private var boundaryWatchID: String {
         let openKey = store.facilities.value.map {
@@ -127,6 +128,12 @@ struct BusynessView: View {
         }
     }
 
+    private func focusLibrary(_ facilityID: Int) {
+        deepLinkFacilityID = facilityID
+        expandPulse += 1
+        Haptics.selection()
+    }
+
     @ViewBuilder
     private var content: some View {
         switch store.facilities {
@@ -156,7 +163,11 @@ struct BusynessView: View {
             } else {
                 let pick = QuietestLibraryPick.best(from: facilities)
                 if let pick {
-                    QuietestNowCard(pick: pick)
+                    QuietestNowCard(pick: pick) {
+                        if let id = pick.facilityID {
+                            focusLibrary(id)
+                        }
+                    }
                 } else if QuietestLibraryGlance.shouldShowClosed(from: facilities) {
                     QuietestClosedCard(
                         reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
@@ -169,9 +180,12 @@ struct BusynessView: View {
                 )
                 let grouped = groups(from: facilities)
                 if !store.libraryHours.isEmpty {
-                    LibraryHoursTodayCard(hours: store.libraryHours)
+                    LibraryHoursTodayCard(
+                        hours: store.libraryHours,
+                        facilities: facilities,
+                        onSelectFacility: focusLibrary
+                    )
                 }
-                StudentCenterStudyCard()
                 ForEach(grouped, id: \.category) { group in
                     // A lone "Library" header under a tab named Study is noise;
                     // headers earn their place only when multiple categories report.
@@ -181,9 +195,11 @@ struct BusynessView: View {
                         showHeader: grouped.count > 1,
                         expandFacilityID: expandID,
                         expandPulse: expandPulse,
-                        libraryHours: store.libraryHours
+                        libraryHours: store.libraryHours,
+                        cardSpacing: 16
                     )
                 }
+                StudentCenterStudyCard()
             }
         }
     }
@@ -216,8 +232,12 @@ struct BusynessView: View {
 
 struct QuietestNowCard: View {
     let pick: QuietestLibraryPick
+    var onOpenFloors: (() -> Void)? = nil
 
     var body: some View {
+        Button {
+            onOpenFloors?()
+        } label: {
         HStack(spacing: 14) {
             RoundedRectangle(cornerRadius: 1, style: .continuous)
                 .fill(Color.accent)
@@ -250,6 +270,11 @@ struct QuietestNowCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(onOpenFloors == nil)
+        .accessibilityHint(onOpenFloors == nil ? "" : "Shows floors inside \(pick.title)")
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             QuietestLibraryAccessibilityLabel.label(
@@ -296,13 +321,14 @@ struct QuietestClosedCard: View {
 /// Matches Study glance chrome (not another stacked white card with Open pills).
 private struct LibraryHoursTodayCard: View {
     let hours: [LibraryBuildingHours]
+    var facilities: [BusynessPoint] = []
+    var onSelectFacility: ((Int) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Today’s hours")
-                .font(ZotFont.kicker)
-                .textCase(.uppercase)
-                .foregroundStyle(Color.inkMuted)
+                .font(ZotFont.sectionTitle)
+                .foregroundStyle(Color.ink)
                 .accessibilityAddTraits(.isHeader)
 
             HStack(alignment: .center, spacing: 0) {
@@ -314,26 +340,7 @@ private struct LibraryHoursTodayCard: View {
                             .padding(.vertical, 2)
                             .padding(.horizontal, 14)
                     }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(building.shortName)
-                                .font(ZotFont.body)
-                                .foregroundStyle(Color.ink)
-                            Text(building.isOpen ? "Open" : "Closed")
-                                .font(ZotFont.caption.weight(.semibold))
-                                .foregroundStyle(building.isOpen ? Color.openGreen : .secondary)
-                        }
-                        Text(building.rendered)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        "\(building.shortName), \(building.isOpen ? "open" : "closed"), \(building.rendered)"
-                    )
+                    hoursColumn(building)
                 }
             }
         }
@@ -341,6 +348,46 @@ private struct LibraryHoursTodayCard: View {
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    @ViewBuilder
+    private func hoursColumn(_ building: LibraryBuildingHours) -> some View {
+        let facilityID = facilities.first {
+            LibraryHoursMatch.buildingID(forFacilityName: $0.name) == building.id
+        }?.id
+        let column = VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(building.shortName)
+                    .font(ZotFont.body.weight(.semibold))
+                    .foregroundStyle(Color.ink)
+                Text(building.isOpen ? "Open" : "Closed")
+                    .font(ZotFont.caption.weight(.semibold))
+                    .foregroundStyle(building.isOpen ? Color.openGreen : .secondary)
+            }
+            Text(building.rendered)
+                .font(ZotFont.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(building.shortName), \(building.isOpen ? "open" : "closed"), \(building.rendered)"
+        )
+
+        if let facilityID, let onSelectFacility {
+            Button {
+                onSelectFacility(facilityID)
+            } label: {
+                column
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows floors inside \(building.shortName)")
+        } else {
+            column
+        }
     }
 }
 
@@ -351,12 +398,11 @@ private struct StudentCenterStudyCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Student Center")
-                    .font(ZotFont.kicker)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Color.inkMuted)
+                    .font(ZotFont.sectionTitle)
+                    .foregroundStyle(Color.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text(StudentCenterStudyHours.occupancyNote)
                     .font(ZotFont.caption)
@@ -418,9 +464,10 @@ struct BusynessGroupSection: View {
     /// Increments on facility deep links so warm re-taps re-expand collapsed floors.
     var expandPulse: Int = 0
     var libraryHours: [LibraryBuildingHours] = []
+    var cardSpacing: CGFloat = 16
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: cardSpacing) {
             if showHeader {
                 Text(category)
                     .font(ZotFont.sectionTitle)
@@ -485,13 +532,13 @@ struct BusynessFacilityCard: View {
                     .buttonStyle(.plain)
                     .accessibilityHint(
                         isExpanded
-                            ? "Hides floors inside \(facility.name)"
-                            : "Shows floors inside \(facility.name)"
+                            ? "Hides floors inside \(StudyLibraryName.display(facility.name))"
+                            : "Shows floors inside \(StudyLibraryName.display(facility.name))"
                     )
                     .accessibilityLabel(
                         isExpanded
-                            ? "Hide floors inside \(facility.name)"
-                            : "Show floors inside \(facility.name)"
+                            ? "Hide floors inside \(StudyLibraryName.display(facility.name))"
+                            : "Show floors inside \(StudyLibraryName.display(facility.name))"
                     )
                 } else {
                     facilitySummary
@@ -503,6 +550,9 @@ struct BusynessFacilityCard: View {
             }
         }
         .onAppear {
+            if facility.category == "Library" {
+                expandIfHasFloors()
+            }
             expandIfRequested()
         }
         .onChange(of: initiallyExpanded) { _, shouldExpand in
@@ -517,7 +567,7 @@ struct BusynessFacilityCard: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(facility.name)
+                    Text(StudyLibraryName.display(facility.name))
                         .font(ZotFont.cardTitle)
                         .lineLimit(2)
                     Spacer(minLength: 8)
@@ -588,7 +638,7 @@ struct BusynessFacilityCard: View {
             .accessibilityHidden(canRevealFloors)
             .accessibilityLabel(
                 StudyFacilityAccessibilityLabel.label(
-                    name: facility.name,
+                    name: StudyLibraryName.display(facility.name),
                     isOpen: effectivelyOpen,
                     percent: facility.percent,
                     levelLabel: facility.level.label,
@@ -609,8 +659,12 @@ struct BusynessFacilityCard: View {
     }
 
     private func expandIfRequested() {
-        guard initiallyExpanded,
-              hasFloors,
+        guard initiallyExpanded else { return }
+        expandIfHasFloors()
+    }
+
+    private func expandIfHasFloors() {
+        guard hasFloors,
               StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
               !isExpanded
         else { return }
@@ -660,9 +714,8 @@ private struct BusynessFloorBlock: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text(floor.floorLabel)
-                    .font(ZotFont.kicker)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
+                    .font(ZotFont.sectionTitle)
+                    .foregroundStyle(Color.ink)
                     .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)
 
@@ -682,7 +735,7 @@ struct BusynessZoneRowView: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(zone.displayName)
-                .font(ZotFont.body.weight(.semibold))
+                .font(ZotFont.cardTitle)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)

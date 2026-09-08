@@ -91,10 +91,8 @@ public struct QuietestLibraryPick: Equatable, Sendable {
             }
     }
 
-    /// "Langson Library" → "Langson"; "Science Library" → "Sci Lib".
+    /// "Langson Library" → "Langson"; "Science Library" → "Gateway".
     public static func shortLibraryName(_ name: String) -> String {
-        name
-            .replacingOccurrences(of: " Library", with: "")
-            .replacingOccurrences(of: "Science", with: "Sci Lib")
+        StudyLibraryName.display(name)
     }
 }

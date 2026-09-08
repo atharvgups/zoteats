@@ -2,7 +2,7 @@ import SwiftUI
 import ZotEatsKit
 
 // Anteats visual system — UCI sunrise / sunset canvas, white cards, one gold
-// accent. Chrome is hairlines. Type is SF Pro at normal app weights.
+// accent. Chrome is hairlines. Type is thick SF Pro — never ultraLight / thin.
 
 extension Color {
     /// UCI primary blue (#0064A4) — cheer easter egg only, never chrome.
@@ -60,9 +60,9 @@ extension Color {
 }
 
 enum ZotFont {
-    /// Sized SF Pro. Callers add medium / semibold / bold.
+    /// Sized SF Pro — medium floor so body never goes thin.
     static func face(_ size: CGFloat, relativeTo _: Font.TextStyle = .body) -> Font {
-        .system(size: size, weight: .regular)
+        .system(size: size, weight: .medium)
     }
 
     /// Screen titles — bold SF Pro.
@@ -70,12 +70,12 @@ enum ZotFont {
         .system(size: size, weight: .bold)
     }
 
-    /// Stock iOS text styles at normal weights — not the 11–13pt skinny tokens.
+    /// Stock iOS text styles at medium+ — never ultraLight / thin.
     static let cardTitle = Font.headline.weight(.semibold)
-    /// Station / section headers — same thick SF Pro as dish names, a touch larger.
+    /// Station / floor headers — same thick SF Pro as dish names, a touch larger.
     static let sectionTitle = Font.system(size: 18, weight: .semibold)
-    static let body = Font.body
-    static let caption = Font.callout
+    static let body = Font.body.weight(.medium)
+    static let caption = Font.callout.weight(.medium)
     static let pill = Font.subheadline.weight(.semibold)
     static let kicker = Font.subheadline.weight(.semibold)
 }

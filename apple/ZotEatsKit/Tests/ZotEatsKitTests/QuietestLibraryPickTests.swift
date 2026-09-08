@@ -45,7 +45,7 @@ struct QuietestLibraryPickTests {
             ]
         )
         let pick = QuietestLibraryPick.best(from: [arc, science])
-        #expect(pick?.title == "Sci Lib · 5th Floor · Open Seating")
+        #expect(pick?.title == "Gateway · 5th Floor · Open Seating")
         #expect(pick?.percent == 12)
         #expect(pick?.facilityID == 2)
     }
@@ -160,7 +160,7 @@ struct QuietestLibraryPickTests {
         let points = try await BusynessService(http: FixtureHTTP(), now: { Date() }).all()
         let pick = try #require(QuietestLibraryPick.best(from: points))
         #expect(pick.percent >= 0)
-        #expect(pick.title.contains("Langson") || pick.title.contains("Sci Lib") || pick.title.contains("Science"))
+        #expect(pick.title.contains("Langson") || pick.title.contains("Gateway") || pick.title.contains("Science"))
         #expect(pick.facilityID != nil)
     }
 }
