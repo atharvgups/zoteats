@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-08 ~12:27 PM PT — read-only. Confirm live 1.0.298 vs Internal 1.0.299. Leave WAITING_FOR_REVIEW / IN_REVIEW alone. Never cancel live READY_FOR_SALE. Never submit Internal.
+Launch-loop peek 2026-09-08 ~3:16 PM PT — read-only. Confirm live 1.0.298 vs Internal 1.0.301 / External 1.0.300. Leave WAITING_FOR_REVIEW / IN_REVIEW alone. Never cancel live READY_FOR_SALE. Never submit Internal.
 """
 
 from __future__ import annotations
