@@ -33,6 +33,8 @@ struct DiningStatusLayoutTests {
             == DiningStatusLayout.statusFontSize(isCompact: false, hallCount: 2))
         #expect(DiningStatusLayout.nameFontSize(isCompact: false, hallCount: 3)
             == DiningStatusLayout.nameFontSize(isCompact: true, hallCount: 3) + 1)
+        #expect(DiningStatusLayout.nameFontSize(isCompact: true, hallCount: 3) == 16)
+        #expect(DiningStatusLayout.statusFontSize(isCompact: true, hallCount: 3) == 18)
     }
 
     @Test func diningWidgetStudyFooterOnlyOnLarge() {

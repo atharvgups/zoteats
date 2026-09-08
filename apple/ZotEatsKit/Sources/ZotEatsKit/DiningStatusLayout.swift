@@ -36,35 +36,34 @@ public enum DiningStatusLayout {
         isLarge ? 3 : 2
     }
 
-    /// Outer VStack spacing between header and the halls card.
+    /// Outer VStack spacing between header and the halls list.
     public static func rowSpacing(isCompact: Bool, hallCount: Int) -> Double {
         let dense = usesDenseRows(hallCount: hallCount)
         if isCompact {
-            return dense ? 8 : 10
+            return dense ? 10 : 12
         }
-        return dense ? 8 : 12
+        return dense ? 10 : 14
     }
 
-    /// Spacing between hall rows inside the nested card.
+    /// Spacing between hall rows.
     public static func hallRowSpacing(isCompact: Bool, hallCount: Int) -> Double {
         let dense = usesDenseRows(hallCount: hallCount)
         if isCompact {
-            return dense ? 8 : 10
+            return dense ? 10 : 12
         }
-        return dense ? 9 : 11
+        return dense ? 11 : 13
     }
 
-    /// Primary hall name font size — fixed so short names (Oasis) don't
-    /// render bigger than Anteatery / Brandywine.
+    /// Primary hall name — thick SF Pro, same size on every row.
     public static func nameFontSize(isCompact: Bool, hallCount: Int) -> Double {
         _ = hallCount
-        return isCompact ? 11 : 12
+        return isCompact ? 16 : 17
     }
 
     /// Clock on the trailing side — same size for every row, including Soon.
     public static func statusFontSize(isCompact: Bool, hallCount: Int) -> Double {
         _ = hallCount
-        return isCompact ? 12 : 13
+        return isCompact ? 18 : 19
     }
 
     public static let trailingColumnMinWidth: Double = 58
