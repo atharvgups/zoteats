@@ -448,7 +448,7 @@ struct DiningView: View {
         )
     }
 
-    /// Three equal rounded-rect pill tiles — not circles, not a slider.
+    /// Equal-width 3-across hall boxes — text-first, no glyphs, not icon tiles.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
@@ -479,23 +479,25 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(spacing: 6) {
-                EatHallTileIcon(hallID: location.id)
+            VStack(alignment: .leading, spacing: 8) {
                 Text(HallDirectory.compactName(for: location.id))
                     .font(.system(size: EatHallTileMark.namePointSize, weight: .bold))
                     .foregroundStyle(Color.ink)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(status.text)
-                    .font(ZotFont.caption.weight(.medium))
+                    .font(ZotFont.body.weight(.medium))
                     .foregroundStyle(status.tint)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: EatHallTileMark.tileMinHeight)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, minHeight: EatHallTileMark.tileMinHeight, alignment: .topLeading)
             .background(
                 isSelected ? Color.accent.opacity(0.12) : Color.card,
                 in: tile
@@ -505,11 +507,6 @@ struct DiningView: View {
                     isSelected ? Color.accent.opacity(0.45) : Color.cardBorder,
                     lineWidth: 1
                 )
-            )
-            .shadow(
-                color: isSelected ? Color.black.opacity(0.10) : .clear,
-                radius: 5,
-                y: 2
             )
         }
         .buttonStyle(.plain)

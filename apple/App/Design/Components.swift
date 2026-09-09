@@ -36,19 +36,6 @@ struct StatusPill: View {
     }
 }
 
-/// Pre-theme SF Symbols on equal pill tiles — building / leaf / drop.
-struct EatHallTileIcon: View {
-    let hallID: String
-
-    var body: some View {
-        Image(systemName: EatHallTileMark.symbolName(forHallID: hallID))
-            .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(Color.ink)
-            .frame(height: 28)
-            .accessibilityHidden(true)
-    }
-}
-
 // MARK: - Small colored tag chip (diet tags / allergens)
 
 struct TagChip: View {

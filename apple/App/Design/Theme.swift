@@ -1,7 +1,6 @@
 import SwiftUI
-import ZotEatsKit
 
-// Anteats visual system — UCI sunrise / sunset canvas, white cards, one gold
+// Anteats visual system — plain white / system-dark canvas, white cards, one gold
 // accent. Chrome is hairlines. Type is thick SF Pro — never ultraLight / thin.
 
 extension Color {
@@ -18,13 +17,8 @@ extension Color {
     /// Secondary copy — system secondary label.
     static let inkMuted = Color(uiColor: .secondaryLabel)
 
-    /// Solid foot of AppCanvas — ink-bar text, never a page fill.
-    static let screen = Color(uiColor: UIColor { traits in
-        if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 10 / 255, green: 10 / 255, blue: 11 / 255, alpha: 1)
-        }
-        return UIColor(red: 252 / 255, green: 251 / 255, blue: 248 / 255, alpha: 1)
-    })
+    /// Ink-bar text on filled capsules — system page color, never beige.
+    static let screen = Color(uiColor: .systemBackground)
 
     /// Raised surface — pure white in light, system elevated in dark.
     static let card = Color(uiColor: UIColor { traits in
@@ -44,7 +38,7 @@ extension Color {
     /// Selected wash — charcoal at 6%, never campus blue.
     static let selectWash = Color.ink.opacity(0.06)
 
-    /// Gold that still reads on the sunrise wash (full #FFD200 washes out in light).
+    /// Gold that still reads on white (full #FFD200 washes out in light).
     static let accentUIColor = UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
@@ -125,7 +119,7 @@ extension View {
         modifier(CardStyle())
     }
 
-    /// Root page / sheet fill — sunrise in light, sunset in dark.
+    /// Root page / sheet fill — system white in light, system dark in dark.
     func appCanvas() -> some View {
         self
             .scrollContentBackground(.hidden)
@@ -133,33 +127,11 @@ extension View {
     }
 }
 
-/// Shared canvas — sunrise in Light, sunset in Dark. Follows system appearance.
+/// Shared canvas — plain system background. No gradient. No color picker.
 struct AppCanvas: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
-        AppCanvasPaint(dark: colorScheme == .dark)
+        Color(uiColor: .systemBackground)
             .ignoresSafeArea()
-            .animation(.snappy(duration: 0.28), value: colorScheme)
-    }
-}
-
-/// Locked sunrise / sunset wash — no user color picker.
-struct AppCanvasPaint: View {
-    var dark: Bool
-
-    var body: some View {
-        let stops = dark ? AppCanvasRecipe.sunset : AppCanvasRecipe.sunrise
-        LinearGradient(
-            stops: stops.map {
-                Gradient.Stop(
-                    color: Color(red: $0.red, green: $0.green, blue: $0.blue),
-                    location: $0.location
-                )
-            },
-            startPoint: .top,
-            endPoint: .bottom
-        )
     }
 }
 
