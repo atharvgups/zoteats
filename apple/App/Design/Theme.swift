@@ -1,4 +1,5 @@
 import SwiftUI
+import ZotEatsKit
 
 // Anteats visual system — plain white / system-dark canvas, white cards, one gold
 // accent. Chrome is hairlines. Type is thick SF Pro — never ultraLight / thin.
