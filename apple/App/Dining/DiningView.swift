@@ -486,7 +486,7 @@ struct DiningView: View {
         let minSize = EatHallTileMark.nameMinimumPointSize
         let font = UIFont.systemFont(ofSize: maxSize, weight: .bold)
         let needed = (EatHallTileMark.longestCompactName as NSString)
-            .size(withAttributes: [.font: font]).width
+            .size(withAttributes: [.font: font]).width * EatHallTileMark.nameFitSlack
         guard needed > textWidth, needed > 0 else { return maxSize }
         return max(minSize, (maxSize * textWidth / needed * 10).rounded() / 10)
     }
@@ -508,7 +508,7 @@ struct DiningView: View {
                     .font(.system(size: nameSize, weight: .bold))
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .frame(
                         maxWidth: .infinity,
                         minHeight: EatHallTileMark.nameBlockHeight,
@@ -546,7 +546,6 @@ struct DiningView: View {
                     lineWidth: EatHallTileMark.borderWidth
                 )
             }
-            .clipShape(tile)
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, maxHeight: EatHallTileMark.tileHeight)

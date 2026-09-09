@@ -5,8 +5,8 @@ import Testing
 @Suite("EatHallTileMark")
 struct EatHallTileMarkTests {
     @Test func namesShareOneLargeBoldSize() {
-        #expect(EatHallTileMark.namePointSize == 20)
-        #expect(EatHallTileMark.nameMinimumPointSize == 14)
+        #expect(EatHallTileMark.namePointSize == 18)
+        #expect(EatHallTileMark.nameMinimumPointSize == 12)
         #expect(EatHallTileMark.nameMinimumPointSize < EatHallTileMark.namePointSize)
     }
 
@@ -19,10 +19,11 @@ struct EatHallTileMarkTests {
         #expect(EatHallTileMark.tileHeight == 144)
         #expect(EatHallTileMark.nameBlockHeight + EatHallTileMark.statusBlockHeight
             < EatHallTileMark.tileHeight)
+        #expect(EatHallTileMark.nameBlockHeight == 28)
     }
 
     @Test func selectedBorderDoesNotChangeSize() {
-        #expect(EatHallTileMark.borderWidth == 2)
+        #expect(EatHallTileMark.borderWidth == 1)
     }
 
     @Test func nameFitIsSharedFromBrandywine() {
@@ -33,5 +34,12 @@ struct EatHallTileMarkTests {
         #expect(tight == EatHallTileMark.fittedNamePointSize(textWidth: 72))
         #expect(tight >= EatHallTileMark.nameMinimumPointSize)
         #expect(tight <= EatHallTileMark.namePointSize)
+    }
+
+    @Test func narrowCardsStillShareOneSize() {
+        let a = EatHallTileMark.fittedNamePointSize(textWidth: 80)
+        let b = EatHallTileMark.fittedNamePointSize(textWidth: 80)
+        #expect(a == b)
+        #expect(a < EatHallTileMark.namePointSize)
     }
 }
