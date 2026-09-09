@@ -26,26 +26,60 @@ struct EatHallCardChromeTests {
         )
     }
 
-    @Test func laterTodaySaysSoon() {
+    @Test func laterTodayIsMealNameOnly() {
         #expect(
             EatHallCardChrome.statusText(
                 comingSoon: false,
                 state: .openingLater(period: "Dinner", opensAt: 990),
                 opensTomorrowPeriod: nil,
                 opensNextPeriod: nil
-            ) == "Dinner soon"
+            ) == "Dinner"
         )
     }
 
-    @Test func closedShowsNextMeal() {
+    @Test func closedShowsNextMealName() {
         #expect(
             EatHallCardChrome.statusText(
                 comingSoon: false,
                 state: .closedForToday,
                 opensTomorrowPeriod: "Breakfast",
                 opensNextPeriod: nil
-            ) == "Breakfast next"
+            ) == "Breakfast"
         )
+    }
+
+    @Test func statusNeverLongerThanComingSoon() {
+        let samples = [
+            EatHallCardChrome.statusText(
+                comingSoon: true,
+                state: .unknown,
+                opensTomorrowPeriod: nil,
+                opensNextPeriod: nil
+            ),
+            EatHallCardChrome.statusText(
+                comingSoon: false,
+                state: .openingLater(period: "Breakfast", opensAt: 420),
+                opensTomorrowPeriod: nil,
+                opensNextPeriod: nil
+            ),
+            EatHallCardChrome.statusText(
+                comingSoon: false,
+                state: .closedForToday,
+                opensTomorrowPeriod: "Breakfast",
+                opensNextPeriod: nil
+            ),
+            EatHallCardChrome.statusText(
+                comingSoon: false,
+                state: .unknown,
+                opensTomorrowPeriod: nil,
+                opensNextPeriod: nil
+            ),
+        ]
+        let cap = OasisComingSoonCopy.cardStatus.count
+        for text in samples {
+            #expect(text.count <= cap)
+            #expect(!text.contains("…"))
+        }
     }
 
     @Test func closedWithNoNextIsClosed() {

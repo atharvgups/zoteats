@@ -13,12 +13,12 @@ public enum EatHallCardChrome: Sendable {
         case .open(let period, _):
             return MealPeriodPill.canonical(period)
         case .openingLater(let period, _):
-            return "\(MealPeriodPill.canonical(period)) soon"
+            return MealPeriodPill.canonical(period)
         case .awaitingMoreMeals:
             return "Later"
         case .closedForToday:
             if let meal = opensTomorrowPeriod ?? opensNextPeriod {
-                return "\(MealPeriodPill.canonical(meal)) next"
+                return MealPeriodPill.canonical(meal)
             }
             return "Closed"
         case .unknown:

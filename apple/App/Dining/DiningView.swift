@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import ZotEatsKit
 
 // The Dining tab — ZotEats' hero surface.
@@ -448,26 +449,49 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width 3-across hall boxes — text-first, no glyphs, not icon tiles.
+    /// Equal-width 3-across hall boxes — identical templates, no glyphs.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        HStack(spacing: 8) {
-            if let locations, !locations.isEmpty {
-                ForEach(locations) { location in
-                    hallCard(for: location)
+        let spacing: CGFloat = 8
+        GeometryReader { geo in
+            let count = CGFloat(max(locations?.count ?? 3, 1))
+            let cardWidth = max(0, (geo.size.width - spacing * (count - 1)) / count)
+            let textWidth = max(0, cardWidth - EatHallTileMark.horizontalPadding * 2)
+            let nameSize = sharedHallNameSize(textWidth: textWidth)
+            HStack(spacing: spacing) {
+                if let locations, !locations.isEmpty {
+                    ForEach(locations) { location in
+                        hallCard(for: location, nameSize: nameSize)
+                            .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                    }
+                } else {
+                    SkeletonCard(height: EatHallTileMark.tileHeight)
+                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                    SkeletonCard(height: EatHallTileMark.tileHeight)
+                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                    SkeletonCard(height: EatHallTileMark.tileHeight)
+                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
                 }
-            } else {
-                SkeletonCard(height: EatHallTileMark.tileMinHeight)
-                SkeletonCard(height: EatHallTileMark.tileMinHeight)
-                SkeletonCard(height: EatHallTileMark.tileMinHeight)
             }
         }
+        .frame(height: EatHallTileMark.tileHeight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Dining hall")
     }
 
-    private func hallCard(for location: DiningLocation) -> some View {
+    /// One point size for every hall name, fitted to Brandywine so Oasis never looks bigger.
+    private func sharedHallNameSize(textWidth: CGFloat) -> CGFloat {
+        let maxSize = EatHallTileMark.namePointSize
+        let minSize = EatHallTileMark.nameMinimumPointSize
+        let font = UIFont.systemFont(ofSize: maxSize, weight: .bold)
+        let needed = (EatHallTileMark.longestCompactName as NSString)
+            .size(withAttributes: [.font: font]).width
+        guard needed > textWidth, needed > 0 else { return maxSize }
+        return max(minSize, (maxSize * textWidth / needed * 10).rounded() / 10)
+    }
+
+    private func hallCard(for location: DiningLocation, nameSize: CGFloat) -> some View {
         let isSelected = location.id == selectedHall
         let status = HallChromeStatus.resolve(for: location)
         let tile = RoundedRectangle(cornerRadius: zotHallRadius, style: .continuous)
@@ -479,37 +503,53 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(.system(size: EatHallTileMark.namePointSize, weight: .bold))
+                    .font(.system(size: nameSize, weight: .bold))
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: EatHallTileMark.nameBlockHeight,
+                        maxHeight: EatHallTileMark.nameBlockHeight,
+                        alignment: .topLeading
+                    )
                 Text(status.text)
-                    .font(ZotFont.body.weight(.medium))
+                    .font(.system(size: EatHallTileMark.statusPointSize, weight: .medium))
                     .foregroundStyle(status.tint)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: EatHallTileMark.statusBlockHeight,
+                        maxHeight: EatHallTileMark.statusBlockHeight,
+                        alignment: .topLeading
+                    )
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity, minHeight: EatHallTileMark.tileMinHeight, alignment: .topLeading)
+            .padding(.horizontal, EatHallTileMark.horizontalPadding)
+            .padding(.vertical, EatHallTileMark.verticalPadding)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: EatHallTileMark.tileHeight,
+                maxHeight: EatHallTileMark.tileHeight,
+                alignment: .topLeading
+            )
             .background(
                 isSelected ? Color.accent.opacity(0.12) : Color.card,
                 in: tile
             )
-            .overlay(
+            .overlay {
                 tile.strokeBorder(
                     isSelected ? Color.accent.opacity(0.45) : Color.cardBorder,
-                    lineWidth: 1
+                    lineWidth: EatHallTileMark.borderWidth
                 )
-            )
+            }
+            .clipShape(tile)
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: EatHallTileMark.tileHeight)
         .accessibilityLabel(
             DiningHallCardAccessibilityLabel.label(
                 name: location.name,
