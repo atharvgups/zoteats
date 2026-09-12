@@ -54,6 +54,9 @@ public struct BusynessService: Sendable {
         if lowered.range(of: #"(commons|anteatery|brandywine|dining|eatery|cafe)"#, options: .regularExpression) != nil {
             return "Dining"
         }
+        if lowered.range(of: #"(student center|courtyard study|commuter lounge|hillside lounge)"#, options: .regularExpression) != nil {
+            return "Campus"
+        }
         return "Campus"
     }
 

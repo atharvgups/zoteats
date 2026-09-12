@@ -43,7 +43,7 @@ public struct HTTPClient: HTTPFetching {
         config.timeoutIntervalForRequest = timeout
         config.httpAdditionalHeaders = [
             "Accept": "application/json",
-            "User-Agent": "ZotEats/1.0 (UCI student utility)",
+            "User-Agent": "Anteats/1.0 (UCI student utility)",
         ]
         self.session = URLSession(configuration: config)
         self.timeout = timeout

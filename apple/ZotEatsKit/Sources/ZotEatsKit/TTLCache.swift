@@ -25,6 +25,18 @@ public actor TTLCache {
         store[key] = Entry(value: value, expiresAt: Date().addingTimeInterval(ttl))
     }
 
+    /// Drop a cached entry so the next `remember` reloads from the network.
+    public func invalidate(_ key: String) {
+        store[key] = nil
+    }
+
+    /// Drop every key with the given prefix (e.g. `"dining:today:"`).
+    public func invalidatePrefix(_ prefix: String) {
+        for key in store.keys where key.hasPrefix(prefix) {
+            store[key] = nil
+        }
+    }
+
     /// Return the cached value, or run `loader`, cache its result, and return it.
     public func remember<T: Sendable>(
         _ key: String,

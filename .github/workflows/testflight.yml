@@ -1,4 +1,11 @@
-# Manual TestFlight release: archive the app and upload it to App Store Connect.
+# TestFlight release: archive, upload to App Store Connect, then auto-promote
+# the *previous* build to External Testing.
+#
+# Flow you asked for:
+#   - You dogfood the newest upload (e.g. 1.0.9 right now) via Internal Testing.
+#   - When the next upload lands (e.g. 1.0.10), CI attaches the prior VALID build
+#     (1.0.9) to the External Testing group and submits/notifies — so externals
+#     stay one behind what you're actively testing, but keep getting updates.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   APP_STORE_CONNECT_API_KEY_P8  - base64-encoded contents of the App Store Connect API .p8 key
@@ -6,6 +13,16 @@
 #   APP_STORE_CONNECT_KEY_ID      - the API key's Key ID (e.g. XXXXXXXXXX)
 #   APP_STORE_CONNECT_ISSUER_ID   - the API key's Issuer ID (UUID from App Store Connect)
 #   APPLE_TEAM_ID                 - Apple Developer Team ID (e.g. ABCDE12345)
+#
+# Optional repository variable / secret:
+#   TESTFLIGHT_EXTERNAL_GROUP_NAME - External Testing group name in App Store Connect
+#                                    (default: "Zot Eats Testers!")
+#
+# App Store Connect setup (one-time):
+#   1. TestFlight → External Testing → create a group (default name above).
+#   2. Add your external testers to that group.
+#   3. First external build of each marketing version still needs Apple's Beta
+#      App Review; later builds of the same version usually distribute faster.
 #
 # No manual certificate/profile import is needed: signing uses Xcode cloud signing
 # (-allowProvisioningUpdates + the App Store Connect API key), which creates and
@@ -23,6 +40,16 @@ on:
         description: "CURRENT_PROJECT_VERSION (defaults to the workflow run number)"
         required: false
         default: ""
+      promote_previous_external:
+        description: "After upload, promote the previous build to External Testing"
+        required: false
+        type: boolean
+        default: true
+      promote_only:
+        description: "Skip archive/upload; only promote N−1 for the given build_number (Internal dogfood build)"
+        required: false
+        type: boolean
+        default: false
   # Git-native trigger: pushing a tag like "testflight-1.0.0" uploads that version.
   push:
     tags: ["testflight-*"]
@@ -36,6 +63,8 @@ jobs:
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      TESTFLIGHT_EXTERNAL_GROUP_NAME: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP_NAME || 'Zot Eats Testers!' }}
+      PROMOTE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_only }}
     steps:
       # Fail fast with an explicit list of missing secrets instead of a cryptic
       # xcodebuild signing error 20 minutes in.
@@ -52,14 +81,20 @@ jobs:
             echo "Add them under Settings -> Secrets and variables -> Actions (see comments at the top of this workflow)."
             exit 1
           fi
+          if [ "$PROMOTE_ONLY" = "true" ] && [ -z "${{ inputs.build_number }}" ]; then
+            echo "::error::promote_only requires build_number (the Internal dogfood CFBundleVersion, e.g. 15)"
+            exit 1
+          fi
 
       - uses: actions/checkout@v4
 
       - uses: maxim-lobanov/setup-xcode@v1
+        if: env.PROMOTE_ONLY != 'true'
         with:
           xcode-version: latest-stable
 
       - name: Install XcodeGen
+        if: env.PROMOTE_ONLY != 'true'
         run: brew install xcodegen
 
       # Signing strategy for device-less accounts: the ARCHIVE stays unsigned
@@ -68,11 +103,13 @@ jobs:
       # certificates (-allowProvisioningUpdates + the ASC API key). Only the team
       # id needs to be present in the project.
       - name: Configure team in project spec
+        if: env.PROMOTE_ONLY != 'true'
         run: |
           sed -i '' "s/DEVELOPMENT_TEAM: \"\"/DEVELOPMENT_TEAM: \"$APPLE_TEAM_ID\"/" apple/project.yml
 
       # The Xcode project is not committed; generate it from the spec.
       - name: Generate Xcode project
+        if: env.PROMOTE_ONLY != 'true'
         run: xcodegen generate --spec apple/project.yml --project apple/
 
       - name: Write App Store Connect API key
@@ -84,6 +121,7 @@ jobs:
       # DEVELOPMENT_TEAM / CODE_SIGNING_ALLOWED are passed on the command line, which
       # overrides the CI-friendly defaults in apple/project.yml (empty team, signing off).
       - name: Archive
+        if: env.PROMOTE_ONLY != 'true'
         env:
           INPUT_VERSION: ${{ inputs.marketing_version }}
           BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
@@ -99,6 +137,8 @@ jobs:
             MARKETING_VERSION="1.0.0"
           fi
           echo "Uploading version $MARKETING_VERSION ($BUILD_NUMBER)"
+          echo "MARKETING_VERSION=$MARKETING_VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           # Unsigned archive; all signing happens at export (see comment above).
           xcodebuild \
             -project apple/ZotEats.xcodeproj \
@@ -114,6 +154,7 @@ jobs:
       # method app-store-connect + destination upload (Xcode 15+) signs the archive
       # and uploads it straight to App Store Connect in one step — no altool/Transporter.
       - name: Export and upload to App Store Connect
+        if: env.PROMOTE_ONLY != 'true'
         run: |
           cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -140,3 +181,22 @@ jobs:
             -authenticationKeyPath "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      # After this upload (what you dogfood), promote the previous VALID build to
+      # External Testing — e.g. you just shipped 1.0.10, externals get 1.0.9.
+      # Tag pushes always promote; workflow_dispatch can opt out. promote_only
+      # re-runs just this step (uses inputs.build_number as the Internal build N).
+      - name: Promote previous build to External Testing
+        if: ${{ env.PROMOTE_ONLY == 'true' || github.event_name == 'push' || inputs.promote_previous_external != false }}
+        env:
+          BUILD_NUMBER: ${{ env.BUILD_NUMBER || inputs.build_number || github.run_number }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc-venv"
+          # shellcheck disable=SC1091
+          source "$RUNNER_TEMP/asc-venv/bin/activate"
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet 'PyJWT[crypto]'
+          export APP_STORE_CONNECT_API_KEY_PATH="$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          export BUILD_NUMBER
+          export TESTFLIGHT_EXTERNAL_GROUP_NAME
+          python apple/scripts/promote_previous_external.py

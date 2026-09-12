@@ -1,0 +1,195 @@
+import Foundation
+import Testing
+@testable import ZotEatsKit
+
+@Suite("EatDeepLinkPeriod")
+struct EatDeepLinkPeriodTests {
+    private let day = [
+        MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+    ]
+    private let available = ["Breakfast", "Lunch", "Dinner", "All Day"]
+
+    @Test("After hours clears Dinner deeplink")
+    func afterHoursClearsDinner() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Dinner",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 1300,
+                browsingFutureDay: false
+            ) == nil
+        )
+    }
+
+    @Test("Live Lunch deeplink stays Lunch")
+    func liveLunchKept() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Lunch",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Lunch"
+        )
+    }
+
+    @Test("Ended Lunch at mid-afternoon falls through to Dinner")
+    func endedLunchFallsToDinner() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Lunch",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 900,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Dish deeplink preserves ended Lunch instead of remapping to Dinner")
+    func dishPreservesEndedLunch() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Lunch",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 900,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Lunch"
+        )
+    }
+
+    @Test("Opening Alert period deeplink preserves ended Lunch")
+    func openingAlertPreservesEndedLunch() {
+        // Same preserve flag as dish links — Opening Alerts carry period, no dish.
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Lunch",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 900,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Lunch"
+        )
+    }
+
+    @Test("Explicit period deeplink preserves Dinner after hours")
+    func explicitPeriodPreservesAfterHoursDinner() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Dinner",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 1300,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Preserve flag without requested meal still picks live")
+    func preserveNilStillPicksLive() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: nil,
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 700,
+                browsingFutureDay: false,
+                preserveRequestedMeal: true
+            ) == "Lunch"
+        )
+    }
+
+    @Test("Upcoming Dinner deeplink before open is kept")
+    func upcomingDinnerKept() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Dinner",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 900,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Future-day browse keeps requested pill")
+    func futureDayKeepsPill() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Breakfast",
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 1300,
+                browsingFutureDay: true
+            ) == "Breakfast"
+        )
+    }
+
+    @Test("Future-day nil request snaps first primary pill")
+    func futureDayNilRequestSnapsBreakfast() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: nil,
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 1300,
+                browsingFutureDay: true
+            ) == "Breakfast"
+        )
+    }
+
+    @Test("Brunch request maps to Breakfast pill while live")
+    func brunchMapsToBreakfast() {
+        let brunchDay = [
+            MealPeriodWindow(name: "Brunch", startMinutes: 600, endMinutes: 840),
+            MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+        ]
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Brunch",
+                availablePeriods: ["Brunch", "Dinner"],
+                timedPeriods: brunchDay,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Breakfast"
+        )
+    }
+
+    @Test("Limited Dinner request maps to Dinner pill while live")
+    func limitedDinnerMapsToDinner() {
+        let limited = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+            MealPeriodWindow(name: "Limited Dinner", startMinutes: 1020, endMinutes: 1140),
+        ]
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: "Limited Dinner",
+                availablePeriods: ["Breakfast", "Limited Dinner"],
+                timedPeriods: limited,
+                nowMinutes: 1050,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+    }
+
+    @Test("Nil request picks live meal")
+    func nilPicksLive() {
+        #expect(
+            EatDeepLinkPeriod.resolve(
+                requested: nil,
+                availablePeriods: available,
+                timedPeriods: day,
+                nowMinutes: 700,
+                browsingFutureDay: false
+            ) == "Lunch"
+        )
+    }
+}

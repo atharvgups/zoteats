@@ -9,14 +9,15 @@ import type { DayHours, GymStatus } from "@shared/types";
 import { getBusyness, findArc } from "./occuspace.js";
 
 // Hours as [open, close] in 24h; close may be 24 (midnight). Maintained fallback.
+// Summer 2026 campusrec.uci.edu/arc/hours.html — Mon–Fri 6 AM–10 PM, Sat/Sun 8 AM–8 PM.
 const ARC_WEEK: { day: string; open: number; close: number }[] = [
-  { day: "Sunday", open: 8, close: 24 },
-  { day: "Monday", open: 6, close: 24 },
-  { day: "Tuesday", open: 6, close: 24 },
-  { day: "Wednesday", open: 6, close: 24 },
-  { day: "Thursday", open: 6, close: 24 },
-  { day: "Friday", open: 6, close: 24 },
-  { day: "Saturday", open: 8, close: 21 },
+  { day: "Sunday", open: 8, close: 20 },
+  { day: "Monday", open: 6, close: 22 },
+  { day: "Tuesday", open: 6, close: 22 },
+  { day: "Wednesday", open: 6, close: 22 },
+  { day: "Thursday", open: 6, close: 22 },
+  { day: "Friday", open: 6, close: 22 },
+  { day: "Saturday", open: 8, close: 20 },
 ];
 
 function formatHour(h: number): string {

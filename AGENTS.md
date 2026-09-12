@@ -47,3 +47,10 @@ renderer (`renderer/`). See `README.md` and `project-plans/` for the design and 
   `ZOTEATS_LIVE_TESTS=1` to also hit the live APIs).
 - Swift is installed via swiftly and is not on `PATH` by default — activate with
   `. ~/.swiftly/env.sh` before running `swift`.
+
+### TestFlight dogfood vs public beta (always ship)
+- **Standing order:** always `git push` the working branch after changes, then ship a new `testflight-x.y.z` so the owner’s **Internal Testing** group gets the newest build (N). Public/external (“Zot Eats Testers!”) stays **one behind (N−1)** via `apple/scripts/promote_previous_external.py` after each successful upload. Never leave dogfood-ready iOS work only in an untagged PR.
+- Prefer a fresh tag bump over force-retagging the same `testflight-*` (force-retags confuse ASC build ids and can break External promote).
+- Tag naming: `testflight-1.0.10` → marketing version `1.0.10`. Watch the **TestFlight** Actions workflow; Internal appears after ASC processing.
+- ASC external group is **`Zot Eats Testers!`** (override with repo var `TESTFLIGHT_EXTERNAL_GROUP_NAME`).
+- **App Store:** push `appstore-x.y.z` (or dispatch **App Store** with `submit_only` against an already-uploaded TestFlight build). Script: `apple/scripts/submit_app_store.py`; listing copy in `apple/AppStore/metadata.json`. First review may still need age rating / pricing / phone filled once in App Store Connect if ASC rejects the API submit.
