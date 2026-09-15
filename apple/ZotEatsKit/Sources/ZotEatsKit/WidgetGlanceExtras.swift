@@ -1,8 +1,19 @@
 import Foundation
 
-/// Extra strips for larger Dining Halls / combo widgets so Medium and Large
-/// actually show more than the small three-hall list.
+/// Shared glance knobs. Dining Halls no longer embeds board / campus / study
+/// combo strips — those kinds ship on their own. Coming-soon filtering and
+/// dish caps still live here so Linux tests can cover them.
 public enum WidgetGlanceExtras {
+    /// Today's Menu: two dishes on Small, four on Medium.
+    public static func todaysMenuDishLimit(isCompact: Bool) -> Int {
+        isCompact ? 2 : 4
+    }
+
+    /// Favorites: one hearted dish on Small, three on Medium.
+    public static func favoritesDishLimit(isCompact: Bool) -> Int {
+        isCompact ? 1 : 3
+    }
+
     public struct BoardStrip: Equatable, Sendable {
         public let hallID: String
         public let hallName: String

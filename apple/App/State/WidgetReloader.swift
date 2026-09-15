@@ -9,8 +9,8 @@ enum WidgetReloader {
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetTimelineKinds.favoritesToday)
     }
 
-    /// Wake Campus Open Now + Campus Next after Campus heart toggles so Home
-    /// Screen order matches the in-app Favorites shelf without waiting on cadence.
+    /// Wake Campus Open Now after Campus heart toggles so Home Screen order
+    /// matches the in-app Favorites shelf without waiting on cadence.
     static func reloadCampusOpen() {
         for kind in WidgetTimelineKinds.campus {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
