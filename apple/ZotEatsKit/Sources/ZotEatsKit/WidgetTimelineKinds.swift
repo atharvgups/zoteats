@@ -37,4 +37,17 @@ public enum WidgetTimelineKinds {
     public static let campus: [String] = [
         campusOpen,
     ]
+
+    /// Home Screen Small gallery — iOS hides a kind when the size picker
+    /// doesn't match any of its families. All five keepers ship Small.
+    public static let homeSmall: [String] = all
+
+    /// Home Screen Medium gallery — same five keepers, so Medium isn't a
+    /// two-widget leftover after the Nom-style size cull.
+    public static let homeMedium: [String] = all
+
+    /// Lock Screen companion — Dining Halls rectangular (already solid).
+    public static let lockScreen: [String] = [
+        diningStatus,
+    ]
 }

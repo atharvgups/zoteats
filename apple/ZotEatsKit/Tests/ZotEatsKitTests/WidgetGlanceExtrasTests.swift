@@ -34,6 +34,13 @@ struct WidgetGlanceExtrasTests {
         )
     }
 
+    @Test func dishLimitsStayTightPerSize() {
+        #expect(WidgetGlanceExtras.todaysMenuDishLimit(isCompact: true) == 2)
+        #expect(WidgetGlanceExtras.todaysMenuDishLimit(isCompact: false) == 4)
+        #expect(WidgetGlanceExtras.favoritesDishLimit(isCompact: true) == 1)
+        #expect(WidgetGlanceExtras.favoritesDishLimit(isCompact: false) == 3)
+    }
+
     @Test func hidesComingSoonWhenAsked() {
         let halls = [
             hall(id: "anteatery", name: "The Anteatery"),
