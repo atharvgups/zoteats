@@ -60,6 +60,11 @@ launch_tab() {
   xcrun simctl launch --terminate-running-process booted "$BUNDLE_ID" "$@"
 }
 
+# Prime Waitz / LibCal so the first Study listing shot isn't skeletons.
+xcrun simctl ui booted appearance light
+launch_tab -initialTab busyness
+sleep 14
+
 for mode in light dark; do
   xcrun simctl ui booted appearance "$mode"
   # Gym tab is not in shipping builds.
