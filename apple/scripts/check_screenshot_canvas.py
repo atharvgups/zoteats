@@ -91,7 +91,15 @@ def main() -> None:
             )
         )
         im = Image.open(path)
-        print(f"{name}: {im.size[0]}x{im.size[1]}", flush=True)
+        print(f"{name}: {im.size[0]}x{im.size[1]} {path.stat().st_size} bytes", flush=True)
+    eat = root / "eat_light.png"
+    for dup in ("plate_light.png", "dish_nutrition_light.png"):
+        other = root / dup
+        if eat.is_file() and other.is_file() and eat.read_bytes() == other.read_bytes():
+            errors.append(f"{dup} is identical to eat_light.png (sheet did not open)")
+    study = root / "study.png"
+    if study.is_file() and study.stat().st_size < 200_000:
+        errors.append("study.png looks like a skeleton / empty load")
     if errors:
         for err in errors:
             print(f"::error::{err}", flush=True)

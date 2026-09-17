@@ -1134,6 +1134,9 @@ struct DiningView: View {
             selectedPeriod = pick.period
             return
         }
+        // Hall already matches but the board is still loading — wait for the
+        // menu task. Marking done here skipped -showDishDetail / -showPlate.
+        if wantDish || wantPlate { return }
         didApplyScreenshotArgs = true
     }
 
