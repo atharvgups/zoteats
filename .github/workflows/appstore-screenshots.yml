@@ -54,18 +54,23 @@ jobs:
           mkdir -p docs/screenshots
           cp screenshots/listing/*.png docs/screenshots/
 
-      - name: Check canvas is plain white / black
-        run: |
-          python3 -m pip install --quiet Pillow
-          python3 apple/scripts/check_screenshot_canvas.py screenshots/listing
-
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: app-store-screenshots
           path: |
             screenshots/
             docs/screenshots/*.png
-          if-no-files-found: error
+          if-no-files-found: warn
+
+      - name: Check canvas is plain white / black
+        run: |
+          python3 -m venv "$RUNNER_TEMP/shot-venv"
+          # shellcheck disable=SC1091
+          source "$RUNNER_TEMP/shot-venv/bin/activate"
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet Pillow
+          python apple/scripts/check_screenshot_canvas.py screenshots/listing
 
       - name: Check App Store Connect secrets
         run: |
