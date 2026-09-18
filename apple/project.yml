@@ -37,6 +37,12 @@ targets:
     platform: iOS
     sources:
       - path: App
+        excludes:
+          - PrivacyInfo.xcprivacy
+          # Gym parked until UCI/Occuspace confirms live ARC sensors.
+          - Gym/**
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: ZotEatsKit
       - target: ZotEatsWidgets
@@ -45,7 +51,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: ZotEats
+        CFBundleDisplayName: Anteats
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -54,6 +60,11 @@ targets:
         NSSupportsLiveActivities: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.atharvgupta.zoteats.refresh]
+        CFBundleURLTypes:
+          - CFBundleURLName: Anteats
+            CFBundleURLSchemes: [anteats]
+    entitlements:
+      path: App/ZotEats.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats
@@ -64,26 +75,39 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGN_ENTITLEMENTS: App/ZotEats.entitlements
 
   ZotEatsWidgets:
     type: app-extension
     platform: iOS
     sources:
       - path: Widgets
+        excludes:
+          - PrivacyInfo.xcprivacy
+      - path: Widgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: ZotEatsKit
     info:
       path: Widgets/Info.plist
       properties:
-        CFBundleDisplayName: ZotEats
+        CFBundleDisplayName: Anteats
+        # Must match the host app — a stale CFBundleVersion=1 left Home Screen
+        # widgets on an old/broken extension while TestFlight bumped the app.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widgets/ZotEatsWidgets.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.atharvgupta.zoteats.widgets
         CODE_SIGN_STYLE: Automatic
         CODE_SIGNING_ALLOWED: "NO"
         SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: Widgets/ZotEatsWidgets.entitlements
+        # Inherit project MARKETING_VERSION / CURRENT_PROJECT_VERSION from archive.
 
   ZotEatsUITests:
     type: bundle.ui-testing
