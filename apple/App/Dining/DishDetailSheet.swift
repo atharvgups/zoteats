@@ -326,7 +326,7 @@ private struct NutritionDetailsCard: View {
                         .font(ZotFont.sectionTitle)
                         .foregroundStyle(Color.ink)
                     Spacer()
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    Image(systemName: ExpandChevron.systemName(isExpanded: expanded))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
                         .frame(width: 18, height: 18)

@@ -59,18 +59,54 @@ struct CampusTypicalMenusTests {
         #expect(stations != nil)
         #expect(CampusTypicalMenus.isTypical(stations ?? []))
         #expect(stations?.first?.name == CampusTypicalMenus.bannerStationName)
-        #expect(stations?.first?.items.first?.name.contains("Not today’s live") == true)
+        #expect(stations?.first?.items.isEmpty == true)
         #expect((stations?.count ?? 0) > 1)
+        #expect(
+            CampusTypicalMenus.onlineMenuURL(
+                forPlaceID: "subway-at-west-food-court",
+                placeName: "Subway"
+            )?.absoluteString.contains("subway.com") == true
+        )
+        #expect(CampusTypicalMenus.onlineMenuLinkTitle == "Official online menu")
     }
 
-    @Test func zotNGoMentionsDiningHubSource() {
-        let stations = CampusTypicalMenus.stations(
-            forPlaceID: "zot-n-go-express-mesa-court",
-            placeName: "Zot N Go Express @ Mesa Court"
+    @Test func chainMenusLinkToOfficialBrandPages() {
+        #expect(
+            CampusTypicalMenus.onlineMenuURL(
+                forPlaceID: "starbucks-at-student-center",
+                placeName: "Starbucks"
+            )?.absoluteString == "https://www.starbucks.com/menu"
         )
-        #expect(stations != nil)
-        let note = stations?.first?.items.first?.name ?? ""
-        #expect(note.contains("Dining Hub"))
+        #expect(
+            CampusTypicalMenus.onlineMenuURL(
+                forPlaceID: "panda-express-at-west-food-court",
+                placeName: "Panda Express"
+            )?.absoluteString == "https://www.pandaexpress.com/menu"
+        )
+        #expect(
+            CampusTypicalMenus.onlineMenuURL(
+                forPlaceID: "zot-n-go-express-mesa-court",
+                placeName: "Zot N Go Express @ Mesa Court"
+            )?.absoluteString.contains("uci.campusdish.com") == true
+        )
+    }
+
+    @Test func starbucksPandaSubwayKeepSeasonalSpecialsOnly() {
+        let starbucks = foodItems(
+            forPlaceID: "starbucks-at-student-center",
+            placeName: "Starbucks"
+        )
+        #expect(starbucks.contains { $0.name.localizedCaseInsensitiveContains("Seasonal") })
+        let panda = foodItems(
+            forPlaceID: "panda-express-at-west-food-court",
+            placeName: "Panda Express"
+        )
+        #expect(panda.contains { $0.name.localizedCaseInsensitiveContains("Limited-time") })
+        let subway = foodItems(
+            forPlaceID: "subway-at-west-food-court",
+            placeName: "Subway"
+        )
+        #expect(subway.contains { $0.name.localizedCaseInsensitiveContains("Limited-time") })
     }
 
     @Test func matchesPhoenixFoodCourtBrands() {

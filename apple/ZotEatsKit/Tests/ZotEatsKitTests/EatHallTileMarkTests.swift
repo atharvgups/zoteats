@@ -5,21 +5,27 @@ import Testing
 @Suite("EatHallTileMark")
 struct EatHallTileMarkTests {
     @Test func namesShareOneLargeBoldSize() {
-        #expect(EatHallTileMark.namePointSize == 18)
-        #expect(EatHallTileMark.nameMinimumPointSize == 12)
+        #expect(EatHallTileMark.namePointSize == 22)
+        #expect(EatHallTileMark.nameMinimumPointSize == 14)
         #expect(EatHallTileMark.nameMinimumPointSize < EatHallTileMark.namePointSize)
     }
 
     @Test func statusSharesOneSize() {
-        #expect(EatHallTileMark.statusPointSize == 13)
+        #expect(EatHallTileMark.statusPointSize == 16)
+        #expect(EatHallTileMark.statusSecondaryPointSize == 15)
         #expect(EatHallTileMark.statusPointSize < EatHallTileMark.namePointSize)
     }
 
-    @Test func tilesHaveOneFixedHeight() {
+    @Test func tilesHaveOneFixedHeightThatContentFills() {
         #expect(EatHallTileMark.tileHeight == 144)
-        #expect(EatHallTileMark.nameBlockHeight + EatHallTileMark.statusBlockHeight
-            < EatHallTileMark.tileHeight)
-        #expect(EatHallTileMark.nameBlockHeight == 28)
+        #expect(EatHallTileMark.contentFillsTile)
+        #expect(
+            EatHallTileMark.nameBlockHeight
+                + EatHallTileMark.statusBlockHeight
+                + EatHallTileMark.verticalPadding * 2
+                == EatHallTileMark.tileHeight
+        )
+        #expect(EatHallTileMark.nameBlockHeight == 32)
     }
 
     @Test func selectedBorderDoesNotChangeSize() {

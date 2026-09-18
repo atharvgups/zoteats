@@ -1,18 +1,19 @@
 import Foundation
 
 /// Honest **typical** campus retail menus when Dining Hub has no live board.
-/// Never labeled as “today’s live menu” — UI shows the disclaimer station.
+/// Never labeled as “today’s live menu” — UI shows a Typical menu header plus
+/// a link to the place’s official online menu.
 public enum CampusTypicalMenus {
     public static let bannerStationName = "Typical menu"
-    public static let disclaimer =
-        "Not today’s live Dining Hub board — common items for this brand. Availability and prices vary."
-
-    /// Source note for Zot N Go (public Dining Hub location blurbs + campus grab‑and‑go).
-    public static let zotNGoSourceNote =
-        "Assortment from UCI Dining Hub location copy (grab‑and‑go / convenience)."
+    public static let onlineMenuLinkTitle = "Official online menu"
 
     public static func isTypical(_ stations: [MenuStation]) -> Bool {
         stations.contains { $0.name == bannerStationName }
+    }
+
+    public static func onlineMenuURL(forPlaceID placeID: String, placeName: String) -> URL? {
+        guard let kind = kind(forPlaceID: placeID, placeName: placeName) else { return nil }
+        return kind.onlineMenuURL(placeID: placeID)
     }
 
     /// Fallback stations when live Hub menu is empty. `nil` = no typical pack.
@@ -86,6 +87,9 @@ public enum CampusTypicalMenus {
                 item("Breakfast sandwich"),
                 item("Bakery case (pastries / cake pops)", tags: ["Vegetarian"]),
             ]),
+            station("Seasonal", [
+                item("Seasonal drinks & bakery (when offered)", tags: ["Vegetarian"]),
+            ]),
         ]
 
         private static let pandaStations: [MenuStation] = [
@@ -106,6 +110,9 @@ public enum CampusTypicalMenus {
                 item("Veggie Spring Roll", tags: ["Vegetarian"]),
                 item("Cream Cheese Rangoons"),
             ]),
+            station("Seasonal", [
+                item("Limited-time entrees (when offered)"),
+            ]),
         ]
 
         private static let subwayStations: [MenuStation] = [
@@ -123,6 +130,9 @@ public enum CampusTypicalMenus {
             ]),
             station("Extras", [
                 item("Cookies"), item("Chips"), item("Fountain drink"),
+            ]),
+            station("Seasonal", [
+                item("Limited-time sandwiches (when offered)"),
             ]),
         ]
 
@@ -429,26 +439,29 @@ public enum CampusTypicalMenus {
     }
 
     private static func bannerStation(for kind: Kind) -> MenuStation {
-        let note: String
-        switch kind {
-        case .zotNGo:
-            note = "\(disclaimer) \(zotNGoSourceNote)"
+        _ = kind
+        return MenuStation(name: bannerStationName, items: [])
+    }
+}
+
+extension CampusTypicalMenus.Kind {
+    fileprivate func onlineMenuURL(placeID: String) -> URL {
+        switch self {
+        case .starbucks:
+            return URL(string: "https://www.starbucks.com/menu")!
+        case .pandaExpress:
+            return URL(string: "https://www.pandaexpress.com/menu")!
+        case .subway:
+            return URL(string: "https://www.subway.com/en-us/menunutrition/menu")!
+        case .jamba:
+            return URL(string: "https://www.jamba.com/menu")!
+        case .einstein:
+            return URL(string: "https://einsteinbros.com/menu/")!
+        case .panera:
+            return URL(string: "https://www.panerabread.com/menu")!
         default:
-            note = disclaimer
+            let slug = placeID.trimmingCharacters(in: .whitespacesAndNewlines)
+            return URL(string: "https://uci.campusdish.com/LocationsAndMenus/\(slug)")!
         }
-        return MenuStation(
-            name: bannerStationName,
-            items: [
-                MenuItem(
-                    id: "typical:disclaimer:\(kind.rawValue)",
-                    name: note,
-                    description: nil,
-                    calories: nil,
-                    servingSize: nil,
-                    allergens: [],
-                    dietaryTags: []
-                ),
-            ]
-        )
     }
 }

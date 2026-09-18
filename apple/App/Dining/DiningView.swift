@@ -31,6 +31,8 @@ struct DiningView: View {
     @State private var pinnedDeepLinkPeriod: String?
     /// Bumps after each meal-boundary tick so hall chrome / pills re-render.
     @State private var boundaryEpoch = 0
+    /// On-device Apple Intelligence line; nil keeps the static meal subtitle.
+    @State private var wittySubtitle: String?
     @Environment(\.scenePhase) private var scenePhase
 
     /// Today plus future days that actually have a posted board for this hall.
@@ -78,7 +80,7 @@ struct DiningView: View {
         // the status bar like Campus — Atharv: kill search + top inset gap.
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                ScreenHeader(title: "Eat", subtitle: Self.greeting(), onSettings: openSettings)
+                ScreenHeader(title: "Eat", subtitle: eatSubtitle, onSettings: openSettings)
 
                 hallSelector
                     .padding(.horizontal, 16)
@@ -109,6 +111,13 @@ struct DiningView: View {
         }
         .task(id: boundaryWatchID) {
             await watchMealBoundaries()
+        }
+        .task(id: selectedPeriod ?? "-") {
+            let meal = selectedPeriod
+            wittySubtitle = nil
+            let line = await EatIntelligenceHeadline.wittySubtitle(period: meal)
+            guard meal == selectedPeriod else { return }
+            wittySubtitle = line
         }
         .onChange(of: store.locations.value) {
             syncPeriodSelection()
@@ -503,30 +512,38 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(HallDirectory.compactName(for: location.id))
                     .font(.system(size: nameSize, weight: .bold))
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.leading)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                     .frame(
                         maxWidth: .infinity,
                         minHeight: EatHallTileMark.nameBlockHeight,
                         maxHeight: EatHallTileMark.nameBlockHeight,
                         alignment: .topLeading
                     )
-                Text(status.text)
-                    .font(.system(size: EatHallTileMark.statusPointSize, weight: .medium))
-                    .foregroundStyle(status.tint)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                    .frame(
-                        maxWidth: .infinity,
-                        minHeight: EatHallTileMark.statusBlockHeight,
-                        maxHeight: EatHallTileMark.statusBlockHeight,
-                        alignment: .topLeading
-                    )
-                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(status.primary)
+                        .font(.system(size: EatHallTileMark.statusPointSize, weight: .bold))
+                        .foregroundStyle(status.tint)
+                        .lineLimit(2)
+                    if let secondary = status.secondary {
+                        Text(secondary)
+                            .font(.system(size: EatHallTileMark.statusSecondaryPointSize, weight: .semibold))
+                            .foregroundStyle(status.tint)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: EatHallTileMark.statusBlockHeight,
+                    maxHeight: EatHallTileMark.statusBlockHeight,
+                    alignment: .topLeading
+                )
             }
             .padding(.horizontal, EatHallTileMark.horizontalPadding)
             .padding(.vertical, EatHallTileMark.verticalPadding)
@@ -553,7 +570,7 @@ struct DiningView: View {
             DiningHallCardAccessibilityLabel.label(
                 name: location.name,
                 isOpen: location.isServing(nowMinutes: UCITime.nowMinutes()),
-                statusLine: status.text,
+                statusLine: status.accessibilityLine,
                 occupancyPercent: nil
             )
         )
@@ -739,7 +756,7 @@ struct DiningView: View {
                             sectionHeader(
                                 title: station.name,
                                 count: station.items.count,
-                                chevron: allDayExpanded ? "chevron.up" : "chevron.down"
+                                chevron: ExpandChevron.systemName(isExpanded: allDayExpanded)
                             )
                         }
                         .buttonStyle(.plain)
@@ -1195,14 +1212,8 @@ struct DiningView: View {
         self.selectedDate = nil
     }
 
-    /// Time-of-day greeting on UCI's clock.
-    static func greeting() -> String {
-        switch UCITime.hour() {
-        case ..<4: "Still hungry, Anteater?"
-        case ..<12: "What’s for breakfast?"
-        case ..<17: "What’s on the board?"
-        default: "Dinner plans, Anteater?"
-        }
+    private var eatSubtitle: String {
+        wittySubtitle ?? EatMealHeadline.subtitle(period: selectedPeriod)
     }
 
     /// "2026-07-09" -> "Thursday, Jul 9" (falls back to the raw string).
@@ -1434,27 +1445,28 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — meal now / next, no clock essays.
+/// Short card subtext — open/closed plus meal, filling the tile.
 private enum HallChromeStatus {
-    static func resolve(for location: DiningLocation, nowMinutes: Int = UCITime.nowMinutes()) -> (text: String, tint: Color) {
+    static func resolve(
+        for location: DiningLocation,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> (primary: String, secondary: String?, accessibilityLine: String, tint: Color) {
         let state = location.openState(nowMinutes: nowMinutes)
-        let text = EatHallCardChrome.statusText(
+        let status = EatHallCardChrome.status(
             comingSoon: location.comingSoonSubtitle != nil,
             state: state,
             opensTomorrowPeriod: location.opensTomorrowPeriod,
             opensNextPeriod: location.opensNextPeriod
         )
-        if location.comingSoonSubtitle != nil {
-            return (text, .secondary)
-        }
-        switch state {
-        case .open:
-            return (text, .openGreen)
-        case .openingLater, .awaitingMoreMeals:
-            return (text, .busyOrange)
-        case .closedForToday, .unknown:
-            return (text, .secondary)
-        }
+        let tint: Color = {
+            if location.comingSoonSubtitle != nil { return .secondary }
+            switch state {
+            case .open: return .openGreen
+            case .openingLater, .awaitingMoreMeals: return .busyOrange
+            case .closedForToday, .unknown: return .secondary
+            }
+        }()
+        return (status.primary, status.secondary, status.accessibilityLine, tint)
     }
 }
 
