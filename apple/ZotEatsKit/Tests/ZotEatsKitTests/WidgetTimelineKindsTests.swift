@@ -35,4 +35,14 @@ struct WidgetTimelineKindsTests {
             WidgetTimelineKinds.campusOpen,
         ])
     }
+
+    @Test func smallAndMediumGalleriesKeepFiveKinds() {
+        #expect(WidgetTimelineKinds.homeSmall.count == 5)
+        #expect(WidgetTimelineKinds.homeMedium.count == 5)
+        #expect(WidgetTimelineKinds.homeSmall == WidgetTimelineKinds.all)
+        #expect(WidgetTimelineKinds.homeMedium == WidgetTimelineKinds.all)
+        #expect(WidgetTimelineKinds.lockScreen == [
+            WidgetTimelineKinds.diningStatus,
+        ])
+    }
 }

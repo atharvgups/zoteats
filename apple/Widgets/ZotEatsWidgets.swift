@@ -6,9 +6,10 @@ import AppIntents
 import ZotEatsKit
 
 // Home-screen + lock-screen widgets for Anteats.
-// Tight gallery (~7 surfaces), each one story: Dining Halls small + lock,
-// Today's Menu medium, Favorites Today small, Campus Open Now small + medium,
-// Quietest Library small. Live Activity stays. Gym / Campus+Study are cut.
+// Five kinds, each one story, Small + Medium so the gallery size picker
+// doesn't hide most of them: Dining Halls, Today's Menu, Favorites Today,
+// Campus Open Now, Quietest Library. Dining Halls also ships Lock Screen
+// rectangular. Live Activity stays. Gym / Campus+Study / Large combo are cut.
 //
 // CRITICAL: every glance root uses `.unredacted()`. Without it, WidgetKit can
 // leave Home Screen widgets stuck on system redacted placeholder bars (colored
@@ -36,17 +37,12 @@ private extension View {
     }
 }
 
-/// Home Screen widget chrome — editorial, thick SF Pro, gold accent.
-/// One glance per size. Colors follow Home Screen light/dark.
+/// Home Screen widget chrome — plain white light / plain black dark, thick SF Pro,
+/// gold accent. Matches Eat. One glance per size.
 private enum WidgetChrome {
     static let open = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
 
-    static let canvas = Color(uiColor: UIColor { traits in
-        if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 10 / 255, green: 10 / 255, blue: 11 / 255, alpha: 1)
-        }
-        return UIColor(red: 252 / 255, green: 251 / 255, blue: 248 / 255, alpha: 1)
-    })
+    static let canvas = Color(uiColor: .systemBackground)
 
     static let padding: CGFloat = 16
 
@@ -702,6 +698,7 @@ struct DiningStatusWidget: Widget {
         .description("Next meal at each hall — open now or what’s up next.")
         .supportedFamilies([
             .systemSmall,
+            .systemMedium,
             .accessoryRectangular,
         ])
     }
@@ -719,7 +716,6 @@ struct DiningStatusView: View {
     @Environment(\.widgetFamily) private var family
 
     private var isCompact: Bool { family == .systemSmall || isAccessory }
-    private var isLarge: Bool { family == .systemLarge }
     private var isAccessory: Bool {
         switch family {
         case .accessoryRectangular, .accessoryCircular, .accessoryInline:
@@ -729,15 +725,13 @@ struct DiningStatusView: View {
         }
     }
     private var visibleHalls: ArraySlice<DiningStatusEntry.HallStatus> {
-        entry.halls.prefix(DiningStatusLayout.hallLimit(isCompact: isCompact, isLarge: isLarge))
+        entry.halls.prefix(DiningStatusLayout.hallLimit)
     }
     private var hallCount: Int { visibleHalls.count }
 
     var body: some View {
         Group {
             switch family {
-            case .accessoryCircular:
-                lockCircular
             case .accessoryRectangular:
                 lockGlance
             default:
@@ -777,13 +771,6 @@ struct DiningStatusView: View {
                         }
                     }
                 }
-                if DiningStatusLayout.showsBoardStrip(isCompact: isCompact) {
-                    boardStrip
-                }
-                if isLarge {
-                    campusStrip
-                    studyStrip
-                }
                 Spacer(minLength: 0)
             }
         }
@@ -818,101 +805,6 @@ struct DiningStatusView: View {
         }
     }
 
-    private var lockCircular: some View {
-        let focus = visibleHalls.first(where: { $0.isOpen }) ?? visibleHalls.first
-        let raw = focus.map { DiningStatusWidgetLine.tighten($0.statusText) } ?? ""
-        let split = DiningStatusWidgetLine.splitMealAndClock(raw)
-        let meal = focus?.isComingSoon == true ? "Soon" : (split.meal.isEmpty ? "Eat" : split.meal)
-        return VStack(spacing: 2) {
-            Text(meal)
-                .font(WidgetChrome.display(14))
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            if let focus {
-                Text(shortName(focus.name))
-                    .font(WidgetChrome.meta(10))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var boardStrip: some View {
-        if !entry.boardDishes.isEmpty {
-            let dishes = Array(entry.boardDishes.prefix(DiningStatusLayout.boardDishLimit(isLarge: isLarge)))
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.boardHallName ?? "Board")
-                    .font(WidgetChrome.kicker(12))
-                    .foregroundStyle(WidgetChrome.accent)
-                ForEach(dishes, id: \.self) { dish in
-                    Link(destination: AnteatsDeepLink.eat(
-                        hall: entry.boardHallID,
-                        dish: dish
-                    ).url) {
-                        Text(dish)
-                            .font(WidgetChrome.row(15))
-                            .foregroundStyle(WidgetChrome.ink)
-                            .lineLimit(1)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var campusStrip: some View {
-        if DiningStatusLayout.showsCampusStrip(isLarge: isLarge), !entry.campusOpen.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                WidgetKicker(
-                    title: "CAMPUS",
-                    trailing: entry.campusOpenCount == 0 ? nil : "\(entry.campusOpenCount) OPEN"
-                )
-                ForEach(Array(entry.campusOpen.prefix(DiningStatusLayout.campusRowLimit(isLarge: true))), id: \.id) { place in
-                    Link(destination: AnteatsDeepLink.campus(placeID: place.id).url) {
-                        HStack {
-                            Text(place.name)
-                                .font(WidgetChrome.row(14))
-                                .foregroundStyle(WidgetChrome.ink)
-                                .lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text(place.hours)
-                                .font(WidgetChrome.meta(13))
-                                .foregroundStyle(WidgetChrome.accent)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var studyStrip: some View {
-        if DiningStatusLayout.showsStudyFooter(isCompact: isCompact, isLarge: isLarge),
-           let quietest = entry.quietest {
-            switch quietest {
-            case .open(let name, let percent, let facilityID, _):
-                Link(destination: AnteatsDeepLink.study(facilityID: facilityID).url) {
-                    HStack {
-                        Text("STUDY")
-                            .font(WidgetChrome.kicker(12))
-                            .foregroundStyle(WidgetChrome.accent)
-                        Spacer(minLength: 4)
-                        Text("\(name) · \(percent)%")
-                            .font(WidgetChrome.row(14))
-                            .foregroundStyle(WidgetChrome.ink)
-                            .lineLimit(1)
-                    }
-                }
-            case .librariesClosed:
-                Text("Libraries closed")
-                    .font(WidgetChrome.row(14))
-                    .foregroundStyle(WidgetChrome.muted)
-            }
-        }
-    }
-
     private func hallRow(_ hall: DiningStatusEntry.HallStatus) -> some View {
         let nameSize = DiningStatusLayout.nameFontSize(isCompact: isCompact, hallCount: hallCount)
         let clockSize = DiningStatusLayout.statusFontSize(isCompact: isCompact, hallCount: hallCount)
@@ -929,9 +821,6 @@ struct DiningStatusView: View {
             return split.clock ?? split.meal
         }()
         return HStack(alignment: .center, spacing: 8) {
-            Circle()
-                .fill(hall.isOpen ? WidgetChrome.open : WidgetChrome.muted.opacity(0.45))
-                .frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 2) {
                 Text(shortName(hall.name))
                     .font(WidgetChrome.row(nameSize))
@@ -988,7 +877,7 @@ struct DiningStatusView: View {
     )
 }
 
-// MARK: - Today's Menu widget (configurable hall · medium / large)
+// MARK: - Today's Menu widget (configurable hall · small / medium)
 
 /// Dynamic hall picker — Auto + whatever `/restaurants` returns (third commons
 /// appears without shipping a new AppEnum case).
@@ -1443,8 +1332,8 @@ struct TodaysMenuWidget: Widget {
                 .widgetURL(entry.deepLinkURL)
         }
         .configurationDisplayName("Today's Menu")
-        .description("One hall’s meal — four dishes, hearts, Eat Filters. Pick a hall or auto.")
-        .supportedFamilies([.systemMedium])
+        .description("One hall’s meal — a few dishes, hearts, Eat Filters. Pick a hall or auto.")
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
@@ -1465,8 +1354,11 @@ struct ClearEatFiltersIntent: AppIntent {
 
 struct TodaysMenuView: View {
     let entry: TodaysMenuEntry
+    @Environment(\.widgetFamily) private var family
 
-    private let dishLimit = 4
+    private var dishLimit: Int {
+        WidgetGlanceExtras.todaysMenuDishLimit(isCompact: family == .systemSmall)
+    }
 
     var body: some View {
         homeScreenMenu
@@ -1829,21 +1721,36 @@ struct FavoritesTodayWidget: Widget {
                 .widgetURL(entry.deepLinkURL)
         }
         .configurationDisplayName("Favorites Today")
-        .description("The hearted dish on today’s board — open Anteats once if empty.")
-        .supportedFamilies([.systemSmall])
+        .description("Hearted dishes on today’s board — open Anteats once if empty.")
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
 struct FavoritesTodayView: View {
     let entry: FavoritesTodayEntry
+    @Environment(\.widgetFamily) private var family
 
-    private let dishLimit = 1
+    private var dishLimit: Int {
+        WidgetGlanceExtras.favoritesDishLimit(isCompact: family == .systemSmall)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             WidgetKicker(title: "FAVES", trailing: entry.period)
 
-            if let dish = entry.dishes.first {
+            let dishes = Array(entry.dishes.prefix(dishLimit))
+            if dishes.isEmpty {
+                Spacer(minLength: 0)
+                Text(FavoritesOnMenuPick.emptyTitle(hasFavorites: entry.hasFavorites))
+                    .font(WidgetChrome.row(16))
+                    .foregroundStyle(WidgetChrome.ink)
+                    .lineLimit(2)
+                Text(FavoritesOnMenuPick.emptyMessage(hasFavorites: entry.hasFavorites))
+                    .font(WidgetChrome.meta(13))
+                    .foregroundStyle(WidgetChrome.muted)
+                    .lineLimit(3)
+                Spacer(minLength: 0)
+            } else if family == .systemSmall, let dish = dishes.first {
                 Spacer(minLength: 0)
                 Text(dish)
                     .font(WidgetChrome.hero(20))
@@ -1860,15 +1767,29 @@ struct FavoritesTodayView: View {
                 }
                 Spacer(minLength: 0)
             } else {
-                Spacer(minLength: 0)
-                Text(FavoritesOnMenuPick.emptyTitle(hasFavorites: entry.hasFavorites))
-                    .font(WidgetChrome.row(16))
-                    .foregroundStyle(WidgetChrome.ink)
-                    .lineLimit(2)
-                Text(FavoritesOnMenuPick.emptyMessage(hasFavorites: entry.hasFavorites))
-                    .font(WidgetChrome.meta(13))
-                    .foregroundStyle(WidgetChrome.muted)
-                    .lineLimit(3)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(dishes.enumerated()), id: \.offset) { index, dish in
+                        if index > 0 {
+                            WidgetHairline()
+                        }
+                        Link(destination: entry.dishDeepLinkURL(dish)) {
+                            Text(dish)
+                                .font(WidgetChrome.row(16))
+                                .foregroundStyle(WidgetChrome.ink)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                                .padding(.vertical, 8)
+                                .unredacted()
+                        }
+                    }
+                }
+                if let hall = entry.hallName {
+                    Text(hall.hasPrefix("The ") ? String(hall.dropFirst(4)) : hall)
+                        .font(WidgetChrome.meta(13))
+                        .foregroundStyle(WidgetChrome.accent)
+                        .lineLimit(1)
+                        .unredacted()
+                }
                 Spacer(minLength: 0)
             }
         }
@@ -2165,7 +2086,7 @@ struct CampusOpenView: View {
 
 
 
-// MARK: - Quietest library (home + lock screen)
+// MARK: - Quietest library (home screen)
 
 struct QuietestLibraryEntry: TimelineEntry {
     let date: Date
@@ -2305,7 +2226,7 @@ struct QuietestLibraryWidget: Widget {
         }
         .configurationDisplayName("Quietest Library")
         .description("The quietest library floor — live Waitz percent, or an honest empty.")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
