@@ -102,14 +102,14 @@ final class DiningStore {
         }
         let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
         let dining = service
-        let range = publishedDateRange
+        let publishedWindow = publishedDateRange
         await withTaskGroup(of: (String, Set<String>).self) { group in
             for hall in halls {
                 if !forceRefresh, postedMenuDates[hall] != nil { continue }
                 group.addTask {
                     let today = UCITime.todayISO()
-                    let latest = range?.latest ?? today
-                    let from = max(today, range?.earliest ?? today)
+                    let latest = publishedWindow?.latest ?? today
+                    let from = max(today, publishedWindow?.earliest ?? today)
                     let dates = await dining.postedMenuDates(
                         hall: hall,
                         fromISO: from,
