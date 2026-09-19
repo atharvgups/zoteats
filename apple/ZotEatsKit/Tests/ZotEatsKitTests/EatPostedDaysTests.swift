@@ -21,7 +21,7 @@ struct EatPostedDaysTests {
         ])
         #expect(days.map(\.label) == ["Today", "Tomorrow", "Wed 19", "Thu 20"])
         #expect(days.allSatisfy { !$0.skipsAhead })
-        #expect(days.allSatisfy(\.hasPostedMenu))
+        #expect(days.allSatisfy { $0.hasPostedMenu })
     }
 
     @Test func keepsUnpostedDaysSelectable() {
