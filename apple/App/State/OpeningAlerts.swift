@@ -3,10 +3,12 @@ import UserNotifications
 import ZotEatsKit
 
 // Useful local alerts: dining meal start / closing soon, campus-favorite
-// open/close, plus a separate Waitz library-busy check. Quiet defaults — every
-// type is off until the user flips a Settings switch. Dining uses the hall
-// watchlist (Anteatery if none picked). Campus uses hearted places with hours.
-// No servers — iOS fires scheduled banners even if the app stays closed.
+// open/close, plus a separate Waitz library-busy check. Quiet until the
+// Settings master is on, which enables the full existing set. Individual
+// categories can then be turned off under Advanced notification settings.
+// Dining uses the hall watchlist (Anteatery if none picked). Campus uses
+// hearted places with hours. No servers. iOS fires scheduled banners even
+// if the app stays closed.
 
 @MainActor
 enum OpeningAlerts {
@@ -47,7 +49,25 @@ enum OpeningAlerts {
     }
 
     static var anyEnabled: Bool {
-        diningOpenEnabled || diningClosingEnabled || campusHoursEnabled || LibraryBusyAlerts.isEnabled
+        flags.masterOn
+    }
+
+    static var flags: AlertCategoryFlags {
+        AlertCategoryFlags(
+            diningOpen: diningOpenEnabled,
+            diningClosing: diningClosingEnabled,
+            campusHours: campusHoursEnabled,
+            libraryBusy: LibraryBusyAlerts.isEnabled
+        )
+    }
+
+    /// Master Notifications on enables every existing category. Off clears them.
+    static func applyMaster(_ enabled: Bool) {
+        let next = AlertCategoryFlags.applyingMaster(enabled)
+        diningOpenEnabled = next.diningOpen
+        diningClosingEnabled = next.diningClosing
+        campusHoursEnabled = next.campusHours
+        LibraryBusyAlerts.isEnabled = next.libraryBusy
     }
 
     static func isWatching(_ id: String) -> Bool {

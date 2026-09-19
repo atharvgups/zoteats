@@ -14,15 +14,14 @@ struct SettingsView: View {
     @State private var versionTaps = 0
     @State private var showZot = false
 
+    @State private var notificationsOn = OpeningAlerts.anyEnabled
     @State private var diningOpenEnabled = OpeningAlerts.diningOpenEnabled
     @State private var diningClosingEnabled = OpeningAlerts.diningClosingEnabled
     @State private var campusHoursEnabled = OpeningAlerts.campusHoursEnabled
     @State private var libraryBusyEnabled = LibraryBusyAlerts.isEnabled
     @State private var autoMealActivity = MealActivityManager.autoStartEnabled
     @State private var alertsDenied = false
-    @State private var watchedPlaces = OpeningAlerts.watchedIDs
-    @State private var showOpeningAlerts = false
-    @State private var testPingSent = false
+    @State private var showAdvancedNotifications = false
 
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
@@ -49,16 +48,18 @@ struct SettingsView: View {
             .appCanvas()
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .topTrailing) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(.secondary, .quaternary)
+                if !showAdvancedNotifications {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 26))
+                            .foregroundStyle(.secondary, .quaternary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(16)
+                    .accessibilityLabel("Close settings")
                 }
-                .buttonStyle(.plain)
-                .padding(16)
-                .accessibilityLabel("Close settings")
             }
             .overlay {
                 if showZot {
@@ -66,8 +67,14 @@ struct SettingsView: View {
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
             }
-            .sheet(isPresented: $showOpeningAlerts) {
-                OpeningAlertsPicker(watched: $watchedPlaces)
+            .navigationDestination(isPresented: $showAdvancedNotifications) {
+                AdvancedNotificationSettings(
+                    diningOpenEnabled: $diningOpenEnabled,
+                    diningClosingEnabled: $diningClosingEnabled,
+                    campusHoursEnabled: $campusHoursEnabled,
+                    libraryBusyEnabled: $libraryBusyEnabled,
+                    alertsDenied: $alertsDenied
+                )
             }
         }
         .presentationDetents([.large])
@@ -114,90 +121,39 @@ struct SettingsView: View {
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)
 
-            alertToggle(
-                isOn: $diningOpenEnabled,
-                title: "Halls opening",
-                caption: "Ping when a watched hall’s meal starts.",
-                identifier: "dining-open-alerts-toggle"
-            ) { enabled in
-                OpeningAlerts.diningOpenEnabled = enabled
-                if enabled {
-                    await OpeningAlerts.refreshSchedules()
-                    await FavoriteAlerts.scheduleNextRefresh()
-                } else {
-                    await OpeningAlerts.refreshSchedules()
-                }
+            Toggle(isOn: $notificationsOn) {
+                Text("Notifications")
+                    .font(ZotFont.body)
             }
-
-            ZotHairline(leading: 0)
-
-            alertToggle(
-                isOn: $diningClosingEnabled,
-                title: "Halls closing soon",
-                caption: "Twenty minutes before that meal ends.",
-                identifier: "dining-closing-alerts-toggle"
-            ) { enabled in
-                OpeningAlerts.diningClosingEnabled = enabled
-                await OpeningAlerts.refreshSchedules()
+            .toggleStyle(.switch)
+            .tint(Color.accent)
+            .accessibilityIdentifier("notifications-master-toggle")
+            .onChange(of: notificationsOn) { _, enabled in
+                let anyOn = diningOpenEnabled || diningClosingEnabled
+                    || campusHoursEnabled || libraryBusyEnabled
+                guard enabled != anyOn else { return }
+                Task { await applyMaster(enabled) }
             }
+            .padding(.vertical, 10)
 
             ZotHairline(leading: 0)
 
             Button {
-                showOpeningAlerts = true
+                showAdvancedNotifications = true
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Halls to watch")
-                            .font(ZotFont.body)
-                            .foregroundStyle(.primary)
-                        Text("Anteatery is the default if you pick none.")
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Advanced notification settings")
+                        .font(ZotFont.body)
+                        .foregroundStyle(.primary)
                     Spacer()
-                    if !watchedPlaces.isEmpty {
-                        Text("\(watchedPlaces.count)")
-                            .font(ZotFont.pill.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.ink.opacity(0.12), in: Capsule())
-                    }
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("opening-alerts-row")
+            .accessibilityIdentifier("advanced-notification-settings")
             .padding(.vertical, 10)
-
-            ZotHairline(leading: 0)
-
-            alertToggle(
-                isOn: $campusHoursEnabled,
-                title: "Campus favorites",
-                caption: "Open and closing pings for hearted cafés with posted hours.",
-                identifier: "campus-hours-alerts-toggle"
-            ) { enabled in
-                OpeningAlerts.campusHoursEnabled = enabled
-                await OpeningAlerts.refreshSchedules()
-            }
-
-            ZotHairline(leading: 0)
-
-            alertToggle(
-                isOn: $libraryBusyEnabled,
-                title: "Library getting busy",
-                caption: "When Waitz shows a library at \(LibraryBusyAlertMath.percentThreshold)% or busier. Real occupancy only.",
-                identifier: "library-busy-alerts-toggle"
-            ) { enabled in
-                LibraryBusyAlerts.isEnabled = enabled
-                if enabled {
-                    await LibraryBusyAlerts.runCheck()
-                }
-            }
 
             ZotHairline(leading: 0)
 
@@ -222,7 +178,7 @@ struct SettingsView: View {
             if !MealActivityManager.systemActivitiesEnabled {
                 ZotHairline(leading: 0)
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
-                    Text("Live Activities are off — open iOS Settings for Anteats")
+                    Text("Live Activities are off. Open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
                 }
@@ -230,34 +186,10 @@ struct SettingsView: View {
                 .accessibilityIdentifier("live-activities-off-link")
             }
 
-            if diningOpenEnabled || diningClosingEnabled || campusHoursEnabled || libraryBusyEnabled {
-                ZotHairline(leading: 0)
-                Button {
-                    Task {
-                        let granted = await FavoriteAlerts.requestPermission()
-                        if granted {
-                            alertsDenied = false
-                            await FavoriteAlerts.sendTestNotification()
-                            withAnimation { testPingSent = true }
-                        } else {
-                            alertsDenied = true
-                        }
-                    }
-                } label: {
-                    Text(testPingSent ? "Test ping sent" : "Send test notification")
-                        .font(ZotFont.caption.weight(.semibold))
-                        .foregroundStyle(Color.ink)
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 10)
-                .accessibilityIdentifier("test-notification-button")
-            }
-
             if alertsDenied {
                 ZotHairline(leading: 0)
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
-                    Text("Notifications are off — open iOS Settings for Anteats")
+                    Text("Notifications are off. Open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
                 }
@@ -267,45 +199,42 @@ struct SettingsView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+        .onChange(of: diningOpenEnabled) { _, _ in syncMasterFromCategories() }
+        .onChange(of: diningClosingEnabled) { _, _ in syncMasterFromCategories() }
+        .onChange(of: campusHoursEnabled) { _, _ in syncMasterFromCategories() }
+        .onChange(of: libraryBusyEnabled) { _, _ in syncMasterFromCategories() }
     }
 
-    private func alertToggle(
-        isOn: Binding<Bool>,
-        title: String,
-        caption: String,
-        identifier: String,
-        onEnable: @escaping (Bool) async -> Void
-    ) -> some View {
-        Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(ZotFont.body)
-                Text(caption)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
+    private func syncMasterFromCategories() {
+        notificationsOn = diningOpenEnabled || diningClosingEnabled
+            || campusHoursEnabled || libraryBusyEnabled
+    }
+
+    private func applyMaster(_ enabled: Bool) async {
+        if enabled {
+            let granted = await FavoriteAlerts.requestPermission()
+            if granted {
+                alertsDenied = false
+                OpeningAlerts.applyMaster(true)
+                diningOpenEnabled = true
+                diningClosingEnabled = true
+                campusHoursEnabled = true
+                libraryBusyEnabled = true
+                await OpeningAlerts.refreshSchedules()
+                await LibraryBusyAlerts.runCheck()
+                await FavoriteAlerts.scheduleNextRefresh()
+            } else {
+                notificationsOn = false
+                alertsDenied = true
             }
+        } else {
+            OpeningAlerts.applyMaster(false)
+            diningOpenEnabled = false
+            diningClosingEnabled = false
+            campusHoursEnabled = false
+            libraryBusyEnabled = false
+            await OpeningAlerts.refreshSchedules()
         }
-        .toggleStyle(.switch)
-        .tint(Color.accent)
-        .accessibilityIdentifier(identifier)
-        .onChange(of: isOn.wrappedValue) { _, enabled in
-            guard enabled else {
-                Task { await onEnable(false) }
-                return
-            }
-            Task {
-                let granted = await FavoriteAlerts.requestPermission()
-                if granted {
-                    alertsDenied = false
-                    await onEnable(true)
-                    await FavoriteAlerts.scheduleNextRefresh()
-                } else {
-                    isOn.wrappedValue = false
-                    alertsDenied = true
-                }
-            }
-        }
-        .padding(.vertical, 10)
     }
 
     // MARK: - This iPhone (ratings + plate honesty)
