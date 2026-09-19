@@ -83,3 +83,20 @@ For the App Review team:
   description. It uses no UCI trademarks in its branding beyond factual references to
   campus locations.
 - No data is collected from users (see privacy policy: "Data Not Collected").
+
+## Screenshots (iPhone 6.7, 1290 x 2796)
+
+Comp C promo frames. Device framing only; screen contents are current captures
+in `docs/screenshots/`. Public App Store submit stays frozen. Draft / ASC
+asset prep is OK. Paths are listed in `apple/AppStore/screenshot-set.json`.
+
+| File | Card | Bleed |
+| --- | --- | --- |
+| `docs/screenshots/promo/eat.png` | UCI blue, gold "eat" | bottom |
+| `docs/screenshots/promo/study.png` | indigo, gold "study", dual phones | floors phone bottom |
+| `docs/screenshots/promo/campus.png` | UCI gold, navy "campus" | top |
+| `docs/screenshots/promo/widgets.png` | Home Screen Small + Medium dining widgets | mid, slight tilt |
+| `docs/screenshots/promo/widgets_lock.png` | Lock Screen widgets | top |
+
+No Gym. No em dashes in promo titles or captions. Rebuild with
+`python3 apple/scripts/compose_promo_frames.py`.
