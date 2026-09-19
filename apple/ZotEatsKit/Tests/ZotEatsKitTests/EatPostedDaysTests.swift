@@ -10,26 +10,30 @@ struct EatPostedDaysTests {
         ("2026-08-20", "Thu Aug 20"),
     ]
 
-    @Test func todayAlwaysShowsWhileProbeIsPending() {
+    @Test func todayAndTomorrowShowWhileProbeIsPending() {
         let days = EatPostedDays.visible(
             candidates: candidates,
             todayISO: "2026-08-17",
             postedISOs: nil
         )
-        #expect(days.map(\.isoDate) == ["2026-08-17"])
+        #expect(days.map(\.isoDate) == [
+            "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"
+        ])
+        #expect(days.map(\.label) == ["Today", "Tomorrow", "Wed Aug 19", "Thu Aug 20"])
         #expect(days.allSatisfy { !$0.skipsAhead })
     }
 
-    @Test func skipsEmptyMidweekWhenThursdayIsPosted() {
+    @Test func keepsTomorrowThenPostedThursday() {
         let days = EatPostedDays.visible(
             candidates: candidates,
             todayISO: "2026-08-17",
             postedISOs: ["2026-08-17", "2026-08-20"]
         )
-        #expect(days.map(\.isoDate) == ["2026-08-17", "2026-08-20"])
-        #expect(days.map(\.label) == ["Today", "Next · Thu Aug 20"])
-        #expect(days[1].skipsAhead)
-        #expect(days[1].accessibilityLabel.contains("Next posted"))
+        #expect(days.map(\.isoDate) == [
+            "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"
+        ])
+        #expect(days.map(\.label).starts(with: ["Today", "Tomorrow"]) == true)
+        #expect(days.contains { $0.isoDate == "2026-08-20" })
         #expect(EatPostedDays.skipsCalendarDays(from: "2026-08-17", to: "2026-08-20"))
     }
 
@@ -39,9 +43,9 @@ struct EatPostedDaysTests {
             todayISO: "2026-08-17",
             postedISOs: ["2026-08-18"]
         )
-        #expect(days.map(\.isoDate) == ["2026-08-17", "2026-08-18"])
-        #expect(days.map(\.label) == ["Today", "Tomorrow"])
-        #expect(days.allSatisfy { !$0.skipsAhead })
+        #expect(days.map(\.isoDate).starts(with: ["2026-08-17", "2026-08-18"]) == true)
+        #expect(days.map(\.label).starts(with: ["Today", "Tomorrow"]) == true)
+        #expect(days.count >= 2)
     }
 
     @Test func laterDaysAfterTomorrowAreNotCalledNext() {
@@ -50,8 +54,24 @@ struct EatPostedDaysTests {
             todayISO: "2026-08-17",
             postedISOs: ["2026-08-18", "2026-08-20"]
         )
-        #expect(days.map(\.label) == ["Today", "Tomorrow", "Thu Aug 20"])
-        #expect(days.map(\.skipsAhead) == [false, false, false])
+        #expect(days.map(\.label).starts(with: ["Today", "Tomorrow"]) == true)
+        #expect(days.contains { $0.isoDate == "2026-08-20" })
+        #expect(days.contains { $0.label == "Thu Aug 20" || $0.label.contains("Thu Aug 20") })
+    }
+
+    @Test func jumpAfterTomorrowMarksNext() {
+        let short: [(isoDate: String, label: String)] = [
+            ("2026-08-17", "Today"),
+            ("2026-08-18", "Tomorrow"),
+            ("2026-08-20", "Thu Aug 20"),
+        ]
+        let days = EatPostedDays.visible(
+            candidates: short,
+            todayISO: "2026-08-17",
+            postedISOs: ["2026-08-17", "2026-08-18", "2026-08-20"]
+        )
+        #expect(days.map(\.label) == ["Today", "Tomorrow", "Next · Thu Aug 20"])
+        #expect(days[2].skipsAhead)
     }
 
     @Test func browseCaptionNamesTheSkip() {

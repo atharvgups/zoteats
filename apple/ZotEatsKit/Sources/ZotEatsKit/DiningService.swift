@@ -272,19 +272,24 @@ public struct DiningService: Sendable {
         throughISO: String,
         forceRefresh: Bool = false
     ) async -> Set<String> {
-        var posted: Set<String> = []
-        var iso = fromISO
-        var steps = 0
-        while iso <= throughISO, steps < 28 {
-            let periods = await mealPeriods(for: hall, dateISO: iso, forceRefresh: forceRefresh)
-            if !periods.isEmpty {
-                posted.insert(iso)
+        let dates = EatPostedDays.isoDates(from: fromISO, through: throughISO)
+        return await withTaskGroup(of: String?.self, returning: Set<String>.self) { group in
+            for iso in dates {
+                group.addTask {
+                    let periods = await self.mealPeriods(
+                        for: hall,
+                        dateISO: iso,
+                        forceRefresh: forceRefresh
+                    )
+                    return periods.isEmpty ? nil : iso
+                }
             }
-            guard let next = UCITime.nextISO(after: iso) else { break }
-            iso = next
-            steps += 1
+            var posted: Set<String> = []
+            for await iso in group {
+                if let iso { posted.insert(iso) }
+            }
+            return posted
         }
-        return posted
     }
 
     private func dishes(ids: [String]) async throws -> [String: APIDish] {

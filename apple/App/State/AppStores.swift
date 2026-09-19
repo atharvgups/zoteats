@@ -79,29 +79,56 @@ final class DiningStore {
         async let range = service.publishedDateRange(forceRefresh: forceRefresh)
         let result = await service.locations(forceRefresh: forceRefresh)
         let nextRange = await range
-        if publishedDateRange != nextRange {
+        let rangeChanged = publishedDateRange != nextRange
+        if rangeChanged {
             publishedDateRange = nextRange
         }
         locationsDateISO = UCITime.todayISO()
         // The service degrades per-hall; treat "no data at all" as an error state.
+        let locationsChanged = locations.value != result
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")
-        } else if locations.value != result {
+        } else if locationsChanged {
             locations = .loaded(result)
         }
         // App Group snapshot so Home Screen widgets show real text without
         // waiting on a cold network fetch inside the extension process.
-        if let loaded = locations.value, !loaded.isEmpty {
+        if (locationsChanged || rangeChanged), let loaded = locations.value, !loaded.isEmpty {
             WidgetSnapshotStore.saveDiningLocations(loaded)
             WidgetReloader.reloadEatWidgets()
         }
+        if rangeChanged {
+            postedMenuDates = [:]
+        }
         let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
-        for hall in halls {
-            await loadPostedMenuDates(hall: hall, forceRefresh: forceRefresh)
+        let dining = service
+        let range = publishedDateRange
+        await withTaskGroup(of: (String, Set<String>).self) { group in
+            for hall in halls {
+                if !forceRefresh, postedMenuDates[hall] != nil { continue }
+                group.addTask {
+                    let today = UCITime.todayISO()
+                    let latest = range?.latest ?? today
+                    let from = max(today, range?.earliest ?? today)
+                    let dates = await dining.postedMenuDates(
+                        hall: hall,
+                        fromISO: from,
+                        throughISO: latest,
+                        forceRefresh: forceRefresh
+                    )
+                    return (hall, dates)
+                }
+            }
+            for await (hall, dates) in group {
+                if postedMenuDates[hall] != dates {
+                    postedMenuDates[hall] = dates
+                }
+            }
         }
     }
 
     func loadPostedMenuDates(hall: String, forceRefresh: Bool = false) async {
+        if !forceRefresh, postedMenuDates[hall] != nil { return }
         let today = UCITime.todayISO()
         let latest = publishedDateRange?.latest ?? today
         let from = max(today, publishedDateRange?.earliest ?? today)
@@ -392,7 +419,14 @@ final class Preferences {
         !dietFilters.isEmpty || !allergenAvoids.isEmpty
     }
 
+    /// Stable reviewer id — Keychain / App Group / standard, never versioned.
+    let reviewerID: String
+
+    /// Community (other people) reviews fetched for dish sheets.
+    var communityReviews: [MealReview] = []
+
     init() {
+        reviewerID = DurableStore.reviewerID()
         favoriteDishNames = Set(SharedDefaults.favoriteDishNames())
         favoriteCampusPlaceIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
         let storedDiets = SharedDefaults.dietFilters()
@@ -406,10 +440,19 @@ final class Preferences {
         }
         allergenAvoids = Set(SharedDefaults.allergenAvoids())
         mealReviews = SharedDefaults.mealReviews()
-        // Init assignments skip didSet — mirror into the App Group for widgets.
+        communityReviews = CommunityReviewFeed.cachedReviews()
+        // Init assignments skip didSet — persist under stable keys so a
+        // marketing-version bump cannot drop hearts.
         SharedDefaults.setDietFilters(Array(dietFilters).sorted())
         SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
-        SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+        // Never persist an empty heart list on launch — a cold App Group must
+        // not wipe Keychain / standard favorites (TestFlight version bumps).
+        if !favoriteDishNames.isEmpty {
+            SharedDefaults.setFavoriteDishNames(Array(favoriteDishNames).sorted())
+        }
+        if !favoriteCampusPlaceIDs.isEmpty {
+            SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+        }
         SharedDefaults.setMealReviews(mealReviews)
     }
 
@@ -466,7 +509,31 @@ final class Preferences {
     }
 
     func review(for dishName: String) -> MealReview? {
-        MealReviewLogic.lookup(mealReviews, dishName: dishName)
+        MealReviewLogic.lookup(mealReviews, dishName: dishName, authorID: reviewerID)
+    }
+
+    func reviewsForDish(_ dishName: String) -> [MealReview] {
+        let mine = MealReviewLogic.reviews(for: dishName, in: mealReviews)
+        let others = MealReviewLogic.reviews(for: dishName, in: communityReviews)
+            .filter { $0.resolvedAuthorID != reviewerID && !$0.isLocalLegacy }
+        return MealReviewLogic.sortedForDisplay(mine + others)
+    }
+
+    func communityReviews(for dishName: String) -> [MealReview] {
+        reviewsForDish(dishName).filter { review in
+            review.resolvedAuthorID != reviewerID && !review.isLocalLegacy
+        }
+    }
+
+    func averageStars(for dishName: String) -> Double? {
+        MealReviewLogic.averageStars(reviewsForDish(dishName))
+    }
+
+    func displayStars(for dishName: String) -> Int {
+        if let mine = review(for: dishName) {
+            return mine.stars
+        }
+        return MealReviewLogic.roundedAverage(reviewsForDish(dishName))
     }
 
     func setReview(dishName: String, stars: Int, note: String, playHaptic: Bool = true) {
@@ -474,7 +541,9 @@ final class Preferences {
             existing: mealReviews,
             dishName: dishName,
             stars: stars,
-            note: note
+            note: note,
+            authorID: reviewerID,
+            authorLabel: MealReview.youLabel
         )
         if playHaptic {
             Haptics.soft()
@@ -482,7 +551,18 @@ final class Preferences {
     }
 
     func clearReview(dishName: String) {
-        mealReviews = MealReviewLogic.remove(existing: mealReviews, dishName: dishName)
+        mealReviews = MealReviewLogic.remove(
+            existing: mealReviews,
+            dishName: dishName,
+            authorID: reviewerID
+        )
         Haptics.soft()
+    }
+
+    func loadCommunityReviews(http: any HTTPFetching = HTTPClient()) async {
+        let next = await CommunityReviewFeed.fetch(http: http, excludingAuthorID: reviewerID)
+        if next != communityReviews {
+            communityReviews = next
+        }
     }
 }

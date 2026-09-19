@@ -45,11 +45,14 @@ struct DishDetailSheet: View {
                     NutritionDetailsCard(facts: facts)
                 }
 
-                favoriteToggle
+                reviewBoard
+
+                actionRow
             }
             .padding(20)
             .padding(.top, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .appCanvas()
         .safeAreaInset(edge: .bottom) {
@@ -69,6 +72,7 @@ struct DishDetailSheet: View {
         .presentationDragIndicator(.visible)
         .onAppear {
             noteDraft = prefs.review(for: dish.name)?.note ?? ""
+            Task { await prefs.loadCommunityReviews() }
         }
         .onDisappear {
             if let current = prefs.review(for: dish.name), noteDraft != current.note {
@@ -89,32 +93,6 @@ struct DishDetailSheet: View {
             Text(dish.name)
                 .font(ZotFont.hero(26))
                 .padding(.trailing, 40)
-
-            StarRatingControl(stars: currentReview?.stars ?? 0, size: 22) { value in
-                prefs.setReview(dishName: dish.name, stars: value, note: noteDraft)
-            }
-            .accessibilityIdentifier("dish-star-rating")
-
-            if currentReview != nil {
-                TextField("Add a note", text: $noteDraft, axis: .vertical)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1...2)
-                    .textFieldStyle(.plain)
-                    .onChange(of: noteDraft) { _, newValue in
-                        guard let stars = currentReview?.stars else { return }
-                        prefs.setReview(dishName: dish.name, stars: stars, note: newValue, playHaptic: false)
-                    }
-                    .accessibilityIdentifier("dish-review-note")
-
-                Button("Clear") {
-                    noteDraft = ""
-                    prefs.clearReview(dishName: dish.name)
-                }
-                .font(ZotFont.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .accessibilityIdentifier("dish-clear-rating")
-            }
 
             if let description = dish.description, !description.isEmpty {
                 Text(description)
@@ -193,30 +171,147 @@ struct DishDetailSheet: View {
         prefs.review(for: dish.name)
     }
 
+    private var dishReviews: [MealReview] {
+        prefs.reviewsForDish(dish.name)
+    }
+
+    private var otherReviews: [MealReview] {
+        prefs.communityReviews(for: dish.name)
+    }
+
+    private var reviewBoard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let average = prefs.averageStars(for: dish.name) {
+                HStack(spacing: 10) {
+                    StarRatingControl(
+                        stars: MealReviewLogic.roundedAverage(dishReviews),
+                        size: 18,
+                        interactive: false
+                    )
+                    Text(CommunityReviewCopy.averageLine(average: average, count: dishReviews.count))
+                        .font(ZotFont.caption.weight(.semibold))
+                        .foregroundStyle(Color.inkMuted)
+                }
+                .accessibilityIdentifier("dish-community-average")
+            }
+
+            Text(CommunityReviewCopy.yourRating)
+                .font(ZotFont.kicker)
+                .foregroundStyle(Color.inkMuted)
+
+            StarRatingControl(stars: currentReview?.stars ?? 0, size: 22) { value in
+                prefs.setReview(dishName: dish.name, stars: value, note: noteDraft)
+            }
+            .accessibilityIdentifier("dish-star-rating")
+
+            if currentReview != nil {
+                TextField("Add a note", text: $noteDraft, axis: .vertical)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1...2)
+                    .textFieldStyle(.plain)
+                    .onChange(of: noteDraft) { _, newValue in
+                        guard let stars = currentReview?.stars else { return }
+                        prefs.setReview(dishName: dish.name, stars: stars, note: newValue, playHaptic: false)
+                    }
+                    .accessibilityIdentifier("dish-review-note")
+
+                Button("Clear") {
+                    noteDraft = ""
+                    prefs.clearReview(dishName: dish.name)
+                }
+                .font(ZotFont.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityIdentifier("dish-clear-rating")
+            }
+
+            Text(CommunityReviewCopy.communityHeader)
+                .font(ZotFont.kicker)
+                .foregroundStyle(Color.inkMuted)
+                .padding(.top, 4)
+
+            if otherReviews.isEmpty {
+                Text(CommunityReviewCopy.empty)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("dish-community-empty")
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(otherReviews) { review in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Text(review.resolvedAuthorLabel)
+                                    .font(ZotFont.caption.weight(.semibold))
+                                StarRatingControl(stars: review.stars, size: 12, interactive: false)
+                            }
+                            if !review.note.isEmpty {
+                                Text(review.note)
+                                    .font(ZotFont.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityIdentifier("dish-community-review")
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            favoriteToggle
+            if let plate {
+                headerPlateButton(plate)
+            }
+        }
+    }
+
     private var favoriteToggle: some View {
         Button {
             withAnimation(.snappy(duration: 0.25)) {
                 prefs.toggleFavorite(dish.name)
             }
         } label: {
-            Label(
-                isFavorite ? "Favorited" : "Add to Favorites",
-                systemImage: isFavorite ? "heart.fill" : "heart"
-            )
-            .font(ZotFont.pill.weight(.semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                isFavorite ? Color.pink.opacity(0.15) : Color.primary.opacity(0.05),
-                in: Capsule()
-            )
-            .foregroundStyle(isFavorite ? Color.pink : .primary)
-            .symbolEffect(.bounce, value: isFavorite)
+            Image(systemName: isFavorite ? "heart.fill" : "heart")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(isFavorite ? Color.pink : Color.secondary)
+                .symbolEffect(.bounce, value: isFavorite)
+                .frame(width: 44, height: 44)
+                .background(
+                    isFavorite ? Color.pink.opacity(0.15) : Color.primary.opacity(0.05),
+                    in: Circle()
+                )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
             isFavorite ? "Remove \(dish.name) from favorites" : "Add \(dish.name) to favorites"
         )
+    }
+
+    private func headerPlateButton(_ plate: PlateStore) -> some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) {
+                plate.toggle(dish)
+            }
+            Haptics.soft()
+        } label: {
+            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(isOnPlate ? Color.ink : Color.inkMuted)
+                .symbolEffect(.bounce, value: isOnPlate)
+                .frame(width: 44, height: 44)
+                .background(
+                    isOnPlate ? Color.ink.opacity(0.12) : Color.primary.opacity(0.05),
+                    in: Circle()
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            isOnPlate ? "Remove \(dish.name) from my plate" : "Add \(dish.name) to my plate"
+        )
+        .accessibilityIdentifier("dish-add-to-plate-icon")
     }
 
     private func plateToggle(_ plate: PlateStore) -> some View {
