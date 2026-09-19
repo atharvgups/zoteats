@@ -14,7 +14,7 @@ struct CampusServiceTests {
         let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
         let places = try await service.places()
         #expect(!places.isEmpty)
-        #expect(!places.contains { $0.id == "the-anteatery" || $0.id == "brandywine" })
+        #expect(!places.contains { $0.id == "the-anteatery" || $0.id == "brandywine" || $0.id == "the-oasis-dining-hall" })
         #expect(places.contains { $0.name.contains("Starbucks") })
         #expect(places.contains { $0.name.contains("Panda Express") })
     }

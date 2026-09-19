@@ -21,6 +21,12 @@ public actor TTLCache {
         return entry.value as? T
     }
 
+    /// Last-good snapshot: returns an expired value instead of dropping it.
+    /// Used so a flaky menu fetch can still show the previous successful load.
+    public func getStale<T: Sendable>(_ key: String, as type: T.Type) -> T? {
+        store[key]?.value as? T
+    }
+
     public func set<T: Sendable>(_ key: String, value: T, ttl: TimeInterval) {
         store[key] = Entry(value: value, expiresAt: Date().addingTimeInterval(ttl))
     }

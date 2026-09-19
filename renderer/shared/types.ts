@@ -43,6 +43,9 @@ export interface DiningMenu {
   /** Meal-period name, e.g. "Lunch". */
   period: string;
   stations: MenuStation[];
+  /** True when this is a previously-good menu served after a failed refresh. */
+  isStale?: boolean;
+  warnings?: string[];
 }
 
 export interface GetMenuRequest {

@@ -162,22 +162,36 @@ function HallPanel({ location }: { location: DiningLocation }) {
         <Callout color="red" role="alert" actions={<Button size="small" onClick={() => menuQuery.refetch()}>Retry</Button>}>
           Couldn't load the {location.name} menu. {(menuQuery.error as Error).message}
         </Callout>
-      ) : stations.length === 0 ? (
-        <EmptyState
-          placement="inline"
-          title={filters.length > 0 ? "Nothing matches your filters" : "No menu posted"}
-          description={
-            filters.length > 0
-              ? "Try clearing a dietary filter to see more options."
-              : `${location.name} isn't serving ${period.toLowerCase()} today. Try another meal.`
-          }
-        />
       ) : (
-        <div className="flex flex-col gap-6">
-          {stations.map((station) => (
-            <StationSection key={station.name} station={station} />
-          ))}
-        </div>
+        <>
+          {menuQuery.data?.isStale ? (
+            <Callout color="yellow" role="status">
+              Showing the last menu we successfully loaded. Refresh to try again.
+            </Callout>
+          ) : null}
+          {menuQuery.data?.warnings?.length && stations.length > 0 ? (
+            <Callout color="yellow" role="status">
+              {menuQuery.data.warnings.join(" ")}
+            </Callout>
+          ) : null}
+          {stations.length === 0 ? (
+            <EmptyState
+              placement="inline"
+              title={filters.length > 0 ? "Nothing matches your filters" : "No menu posted"}
+              description={
+                filters.length > 0
+                  ? "Try clearing a dietary filter to see more options."
+                  : `${location.name} isn't serving ${period.toLowerCase()} today. Try another meal.`
+              }
+            />
+          ) : (
+            <div className="flex flex-col gap-6">
+              {stations.map((station) => (
+                <StationSection key={station.name} station={station} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
