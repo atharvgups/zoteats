@@ -103,12 +103,14 @@ final class DiningStore {
 
     func loadPostedMenuDates(hall: String, forceRefresh: Bool = false) async {
         let today = UCITime.todayISO()
-        let latest = publishedDateRange?.latest ?? today
-        let from = max(today, publishedDateRange?.earliest ?? today)
+        let through = EatPostedDays.probeThroughISO(
+            todayISO: today,
+            publishedLatest: publishedDateRange?.latest
+        )
         let dates = await service.postedMenuDates(
             hall: hall,
-            fromISO: from,
-            throughISO: latest,
+            fromISO: today,
+            throughISO: through,
             forceRefresh: forceRefresh
         )
         if postedMenuDates[hall] != dates {

@@ -265,26 +265,33 @@ public struct DiningService: Sendable {
     }
 
     /// ISO dates in `[fromISO, throughISO]` that actually have a posted board.
-    /// `/dateRange` is a window — midweek days inside it can still 404.
+    /// `/dateRange` is a window — midweek days inside it can still 404, and
+    /// later days can be live before the window catches up.
     public func postedMenuDates(
         hall: String,
         fromISO: String,
         throughISO: String,
         forceRefresh: Bool = false
     ) async -> Set<String> {
-        var posted: Set<String> = []
-        var iso = fromISO
-        var steps = 0
-        while iso <= throughISO, steps < 28 {
-            let periods = await mealPeriods(for: hall, dateISO: iso, forceRefresh: forceRefresh)
-            if !periods.isEmpty {
-                posted.insert(iso)
+        let days = EatPostedDays.isoDates(from: fromISO, through: throughISO)
+        guard !days.isEmpty else { return [] }
+        return await withTaskGroup(of: String?.self, returning: Set<String>.self) { group in
+            for iso in days {
+                group.addTask {
+                    let periods = await mealPeriods(
+                        for: hall,
+                        dateISO: iso,
+                        forceRefresh: forceRefresh
+                    )
+                    return periods.isEmpty ? nil : iso
+                }
             }
-            guard let next = UCITime.nextISO(after: iso) else { break }
-            iso = next
-            steps += 1
+            var posted: Set<String> = []
+            for await iso in group {
+                if let iso { posted.insert(iso) }
+            }
+            return posted
         }
-        return posted
     }
 
     private func dishes(ids: [String]) async throws -> [String: APIDish] {
