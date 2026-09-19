@@ -29,7 +29,7 @@ public enum DiningStatusLayout {
         return dense ? 11 : 13
     }
 
-    /// Primary hall name — thick SF Pro, same size on every row.
+    /// Primary hall name — medium SF Pro, same size on every row.
     public static func nameFontSize(isCompact: Bool, hallCount: Int) -> Double {
         _ = hallCount
         return isCompact ? 16 : 17
