@@ -183,6 +183,35 @@ struct DiningServiceTests {
         #expect(range?.contains("2026-07-13") == false)
     }
 
+    @Test func postedMenuDatesFindBoardsPastTheDateRangeWindow() async {
+        let service = DiningService(
+            http: PostedBeyondRangeHTTP(postedISOs: ["2026-07-09", "2026-07-13"]),
+            now: { fixtureNoon }
+        )
+        let range = await service.publishedDateRange()
+        #expect(range?.latest == "2026-07-12")
+        let through = EatPostedDays.probeThroughISO(
+            todayISO: "2026-07-09",
+            publishedLatest: range?.latest
+        )
+        #expect(through >= "2026-07-13")
+        let posted = await service.postedMenuDates(
+            hall: "anteatery",
+            fromISO: "2026-07-09",
+            throughISO: through
+        )
+        #expect(posted.contains("2026-07-09"))
+        #expect(!posted.contains("2026-07-10"))
+        #expect(posted.contains("2026-07-13"))
+        let strip = EatPostedDays.visible(
+            candidates: UCITime.upcomingDays(count: 21, now: fixtureNoon),
+            todayISO: "2026-07-09",
+            postedISOs: posted
+        )
+        #expect(strip.map(\.isoDate) == ["2026-07-09", "2026-07-13"])
+        #expect(!strip.contains { $0.isoDate == "2026-07-10" })
+    }
+
     @Test func veganFlagAlsoSurfacesVegetarianTag() async throws {
         // Live API sometimes sets only isVegan; Vegetarian filter must still match.
         let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")

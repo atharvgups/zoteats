@@ -37,21 +37,61 @@ struct EatPostedDaysTests {
         let days = EatPostedDays.visible(
             candidates: candidates,
             todayISO: "2026-08-17",
-            postedISOs: ["2026-08-18"]
+            postedISOs: ["2026-08-17", "2026-08-18"]
         )
         #expect(days.map(\.isoDate) == ["2026-08-17", "2026-08-18"])
         #expect(days.map(\.label) == ["Today", "Tomorrow"])
         #expect(days.allSatisfy { !$0.skipsAhead })
     }
 
+    @Test func omitsUnpublishedTodayOnceProbeFinishes() {
+        let days = EatPostedDays.visible(
+            candidates: candidates,
+            todayISO: "2026-08-17",
+            postedISOs: ["2026-08-18"]
+        )
+        #expect(days.map(\.isoDate) == ["2026-08-18"])
+        #expect(days.map(\.label) == ["Tomorrow"])
+        #expect(days.allSatisfy { !$0.skipsAhead })
+    }
+
+    @Test func omitsUnpublishedTomorrow() {
+        let days = EatPostedDays.visible(
+            candidates: candidates,
+            todayISO: "2026-08-17",
+            postedISOs: ["2026-08-17", "2026-08-19"]
+        )
+        #expect(days.map(\.isoDate) == ["2026-08-17", "2026-08-19"])
+        #expect(!days.contains { $0.isoDate == "2026-08-18" })
+    }
+
     @Test func laterDaysAfterTomorrowAreNotCalledNext() {
         let days = EatPostedDays.visible(
             candidates: candidates,
             todayISO: "2026-08-17",
-            postedISOs: ["2026-08-18", "2026-08-20"]
+            postedISOs: ["2026-08-17", "2026-08-18", "2026-08-20"]
         )
         #expect(days.map(\.label) == ["Today", "Tomorrow", "Thu Aug 20"])
         #expect(days.map(\.skipsAhead) == [false, false, false])
+    }
+
+    @Test func probeLooksPastAShortDateRangeWindow() {
+        #expect(
+            EatPostedDays.probeThroughISO(
+                todayISO: "2026-07-09",
+                publishedLatest: "2026-07-10"
+            ) == "2026-07-22"
+        )
+        #expect(
+            EatPostedDays.probeThroughISO(
+                todayISO: "2026-07-09",
+                publishedLatest: "2026-08-01"
+            ) == "2026-08-01"
+        )
+        #expect(
+            EatPostedDays.isoDates(from: "2026-07-09", through: "2026-07-11")
+                == ["2026-07-09", "2026-07-10", "2026-07-11"]
+        )
     }
 
     @Test func browseCaptionNamesTheSkip() {

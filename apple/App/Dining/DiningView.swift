@@ -36,7 +36,8 @@ struct DiningView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     /// Today plus future days that actually have a posted board for this hall.
-    /// `/dateRange` is a window — Tue/Wed can be empty while Thursday is live.
+    /// Probes past `/dateRange` so unpublished window days stay hidden and
+    /// later live boards still appear.
     private var upcomingDays: [EatPostedDay] {
         let today = UCITime.todayISO()
         let candidates = UCITime.upcomingDays(count: 21)
@@ -126,11 +127,13 @@ struct DiningView: View {
             applyScreenshotLaunchArgsIfNeeded()
         }
         .onChange(of: store.publishedDateRange) { syncDateSelection() }
+        .onChange(of: store.postedMenuDates) { syncDateSelection() }
         .onChange(of: selectedHall) {
             // Do not clear pinnedDeepLinkPeriod here — deep-link apply also
             // sets hall, and deferred onChange would wipe the meal pin and
             // snap ended Lunch → Dinner. User hall taps clear the pin.
             allDayExpanded = false
+            syncDateSelection()
             syncPeriodSelection()
             considerAutoMealActivity()
         }
@@ -174,6 +177,7 @@ struct DiningView: View {
                 prefs: prefs,
                 plate: selectedDate == nil ? plate : nil
             )
+            .id(dish.id)
         }
         .sheet(isPresented: $showDietFilters) {
             DietFilterSheet(prefs: prefs)
@@ -717,7 +721,7 @@ struct DiningView: View {
                         icon: "heart.fill",
                         tint: .accent
                     )
-                    groupedDishes(favorites)
+                    groupedDishes(favorites, section: "favorites")
                 }
                 .padding(.horizontal, 20)
                 .transition(.opacity)
@@ -732,7 +736,7 @@ struct DiningView: View {
                         icon: "star.fill",
                         tint: .accent
                     )
-                    groupedDishes(hits)
+                    groupedDishes(hits, section: "hits")
                 }
                 .padding(.horizontal, 20)
                 .transition(.opacity)
@@ -764,12 +768,12 @@ struct DiningView: View {
                         )
 
                         if allDayExpanded {
-                            groupedDishes(station.items)
+                            groupedDishes(station.items, section: station.name)
                                 .transition(.opacity)
                         }
                     } else {
                         sectionHeader(title: station.name, count: station.items.count)
-                        groupedDishes(station.items)
+                        groupedDishes(station.items, section: station.name)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -788,22 +792,15 @@ struct DiningView: View {
             onTogglePlate: selectedDate == nil
                 ? { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } }
                 : nil,
-            onRate: { stars in
-                prefs.setReview(
-                    dishName: item.name,
-                    stars: stars,
-                    note: prefs.review(for: item.name)?.note ?? ""
-                )
-            },
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
     }
 
-    private func groupedDishes(_ items: [MenuItem]) -> some View {
+    private func groupedDishes(_ items: [MenuItem], section: String) -> some View {
         VStack(spacing: EatDishListLayout.cardSpacing) {
-            ForEach(items) { item in
-                dishRow(item)
+            ForEach(EatDishListLayout.rows(section: section, items: items)) { row in
+                dishRow(row.item)
                     .zotCard()
             }
         }
@@ -1198,14 +1195,11 @@ struct DiningView: View {
     /// Snap off days the feed hasn't published yet, and collapse an explicit ISO
     /// that is now Irvine today back to the live board (overnight DayStrip).
     private func syncDateSelection() {
-        selectedDate = EatDateSelection.snapLiveToday(
+        selectedDate = EatDateSelection.clampToPosted(
             selectedDateISO: selectedDate,
-            todayISO: UCITime.todayISO()
+            todayISO: UCITime.todayISO(),
+            postedISOs: store.postedMenuDates[selectedHall]
         )
-        let days = upcomingDays
-        guard let selectedDate else { return }
-        if days.contains(where: { $0.isoDate == selectedDate }) { return }
-        self.selectedDate = nil
     }
 
     private var eatSubtitle: String {
@@ -1482,8 +1476,11 @@ private struct DishRowCard: View {
     var stars: Int = 0
     let onToggleFavorite: () -> Void
     var onTogglePlate: (() -> Void)?
-    var onRate: ((Int) -> Void)?
     let onOpen: () -> Void
+
+    private var actionClusterWidth: CGFloat {
+        onTogglePlate == nil ? 30 : 68
+    }
 
     var body: some View {
         Button(action: onOpen) {
@@ -1493,7 +1490,8 @@ private struct DishRowCard: View {
                         .font(ZotFont.body.weight(.semibold))
                         .multilineTextAlignment(.leading)
 
-                    StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
+                    // Display-only here — interactive stars steal row taps.
+                    StarRatingControl(stars: stars, size: 12, interactive: false)
 
                     if let description = item.description, !description.isEmpty {
                         Text(description)
@@ -1512,12 +1510,8 @@ private struct DishRowCard: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 10) {
-                    HStack(spacing: 8) {
-                        if let onTogglePlate {
-                            plateButton(onTogglePlate)
-                        }
-                        favoriteButton
-                    }
+                    Color.clear
+                        .frame(width: actionClusterWidth, height: 30)
                     if let calories = item.calories {
                         CalorieBadge(calories: calories)
                     }
@@ -1526,8 +1520,19 @@ private struct DishRowCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
+            HStack(spacing: 8) {
+                if let onTogglePlate {
+                    plateButton(onTogglePlate)
+                }
+                favoriteButton
+            }
+            .padding(.top, 14)
+            .padding(.trailing, 16)
+        }
         .accessibilityLabel(
             DishRowAccessibility.label(
                 dishName: item.name,
@@ -1541,16 +1546,16 @@ private struct DishRowCard: View {
     }
 
     private var chipRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                ForEach(item.dietaryTags, id: \.self) { tag in
-                    TagChip(text: tag, color: TagPalette.dietColor(tag))
-                }
-                ForEach(item.allergens, id: \.self) { allergen in
-                    TagChip(text: allergen, color: TagPalette.allergenColor)
-                }
+        HStack(spacing: 5) {
+            ForEach(item.dietaryTags, id: \.self) { tag in
+                TagChip(text: tag, color: TagPalette.dietColor(tag))
+            }
+            ForEach(item.allergens, id: \.self) { allergen in
+                TagChip(text: allergen, color: TagPalette.allergenColor)
             }
         }
+        .allowsHitTesting(false)
+        .clipped()
     }
 
     private var favoriteButton: some View {
@@ -1561,8 +1566,9 @@ private struct DishRowCard: View {
                 .symbolEffect(.bounce, value: isFavorite)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .accessibilityLabel(
             isFavorite ? "Remove \(item.name) from favorites" : "Add \(item.name) to favorites"
         )
@@ -1576,8 +1582,9 @@ private struct DishRowCard: View {
                 .symbolEffect(.bounce, value: isOnPlate)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .accessibilityLabel(
             isOnPlate ? "Remove \(item.name) from my plate" : "Add \(item.name) to my plate"
         )

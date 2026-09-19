@@ -182,3 +182,32 @@ actor TomorrowPublishHTTP: HTTPFetching {
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }
 }
+
+/// Boards only on listed ISOs — used to prove Eat probes past `/dateRange.latest`.
+struct PostedBeyondRangeHTTP: HTTPFetching {
+    let postedISOs: Set<String>
+
+    func data(from url: URL) async throws -> Data {
+        let path = url.path
+        if path.hasSuffix("/restaurants") {
+            return try FixtureHTTP.load("restaurants")
+        }
+        if path.hasSuffix("/restaurantToday") {
+            let date = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "date" })?
+                .value
+            if let date, postedISOs.contains(date) {
+                return try FixtureHTTP.load("restaurant_today")
+            }
+            throw HTTPError.badStatus(code: 404, url: url)
+        }
+        if path.hasSuffix("/dishes/batch") {
+            return try FixtureHTTP.load("dishes_batch")
+        }
+        if path.hasSuffix("/dateRange") {
+            return try FixtureHTTP.load("date_range")
+        }
+        throw FixtureHTTP.UnexpectedRequest(url: url)
+    }
+}

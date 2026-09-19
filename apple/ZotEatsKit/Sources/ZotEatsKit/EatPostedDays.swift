@@ -1,6 +1,6 @@
 import Foundation
 
-/// A day chip on Eat’s picker — today always, plus future days with a board.
+/// A day chip on Eat’s picker — only days that actually have a posted board.
 public struct EatPostedDay: Equatable, Sendable, Identifiable {
     public var id: String { isoDate }
     public let isoDate: String
@@ -22,18 +22,23 @@ public struct EatPostedDay: Equatable, Sendable, Identifiable {
     }
 }
 
-/// Days Eat should offer in the day picker — today always, future days only
-/// when that hall actually has a posted board (not every day inside `/dateRange`).
+/// Days Eat should offer in the day picker — only dates with a real board.
+/// `/dateRange` can lag behind `restaurantToday`, so the probe looks past it.
 public enum EatPostedDays {
+    /// Upcoming days to scan for a board, including today.
+    public static let probeDayCount = 14
+
     public static func visible(
         candidates: [(isoDate: String, label: String)],
         todayISO: String,
         postedISOs: Set<String>?
     ) -> [EatPostedDay] {
         let filtered = candidates.filter { day in
-            if day.isoDate == todayISO { return true }
-            guard let postedISOs else { return false }
-            return postedISOs.contains(day.isoDate)
+            if let postedISOs {
+                return postedISOs.contains(day.isoDate)
+            }
+            // Probe still in flight — keep today so the strip isn't empty.
+            return day.isoDate == todayISO
         }
         return filtered.enumerated().map { index, day in
             let skipsAhead = index > 0
@@ -68,6 +73,38 @@ public enum EatPostedDays {
               let end = formatter.date(from: to)
         else { return nil }
         return PacificTime.calendar.dateComponents([.day], from: start, to: end).day
+    }
+
+    /// Inclusive ISO dates from `from` through `through`, capped at `limit`.
+    public static func isoDates(from: String, through: String, limit: Int = 28) -> [String] {
+        guard from <= through else { return [] }
+        var result: [String] = []
+        var iso = from
+        var steps = 0
+        while iso <= through, steps < limit {
+            result.append(iso)
+            guard let next = UCITime.nextISO(after: iso) else { break }
+            iso = next
+            steps += 1
+        }
+        return result
+    }
+
+    /// Last ISO the Eat strip should probe: at least `probeDayCount` days out,
+    /// or `/dateRange.latest` when that window is longer.
+    public static func probeThroughISO(
+        todayISO: String,
+        publishedLatest: String?,
+        probeDayCount: Int = probeDayCount
+    ) -> String {
+        let lastOffset = max(0, probeDayCount - 1)
+        var horizon = todayISO
+        for _ in 0..<lastOffset {
+            guard let next = UCITime.nextISO(after: horizon) else { break }
+            horizon = next
+        }
+        guard let publishedLatest, !publishedLatest.isEmpty else { return horizon }
+        return publishedLatest > horizon ? publishedLatest : horizon
     }
 
     /// Caption when the open board skipped empty midweek days.
