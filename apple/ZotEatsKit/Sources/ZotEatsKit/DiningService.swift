@@ -310,9 +310,7 @@ public struct DiningService: Sendable {
 
     private func today(for hall: String, dateISO: String) async throws -> APIRestaurantToday {
         try await cache.remember("dining:today:\(hall):\(dateISO)", ttl: Self.todayTTL) {
-            try await FetchRetry.run {
-                try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)")
-            }
+            try await getData(APIRestaurantToday.self, path: "/restaurantToday?id=\(hall)&date=\(dateISO)")
         }
     }
 
@@ -622,7 +620,7 @@ public struct DiningService: Sendable {
             }
         }
         periods.sort {
-            periodRank($0.name, startMinutes: $0.startMinutes) < periodRank($1.name, startMinutes: $1.startMinutes)
+            Self.periodRank($0.name, startMinutes: $0.startMinutes) < Self.periodRank($1.name, startMinutes: $1.startMinutes)
         }
 
         return DiningLocation(

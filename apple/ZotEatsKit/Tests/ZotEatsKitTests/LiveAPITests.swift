@@ -13,12 +13,20 @@ struct LiveAPITests {
         #expect(locations.contains { $0.id == "brandywine" })
         #expect(locations.count >= 2)
 
-        if let hall = locations.first(where: { !$0.availablePeriods.isEmpty }) {
-            let menu = try await service.menu(for: hall.id, period: hall.availablePeriods[0])
-            #expect(!menu.stations.isEmpty)
-            let items = menu.stations.flatMap(\.items)
-            #expect(items.contains { $0.calories != nil })
+        var loaded: DiningMenu?
+        for hall in locations where !hall.availablePeriods.isEmpty {
+            for period in hall.availablePeriods {
+                let menu = try await service.menu(for: hall.id, period: period)
+                if !menu.stations.isEmpty {
+                    loaded = menu
+                    break
+                }
+            }
+            if loaded != nil { break }
         }
+        #expect(loaded != nil, "At least one hall should have a posted menu for today or we only hit empty days")
+        let items = loaded?.stations.flatMap(\.items) ?? []
+        #expect(items.contains { $0.calories != nil })
     }
 
     @Test func busynessFromLiveFeed() async throws {
