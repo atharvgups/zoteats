@@ -182,12 +182,12 @@ jobs:
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
 
-      # After this upload (what you dogfood), promote the previous VALID build to
-      # External Testing — e.g. you just shipped 1.0.10, externals get 1.0.9.
-      # Tag pushes always promote; workflow_dispatch can opt out. promote_only
-      # re-runs just this step (uses inputs.build_number as the Internal build N).
+      # External N−1 promote is opt-in via workflow_dispatch only.
+      # Tag pushes stay Internal TestFlight so a bad previous build (e.g. 1.0.321
+      # Gym/meal-pill regression) is not handed to External testers.
+      # promote_only re-runs just this step (uses inputs.build_number as Internal N).
       - name: Promote previous build to External Testing
-        if: ${{ env.PROMOTE_ONLY == 'true' || github.event_name == 'push' || inputs.promote_previous_external != false }}
+        if: ${{ env.PROMOTE_ONLY == 'true' || (github.event_name == 'workflow_dispatch' && inputs.promote_previous_external != false) }}
         env:
           BUILD_NUMBER: ${{ env.BUILD_NUMBER || inputs.build_number || github.run_number }}
         run: |

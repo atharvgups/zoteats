@@ -114,6 +114,7 @@ struct RootTabView: View {
     @State private var selection: AppTab = RootTabView.initialTab()
     // -showSettings lets CI screenshot the Settings sheet directly.
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
+    @State private var feedbackPrompt = FeedbackPromptController()
     @State private var pendingDeepLink: AnteatsDeepLink?
 
     // App-lifetime stores: the iOS 26 tab system unloads off-screen tabs, so
@@ -146,7 +147,7 @@ struct RootTabView: View {
                         onNever: { feedbackPrompt.optOut() }
                     )
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 20)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -173,9 +174,11 @@ struct RootTabView: View {
                 NotificationRouter.shared.onDeepLink = { link in
                     applyDeepLink(link)
                 }
+                feedbackPrompt.noteBecameActive()
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    feedbackPrompt.noteBecameActive()
                     plate.ensureCurrentDay()
                     preferences.reloadMenuFiltersFromSharedDefaults()
                     // Recompute Campus open/close from cached schedules (not a full network wait).

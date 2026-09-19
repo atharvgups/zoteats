@@ -70,9 +70,12 @@ struct OpeningAlertsPicker: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 26))
                         .foregroundStyle(.secondary, .quaternary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(16)
+                .padding(.top, 8)
+                .padding(.trailing, 8)
                 .accessibilityLabel("Close opening alerts")
             }
             .task { await load() }
@@ -97,6 +100,7 @@ struct OpeningAlertsPicker: View {
         }
         .toggleStyle(.switch)
         .tint(Color.accent)
+        .comfortableRowHit()
         .padding(.vertical, 6)
         .accessibilityIdentifier("openAlert-\(id)")
     }

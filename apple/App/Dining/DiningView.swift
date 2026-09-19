@@ -148,7 +148,6 @@ struct DiningView: View {
             if let pinned = pinnedDeepLinkPeriod, newPeriod != pinned {
                 pinnedDeepLinkPeriod = nil
             }
-            .blocksFeedbackPrompt(selectedDish != nil || showDietFilters)
         }
         .onChange(of: pendingDeepLink) {
             applyPendingDeepLinkIfNeeded()
@@ -182,6 +181,7 @@ struct DiningView: View {
         .sheet(isPresented: $showPlate) {
             PlateSheet(plate: plate)
         }
+        .blocksFeedbackPrompt(selectedDish != nil || showDietFilters || showPlate)
         // Plate access: full tally on today when filled; quiet chip otherwise;
         // browse-ahead keeps today's plate visible without implying add works.
         .safeAreaInset(edge: .bottom) {

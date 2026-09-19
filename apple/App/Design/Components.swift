@@ -356,10 +356,11 @@ struct ScreenHeader: View {
                     Image(systemName: "gearshape")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.inkMuted)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .glassIconCircle()
                 }
                 .buttonStyle(.plain)
+                .comfortableControlHit()
                 .accessibilityLabel("Open settings")
             }
         }
@@ -377,6 +378,19 @@ struct ScreenHeader: View {
 // iOS 17–18.
 
 extension View {
+    /// Whole-row tap target. Plain buttons and Links otherwise hit only glyphs
+    /// — `Spacer` and empty card padding do not receive taps.
+    func comfortableRowHit() -> some View {
+        frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+    }
+
+    /// Icon / capsule controls: 44pt floor without changing the drawn chrome.
+    func comfortableControlHit() -> some View {
+        frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+    }
+
     /// Liquid Glass tab bar behavior: the bar condenses into a floating glass
     /// pill while scrolling down and re-expands on scroll up.
     @ViewBuilder

@@ -37,6 +37,7 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
+                        feedbackCard
                         alertsCard
                         thisIPhoneCard
                         sourcesCard
@@ -56,9 +57,12 @@ struct SettingsView: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 26))
                         .foregroundStyle(.secondary, .quaternary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(16)
+                .padding(.top, 8)
+                .padding(.trailing, 8)
                 .accessibilityLabel("Close settings")
             }
             .overlay {
@@ -69,6 +73,10 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showOpeningAlerts) {
                 OpeningAlertsPicker(watched: $watchedPlaces)
+            }
+            .sheet(isPresented: $showFeedbackForm) {
+                SafariView(url: FeedbackForm.url)
+                    .ignoresSafeArea()
             }
         }
         .presentationDetents([.large])
@@ -103,6 +111,43 @@ struct SettingsView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    // MARK: - Feedback
+
+    /// Own card near the top so it is not buried under Alerts / About.
+    /// Full-row hit target — plain buttons otherwise miss Spacer / padding.
+    private var feedbackCard: some View {
+        Button {
+            showFeedbackForm = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Feedback")
+                        .font(ZotFont.body)
+                        .foregroundStyle(.primary)
+                    Text("Share ideas or report a problem")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .comfortableRowHit()
+            .padding(14)
+        }
+        .buttonStyle(.plain)
+        .zotCard()
+        .accessibilityLabel("Feedback. Opens the Anteats feedback form.")
+        .accessibilityHint("Opens in a browser view")
+        .accessibilityIdentifier("settings-feedback-row")
     }
 
     // MARK: - Alerts (+ Live Activity)
@@ -169,10 +214,11 @@ struct SettingsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
+                .comfortableRowHit()
+                .padding(.vertical, 6)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("opening-alerts-row")
-            .padding(.vertical, 10)
 
             ZotHairline(leading: 0)
 
@@ -218,7 +264,8 @@ struct SettingsView: View {
                 MealActivityManager.autoStartEnabled = enabled
                 Haptics.selection()
             }
-            .padding(.vertical, 10)
+            .comfortableRowHit()
+            .padding(.vertical, 6)
 
             if !MealActivityManager.systemActivitiesEnabled {
                 ZotHairline(leading: 0)
@@ -226,8 +273,9 @@ struct SettingsView: View {
                     Text("Live Activities are off — open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
+                        .comfortableRowHit()
+                        .padding(.vertical, 6)
                 }
-                .padding(.vertical, 10)
                 .accessibilityIdentifier("live-activities-off-link")
             }
 
@@ -248,10 +296,10 @@ struct SettingsView: View {
                     Text(testPingSent ? "Test ping sent" : "Send test notification")
                         .font(ZotFont.caption.weight(.semibold))
                         .foregroundStyle(Color.ink)
+                        .comfortableRowHit()
+                        .padding(.vertical, 6)
                 }
                 .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 10)
                 .accessibilityIdentifier("test-notification-button")
             }
 
@@ -261,8 +309,9 @@ struct SettingsView: View {
                     Text("Notifications are off — open iOS Settings for Anteats")
                         .font(ZotFont.caption)
                         .foregroundStyle(TagPalette.terracotta)
+                        .comfortableRowHit()
+                        .padding(.vertical, 6)
                 }
-                .padding(.vertical, 10)
             }
         }
         .padding(14)
@@ -306,7 +355,8 @@ struct SettingsView: View {
                 }
             }
         }
-        .padding(.vertical, 10)
+        .comfortableRowHit()
+        .padding(.vertical, 6)
     }
 
     // MARK: - This iPhone (ratings + plate honesty)
@@ -345,7 +395,8 @@ struct SettingsView: View {
                             Image(systemName: "trash")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 28, height: 28)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove rating for \(review.dishName)")
@@ -438,7 +489,8 @@ struct SettingsView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)
             }
-            .padding(.vertical, 10)
+            .comfortableRowHit()
+            .padding(.vertical, 6)
         }
         .accessibilityLabel("\(title). Opens in browser.")
     }
@@ -468,8 +520,8 @@ struct SettingsView: View {
                     .font(ZotFont.body)
                     .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
+            .comfortableRowHit()
+            .padding(.vertical, 6)
             .onTapGesture {
                 versionTaps += 1
                 guard versionTaps >= 3 else { return }
@@ -559,8 +611,9 @@ private struct AppearanceOption: View {
                     .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? Color.ink : .primary)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .padding(.vertical, 14)
+            .contentShape(Rectangle())
             .background(
                 isSelected ? Color.selectWash : Color.clear,
                 in: RoundedRectangle(cornerRadius: zotInnerRadius, style: .continuous)

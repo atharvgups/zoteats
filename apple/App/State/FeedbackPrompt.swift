@@ -124,7 +124,7 @@ struct FeedbackPromptCard: View {
     let onNever: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("How is Anteats going?")
@@ -138,32 +138,43 @@ struct FeedbackPromptCard: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 22))
                         .foregroundStyle(.secondary, .quaternary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Not now")
             }
 
-            HStack(spacing: 8) {
-                Button("Share feedback", action: onShare)
-                    .font(ZotFont.pill.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.uciBlue, in: Capsule())
-                    .foregroundStyle(.white)
-                    .buttonStyle(.plain)
+            HStack(spacing: 10) {
+                Button(action: onShare) {
+                    Text("Give feedback")
+                        .font(ZotFont.pill.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 44)
+                        .contentShape(Capsule())
+                }
+                .background(Color.ink, in: Capsule())
+                .foregroundStyle(Color.card)
+                .buttonStyle(.plain)
 
-                Button("Not now", action: onLater)
-                    .font(ZotFont.pill)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .foregroundStyle(.secondary)
-                    .buttonStyle(.plain)
+                Button(action: onLater) {
+                    Text("Not now")
+                        .font(ZotFont.pill)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
             }
 
-            Button("Don't ask again", action: onNever)
-                .font(ZotFont.caption)
-                .foregroundStyle(.tertiary)
-                .buttonStyle(.plain)
+            Button(action: onNever) {
+                Text("Don't ask again")
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.tertiary)
+                    .comfortableRowHit()
+            }
+            .buttonStyle(.plain)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
