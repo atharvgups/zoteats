@@ -519,34 +519,33 @@ struct BusynessFacilityCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Group {
-                if canRevealFloors {
-                    Button {
-                        withAnimation(.snappy(duration: 0.3)) {
-                            isExpanded.toggle()
-                        }
-                        Haptics.selection()
-                    } label: {
-                        facilitySummary
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(
-                        isExpanded
-                            ? "Hides floors inside \(StudyLibraryName.display(facility.name))"
-                            : "Shows floors inside \(StudyLibraryName.display(facility.name))"
-                    )
-                    .accessibilityLabel(
-                        isExpanded
-                            ? "Hide floors inside \(StudyLibraryName.display(facility.name))"
-                            : "Show floors inside \(StudyLibraryName.display(facility.name))"
-                    )
-                } else {
-                    facilitySummary
+            // Whole header is the tap target — never gated on open/closed.
+            Button {
+                withAnimation(.snappy(duration: 0.3)) {
+                    isExpanded.toggle()
                 }
+                Haptics.selection()
+            } label: {
+                facilitySummary
             }
+            .buttonStyle(.plain)
+            .accessibilityHint(
+                isExpanded
+                    ? "Hides floors inside \(StudyLibraryName.display(facility.name))"
+                    : "Shows floors inside \(StudyLibraryName.display(facility.name))"
+            )
+            .accessibilityLabel(
+                isExpanded
+                    ? "Hide floors inside \(StudyLibraryName.display(facility.name))"
+                    : "Show floors inside \(StudyLibraryName.display(facility.name))"
+            )
 
-            if canRevealFloors, isExpanded {
-                floorsList
+            if isExpanded {
+                if canRevealFloors {
+                    floorsList
+                } else {
+                    floorsEmptyState
+                }
             }
         }
         .zotCard()
@@ -564,12 +563,17 @@ struct BusynessFacilityCard: View {
     private var facilitySummary: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .center, spacing: 8) {
                     Text(StudyLibraryName.display(facility.name))
                         .font(ZotFont.cardTitle)
                         .lineLimit(2)
                     Spacer(minLength: 8)
                     StatusPill(isOpen: effectivelyOpen)
+                    Image(systemName: ExpandChevron.systemName(isExpanded: isExpanded))
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.inkMuted)
+                        .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -633,7 +637,7 @@ struct BusynessFacilityCard: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityHidden(canRevealFloors)
+            .accessibilityHidden(true)
             .accessibilityLabel(
                 StudyFacilityAccessibilityLabel.label(
                     name: StudyLibraryName.display(facility.name),
@@ -647,24 +651,16 @@ struct BusynessFacilityCard: View {
                 )
             )
 
-            if canRevealFloors {
-                expandToggle
-            }
+            expandToggle
         }
         .padding(16)
         .contentShape(Rectangle())
+        .frame(minHeight: 44, alignment: .topLeading)
     }
 
+    /// Deep-link / Quietest tap still expands. Never auto-opens on first entry.
     private func expandIfRequested() {
-        guard initiallyExpanded else { return }
-        expandIfHasFloors()
-    }
-
-    private func expandIfHasFloors() {
-        guard hasFloors,
-              StudyFacilityCrowding.showsLiveCrowding(isOpen: effectivelyOpen),
-              !isExpanded
-        else { return }
+        guard initiallyExpanded, !isExpanded else { return }
         withAnimation(.snappy(duration: 0.3)) {
             isExpanded = true
         }
@@ -684,18 +680,29 @@ struct BusynessFacilityCard: View {
         .transition(.opacity)
     }
 
-    private var expandToggle: some View {
-        // Visual affordance only — the whole library card is the tap target.
-        HStack(spacing: 6) {
-            Text(isExpanded ? "Hide floors" : "\(floors.count) floors")
-                .font(ZotFont.pill.weight(.semibold))
-            Image(systemName: ExpandChevron.systemName(isExpanded: isExpanded))
-                .font(.caption.weight(.semibold))
-                .frame(width: 18, height: 18)
+    private var floorsEmptyState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZotHairline(leading: 16)
+            Text(StudyLibraryTap.expandedEmptyDetail(isOpen: effectivelyOpen))
+            .font(ZotFont.caption)
+            .foregroundStyle(Color.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
-        .foregroundStyle(Color.ink)
-        .padding(.vertical, 4)
-        .accessibilityHidden(true)
+        .transition(.opacity)
+        .accessibilityLabel(
+            StudyLibraryTap.expandedEmptyDetail(isOpen: effectivelyOpen)
+        )
+    }
+
+    private var expandToggle: some View {
+        // Count hint only — chevron lives on the header row (right/down).
+        Text(StudyLibraryTap.floorsHint(floorCount: floors.count, isExpanded: isExpanded))
+            .font(ZotFont.pill.weight(.semibold))
+            .foregroundStyle(Color.ink)
+            .padding(.vertical, 4)
+            .accessibilityHidden(true)
     }
 }
 
