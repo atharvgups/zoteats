@@ -43,6 +43,11 @@ final class PlateStore {
     var isEmpty: Bool { entries.isEmpty }
     var totalCalories: Int { PlateTotals.calories(from: entries) }
     var totalProteinG: Int { PlateTotals.proteinGrams(from: entries) }
+    var servingCount: Int { PlateTotals.servingCount(from: entries) }
+
+    func quantity(for dishName: String) -> Int {
+        entries.first { $0.dishName == dishName }?.quantity ?? 0
+    }
 
     /// Call on foreground / Eat appear — app-lifetime store survives past midnight.
     func ensureCurrentDay() {
@@ -76,17 +81,41 @@ final class PlateStore {
         }
     }
 
-    /// One tap adds, a second tap removes — no separate delete mode needed.
-    func toggle(_ item: MenuItem) {
+    /// Tap + to add the first serving, or another serving of the same dish.
+    func add(_ item: MenuItem) {
         ensureCurrentDay()
         if let index = entries.firstIndex(where: { $0.dishName == item.name }) {
-            entries.remove(at: index)
+            entries[index] = entries[index].updatingQuantity(
+                PlateQuantity.incremented(entries[index].quantity)
+            )
         } else {
             entries.append(PlateEntry(
                 dishName: item.name,
                 calories: item.calories,
                 proteinG: item.nutrition?.proteinG
             ))
+        }
+        Haptics.soft()
+        persist()
+    }
+
+    func increment(_ entry: PlateEntry) {
+        ensureCurrentDay()
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        entries[index] = entries[index].updatingQuantity(
+            PlateQuantity.incremented(entries[index].quantity)
+        )
+        Haptics.soft()
+        persist()
+    }
+
+    func decrement(_ entry: PlateEntry) {
+        ensureCurrentDay()
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        if let next = PlateQuantity.decremented(entries[index].quantity) {
+            entries[index] = entries[index].updatingQuantity(next)
+        } else {
+            entries.remove(at: index)
         }
         Haptics.soft()
         persist()

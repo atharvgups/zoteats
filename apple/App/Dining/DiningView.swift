@@ -31,15 +31,15 @@ struct DiningView: View {
     @State private var pinnedDeepLinkPeriod: String?
     /// Bumps after each meal-boundary tick so hall chrome / pills re-render.
     @State private var boundaryEpoch = 0
-    /// On-device Apple Intelligence line; nil keeps the static meal subtitle.
-    @State private var wittySubtitle: String?
+    /// How far the day strip reaches — grows as the user scrolls toward the end.
+    @State private var dateHorizon = EatPostedDays.initialHorizonDays
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Today plus future days that actually have a posted board for this hall.
-    /// `/dateRange` is a window — Tue/Wed can be empty while Thursday is live.
+    /// Today, Tomorrow, then each following calendar day. Unposted days stay
+    /// in the strip so someone can peek ahead.
     private var upcomingDays: [EatPostedDay] {
         let today = UCITime.todayISO()
-        let candidates = UCITime.upcomingDays(count: 21)
+        let candidates = UCITime.upcomingDays(count: dateHorizon)
         return EatPostedDays.visible(
             candidates: candidates,
             todayISO: today,
@@ -80,7 +80,11 @@ struct DiningView: View {
         // the status bar like Campus — Atharv: kill search + top inset gap.
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                ScreenHeader(title: "Eat", subtitle: eatSubtitle, onSettings: openSettings)
+                ScreenHeader(
+                    title: "Eat",
+                    subtitle: EatMealHeadline.subtitle(period: selectedPeriod),
+                    onSettings: openSettings
+                )
 
                 hallSelector
                     .padding(.horizontal, 16)
@@ -112,13 +116,6 @@ struct DiningView: View {
         }
         .task(id: boundaryWatchID) {
             await watchMealBoundaries()
-        }
-        .task(id: selectedPeriod ?? "-") {
-            let meal = selectedPeriod
-            wittySubtitle = nil
-            let line = await EatIntelligenceHeadline.wittySubtitle(period: meal)
-            guard meal == selectedPeriod else { return }
-            wittySubtitle = line
         }
         .onChange(of: store.locations.value) {
             syncPeriodSelection()
@@ -206,7 +203,7 @@ struct DiningView: View {
             HStack(spacing: 8) {
                 Image(systemName: "fork.knife.circle.fill")
                     .font(.system(size: 17, weight: .semibold))
-                Text(PlateTallyCopy.barTitle(count: plate.entries.count))
+                Text(PlateTallyCopy.barTitle(count: plate.servingCount))
                     .font(ZotFont.pill.weight(.semibold))
                 Spacer()
                 Text(PlateTallyCopy.macrosLine(
@@ -227,7 +224,7 @@ struct DiningView: View {
         .padding(.bottom, 6)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityLabel(
-            "My plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein"
+            "My plate: \(plate.servingCount) servings, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein"
         )
         .accessibilityIdentifier("plate-tally-bar")
     }
@@ -241,7 +238,7 @@ struct DiningView: View {
             HStack(spacing: 8) {
                 Image(systemName: "fork.knife.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
-                Text(PlateTallyCopy.browseAheadTitle(count: plate.entries.count))
+                Text(PlateTallyCopy.browseAheadTitle(count: plate.servingCount))
                     .font(ZotFont.pill.weight(.semibold))
                 Spacer()
                 Text(PlateTallyCopy.macrosLine(
@@ -262,7 +259,7 @@ struct DiningView: View {
         .padding(.bottom, 6)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .accessibilityLabel(
-            "Today's plate: \(plate.entries.count) dishes, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein. Opens My Plate."
+            "Today's plate: \(plate.servingCount) servings, \(plate.totalCalories) calories, \(plate.totalProteinG) grams protein. Opens My Plate."
         )
         .accessibilityIdentifier("plate-browse-ahead-bar")
     }
@@ -333,7 +330,10 @@ struct DiningView: View {
                                 }
                                 selectedDate = next
                             }
-                        )
+                        ),
+                        onNearEnd: {
+                            dateHorizon = EatPostedDays.extendedHorizon(dateHorizon)
+                        }
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -407,12 +407,12 @@ struct DiningView: View {
         }
         .buttonStyle(.plain)
         .tint(Color.ink)
-        .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
+        .help(PlateTallyCopy.chipTitle(count: plate.servingCount))
         .accessibilityIdentifier("my-plate-chip")
         .accessibilityLabel(
             plate.isEmpty
                 ? "My Plate, empty"
-                : "My Plate, \(plate.entries.count) dishes"
+                : "My Plate, \(plate.servingCount) servings"
         )
     }
 
@@ -648,12 +648,23 @@ struct DiningView: View {
                 loadingPlaceholder
             }
         case .failed(let message):
-            EmptyStateView(
-                icon: "fork.knife.circle",
-                title: "Menu unavailable",
-                message: message
-            ) {
-                Task { await loadCurrentMenu() }
+            if selectedDate != nil {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "No menu posted yet",
+                    message: EatBrowseEmptyCopy.message(
+                        period: selectedPeriod ?? "",
+                        browsingFutureDay: true
+                    )
+                )
+            } else {
+                EmptyStateView(
+                    icon: "fork.knife.circle",
+                    title: "Menu unavailable",
+                    message: message
+                ) {
+                    Task { await loadCurrentMenu() }
+                }
             }
         case .loaded(let menu):
             let stations = filteredStations(menu)
@@ -783,9 +794,10 @@ struct DiningView: View {
             item: item,
             isFavorite: prefs.isFavorite(item.name),
             isOnPlate: plate.isOnPlate(item.name),
+            plateQuantity: plate.quantity(for: item.name),
             stars: prefs.displayStars(for: item.name),
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
-            onTogglePlate: { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } },
+            onTogglePlate: { withAnimation(.snappy(duration: 0.25)) { plate.add(item) } },
             onRate: { stars in
                 prefs.setReview(
                     dishName: item.name,
@@ -1127,7 +1139,7 @@ struct DiningView: View {
             didApplyScreenshotArgs = true
             if wantPlate {
                 for item in items.prefix(3) where !plate.isOnPlate(item.name) {
-                    plate.toggle(item)
+                    plate.add(item)
                 }
                 if !wantDish {
                     showPlate = true
@@ -1206,10 +1218,6 @@ struct DiningView: View {
         self.selectedDate = nil
     }
 
-    private var eatSubtitle: String {
-        wittySubtitle ?? EatMealHeadline.subtitle(period: selectedPeriod)
-    }
-
     /// "2026-07-09" -> "Thursday, Jul 9" (falls back to the raw string).
     private func prettyDate(_ isoDay: String) -> String {
         let parser = DateFormatter()
@@ -1227,11 +1235,12 @@ struct DiningView: View {
 private struct DayStrip: View {
     let days: [EatPostedDay]
     @Binding var selection: String?
+    var onNearEnd: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: EatDateStripMark.spacing) {
+                LazyHStack(spacing: EatDateStripMark.spacing) {
                     ForEach(Array(days.enumerated()), id: \.element.isoDate) { index, day in
                         if index > 0,
                            EatPostedDays.skipsCalendarDays(
@@ -1244,6 +1253,7 @@ private struct DayStrip: View {
                                 .accessibilityHidden(true)
                         }
                         let isSelected = selection == day.isoDate
+                        let posted = day.hasPostedMenu
                         Button {
                             withAnimation(.snappy(duration: 0.25)) {
                                 selection = day.isoDate
@@ -1251,18 +1261,26 @@ private struct DayStrip: View {
                             Haptics.selection()
                         } label: {
                             Text(day.label)
-                                .font(ZotFont.pill.weight(isSelected ? .bold : .medium))
-                                .foregroundStyle(isSelected ? Color.ink : .secondary)
+                                .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                                .foregroundStyle(
+                                    isSelected
+                                        ? Color.ink
+                                        : (posted ? Color.secondary : Color.inkMuted)
+                                )
                                 .padding(.horizontal, EatDateStripMark.horizontalPadding)
                                 .padding(.vertical, EatDateStripMark.verticalPadding)
                                 .frame(minHeight: EatDateStripMark.minHeight)
                                 .background(
-                                    isSelected ? Color.ink.opacity(0.12) : Color.card,
+                                    isSelected
+                                        ? Color.ink.opacity(0.12)
+                                        : (posted ? Color.card : Color.clear),
                                     in: Capsule()
                                 )
                                 .overlay(
                                     Capsule().strokeBorder(
-                                        isSelected ? Color.ink.opacity(0.4) : Color.cardBorder,
+                                        isSelected
+                                            ? Color.ink.opacity(0.4)
+                                            : (posted ? Color.cardBorder : Color.cardBorder.opacity(0.4)),
                                         lineWidth: isSelected ? EatDateStripMark.selectedStroke : 1
                                     )
                                 )
@@ -1270,6 +1288,11 @@ private struct DayStrip: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(day.accessibilityLabel)
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                        .onAppear {
+                            if index >= days.count - 2 {
+                                onNearEnd?()
+                            }
+                        }
                     }
                 }
                 .padding(.vertical, 2)
@@ -1282,11 +1305,7 @@ private struct DayStrip: View {
                     .accessibilityHidden(true)
             }
         }
-        .accessibilityLabel(
-            days.contains(where: \.skipsAhead)
-                ? "Days with a menu. Next board skips days that aren’t posted yet."
-                : "Days with a menu"
-        )
+        .accessibilityLabel("Upcoming days. Scroll for later dates.")
     }
 }
 
@@ -1477,6 +1496,7 @@ private struct DishRowCard: View {
     let item: MenuItem
     let isFavorite: Bool
     var isOnPlate: Bool = false
+    var plateQuantity: Int = 0
     var stars: Int = 0
     let onToggleFavorite: () -> Void
     var onTogglePlate: (() -> Void)?
@@ -1569,16 +1589,15 @@ private struct DishRowCard: View {
 
     private func plateButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
+            Image(systemName: isOnPlate ? "plus.circle.fill" : "plus.circle")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(isOnPlate ? Color.ink : Color.inkMuted)
-                .symbolEffect(.bounce, value: isOnPlate)
-                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, value: plateQuantity)
                 .frame(width: 30, height: 30)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            isOnPlate ? "Remove \(item.name) from my plate" : "Add \(item.name) to my plate"
+            PlateQuantityCopy.addAccessibility(dishName: item.name, quantity: plateQuantity)
         )
         .accessibilityIdentifier("plate-toggle")
     }

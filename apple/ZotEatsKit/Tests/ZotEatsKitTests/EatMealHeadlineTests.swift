@@ -5,35 +5,22 @@ import Testing
 @Suite("EatMealHeadline")
 struct EatMealHeadlineTests {
     @Test func breakfastFollowsSelectedMeal() {
-        #expect(EatMealHeadline.subtitle(period: "Breakfast", hour: 9) == "What’s for breakfast?")
-        #expect(EatMealHeadline.subtitle(period: "Brunch", hour: 10) == "What’s for breakfast?")
+        #expect(EatMealHeadline.subtitle(period: "Breakfast", hour: 9) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: "Brunch", hour: 10) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: "Breakfast", hour: 2) == "What’s for Breakfast")
     }
 
     @Test func lunchAndDinnerFollowSelectedMeal() {
-        #expect(EatMealHeadline.subtitle(period: "Lunch", hour: 8) == "What’s for lunch?")
-        #expect(EatMealHeadline.subtitle(period: "Dinner", hour: 12) == "What’s for dinner?")
-        #expect(EatMealHeadline.subtitle(period: "Limited Dinner", hour: 19) == "What’s for dinner?")
+        #expect(EatMealHeadline.subtitle(period: "Lunch", hour: 8) == "What’s for Lunch")
+        #expect(EatMealHeadline.subtitle(period: "Dinner", hour: 12) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: "Limited Dinner", hour: 19) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: "Dinner", hour: 22) == "What’s for Dinner")
     }
 
-    @Test func lateNightKeepsAQuietEasterEgg() {
-        #expect(EatMealHeadline.subtitle(period: "Breakfast", hour: 2) == "Still hungry, Anteater?")
-        #expect(EatMealHeadline.subtitle(period: "Dinner", hour: 22) == "Dinner plans, Anteater?")
-    }
-
-    @Test func generatedCopyStaysOneShortLine() {
-        let fallback = EatMealHeadline.subtitle(period: "Lunch", hour: 12)
-        #expect(
-            EatMealHeadline.sanitizeGenerated(
-                "“Hash browns before lecture.”\n",
-                fallback: fallback
-            ) == "Hash browns before lecture."
-        )
-        #expect(
-            EatMealHeadline.sanitizeGenerated(
-                String(repeating: "a", count: 80),
-                fallback: fallback
-            ) == fallback
-        )
+    @Test func clockFallbackWhenNoMealSelected() {
+        #expect(EatMealHeadline.subtitle(period: nil, hour: 9) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: nil, hour: 13) == "What’s for Lunch")
+        #expect(EatMealHeadline.subtitle(period: nil, hour: 19) == "What’s for Dinner")
     }
 }
 

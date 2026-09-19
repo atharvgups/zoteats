@@ -64,4 +64,16 @@ struct PlateEntryAccessibilityTests {
             ) == "Yogurt, 12 grams protein"
         )
     }
+
+    @Test("Quantity names extra servings")
+    func withQuantity() {
+        #expect(
+            PlateEntryAccessibility.label(
+                dishName: "Soup",
+                calories: 360,
+                proteinG: 16,
+                quantity: 2
+            ) == "Soup, 2 servings, 360 calories, 16 grams protein"
+        )
+    }
 }

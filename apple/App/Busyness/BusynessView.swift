@@ -576,13 +576,13 @@ private struct BusynessFloorBlock: View {
             VStack(spacing: 0) {
                 ForEach(Array(visibleZones.enumerated()), id: \.element.id) { index, zone in
                     if index > 0 {
-                        ZotHairline(leading: 12)
+                        ZotHairline(leading: StudyZonePillMark.horizontalPadding)
                     }
                     BusynessZoneRowView(zone: zone, embedded: true)
-                        .padding(.leading, isFlatFloor ? 0 : 12)
+                        .padding(.leading, isFlatFloor ? 0 : StudyZonePillMark.floorIndent)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 4)
             .background(Color.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .padding(.horizontal, embedded ? 4 : 0)
@@ -598,24 +598,30 @@ struct BusynessZoneRowView: View {
     var embedded = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .center, spacing: StudyZonePillMark.namePercentSpacing) {
             Text(zone.displayName)
                 .font(ZotFont.cardTitle)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(0)
 
             OccupancyBar(percent: zone.percent, level: zone.level, height: 6)
-                .frame(width: 72)
+                .frame(width: StudyZonePillMark.barWidth)
+                .layoutPriority(0)
 
             Text(zone.percent.map { "\($0)%" } ?? "—")
                 .font(ZotFont.caption.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(zone.level.color)
-                .frame(width: 40, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: StudyZonePillMark.percentMinWidth, alignment: .trailing)
+                .layoutPriority(1)
         }
-        .padding(.horizontal, embedded ? 0 : 16)
-        .padding(.vertical, embedded ? 10 : 14)
+        .padding(.leading, StudyZonePillMark.horizontalPadding)
+        .padding(.trailing, StudyZonePillMark.trailingPadding)
+        .padding(.vertical, embedded ? StudyZonePillMark.verticalPadding : 14)
         .modifier(EmbeddedOrCard(embedded: embedded))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(

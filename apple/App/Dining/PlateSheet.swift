@@ -14,7 +14,7 @@ struct PlateSheet: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("My Plate")
                         .font(ZotFont.hero(26))
-                    Text("Today's picks — totals are per standard serving.")
+                    Text("Today's picks — totals include every serving.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -61,39 +61,24 @@ struct PlateSheet: View {
                     VStack(spacing: 8) {
                         ForEach(plate.entries) { entry in
                             HStack(spacing: 10) {
-                                HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 3) {
                                     Text(entry.dishName)
                                         .font(ZotFont.body.weight(.medium))
                                         .lineLimit(2)
-                                    Spacer(minLength: 8)
                                     macroCaption(entry)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .accessibilityElement(children: .ignore)
                                 .accessibilityLabel(
                                     PlateEntryAccessibility.label(
                                         dishName: entry.dishName,
-                                        calories: entry.calories,
-                                        proteinG: entry.proteinG.map { Int($0.rounded()) }
+                                        calories: entry.lineCalories,
+                                        proteinG: entry.lineProteinG.map { Int($0.rounded()) },
+                                        quantity: entry.quantity
                                     )
                                 )
 
-                                Button {
-                                    withAnimation(.snappy(duration: 0.2)) {
-                                        plate.remove(entry)
-                                    }
-                                    Haptics.soft()
-                                } label: {
-                                    Text(PlateRemoveCopy.button)
-                                        .font(ZotFont.caption.weight(.semibold))
-                                        .foregroundStyle(Color.ink)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.ink.opacity(0.08), in: Capsule())
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(
-                                    PlateRemoveCopy.accessibilityLabel(dishName: entry.dishName)
-                                )
+                                quantityStepper(entry)
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 11)
@@ -102,7 +87,7 @@ struct PlateSheet: View {
                     }
 
                     Button {
-                        if plate.entries.count >= 2 {
+                        if plate.servingCount >= 2 {
                             confirmClear = true
                         } else {
                             clearPlate()
@@ -147,7 +132,7 @@ struct PlateSheet: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Removes all \(plate.entries.count) dishes. This can't be undone.")
+            Text("Removes all \(plate.servingCount) servings. This can't be undone.")
         }
     }
 
@@ -158,17 +143,60 @@ struct PlateSheet: View {
         Haptics.selection()
     }
 
+    private func quantityStepper(_ entry: PlateEntry) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    plate.decrement(entry)
+                }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.inkMuted)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove one serving of \(entry.dishName)")
+
+            Text("\(entry.quantity)")
+                .font(ZotFont.pill.weight(.semibold))
+                .monospacedDigit()
+                .frame(minWidth: 18)
+                .accessibilityLabel(
+                    PlateQuantityCopy.stepperAccessibility(
+                        dishName: entry.dishName,
+                        quantity: entry.quantity
+                    )
+                )
+
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    plate.increment(entry)
+                }
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add another serving of \(entry.dishName)")
+        }
+        .accessibilityElement(children: .contain)
+    }
+
     @ViewBuilder
     private func macroCaption(_ entry: PlateEntry) -> some View {
         let parts: [String] = [
-            entry.calories.map { "\($0) cal" },
-            entry.proteinG.map { "\(Int($0.rounded()))g" },
+            entry.quantity > 1 ? "×\(entry.quantity)" : nil,
+            entry.lineCalories.map { "\($0) cal" },
+            entry.lineProteinG.map { "\(Int($0.rounded()))g" },
         ].compactMap { $0 }
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(.leading)
         }
     }
 

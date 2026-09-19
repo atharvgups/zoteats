@@ -1,6 +1,6 @@
 import Foundation
 
-/// A day chip on Eat’s picker — today always, plus future days with a board.
+/// A day chip on Eat’s picker — today always, plus future calendar days.
 public struct EatPostedDay: Equatable, Sendable, Identifiable {
     public var id: String { isoDate }
     public let isoDate: String
@@ -8,83 +8,92 @@ public struct EatPostedDay: Equatable, Sendable, Identifiable {
     public let accessibilityLabel: String
     /// First future chip when one or more days after today have no board.
     public let skipsAhead: Bool
+    /// Known posted board. Unknown (probe still running) counts as posted so
+    /// chips don't dim, then pop.
+    public let hasPostedMenu: Bool
 
     public init(
         isoDate: String,
         label: String,
         accessibilityLabel: String,
-        skipsAhead: Bool
+        skipsAhead: Bool,
+        hasPostedMenu: Bool = true
     ) {
         self.isoDate = isoDate
         self.label = label
         self.accessibilityLabel = accessibilityLabel
         self.skipsAhead = skipsAhead
+        self.hasPostedMenu = hasPostedMenu
     }
 }
 
-/// Days Eat should offer in the day picker — Today and Tomorrow always, then
-/// more dates. Prefer days that actually have a board when that probe exists;
-/// never collapse the strip to only two chips.
+/// Days Eat should offer in the day picker — Today, Tomorrow, then each
+/// following calendar day in a calm horizontal scroll. Unposted days stay
+/// selectable so someone can peek ahead.
 public enum EatPostedDays {
-    /// Floor so the strip still shows Mon 21 / Tue 22… after Tomorrow.
-    public static let minimumVisibleDays = 7
+    /// First window — a few chips on screen, the rest a short scroll away.
+    public static let initialHorizonDays = 21
+    /// Appended when the strip is scrolled near the end.
+    public static let horizonStep = 14
+    public static let maxHorizonDays = 90
+
+    public static func extendedHorizon(_ current: Int) -> Int {
+        min(maxHorizonDays, max(initialHorizonDays, current) + horizonStep)
+    }
 
     public static func visible(
         candidates: [(isoDate: String, label: String)],
         todayISO: String,
         postedISOs: Set<String>?
     ) -> [EatPostedDay] {
-        guard let today = candidates.first(where: { $0.isoDate == todayISO })
-                ?? candidates.first
-        else { return [] }
+        guard !candidates.isEmpty else { return [] }
 
-        let tomorrow = candidates.first { day in
-            day.isoDate != today.isoDate
-                && (calendarDays(from: today.isoDate, to: day.isoDate) ?? 0) == 1
-        } ?? candidates.dropFirst().first
-
-        var picked: [(isoDate: String, label: String)] = [today]
-        if let tomorrow {
-            picked.append(tomorrow)
-        }
-
-        let later = candidates.filter { day in
-            !picked.contains { $0.isoDate == day.isoDate }
-        }
-
-        if let postedISOs {
-            let postedLater = later.filter { postedISOs.contains($0.isoDate) }
-            picked.append(contentsOf: postedLater)
-        }
-
-        if picked.count < minimumVisibleDays {
-            for day in later where picked.count < minimumVisibleDays {
-                if !picked.contains(where: { $0.isoDate == day.isoDate }) {
-                    picked.append(day)
-                }
-            }
-        }
-
-        picked.sort { lhs, rhs in
-            lhs.isoDate < rhs.isoDate
-        }
-
-        return picked.enumerated().map { index, day in
-            let previousISO = index > 0 ? picked[index - 1].isoDate : todayISO
+        let ordered = candidates.sorted { $0.isoDate < $1.isoDate }
+        return ordered.enumerated().map { index, day in
+            let previousISO = index > 0 ? ordered[index - 1].isoDate : todayISO
             let skipsAhead = index > 0
                 && day.isoDate != todayISO
                 && skipsCalendarDays(from: previousISO, to: day.isoDate)
-            let label = skipsAhead ? "Next · \(day.label)" : day.label
-            let accessibilityLabel = skipsAhead
-                ? "Next posted menu, \(day.label)"
-                : "Menu for \(day.label)"
+            let hasPostedMenu = postedISOs.map { $0.contains(day.isoDate) } ?? true
+            let label = chipLabel(isoDate: day.isoDate, todayISO: todayISO, fallback: day.label)
+            let spoken = spokenLabel(isoDate: day.isoDate, todayISO: todayISO, fallback: day.label)
+            let accessibilityLabel: String
+            if !hasPostedMenu {
+                accessibilityLabel = "\(spoken), no menu posted yet"
+            } else if skipsAhead {
+                accessibilityLabel = "Next posted menu, \(spoken)"
+            } else {
+                accessibilityLabel = "Menu for \(spoken)"
+            }
             return EatPostedDay(
                 isoDate: day.isoDate,
-                label: label,
+                label: skipsAhead ? "Next · \(label)" : label,
                 accessibilityLabel: accessibilityLabel,
-                skipsAhead: skipsAhead
+                skipsAhead: skipsAhead,
+                hasPostedMenu: hasPostedMenu
             )
         }
+    }
+
+    /// Today / Tomorrow, then a short "Mon 21" so the strip stays calm.
+    public static func chipLabel(isoDate: String, todayISO: String, fallback: String) -> String {
+        if isoDate == todayISO { return "Today" }
+        if calendarDays(from: todayISO, to: isoDate) == 1 { return "Tomorrow" }
+        return compactWeekdayDay(isoDate) ?? fallback
+    }
+
+    public static func spokenLabel(isoDate: String, todayISO: String, fallback: String) -> String {
+        if isoDate == todayISO { return "Today" }
+        if calendarDays(from: todayISO, to: isoDate) == 1 { return "Tomorrow" }
+        return verboseWeekday(isoDate) ?? fallback
+    }
+
+    public static func compactWeekdayDay(_ isoDate: String) -> String? {
+        formatted(isoDate, format: "EEE d")
+    }
+
+    public static func verboseWeekday(_ isoDate: String) -> String? {
+        formatted(isoDate, format: "EEEE, MMM d")
     }
 
     /// Inclusive Irvine ISO dates from `from` through `through`.
@@ -125,6 +134,21 @@ public enum EatPostedDays {
         }
         return "\(period) • \(prettyDate)"
     }
+
+    private static func formatted(_ isoDate: String, format: String) -> String? {
+        let parser = DateFormatter()
+        parser.calendar = PacificTime.calendar
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.timeZone = PacificTime.timeZone
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: isoDate) else { return nil }
+        let out = DateFormatter()
+        out.calendar = PacificTime.calendar
+        out.locale = Locale(identifier: "en_US_POSIX")
+        out.timeZone = PacificTime.timeZone
+        out.dateFormat = format
+        return out.string(from: date)
+    }
 }
 
 /// Honest empty copy when a browsed day/meal has no dishes — no jargon.
@@ -135,7 +159,7 @@ public enum EatBrowseEmptyCopy {
             if meal.isEmpty {
                 return "UCI hasn’t posted a menu for this day yet. Pick another day above."
             }
-            return "No \(meal.lowercased()) on the board for this day. Try another meal, or pick another day above."
+            return "No \(meal.lowercased()) posted for this day yet. Try another meal, or pick another day above."
         }
         if meal.isEmpty {
             return "This hall hasn’t posted a menu yet. Check back soon."
