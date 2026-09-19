@@ -173,18 +173,141 @@ async function getToday(hall: DiningLocationId, dateISO: string): Promise<ApiRes
 async function getDishes(ids: string[]): Promise<Map<string, ApiDish>> {
   const unique = [...new Set(ids)].sort();
   if (unique.length === 0) return new Map();
-  return cache.remember(`dining:dishes:${unique.join(",")}`, DISHES_TTL, async () => {
-    const dishes = await getData<ApiDish[]>(`${BASE}/dishes/batch?ids=${encodeURIComponent(unique.join(","))}`);
-    const map = new Map<string, ApiDish>();
-    for (const dish of dishes ?? []) map.set(dish.id, dish);
+  const map = new Map<string, ApiDish>();
+  const chunkSize = 40;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const batch = await cache.remember(`dining:dishes:${chunk.join(",")}`, DISHES_TTL, async () => {
+      const dishes = await getData<ApiDish[]>(`${BASE}/dishes/batch?ids=${encodeURIComponent(chunk.join(","))}`);
+      const inner = new Map<string, ApiDish>();
+      for (const dish of dishes ?? []) inner.set(dish.id, dish);
+      return inner;
+    });
+    for (const [id, dish] of batch) map.set(id, dish);
+  }
+  return map;
+}
+
+function servedPeriods(today: ApiRestaurantToday): ApiPeriod[] {
+  return Object.values(today.periods ?? {}).filter((period) =>
+    Object.values(period.stationToDishes ?? {}).some((ids) => (ids?.length ?? 0) > 0),
+  );
+}
+
+const MESH = "https://api.elevate-dxp.com/api/mesh/c087f756-cc72-4649-a36f-3a41b700c519/graphql";
+const MESH_HEADERS = {
+  Referer: "https://uci.mydininghub.com/",
+  Origin: "https://uci.mydininghub.com",
+  store: "ch_uci_en",
+  "x-api-key": "ElevateAPIProd",
+  "magento-store-code": "ch_uci",
+  "magento-website-code": "ch_uci",
+  "magento-store-view-code": "ch_uci_en",
+};
+const HUB_KEYS: Record<DiningLocationId, string> = {
+  anteatery: "the-anteatery",
+  brandywine: "brandywine",
+};
+
+async function mesh<T>(query: string, variables: unknown): Promise<T> {
+  const url = `${MESH}?query=${encodeURIComponent(query)}&variables=${encodeURIComponent(JSON.stringify(variables))}`;
+  const envelope = await fetchJson<{ data?: T }>(url, { headers: MESH_HEADERS, timeoutMs: 20_000 });
+  if (!envelope.data) throw new Error("Dining hub returned no data");
+  return envelope.data;
+}
+
+async function hubMealPeriodId(name: string): Promise<number | null> {
+  return cache.remember("dining:hub:mealPeriods", STATIONS_TTL, async () => {
+    const data = await mesh<{ Commerce_mealPeriods?: { name: string; id: number }[] }>(
+      "query{Commerce_mealPeriods(sort_order:ASC){name id}}",
+      {},
+    );
+    return data.Commerce_mealPeriods ?? [];
+  }).then((periods) => periods.find((p) => p.name.toLowerCase() === name.toLowerCase())?.id ?? null);
+}
+
+async function hubStationNames(): Promise<Map<string, string>> {
+  return cache.remember("dining:hub:stations", STATIONS_TTL, async () => {
+    const data = await mesh<{
+      getLocations?: { commerceAttributes?: { children?: { id: number; name: string }[] } }[];
+    }>(
+      `query($campusUrlKey:String!){getLocations(campusUrlKey:$campusUrlKey){commerceAttributes{children{id name}}}}`,
+      { campusUrlKey: "campus" },
+    );
+    const map = new Map<string, string>();
+    for (const loc of data.getLocations ?? []) {
+      for (const station of loc.commerceAttributes?.children ?? []) {
+        map.set(String(station.id), station.name.trim());
+      }
+    }
     return map;
   });
 }
 
-function servedPeriods(today: ApiRestaurantToday): ApiPeriod[] {
-  return Object.values(today.periods ?? {}).filter(
-    (period) => Object.keys(period.stationToDishes ?? {}).length > 0,
+interface HubRecipes {
+  locationRecipesMap?: { dateSkuMap?: { date: string; stations?: { id: number; skus?: { simple?: string[] } }[] }[] };
+  products?: { items?: { sku: string; name: string }[] };
+}
+
+async function hubAssignment(
+  hall: DiningLocationId,
+  period: string,
+  dateISO: string,
+): Promise<{ stations: Map<string, string[]>; products: Map<string, { sku: string; name: string }> }> {
+  const periodId = await hubMealPeriodId(period);
+  const urlKey = HUB_KEYS[hall];
+  const empty = { stations: new Map<string, string[]>(), products: new Map<string, { sku: string; name: string }>() };
+  if (periodId == null || !urlKey) return empty;
+
+  const query = `query getLocationRecipes($locationUrlKey:String!,$date:String!,$mealPeriod:Int,$viewType:Commerce_MenuViewType!){getLocationRecipes(campusUrlKey:"campus",locationUrlKey:$locationUrlKey,date:$date,mealPeriod:$mealPeriod,viewType:$viewType){locationRecipesMap{dateSkuMap{date stations{id skus{simple}}}}products{items{sku name}}}}`;
+  const [daily, weekly] = await Promise.all(
+    (["DAILY", "WEEKLY"] as const).map((viewType) =>
+      cache.remember(`dining:hub:recipes:${urlKey}:${dateISO}:${periodId}:${viewType}`, TODAY_TTL, () =>
+        mesh<{ getLocationRecipes?: HubRecipes }>(query, {
+          locationUrlKey: urlKey,
+          date: dateISO,
+          mealPeriod: periodId,
+          viewType,
+        }).then((d) => d.getLocationRecipes ?? {}),
+      ),
+    ),
   );
+
+  const stations = new Map<string, string[]>();
+  const products = new Map<string, { sku: string; name: string }>();
+  for (const recipes of [weekly, daily]) {
+    for (const day of recipes.locationRecipesMap?.dateSkuMap ?? []) {
+      if (day.date !== dateISO) continue;
+      for (const station of day.stations ?? []) {
+        const skus = (station.skus?.simple ?? []).filter(Boolean);
+        if (!skus.length) continue;
+        const id = String(station.id);
+        const existing = stations.get(id) ?? [];
+        for (const sku of skus) if (!existing.includes(sku)) existing.push(sku);
+        stations.set(id, existing);
+      }
+    }
+    for (const item of recipes.products?.items ?? []) {
+      if (item.sku && item.name) products.set(item.sku, item);
+    }
+  }
+  return { stations, products };
+}
+
+async function commerceNames(skus: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(skus)].sort();
+  const names = new Map<string, string>();
+  for (let i = 0; i < unique.length; i += 20) {
+    const chunk = unique.slice(i, i + 20);
+    const data = await mesh<{ Commerce_products?: { items?: { sku: string; name: string }[] } }>(
+      `query($skus:[String!]){Commerce_products(filter:{sku:{in:$skus}},pageSize:50){items{sku name}}}`,
+      { skus: chunk },
+    );
+    for (const item of data.Commerce_products?.items ?? []) {
+      if (item.sku && item.name) names.set(item.sku, item.name);
+    }
+  }
+  return names;
 }
 
 export async function getLocations(): Promise<DiningLocation[]> {
@@ -235,23 +358,92 @@ function toMenuItem(dish: ApiDish): MenuItem {
 export async function getMenu(locationId: DiningLocationId, period: string, date?: string): Promise<DiningMenu> {
   if (!HALLS[locationId]) throw new Error(`Unknown dining location: ${locationId}`);
   const dateISO = irvineDateISO(date);
-  const today = await getToday(locationId, dateISO);
+  const lastGoodKey = `dining:lastGood:${locationId}:${dateISO}:${period.toLowerCase()}`;
 
+  try {
+    const menu = await buildMenu(locationId, period, dateISO);
+    if (menu.stations.length > 0) cache.set(lastGoodKey, menu, 24 * 60 * 60_000);
+    return menu;
+  } catch (err) {
+    const stale = cache.getStale<DiningMenu>(lastGoodKey);
+    if (stale && stale.stations.length > 0) {
+      logger.warn("dining", `Serving last-good menu for ${locationId} ${dateISO} ${period}`, {
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      return { ...stale, isStale: true };
+    }
+    throw err;
+  }
+}
+
+async function buildMenu(locationId: DiningLocationId, period: string, dateISO: string): Promise<DiningMenu> {
+  const [hub, today, stationMap, hubNames] = await Promise.all([
+    hubAssignment(locationId, period, dateISO).catch((err) => {
+      logger.warn("dining", `Hub recipes failed for ${locationId} ${period}`, {
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      return { stations: new Map<string, string[]>(), products: new Map<string, { sku: string; name: string }>() };
+    }),
+    getToday(locationId, dateISO).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/404|no data/i.test(message)) return { id: locationId, periods: {} } as ApiRestaurantToday;
+      throw err;
+    }),
+    getStationMap(),
+    hubStationNames().catch(() => new Map<string, string>()),
+  ]);
+
+  const drafts = new Map<string, { name: string; dishIds: string[] }>();
+  const add = (stationId: string, dishIds: string[]) => {
+    if (!dishIds.length) return;
+    const name = (hubNames.get(stationId) ?? stationMap.get(stationId) ?? "Menu").trim() || "Menu";
+    const draft = drafts.get(stationId) ?? { name, dishIds: [] };
+    for (const id of dishIds) if (!draft.dishIds.includes(id)) draft.dishIds.push(id);
+    drafts.set(stationId, draft);
+  };
+  for (const [id, skus] of hub.stations) add(id, skus);
   const match = Object.values(today.periods ?? {}).find((p) => p.name.toLowerCase() === period.toLowerCase());
-  if (!match) return { locationId, date: dateISO, period, stations: [] };
+  for (const [id, dishIds] of Object.entries(match?.stationToDishes ?? {})) add(id, dishIds.filter(Boolean));
 
-  const stationToDishes = match.stationToDishes ?? {};
-  const allIds = Object.values(stationToDishes).flat();
-  const [dishMap, stationMap] = await Promise.all([getDishes(allIds), getStationMap()]);
+  const allIds = [...drafts.values()].flatMap((d) => d.dishIds);
+  const dishMap = await getDishes(allIds);
+  const unresolved = allIds.filter((id) => !dishMap.has(id) && !hub.products.has(id));
+  const extraNames = unresolved.length ? await commerceNames(unresolved).catch(() => new Map<string, string>()) : new Map();
 
+  const warnings: string[] = [];
   const stations: MenuStation[] = [];
-  for (const [stationId, dishIds] of Object.entries(stationToDishes)) {
-    const items = dishIds
-      .map((dishId) => dishMap.get(dishId))
-      .filter((dish): dish is ApiDish => Boolean(dish))
-      .map(toMenuItem);
-    if (items.length > 0) stations.push({ name: stationMap.get(stationId) ?? "Menu", items });
+  for (const [stationId, draft] of drafts) {
+    const seen = new Set<string>();
+    const items: MenuItem[] = [];
+    let missing = 0;
+    for (const id of draft.dishIds) {
+      const apiDish = dishMap.get(id);
+      const item = apiDish
+        ? toMenuItem(apiDish)
+        : hub.products.has(id)
+          ? { id, name: hub.products.get(id)!.name, description: null, calories: null, servingSize: null, allergens: [], dietaryTags: [] }
+          : extraNames.has(id)
+            ? { id, name: extraNames.get(id)!, description: null, calories: null, servingSize: null, allergens: [], dietaryTags: [] }
+            : null;
+      if (!item) {
+        missing += 1;
+        continue;
+      }
+      if (seen.has(item.name.toLowerCase())) continue;
+      seen.add(item.name.toLowerCase());
+      items.push(item);
+    }
+    if (items.length === 0) {
+      if (missing) warnings.push(`${draft.name} was on the menu but its dishes didn't load.`);
+      continue;
+    }
+    if (missing) warnings.push(`${draft.name} is missing ${missing} dish${missing === 1 ? "" : "es"}.`);
+    stations.push({ name: draft.name, items });
   }
 
-  return { locationId, date: dateISO, period, stations };
+  if (drafts.size === 0) {
+    logger.info("dining", `No stations for ${locationId} ${dateISO} ${period}`);
+  }
+
+  return { locationId, date: dateISO, period, stations, isStale: false, warnings };
 }

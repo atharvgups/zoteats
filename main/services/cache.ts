@@ -17,6 +17,11 @@ export class TtlCache {
     return entry.value as T;
   }
 
+  /** Last-good snapshot: returns an expired value instead of dropping it. */
+  getStale<T>(key: string): T | undefined {
+    return this.store.get(key)?.value as T | undefined;
+  }
+
   set<T>(key: string, value: T, ttlMs: number): void {
     this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
   }

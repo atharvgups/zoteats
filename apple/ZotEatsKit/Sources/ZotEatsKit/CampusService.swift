@@ -13,12 +13,13 @@ import Foundation
 // schema.org-style strings per meal period, e.g. "Mo-Fr 07:30-16:00; Sa-Su off".
 
 public struct CampusService: Sendable {
-    private static let meshURL = "https://api.elevate-dxp.com/api/mesh/c087f756-cc72-4649-a36f-3a41b700c519/graphql"
     private static let locationsTTL: TimeInterval = 60 * 60
     private static let menuTTL: TimeInterval = 30 * 60
 
-    /// Residential commons already covered by the Eat tab.
-    private static let excludedKeys: Set<String> = ["the-anteatery", "brandywine"]
+    /// Residential commons already covered by the Eat tab (including Oasis).
+    private static let excludedKeys: Set<String> = [
+        "the-anteatery", "brandywine", "the-oasis-dining-hall",
+    ]
 
     private let http: any HTTPFetching
     private let cache: TTLCache
@@ -35,10 +36,6 @@ public struct CampusService: Sendable {
     }
 
     // MARK: - Wire types
-
-    private struct Envelope<T: Decodable & Sendable>: Decodable, Sendable {
-        let data: T?
-    }
 
     private struct LocationsData: Decodable, Sendable {
         let getLocations: [RawLocation]?
@@ -125,28 +122,7 @@ public struct CampusService: Sendable {
     // MARK: - Fetch
 
     private func graphQL<T: Decodable & Sendable>(_ type: T.Type, query: String, variables: String) async throws -> T {
-        var components = URLComponents(string: Self.meshURL)!
-        components.queryItems = [
-            URLQueryItem(name: "query", value: query),
-            URLQueryItem(name: "variables", value: variables),
-        ]
-        guard let url = components.url else { throw URLError(.badURL) }
-        // Static, public header values from the site's own JS bundle (see header comment).
-        let headers = [
-            "Referer": "https://uci.mydininghub.com/",
-            "Origin": "https://uci.mydininghub.com",
-            "store": "ch_uci_en",
-            "x-api-key": "ElevateAPIProd",
-            "magento-store-code": "ch_uci",
-            "magento-website-code": "ch_uci",
-            "magento-store-view-code": "ch_uci_en",
-        ]
-        let data = try await http.data(from: url, headers: headers)
-        let envelope = try JSONDecoder().decode(Envelope<T>.self, from: data)
-        guard let payload = envelope.data else {
-            throw HTTPError.decoding(underlying: URLError(.cannotParseResponse), url: url)
-        }
-        return payload
+        try await ElevateMesh.get(type, query: query, variables: variables, http: http)
     }
 
     // MARK: - Public API

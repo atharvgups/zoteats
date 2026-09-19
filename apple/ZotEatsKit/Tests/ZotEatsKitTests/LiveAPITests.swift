@@ -9,7 +9,9 @@ struct LiveAPITests {
     @Test func diningLocationsAndMenuFromLiveAPI() async throws {
         let service = DiningService()
         let locations = await service.locations()
-        #expect(locations.count == 2)
+        #expect(locations.contains { $0.id == "anteatery" })
+        #expect(locations.contains { $0.id == "brandywine" })
+        #expect(locations.count >= 2)
 
         if let hall = locations.first(where: { !$0.availablePeriods.isEmpty }) {
             let menu = try await service.menu(for: hall.id, period: hall.availablePeriods[0])
@@ -35,6 +37,6 @@ struct LiveAPITests {
         let places = try await CampusService().places()
         #expect(places.count >= 10)
         #expect(places.contains { $0.name.contains("Starbucks") })
-        #expect(!places.contains { $0.id == "the-anteatery" })
+        #expect(!places.contains { $0.id == "the-anteatery" || $0.id == "the-oasis-dining-hall" })
     }
 }
