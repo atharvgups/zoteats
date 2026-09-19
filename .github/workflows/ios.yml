@@ -95,11 +95,18 @@ jobs:
           # Light and dark mode captures of every tab.
           for mode in light dark; do
             xcrun simctl ui booted appearance "$mode"
-            for tab in dining campus gym busyness; do
-              xcrun simctl launch --terminate-running-process booted \
-                com.atharvgupta.zoteats -initialTab "$tab"
-              # The app fetches live UCI data on launch; give it time to render.
-              sleep 12
+            # Gym tab removed from shipping until live ARC sensors exist.
+            for tab in dining campus busyness; do
+              if [ "$tab" = dining ]; then
+                xcrun simctl launch --terminate-running-process booted \
+                  com.atharvgupta.zoteats -initialTab dining -preferLiveHall
+                # Hall hop + live board need extra time vs Campus/Study.
+                sleep 14
+              else
+                xcrun simctl launch --terminate-running-process booted \
+                  com.atharvgupta.zoteats -initialTab "$tab"
+                sleep 12
+              fi
               xcrun simctl io booted screenshot "screenshots/${tab}_${mode}.png"
             done
             # Settings is a sheet (top-right gear); -showSettings presents it at launch.
@@ -112,6 +119,15 @@ jobs:
               com.atharvgupta.zoteats -initialTab campus -campusMenu halal-shack
             sleep 12
             xcrun simctl io booted screenshot "screenshots/campus_menu_${mode}.png"
+            # Dish nutrition sheet + Plate Builder (App Store listing needs the new UI).
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showDishDetail
+            sleep 14
+            xcrun simctl io booted screenshot "screenshots/dish_nutrition_${mode}.png"
+            xcrun simctl launch --terminate-running-process booted \
+              com.atharvgupta.zoteats -initialTab dining -showPlate
+            sleep 14
+            xcrun simctl io booted screenshot "screenshots/plate_${mode}.png"
           done
           xcrun simctl ui booted appearance light
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
@@ -179,12 +195,13 @@ jobs:
 
   # OS-beta canary: builds against the NEWEST Xcode on the runner (including
   # betas, e.g. Xcode 27 / iOS 27) so SDK breakage surfaces before Apple's
-  # September GA. Never blocks anything — informational only.
+  # September GA. Informational only — step continue-on-error keeps the job
+  # check green (job-level continue-on-error still posts a failed check and
+  # fires ci-failed on every Monday run).
   beta-canary:
     name: iOS beta canary (informational)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-26
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -199,10 +216,16 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec apple/project.yml --project apple/
 
+      # SwiftPM host is macOS; Linux kit-tests already cover fixtures.
+      # iOS SDK breakage is the simulator build below.
       - name: Kit tests on newest SDK
+        id: kit
+        continue-on-error: true
         run: swift test --package-path apple/ZotEatsKit
 
       - name: Build for newest iOS Simulator
+        id: ios-build
+        continue-on-error: true
         run: |
           set -o pipefail
           xcodebuild \
@@ -212,3 +235,9 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Report canary outcome
+        if: steps.kit.outcome == 'failure' || steps['ios-build'].outcome == 'failure'
+        run: |
+          echo "::warning::iOS beta canary found a failure (informational; does not block)."
+          echo "kit=${{ steps.kit.outcome }} ios-build=${{ steps['ios-build'].outcome }}"

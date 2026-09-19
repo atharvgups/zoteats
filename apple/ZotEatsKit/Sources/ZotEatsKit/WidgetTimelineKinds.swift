@@ -1,0 +1,53 @@
+import Foundation
+
+/// WidgetKit `kind` strings for every Anteats glance — kept in the Kit so
+/// reload coverage stays unit-testable on Linux without importing WidgetKit.
+public enum WidgetTimelineKinds {
+    public static let diningStatus = "ZotEatsDiningStatus"
+    public static let todaysMenu = "ZotEatsTodaysMenu"
+    public static let favoritesToday = "ZotEatsFavoritesToday"
+    public static let campusOpen = "ZotEatsCampusOpen"
+    /// Removed from the shipping gallery with the Gym cut — kept for purge/reload.
+    public static let campusNext = "ZotEatsCampusNext"
+    /// Parked with the ARC Gym widget until live sensors exist — not in `all`.
+    public static let arcStatus = "ZotEatsArcStatus"
+    public static let quietestLibrary = "ZotEatsQuietestLibrary"
+    /// Removed from the shipping gallery — combo duplicated Campus Open + Quietest.
+    public static let campusStudy = "ZotEatsCampusStudy"
+
+    /// Every Home Screen / Lock Screen timeline the app ships.
+    /// ARC Gym / Campus Next / Campus+Study are omitted from the gallery.
+    public static let all: [String] = [
+        diningStatus,
+        todaysMenu,
+        favoritesToday,
+        campusOpen,
+        quietestLibrary,
+    ]
+
+    /// Eat-facing glances that should wake when dining boards force-refresh
+    /// (pull-to-refresh / Lunch·Dinner publish probes) — not Campus/Study.
+    public static let eat: [String] = [
+        diningStatus,
+        todaysMenu,
+        favoritesToday,
+    ]
+
+    /// Campus glances that should wake when Campus hearts change.
+    public static let campus: [String] = [
+        campusOpen,
+    ]
+
+    /// Home Screen Small gallery — iOS hides a kind when the size picker
+    /// doesn't match any of its families. All five keepers ship Small.
+    public static let homeSmall: [String] = all
+
+    /// Home Screen Medium gallery — same five keepers, so Medium isn't a
+    /// two-widget leftover after the Nom-style size cull.
+    public static let homeMedium: [String] = all
+
+    /// Lock Screen companion — Dining Halls rectangular (already solid).
+    public static let lockScreen: [String] = [
+        diningStatus,
+    ]
+}
