@@ -46,5 +46,5 @@ repository and the App Store listing will reflect it.
 
 ## Contact
 
-Questions or concerns? Open an issue on GitHub:
-https://github.com/atharvgups/zoteats/issues
+Questions or concerns? Use the Anteats feedback form:
+https://docs.google.com/forms/d/e/1FAIpQLSesZHPTDKKyD0lZ2EXUPtfCdAhWvdi6eT8RgchWjtDqWFXzMw/viewform

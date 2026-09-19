@@ -44,6 +44,9 @@ date. Always check official UCI channels for authoritative hours and menus.
 
 No account. No ads. No tracking. Just campus data.
 
+Have feedback? Use the form at
+https://docs.google.com/forms/d/e/1FAIpQLSesZHPTDKKyD0lZ2EXUPtfCdAhWvdi6eT8RgchWjtDqWFXzMw/viewform
+
 ## Keywords (100 chars max)
 
 UCI,UC Irvine,dining,menu,anteatery,brandywine,ARC,gym,campus,college,food,busyness
@@ -55,14 +58,14 @@ UCI,UC Irvine,dining,menu,anteatery,brandywine,ARC,gym,campus,college,food,busyn
 
 ## Age rating notes
 
-- No objectionable content: no user-generated content, no web browsing, no gambling,
-  no violence, no medical content.
+- No objectionable content: no user-generated content, no gambling,
+  no violence, no medical content. Settings can open the public feedback form
+  in Safari.
 - Expected rating: 4+.
 
 ## URLs
 
-- Support URL: https://github.com/atharvgups/zoteats (placeholder: GitHub repo; issues
-  tab serves as the support channel)
+- Support URL: https://docs.google.com/forms/d/e/1FAIpQLSesZHPTDKKyD0lZ2EXUPtfCdAhWvdi6eT8RgchWjtDqWFXzMw/viewform
 - Marketing URL: none
 - Privacy Policy URL: host `apple/AppStore/privacy-policy.md` (e.g. via the GitHub repo
   or GitHub Pages) and paste that link into App Store Connect.
@@ -78,7 +81,9 @@ For the App Review team:
     nutrition, and allergen data. No API key or authentication is required.
   - `waitz.io`: public live occupancy feed for UCI facilities (libraries, ARC).
     No API key or authentication is required.
-- The app makes no writes to any service; it is read-only.
+- The app makes no writes to campus data services; it is read-only against those
+  feeds. Settings includes a Feedback row that opens the public Anteats Google Form
+  in Safari. Submitting that form is optional.
 - ZotEats is an unofficial student project and clearly discloses this in the app
   description. It uses no UCI trademarks in its branding beyond factual references to
   campus locations.

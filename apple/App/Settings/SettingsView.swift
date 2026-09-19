@@ -1,3 +1,4 @@
+import SafariServices
 import SwiftUI
 
 // Settings — appearance control plus honest app/data-source info.
@@ -11,6 +12,7 @@ struct SettingsView: View {
     // Easter egg: triple-tap the version row for a proper UCI cheer.
     @State private var versionTaps = 0
     @State private var showZot = false
+    @State private var showFeedbackForm = false
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
     @State private var alertsDenied = false
@@ -55,6 +57,10 @@ struct SettingsView: View {
                     ZotCheer()
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
+            }
+            .sheet(isPresented: $showFeedbackForm) {
+                SafariView(url: URL(string: Self.feedbackFormURL)!)
+                    .ignoresSafeArea()
             }
         }
         .presentationDetents([.large])
@@ -148,6 +154,9 @@ struct SettingsView: View {
                 .font(ZotFont.caption)
                 .foregroundStyle(.secondary)
 
+            feedbackRow
+                .padding(.top, 4)
+
             HStack {
                 Text("Version")
                     .font(ZotFont.body)
@@ -225,6 +234,35 @@ struct SettingsView: View {
         .zotCard()
     }
 
+    private var feedbackRow: some View {
+        Button {
+            showFeedbackForm = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.uciBlue)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Feedback")
+                        .font(ZotFont.body)
+                        .foregroundStyle(.primary)
+                    Text("Share ideas or report a problem")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Feedback. Opens the Anteats feedback form.")
+        .accessibilityHint("Opens in a browser view")
+    }
+
     private func sourceRow(icon: String, title: String, subtitle: String, url: String) -> some View {
         Link(destination: URL(string: url)!) {
             HStack(spacing: 12) {
@@ -249,11 +287,26 @@ struct SettingsView: View {
         .accessibilityLabel("\(title). Opens in browser.")
     }
 
+    static let feedbackFormURL =
+        "https://docs.google.com/forms/d/e/1FAIpQLSesZHPTDKKyD0lZ2EXUPtfCdAhWvdi6eT8RgchWjtDqWFXzMw/viewform"
+
     private static var versionString: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(version) (\(build))"
     }
+}
+
+// MARK: - In-app Safari (feedback form)
+
+private struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
 
 // MARK: - Hidden Zot cheer
