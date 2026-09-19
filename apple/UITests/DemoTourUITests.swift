@@ -43,12 +43,6 @@ final class DemoTourUITests: XCTestCase {
             pause(1.5)
         }
 
-        // Dates + always-visible Plate chip (idle, not blue).
-        tapIfPresent(app.buttons.matching(identifier: "my-plate-chip").firstMatch)
-        pause(2)
-        tapIfPresent(app.buttons["Close plate"])
-        pause(1)
-
         // Floating plate tally → My Plate sheet.
         tapIfPresent(app.buttons.matching(identifier: "plate-tally-bar").firstMatch)
         pause(2.5)

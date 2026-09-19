@@ -21,6 +21,4 @@ public enum EatHallSelector: Sendable {
         let gaps = CGFloat(slotCount - 1) * spacing
         return max(0, (containerWidth - gaps) / CGFloat(slotCount))
     }
-
-    public static var fillsOneScreenWithoutScrolling: Bool { true }
 }

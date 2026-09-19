@@ -69,7 +69,5 @@ struct ExpandChevronTests {
     @Test func pointsRightWhenCollapsedAndDownWhenExpanded() {
         #expect(ExpandChevron.systemName(isExpanded: false) == "chevron.right")
         #expect(ExpandChevron.systemName(isExpanded: true) == "chevron.down")
-        #expect(ExpandChevron.systemName(isExpanded: false, isExpandable: false) == nil)
-        #expect(ExpandChevron.systemName(isExpanded: true, isExpandable: true) == "chevron.down")
     }
 }

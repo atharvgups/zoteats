@@ -307,7 +307,7 @@ struct DiningView: View {
                 // Always show Breakfast / Lunch / Dinner — never hide unposted meals.
                 // (Breakfast-only boards used to render a giant single pill.)
                 PillRow(
-                    items: MealPeriodPill.selectorPills(),
+                    items: DiningService.mealSelectorPills,
                     title: { $0 },
                     selection: $selectedPeriod,
                     fillsWidth: true
@@ -376,29 +376,36 @@ struct DiningView: View {
         )
     }
 
-    /// Compact inline chip — idle like Filters (no fill, no blue) unless the
-    /// plate sheet is actually open. Always visible so My Plate cannot vanish.
+    /// Compact inline chip — idle like Filters unless the plate sheet is open.
+    /// Always on the Eat row so Plate cannot vanish behind the tally.
     private var myPlateChip: some View {
-        Button {
+        let active = showPlate
+        return Button {
             showPlate = true
             Haptics.selection()
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "fork.knife.circle")
+                Image(systemName: active ? "fork.knife.circle.fill" : "fork.knife.circle")
                     .font(.system(size: 13, weight: .semibold))
                 Text("Plate")
-                    .font(ZotFont.pill.weight(.medium))
+                    .font(ZotFont.pill.weight(active ? .semibold : .medium))
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Color.card, in: Capsule())
-            .foregroundStyle(Color.primary)
+            .background(
+                active ? Color.ink.opacity(0.12) : Color.card,
+                in: Capsule()
+            )
+            .foregroundStyle(active ? Color.ink : Color.inkMuted)
             .overlay(
-                Capsule().strokeBorder(Color.cardBorder, lineWidth: 1)
+                Capsule().strokeBorder(
+                    active ? Color.ink.opacity(0.35) : Color.cardBorder,
+                    lineWidth: 1
+                )
             )
         }
         .buttonStyle(.plain)
-        .tint(Color.primary)
+        .tint(Color.ink)
         .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
         .accessibilityIdentifier("my-plate-chip")
         .accessibilityLabel(

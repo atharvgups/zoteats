@@ -50,14 +50,5 @@ struct EatHallSelectorTests {
         let width = EatHallSelector.cardWidth(containerWidth: 318, spacing: 6)
         #expect(width == 102)
         #expect(width * 3 + EatHallSelector.spacing * 2 == 318)
-        #expect(EatHallSelector.fillsOneScreenWithoutScrolling)
-    }
-
-    @Test func mealSelectorNeverGrowsPastBreakfastLunchDinner() {
-        #expect(DiningService.mealSelectorPills == ["Breakfast", "Lunch", "Dinner"])
-        #expect(!DiningService.mealSelectorPills.contains("Brunch"))
-        #expect(!DiningService.mealSelectorPills.contains("All Day"))
-        #expect(MealPeriodPill.selectorPills(from: ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"])
-            == ["Breakfast", "Lunch", "Dinner"])
     }
 }

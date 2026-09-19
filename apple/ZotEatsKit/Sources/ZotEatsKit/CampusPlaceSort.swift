@@ -59,20 +59,6 @@ public enum CampusPlaceSort {
         }
     }
 
-    /// Peel Twisted Root to the front of the Campus screen so it is always first
-    /// (Atharv, vegan), whether or not it is favorited. Never duplicate the card.
-    public static func withTwistedRootFirst(
-        favorites: [CampusPlace],
-        main: [CampusPlace]
-    ) -> (twistedRoot: CampusPlace?, favorites: [CampusPlace], main: [CampusPlace]) {
-        let twistedRoot = (favorites + main).first(where: isTwistedRootPreferred)
-        return (
-            twistedRoot: twistedRoot,
-            favorites: favorites.filter { !isTwistedRootPreferred($0) },
-            main: main.filter { !isTwistedRootPreferred($0) }
-        )
-    }
-
     /// Brand-group the main list after Twisted Root / open sorting. Favorite IDs
     /// must already be excluded so a favorited Starbucks location isn't doubled.
     public static func brandGroups(
