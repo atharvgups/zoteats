@@ -497,7 +497,7 @@ public struct DiningService: Sendable {
         periodID: Int
     ) async throws -> (stations: [String: [String]], products: [HubProduct]) {
         async let daily = recipes(urlKey: urlKey, dateISO: dateISO, periodID: periodID, viewType: "DAILY")
-        async let weekly = recipes(urlKey: urlKey, dateISO: dateISO, periodID: periodID, viewType: "WEEKLY")
+        async let weekly = recipes(urlKey: urlKey, dateISO: Self.weekStartISO(for: dateISO), periodID: periodID, viewType: "WEEKLY")
         let (dailyRecipes, weeklyRecipes) = try await (daily, weekly)
 
         var byStation: [String: [String]] = [:]
@@ -633,6 +633,21 @@ public struct DiningService: Sendable {
             periods: periods,
             hoursApproximate: false
         )
+    }
+
+    /// Sunday of the Irvine week that contains `dateISO`.
+    /// WEEKLY recipes keyed on the target day itself drop stations that are
+    /// still present when the same week is fetched from Sunday.
+    static func weekStartISO(for dateISO: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.timeZone = PacificTime.timeZone
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateISO) else { return dateISO }
+        var calendar = PacificTime.calendar
+        calendar.firstWeekday = 1
+        let start = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date))
+        return start.map { PacificTime.todayISO(now: $0) } ?? dateISO
     }
 
     private func weekdayName(for dateISO: String) -> String {

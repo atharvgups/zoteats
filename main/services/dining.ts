@@ -128,6 +128,19 @@ function formatMinutes(mins: number): string {
   return m === 0 ? `${display}:00 ${period}` : `${display}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+function weekStartISO(dateISO: string): string {
+  const [year, month, day] = dateISO.split("-").map((x) => parseInt(x, 10));
+  if (!year || !month || !day) return dateISO;
+  const utc = Date.UTC(year, month - 1, day);
+  const weekday = new Date(utc).getUTCDay(); // 0 = Sunday
+  const start = new Date(utc);
+  start.setUTCDate(start.getUTCDate() - weekday);
+  const y = start.getUTCFullYear();
+  const m = String(start.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(start.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function irvineDateISO(date?: string): string {
   if (date) return date;
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -260,12 +273,16 @@ async function hubAssignment(
   if (periodId == null || !urlKey) return empty;
 
   const query = `query getLocationRecipes($locationUrlKey:String!,$date:String!,$mealPeriod:Int,$viewType:Commerce_MenuViewType!){getLocationRecipes(campusUrlKey:"campus",locationUrlKey:$locationUrlKey,date:$date,mealPeriod:$mealPeriod,viewType:$viewType){locationRecipesMap{dateSkuMap{date stations{id skus{simple}}}}products{items{sku name}}}}`;
+  const weekStart = weekStartISO(dateISO);
   const [daily, weekly] = await Promise.all(
-    (["DAILY", "WEEKLY"] as const).map((viewType) =>
-      cache.remember(`dining:hub:recipes:${urlKey}:${dateISO}:${periodId}:${viewType}`, TODAY_TTL, () =>
+    ([
+      ["DAILY", dateISO],
+      ["WEEKLY", weekStart],
+    ] as const).map(([viewType, date]) =>
+      cache.remember(`dining:hub:recipes:${urlKey}:${date}:${periodId}:${viewType}`, TODAY_TTL, () =>
         mesh<{ getLocationRecipes?: HubRecipes }>(query, {
           locationUrlKey: urlKey,
-          date: dateISO,
+          date,
           mealPeriod: periodId,
           viewType,
         }).then((d) => d.getLocationRecipes ?? {}),

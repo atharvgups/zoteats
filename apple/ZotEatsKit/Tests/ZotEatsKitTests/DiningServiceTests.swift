@@ -268,6 +268,12 @@ struct PacificTimeTests {
         #expect(PacificTime.formatMinutes(720) == "12:00 PM")
     }
 
+    @Test func weekStartIsSundayInIrvine() {
+        #expect(DiningService.weekStartISO(for: "2026-09-17") == "2026-09-13")
+        #expect(DiningService.weekStartISO(for: "2026-09-13") == "2026-09-13")
+        #expect(DiningService.weekStartISO(for: "2026-09-19") == "2026-09-13")
+    }
+
     @Test func pinsDateToIrvine() {
         // 2026-07-10 03:00 UTC is still 2026-07-09 8:00 PM in Irvine (PDT).
         let lateUTC = ISO8601DateFormatter().date(from: "2026-07-10T03:00:00Z")!
