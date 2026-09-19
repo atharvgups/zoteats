@@ -42,9 +42,10 @@ public enum QuietestLibraryGlance {
         case librariesClosed(reopenMinutes: Int?)
     }
 
-    /// Feed includes at least one Library facility (open or closed).
+    /// Feed includes Langson or Gateway (open or closed). Extra Waitz
+    /// library-like rows do not count as Study libraries.
     public static func hasLibraryFacilities(_ facilities: [BusynessPoint]) -> Bool {
-        facilities.contains { $0.category == "Library" }
+        facilities.contains { StudyLibraryName.isStudyLibrary($0.name) }
     }
 
     /// Show the closed hero when libraries exist but none are open/reporting.

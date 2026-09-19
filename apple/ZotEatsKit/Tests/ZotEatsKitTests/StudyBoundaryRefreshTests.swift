@@ -12,7 +12,7 @@ struct StudyBoundaryRefreshTests {
     ) -> BusynessPoint {
         BusynessPoint(
             id: id,
-            name: "Spot \(id)",
+            name: category == "Library" ? "Langson Library" : "Spot \(id)",
             category: category,
             count: nil,
             capacity: nil,
@@ -75,9 +75,9 @@ struct StudyBoundaryRefreshTests {
         #expect(!StudyBoundaryRefresh.anyLibraryOpen(from: facilities))
     }
 
-    @Test func emptyLibraryFeedFallsBackToWholePool() {
+    @Test func recreationOnlyIsNotAStudyLibrary() {
         let facilities = [point(id: 2, category: "Recreation", isOpen: true)]
-        #expect(StudyBoundaryRefresh.anyLibraryOpen(from: facilities))
+        #expect(!StudyBoundaryRefresh.anyLibraryOpen(from: facilities))
     }
 
     @Test("Closed-until stale isOpen is not anyLibraryOpen")
