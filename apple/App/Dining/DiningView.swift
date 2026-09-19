@@ -500,7 +500,7 @@ struct DiningView: View {
     private func sharedHallNameSize(textWidth: CGFloat) -> CGFloat {
         let maxSize = EatHallTileMark.namePointSize
         let minSize = EatHallTileMark.nameMinimumPointSize
-        let font = UIFont.systemFont(ofSize: maxSize, weight: .heavy)
+        let font = UIFont.systemFont(ofSize: maxSize, weight: .regular)
         let needed = (EatHallTileMark.longestCompactName as NSString)
             .size(withAttributes: [.font: font]).width * EatHallTileMark.nameFitSlack
         guard needed > textWidth, needed > 0 else { return maxSize }
@@ -521,7 +521,7 @@ struct DiningView: View {
         } label: {
             VStack(spacing: 4) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(.system(size: nameSize, weight: .heavy))
+                    .font(.system(size: nameSize, weight: .regular))
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
