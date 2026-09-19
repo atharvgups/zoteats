@@ -1,0 +1,170 @@
+import Foundation
+import Testing
+@testable import ZotEatsKit
+
+@Suite("TodaysMenuHallPick")
+struct TodaysMenuHallPickTests {
+    private let anteateryDay = [
+        MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+    ]
+    /// Brandywine dinner opens earlier than Anteatery in this fixture.
+    private let brandywineDay = [
+        MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        MealPeriodWindow(name: "Lunch", startMinutes: 660, endMinutes: 870),
+        MealPeriodWindow(name: "Dinner", startMinutes: 960, endMinutes: 1200),
+    ]
+
+    private func hall(
+        id: String,
+        name: String,
+        periods: [MealPeriodWindow],
+        opensTomorrowAtMinutes: Int? = nil,
+        opensTomorrowPeriod: String? = nil
+    ) -> DiningLocation {
+        DiningLocation(
+            id: id,
+            name: name,
+            area: HallDirectory.area(for: id),
+            openNow: false,
+            todayHours: nil,
+            availablePeriods: periods.map(\.name),
+            periods: periods,
+            hoursApproximate: true,
+            opensTomorrowAtMinutes: opensTomorrowAtMinutes,
+            opensTomorrowPeriod: opensTomorrowPeriod
+        )
+    }
+
+    @Test func prefersHallServingNowOverAPIOrder() {
+        let closedUntilDinner = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: [
+                MealPeriodWindow(name: "Dinner", startMinutes: 990, endMinutes: 1200),
+            ]
+        )
+        let openSecond = hall(id: "brandywine", name: "Brandywine", periods: brandywineDay)
+        // 700 = Brandywine lunch; Anteatery only has Dinner later.
+        let pick = TodaysMenuHallPick.auto(
+            from: [closedUntilDinner, openSecond],
+            nowMinutes: 700
+        )
+        #expect(pick?.id == "brandywine")
+    }
+
+    @Test func betweenMealsPicksSoonestOpeningNotAPIFirst() {
+        let anteatery = hall(id: "anteatery", name: "The Anteatery", periods: anteateryDay)
+        let brandywine = hall(id: "brandywine", name: "Brandywine", periods: brandywineDay)
+        // 900 = between lunch and dinner; Brandywine dinner @ 960, Anteatery @ 990.
+        let pick = TodaysMenuHallPick.auto(
+            from: [anteatery, brandywine],
+            nowMinutes: 900
+        )
+        #expect(pick?.id == "brandywine")
+    }
+
+    @Test func afterHoursPicksSoonestTomorrowOpenNotAPIFirst() {
+        let anteatery = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: anteateryDay,
+            opensTomorrowAtMinutes: 7 * 60 + 15,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let brandywine = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: brandywineDay,
+            opensTomorrowAtMinutes: 7 * 60,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [anteatery, brandywine],
+            nowMinutes: 1300
+        )
+        #expect(pick?.id == "brandywine")
+    }
+
+    @Test func afterHoursWithoutTomorrowFallsBackToAPIFirst() {
+        let anteatery = hall(id: "anteatery", name: "The Anteatery", periods: anteateryDay)
+        let brandywine = hall(id: "brandywine", name: "Brandywine", periods: brandywineDay)
+        let pick = TodaysMenuHallPick.auto(
+            from: [anteatery, brandywine],
+            nowMinutes: 1300
+        )
+        #expect(pick?.id == "anteatery")
+    }
+
+    @Test func partialBoardMidDayDoesNotFlipToTomorrowOpen() {
+        let partial = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+        ]
+        let anteatery = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: partial,
+            opensTomorrowAtMinutes: 7 * 60 + 15,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let brandywine = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: partial,
+            opensTomorrowAtMinutes: 7 * 60,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [anteatery, brandywine],
+            nowMinutes: 700
+        )
+        // Awaiting more meals — not closedForToday — so API-first, not soonest tomorrow.
+        #expect(pick?.id == "anteatery")
+        #expect(anteatery.openState(nowMinutes: 700) == .awaitingMoreMeals)
+    }
+
+    @Test func afterHoursEqualTomorrowOpenStableByID() {
+        let anteatery = hall(
+            id: "anteatery",
+            name: "The Anteatery",
+            periods: anteateryDay,
+            opensTomorrowAtMinutes: 435,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let brandywine = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: brandywineDay,
+            opensTomorrowAtMinutes: 435,
+            opensTomorrowPeriod: "Breakfast"
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [brandywine, anteatery],
+            nowMinutes: 1300
+        )
+        #expect(pick?.id == "anteatery")
+    }
+
+    @Test func emptyLocationsReturnsNil() {
+        #expect(TodaysMenuHallPick.auto(from: [], nowMinutes: 700) == nil)
+    }
+
+    @Test func servingBeatsSoonerUpcomingElsewhere() {
+        // Anteatery still in lunch; Brandywine already closed until dinner.
+        let anteatery = hall(id: "anteatery", name: "The Anteatery", periods: anteateryDay)
+        let brandywineClosedLunch = hall(
+            id: "brandywine",
+            name: "Brandywine",
+            periods: [
+                MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+                MealPeriodWindow(name: "Dinner", startMinutes: 960, endMinutes: 1200),
+            ]
+        )
+        let pick = TodaysMenuHallPick.auto(
+            from: [brandywineClosedLunch, anteatery],
+            nowMinutes: 700
+        )
+        #expect(pick?.id == "anteatery")
+    }
+}
