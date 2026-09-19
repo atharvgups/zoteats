@@ -11,6 +11,9 @@ import ZotEatsKit
 // Campus Open Now, Quietest Library. Dining Halls also ships Lock Screen
 // rectangular. Live Activity stays. Gym / Campus+Study / Large combo are cut.
 //
+// Glance chrome is Comp C: UCI blue + gold on liquid glass, light and dark.
+// Type is refined SF Pro — regular/medium, semibold at most. No shouty bold.
+//
 // CRITICAL: every glance root uses `.unredacted()`. Without it, WidgetKit can
 // leave Home Screen widgets stuck on system redacted placeholder bars (colored
 // dots visible, hall names / menus barred) — especially after cold install
@@ -37,49 +40,125 @@ private extension View {
     }
 }
 
-/// Home Screen widget chrome — plain white light / plain black dark, thick SF Pro,
-/// gold accent. Matches Eat. One glance per size.
+/// Comp C glance chrome — UCI blue + gold on translucent glass.
+/// Light: frosted wash, navy ink, gold accents. Dark: blue glass, white ink, gold.
+/// Type stays unbold: medium for names/timers, regular for meta.
 private enum WidgetChrome {
     static let open = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
 
-    static let canvas = Color(uiColor: .systemBackground)
+    static let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
+    static let uciBlueDeep = Color(red: 0 / 255, green: 74 / 255, blue: 124 / 255)
+    static let goldBright = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
+    static let navyInk = Color(red: 0 / 255, green: 45 / 255, blue: 80 / 255)
+
+    static var canvas: some View { GlanceGlassFill() }
 
     static let padding: CGFloat = 16
 
-    static let ink = Color(uiColor: .label)
+    static let ink = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? .white
+            : UIColor(red: 0 / 255, green: 45 / 255, blue: 80 / 255, alpha: 1)
+    })
 
-    static let muted = Color(uiColor: .secondaryLabel)
+    static let muted = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.72)
+            : UIColor(red: 0 / 255, green: 74 / 255, blue: 124 / 255, alpha: 0.68)
+    })
 
     static let hairline = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: 0.12)
-            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.12)
+            ? UIColor(white: 1, alpha: 0.18)
+            : UIColor(red: 0 / 255, green: 74 / 255, blue: 124 / 255, alpha: 0.16)
     })
 
     static let accent = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
-            : UIColor(red: 176 / 255, green: 118 / 255, blue: 0 / 255, alpha: 1)
+            : UIColor(red: 214 / 255, green: 168 / 255, blue: 0 / 255, alpha: 1)
     })
 
+    /// Hall names, timers, clocks — medium, never bold.
     static func hero(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .bold)
+        .system(size: size, weight: .medium)
     }
 
     static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold)
+        .system(size: size, weight: .medium)
     }
 
     static func kicker(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold)
+        .system(size: size, weight: .medium)
     }
 
     static func row(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold)
+        .system(size: size, weight: .medium)
     }
 
     static func meta(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .medium)
+        .system(size: size, weight: .regular)
+    }
+}
+
+/// Translucent UCI wash so iOS 26 liquid glass reads through; material fallback earlier.
+private struct GlanceGlassFill: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
+    var body: some View {
+        if renderingMode != .fullColor {
+            Color.clear
+        } else {
+            ZStack {
+                if #available(iOS 26.0, *) {
+                    wash
+                } else {
+                    Rectangle().fill(.ultraThinMaterial)
+                    wash
+                    specular
+                }
+            }
+        }
+    }
+
+    private var wash: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [WidgetChrome.uciBlueDeep.opacity(0.70), WidgetChrome.uciBlue.opacity(0.50)]
+                : [Color.white.opacity(0.46), WidgetChrome.uciBlue.opacity(0.20)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var specular: some View {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(colorScheme == .dark ? 0.20 : 0.42),
+                Color.white.opacity(0.02),
+            ],
+            startPoint: .top,
+            endPoint: .center
+        )
+        .blendMode(.plusLighter)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Gold fork chip from Option A — sits on glass in Live Activities and the island.
+private struct MealCountdownIconChip: View {
+    var size: CGFloat = 32
+
+    var body: some View {
+        ZStack {
+            Circle().fill(WidgetChrome.goldBright)
+            Image(systemName: "fork.knife")
+                .font(.system(size: size * 0.42, weight: .medium))
+                .foregroundStyle(WidgetChrome.uciBlueDeep)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -113,79 +192,12 @@ private struct WidgetHairline: View {
     }
 }
 
-private let activityBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
-private let activityGold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
-
 // MARK: - "Meal ends soon" Live Activity
 
 struct MealCountdownActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MealActivityAttributes.self) { context in
-            let ended = MealCountdownChrome.hasEnded(endsAt: context.state.endsAt)
-            let deepLink = MealActivityDeepLink.link(
-                hallID: context.attributes.hallID,
-                period: context.attributes.period,
-                endsAt: context.state.endsAt,
-                postClosePeriod: context.state.postClosePeriod,
-                postCloseDate: context.state.postCloseDate,
-                opensTomorrowPeriod: context.state.opensTomorrowPeriod
-            )
-            // Lock screen banner.
-            HStack(spacing: 12) {
-                Image(systemName: "fork.knife.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(activityGold)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(context.attributes.hallName)
-                        .font(WidgetChrome.row(15))
-                    Text(
-                        MealCountdownChrome.lockStatus(
-                            period: context.attributes.period,
-                            hasEnded: ended,
-                            postClosePeriod: context.state.postClosePeriod,
-                            postCloseDate: context.state.postCloseDate
-                        )
-                    )
-                        .font(WidgetChrome.meta(12))
-                        .opacity(0.8)
-                }
-                Spacer()
-                if ended {
-                    Text(
-                        MealCountdownChrome.compactTrailing(
-                            period: context.attributes.period,
-                            hasEnded: true,
-                            postClosePeriod: context.state.postClosePeriod,
-                            postCloseDate: context.state.postCloseDate
-                        )
-                    )
-                        .font(WidgetChrome.display(22))
-                        .foregroundStyle(activityGold)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                } else {
-                    Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
-                        .font(WidgetChrome.display(28))
-                        .monospacedDigit()
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 100)
-                        .foregroundStyle(activityGold)
-                }
-            }
-            .padding(16)
-            .activityBackgroundTint(activityBlue)
-            .activitySystemActionForegroundColor(.white)
-            .foregroundStyle(.white)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(
-                MealCountdownAccessibilityLabel.label(
-                    hallName: context.attributes.hallName,
-                    period: context.attributes.period,
-                    endsAt: context.state.endsAt
-                )
-            )
-            .widgetURL(deepLink.url)
-            .unredacted()
+            MealCountdownLockBanner(attributes: context.attributes, state: context.state)
         } dynamicIsland: { context in
             let ended = MealCountdownChrome.hasEnded(endsAt: context.state.endsAt)
             let deepLink = MealActivityDeepLink.link(
@@ -203,11 +215,11 @@ struct MealCountdownActivity: Widget {
             )
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "fork.knife.circle.fill")
-                            .foregroundStyle(activityGold)
+                    HStack(spacing: 8) {
+                        MealCountdownIconChip(size: 22)
                         Text(context.attributes.hallName)
                             .font(WidgetChrome.row(14))
+                            .foregroundStyle(.white)
                             .lineLimit(1)
                     }
                     .accessibilityElement(children: .combine)
@@ -224,7 +236,7 @@ struct MealCountdownActivity: Widget {
                             )
                         )
                             .font(WidgetChrome.display(18))
-                            .foregroundStyle(activityGold)
+                            .foregroundStyle(WidgetChrome.goldBright)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                             .accessibilityHidden(true)
@@ -234,7 +246,7 @@ struct MealCountdownActivity: Widget {
                             .monospacedDigit()
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 84)
-                            .foregroundStyle(activityGold)
+                            .foregroundStyle(WidgetChrome.goldBright)
                             .accessibilityHidden(true)
                     }
                 }
@@ -248,12 +260,13 @@ struct MealCountdownActivity: Widget {
                         )
                     )
                         .font(WidgetChrome.meta(12))
-                        .opacity(0.8)
+                        .foregroundStyle(.white.opacity(0.72))
                         .accessibilityHidden(true)
                 }
             } compactLeading: {
                 Image(systemName: "fork.knife")
-                    .foregroundStyle(activityGold)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(WidgetChrome.goldBright)
                     .accessibilityLabel(voiceOver)
             } compactTrailing: {
                 if ended {
@@ -266,24 +279,117 @@ struct MealCountdownActivity: Widget {
                         )
                     )
                         .font(WidgetChrome.row(12))
-                        .foregroundStyle(activityGold)
+                        .foregroundStyle(WidgetChrome.goldBright)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .accessibilityHidden(true)
                 } else {
                     Text(timerInterval: Date.now...max(Date.now, context.state.endsAt), countsDown: true)
+                        .font(WidgetChrome.display(12))
                         .monospacedDigit()
                         .frame(maxWidth: 52)
-                        .foregroundStyle(activityGold)
+                        .foregroundStyle(WidgetChrome.goldBright)
                         .accessibilityHidden(true)
                 }
             } minimal: {
                 Image(systemName: "fork.knife")
-                    .foregroundStyle(activityGold)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(WidgetChrome.goldBright)
                     .accessibilityLabel(voiceOver)
             }
             .widgetURL(deepLink.url)
         }
+    }
+}
+
+/// Lock Screen / expanded Live Activity banner — Comp C glass, unbold type.
+private struct MealCountdownLockBanner: View {
+    let attributes: MealActivityAttributes
+    let state: MealActivityAttributes.ContentState
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let ended = MealCountdownChrome.hasEnded(endsAt: state.endsAt)
+        let deepLink = MealActivityDeepLink.link(
+            hallID: attributes.hallID,
+            period: attributes.period,
+            endsAt: state.endsAt,
+            postClosePeriod: state.postClosePeriod,
+            postCloseDate: state.postCloseDate,
+            opensTomorrowPeriod: state.opensTomorrowPeriod
+        )
+        HStack(spacing: 12) {
+            MealCountdownIconChip(size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(attributes.hallName)
+                    .font(WidgetChrome.row(16))
+                    .foregroundStyle(lockInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(
+                    MealCountdownChrome.lockStatus(
+                        period: attributes.period,
+                        hasEnded: ended,
+                        postClosePeriod: state.postClosePeriod,
+                        postCloseDate: state.postCloseDate
+                    )
+                )
+                    .font(WidgetChrome.meta(13))
+                    .foregroundStyle(lockMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if ended {
+                Text(
+                    MealCountdownChrome.compactTrailing(
+                        period: attributes.period,
+                        hasEnded: true,
+                        postClosePeriod: state.postClosePeriod,
+                        postCloseDate: state.postCloseDate
+                    )
+                )
+                    .font(WidgetChrome.display(22))
+                    .foregroundStyle(WidgetChrome.goldBright)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            } else {
+                Text(timerInterval: Date.now...max(Date.now, state.endsAt), countsDown: true)
+                    .font(WidgetChrome.display(28))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 100)
+                    .foregroundStyle(WidgetChrome.goldBright)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .activityBackgroundTint(lockGlassTint)
+        .activitySystemActionForegroundColor(lockInk)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            MealCountdownAccessibilityLabel.label(
+                hallName: attributes.hallName,
+                period: attributes.period,
+                endsAt: state.endsAt
+            )
+        )
+        .widgetURL(deepLink.url)
+        .unredacted()
+    }
+
+    private var lockInk: Color {
+        colorScheme == .dark ? .white : WidgetChrome.navyInk
+    }
+
+    private var lockMuted: Color {
+        colorScheme == .dark ? .white.opacity(0.72) : WidgetChrome.navyInk.opacity(0.62)
+    }
+
+    /// Translucent tint so wallpaper + system glass show through — not flat navy.
+    private var lockGlassTint: Color {
+        colorScheme == .dark
+            ? WidgetChrome.uciBlue.opacity(0.38)
+            : Color.white.opacity(0.26)
     }
 }
 
@@ -739,7 +845,11 @@ struct DiningStatusView: View {
             }
         }
         .containerBackground(for: .widget) {
-            isAccessory ? Color.clear : WidgetChrome.canvas
+            if isAccessory {
+                Color.clear
+            } else {
+                WidgetChrome.canvas
+            }
         }
     }
 
@@ -1442,7 +1552,7 @@ struct TodaysMenuView: View {
                             HStack(spacing: 8) {
                                 if entry.favorited.contains(dish) {
                                     Image(systemName: "heart.fill")
-                                        .font(.system(size: 10, weight: .semibold))
+                                        .font(.system(size: 10, weight: .medium))
                                         .foregroundStyle(WidgetChrome.accent)
                                 }
                                 Text(dish)
