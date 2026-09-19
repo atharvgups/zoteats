@@ -56,6 +56,7 @@ struct DiningView: View {
             .sheet(isPresented: $showDietFilters) {
                 DietFilterSheet(prefs: prefs)
             }
+            .blocksFeedbackPrompt(selectedDish != nil || showDietFilters)
         }
     }
 

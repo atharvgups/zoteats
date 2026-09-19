@@ -1,4 +1,5 @@
 import SwiftUI
+import ZotEatsKit
 
 /// User-selectable appearance: follow the system (auto dark at night), or force light/dark.
 enum AppearanceSetting: String, CaseIterable, Identifiable {
@@ -95,9 +96,11 @@ extension EnvironmentValues {
 }
 
 struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: AppTab = RootTabView.initialTab()
     // -showSettings lets CI screenshot the Settings sheet directly.
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
+    @State private var feedbackPrompt = FeedbackPromptController()
 
     // App-lifetime stores: the iOS 26 tab system unloads off-screen tabs, so
     // per-view stores were recreated (and refetched everything) on every tab
@@ -112,12 +115,40 @@ struct RootTabView: View {
         tabs
             .liquidGlassTabBar()
             .environment(\.openSettings) { showSettings = true }
+            .environment(feedbackPrompt)
+            .blocksFeedbackPrompt(showSettings)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if feedbackPrompt.isOffering {
+                    FeedbackPromptCard(
+                        onShare: { feedbackPrompt.accept() },
+                        onLater: { feedbackPrompt.dismissSoft() },
+                        onNever: { feedbackPrompt.optOut() }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.snappy(duration: 0.28), value: feedbackPrompt.isOffering)
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: Binding(
+                get: { feedbackPrompt.showForm },
+                set: { feedbackPrompt.showForm = $0 }
+            )) {
+                SafariView(url: FeedbackForm.url)
+                    .ignoresSafeArea()
             }
             .onAppear {
                 // Restore the persisted appearance once the window hierarchy exists.
                 AppearanceSetting.saved.apply()
+                feedbackPrompt.noteBecameActive()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    feedbackPrompt.noteBecameActive()
+                }
             }
     }
 

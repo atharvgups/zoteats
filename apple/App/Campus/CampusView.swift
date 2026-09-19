@@ -46,6 +46,7 @@ struct CampusView: View {
         .sheet(item: $selectedPlace) { place in
             CampusMenuSheet(place: place, store: store, prefs: prefs)
         }
+        .blocksFeedbackPrompt(selectedPlace != nil)
         .task {
             await store.loadPlaces()
             // CI screenshots the menu sheet deterministically via
