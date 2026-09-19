@@ -32,6 +32,38 @@ struct QuietestLibraryPickTests {
         point(id: id, name: name, category: "Library", percent: percent, isOpen: isOpen)
     }
 
+    @Test func ignoresExtraLibraryAndStudentCenter() {
+        let grunigen = point(
+            id: 9,
+            name: "Grunigen Medical Library",
+            category: "Library",
+            percent: 1,
+            subs: [zone(id: 91, "1st Floor", percent: 1)]
+        )
+        let studentCenter = point(
+            id: 8,
+            name: "Student Center",
+            category: "Campus",
+            percent: 0
+        )
+        let langson = point(
+            id: 1,
+            name: "Langson Library",
+            category: "Library",
+            percent: 40,
+            subs: [
+                zone(id: 11, "4th Floor - Open Seating", percent: 18),
+                zone(id: 12, "Basement", percent: 7),
+            ]
+        )
+        let pick = QuietestLibraryPick.best(from: [grunigen, studentCenter, langson])
+        #expect(pick?.title == "Langson · Basement")
+        #expect(pick?.percent == 7)
+        #expect(pick?.facilityID == 1)
+        #expect(pick?.title.localizedCaseInsensitiveContains("student") != true)
+        #expect(pick?.title.localizedCaseInsensitiveContains("grunigen") != true)
+    }
+
     @Test func prefersLibraryFloorOverQuieterGym() {
         let arc = point(id: 1, name: "Anteater Recreation Center", category: "Recreation", percent: 5)
         let science = point(

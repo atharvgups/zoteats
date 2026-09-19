@@ -152,7 +152,8 @@ struct BusynessView: View {
             )
             .zotCard()
         case .loaded(let facilities):
-            if facilities.isEmpty {
+            let libraries = StudyLibraryName.studyLibraries(from: facilities)
+            if libraries.isEmpty {
                 EmptyStateView(
                     icon: "ant",
                     title: "All quiet",
@@ -161,16 +162,16 @@ struct BusynessView: View {
                 )
                 .zotCard()
             } else {
-                let pick = QuietestLibraryPick.best(from: facilities)
+                let pick = QuietestLibraryPick.best(from: libraries)
                 if let pick {
                     QuietestNowCard(pick: pick) {
                         if let id = pick.facilityID {
                             focusLibrary(id)
                         }
                     }
-                } else if QuietestLibraryGlance.shouldShowClosed(from: facilities) {
+                } else if QuietestLibraryGlance.shouldShowClosed(from: libraries) {
                     QuietestClosedCard(
-                        reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: facilities)
+                        reopenMinutes: StudyIdleCopy.soonestReopenMinutes(from: libraries)
                     )
                 }
                 let expandID = StudyFacilityExpand.targetID(
@@ -178,11 +179,11 @@ struct BusynessView: View {
                     deepLinkFacilityID: deepLinkFacilityID,
                     quietestFacilityID: pick?.facilityID
                 )
-                let grouped = groups(from: facilities)
+                let grouped = groups(from: libraries)
                 if !store.libraryHours.isEmpty {
                     LibraryHoursTodayCard(
                         hours: store.libraryHours,
-                        facilities: facilities,
+                        facilities: libraries,
                         onSelectFacility: focusLibrary
                     )
                 }
@@ -199,7 +200,6 @@ struct BusynessView: View {
                         cardSpacing: 16
                     )
                 }
-                StudentCenterStudyCard()
             }
         }
     }
@@ -211,7 +211,7 @@ struct BusynessView: View {
         let nowMinutes = UCITime.nowMinutes()
         return Self.categoryOrder.compactMap { category in
             let members = facilities
-                .filter { $0.category == category }
+                .filter { $0.category == category && StudyLibraryName.isStudyLibrary($0.name) }
                 .sorted { lhs, rhs in
                     let lhsOpen = lhs.isEffectivelyOpen(nowMinutes: nowMinutes)
                     let rhsOpen = rhs.isEffectivelyOpen(nowMinutes: nowMinutes)
@@ -388,68 +388,6 @@ private struct LibraryHoursTodayCard: View {
         } else {
             column
         }
-    }
-}
-
-/// Hours-only Student Center study spaces — no fake Occuspace % while they recalibrate.
-private struct StudentCenterStudyCard: View {
-    private var spaces: [StudentCenterStudyHours.Space] {
-        StudentCenterStudyHours.spaces()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Student Center")
-                    .font(ZotFont.sectionTitle)
-                    .foregroundStyle(Color.ink)
-                    .accessibilityAddTraits(.isHeader)
-                Text(StudentCenterStudyHours.occupancyNote)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(Color.inkMuted)
-            }
-            .padding(.horizontal, 4)
-
-            ForEach(spaces) { space in
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(shortName(space.name))
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                        Text(space.location)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(Color.inkMuted)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(space.isOpen ? "Open" : "Closed")
-                            .font(ZotFont.caption.weight(.medium))
-                            .foregroundStyle(space.isOpen ? Color.openGreen : Color.inkMuted)
-                        Text(space.hours)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(Color.inkMuted)
-                            .lineLimit(1)
-                            .layoutPriority(1)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .zotCard()
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    "\(space.name), \(space.location), \(space.isOpen ? "open" : "closed"), \(space.hours)"
-                )
-            }
-        }
-    }
-
-    private func shortName(_ name: String) -> String {
-        name
-            .replacingOccurrences(of: " Study Lounge", with: "")
-            .replacingOccurrences(of: " Lounge", with: "")
     }
 }
 

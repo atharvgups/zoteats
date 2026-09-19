@@ -10,8 +10,7 @@ public enum StudyBoundaryRefresh {
         from facilities: [BusynessPoint],
         nowMinutes: Int = UCITime.nowMinutes()
     ) -> Bool {
-        let libraries = facilities.filter { $0.category == "Library" }
-        let pool = libraries.isEmpty ? facilities : libraries
+        let pool = StudyLibraryName.studyLibraries(from: facilities)
         return pool.contains { $0.isEffectivelyOpen(nowMinutes: nowMinutes) }
     }
 

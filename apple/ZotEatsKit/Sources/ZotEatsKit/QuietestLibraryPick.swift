@@ -18,16 +18,15 @@ public struct QuietestLibraryPick: Equatable, Sendable {
         self.updatedAt = updatedAt
     }
 
-    /// Quietest open library floor/zone. Prefers `category == "Library"`;
-    /// falls back to all facilities only when no libraries are in the feed.
-    /// Returns `nil` when nothing open reports a percent.
+    /// Quietest open Langson or Gateway floor/zone. Extra Waitz "library"
+    /// rows and hours-only Student Center never win. Returns `nil` when
+    /// neither study library is open with a percent.
     /// Uses Waitz hour chrome (Closed-until / ranges), not raw `isOpen`.
     public static func best(
         from facilities: [BusynessPoint],
         nowMinutes: Int = UCITime.nowMinutes()
     ) -> QuietestLibraryPick? {
-        let libraries = facilities.filter { $0.category == "Library" }
-        let pool = libraries.isEmpty ? facilities : libraries
+        let pool = StudyLibraryName.studyLibraries(from: facilities)
 
         var candidates: [QuietestLibraryPick] = []
         for facility in pool where facility.isEffectivelyOpen(nowMinutes: nowMinutes) {
