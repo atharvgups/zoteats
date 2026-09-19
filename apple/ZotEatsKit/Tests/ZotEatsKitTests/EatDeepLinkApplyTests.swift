@@ -22,6 +22,15 @@ struct EatDeepLinkApplyTests {
             availablePeriods: ["Breakfast", "Lunch", "Dinner"],
             hoursApproximate: false
         ),
+        DiningLocation(
+            id: "oasis",
+            name: "The Oasis",
+            area: "Mesa Court",
+            openNow: false,
+            todayHours: nil,
+            availablePeriods: [],
+            hoursApproximate: true
+        ),
     ]
 
     @Test("Waits while locations are loading")
@@ -93,6 +102,42 @@ struct EatDeepLinkApplyTests {
                 locations: nil,
                 feedReady: false
             ) == .apply(hallID: nil)
+        )
+    }
+
+    @Test("Hub keys and Oasis aliases open the Eat feed hall")
+    func hubKeysResolveToFeedIDs() {
+        #expect(
+            EatDeepLinkApply.resolve(
+                hallID: "the-anteatery",
+                needsLocations: true,
+                locations: halls,
+                feedReady: true
+            ) == .apply(hallID: "anteatery")
+        )
+        #expect(
+            EatDeepLinkApply.resolve(
+                hallID: "brandywine",
+                needsLocations: true,
+                locations: halls,
+                feedReady: true
+            ) == .apply(hallID: "brandywine")
+        )
+        #expect(
+            EatDeepLinkApply.resolve(
+                hallID: "the-oasis-dining-hall",
+                needsLocations: true,
+                locations: halls,
+                feedReady: true
+            ) == .apply(hallID: "oasis")
+        )
+        #expect(
+            EatDeepLinkApply.resolve(
+                hallID: "The Oasis",
+                needsLocations: true,
+                locations: halls,
+                feedReady: true
+            ) == .apply(hallID: "oasis")
         )
     }
 }

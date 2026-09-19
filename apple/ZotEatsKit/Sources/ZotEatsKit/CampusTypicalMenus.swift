@@ -445,23 +445,22 @@ public enum CampusTypicalMenus {
 }
 
 extension CampusTypicalMenus.Kind {
-    fileprivate func onlineMenuURL(placeID: String) -> URL {
+    fileprivate func onlineMenuURL(placeID: String) -> URL? {
         switch self {
         case .starbucks:
-            return URL(string: "https://www.starbucks.com/menu")!
+            return URL(string: "https://www.starbucks.com/menu")
         case .pandaExpress:
-            return URL(string: "https://www.pandaexpress.com/menu")!
+            return URL(string: "https://www.pandaexpress.com/menu")
         case .subway:
-            return URL(string: "https://www.subway.com/en-us/menunutrition/menu")!
+            return URL(string: "https://www.subway.com/en-us/menunutrition/menu")
         case .jamba:
-            return URL(string: "https://www.jamba.com/menu")!
+            return URL(string: "https://www.jamba.com/menu")
         case .einstein:
-            return URL(string: "https://einsteinbros.com/menu/")!
+            return URL(string: "https://einsteinbros.com/menu/")
         case .panera:
-            return URL(string: "https://www.panerabread.com/menu")!
+            return URL(string: "https://www.panerabread.com/menu")
         default:
-            let slug = placeID.trimmingCharacters(in: .whitespacesAndNewlines)
-            return URL(string: "https://uci.campusdish.com/LocationsAndMenus/\(slug)")!
+            return DiningHubMenuURL.forPlace(placeID: placeID)
         }
     }
 }

@@ -87,7 +87,8 @@ struct CampusTypicalMenusTests {
             CampusTypicalMenus.onlineMenuURL(
                 forPlaceID: "zot-n-go-express-mesa-court",
                 placeName: "Zot N Go Express @ Mesa Court"
-            )?.absoluteString.contains("uci.campusdish.com") == true
+            )?.absoluteString
+                == "https://uci.mydininghub.com/en/location/zot-n-go-express-mesa-court"
         )
     }
 

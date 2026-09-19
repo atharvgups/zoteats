@@ -4,7 +4,8 @@ import Foundation
 /// large centered names (A) with a small centered status line (B).
 /// Not left-aligned paragraph blocks.
 public enum EatHallTileMark: Sendable {
-    /// Shared large regular size for Anteatery / Brandywine / Oasis.
+    /// Shared large semibold size for Anteatery / Brandywine / Oasis.
+    /// Middle ground: not regular (too light) and not heavy (too bold).
     /// Bigger than Breakfast / Lunch / Dinner pills (17pt).
     public static let namePointSize: CGFloat = 26
 
@@ -44,7 +45,7 @@ public enum EatHallTileMark: Sendable {
         let maxSize = namePointSize
         let minSize = nameMinimumPointSize
         guard textWidth > 0 else { return maxSize }
-        // Conservative SF Pro Regular advance so Oasis never out-sizes Brandywine.
+        // Conservative SF Pro Semibold advance so Oasis never out-sizes Brandywine.
         let needed = CGFloat(longestCompactName.count) * maxSize * 0.72 * nameFitSlack
         if needed <= textWidth { return maxSize }
         return max(minSize, (maxSize * textWidth / needed * 10).rounded() / 10)

@@ -519,8 +519,20 @@ struct HallDirectoryTests {
         #expect(HallDirectory.id(matchingDisplayName: "brandywine") == "brandywine")
         #expect(HallDirectory.id(matchingDisplayName: "Mesa Commons") == "mesa-commons")
         #expect(HallDirectory.id(matchingDisplayName: "  The Anteatery  ") == "anteatery")
+        #expect(HallDirectory.id(matchingDisplayName: "The Oasis") == "oasis")
+        #expect(HallDirectory.id(matchingDisplayName: "Oasis") == "oasis")
         #expect(HallDirectory.id(matchingDisplayName: "Unknown Hall") == nil)
         #expect(HallDirectory.id(matchingDisplayName: "") == nil)
+    }
+
+    @Test func resolvedIDMapsHubKeysOntoFeedHalls() {
+        let ids = ["anteatery", "brandywine", "oasis"]
+        #expect(HallDirectory.resolvedID(matching: "the-anteatery", in: ids) == "anteatery")
+        #expect(HallDirectory.resolvedID(matching: "Anteatery", in: ids) == "anteatery")
+        #expect(HallDirectory.resolvedID(matching: "brandywine", in: ids) == "brandywine")
+        #expect(HallDirectory.resolvedID(matching: "the-oasis-dining-hall", in: ids) == "oasis")
+        #expect(HallDirectory.resolvedID(matching: "the-oasis", in: ids) == "oasis")
+        #expect(HallDirectory.resolvedID(matching: "ghost-hall", in: ids) == nil)
     }
 
     @Test("forceRefresh replaces cached empty board before today TTL expires")
