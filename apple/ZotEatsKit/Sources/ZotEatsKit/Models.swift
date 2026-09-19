@@ -55,7 +55,8 @@ public enum HallDirectory {
             return "the-oasis-dining-hall"
         default:
             // Future halls often share the same slug on both feeds.
-            return campusHubExcludedKeys.contains(hallID) ? hallID : nil
+            let lowered = hallID.lowercased()
+            return campusHubExcludedKeys.contains(lowered) ? lowered : nil
         }
     }
 
@@ -90,12 +91,59 @@ public enum HallDirectory {
 
     /// Reverse lookup for Live Activity cold-start sync when an older
     /// activity only stored the display name (pre-`hallID` attribute).
+    /// Prefers Eat feed ids (`anteatery`, `brandywine`, `oasis`) so Oasis
+    /// aliases don't resolve to a hub key the locations list won't match.
     public static func id(matchingDisplayName name: String) -> String? {
         let needle = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return nil }
-        return known.first {
-            $0.value.name.caseInsensitiveCompare(needle) == .orderedSame
-        }?.key
+        return preferredIDs.first { key in
+            known[key]?.name.caseInsensitiveCompare(needle) == .orderedSame
+                || compactName(for: key).caseInsensitiveCompare(needle) == .orderedSame
+                || key.caseInsensitiveCompare(needle) == .orderedSame
+        }
+    }
+
+    /// Map a deep-link / hub / display-name hall token onto a locations-feed id.
+    /// `the-anteatery` → `anteatery`, Oasis hub keys → `oasis`.
+    public static func resolvedID(matching raw: String, in locationIDs: [String]) -> String? {
+        let needle = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return nil }
+        if let exact = locationIDs.first(where: { $0.caseInsensitiveCompare(needle) == .orderedSame }) {
+            return exact
+        }
+        let family = canonicalFamilyID(for: needle)
+            ?? id(matchingDisplayName: needle)
+            ?? campusHubKey(for: needle)
+        guard let family else { return nil }
+        return locationIDs.first { sameHall($0, family) }
+    }
+
+    /// Stable Eat ids first so dictionary order can't pick a hub alias.
+    private static var preferredIDs: [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for key in fallbackIDs + [oasisComingSoonID] + known.keys.sorted() {
+            if seen.insert(key).inserted { out.append(key) }
+        }
+        return out
+    }
+
+    private static func canonicalFamilyID(for raw: String) -> String? {
+        switch raw.lowercased() {
+        case "anteatery", "the-anteatery": return "anteatery"
+        case "brandywine": return "brandywine"
+        case "oasis", "the-oasis", "the-oasis-dining-hall": return oasisComingSoonID
+        default: return campusHubKey(for: raw)
+        }
+    }
+
+    private static func sameHall(_ lhs: String, _ rhs: String) -> Bool {
+        if lhs.caseInsensitiveCompare(rhs) == .orderedSame { return true }
+        if isOasis(lhs) && isOasis(rhs) { return true }
+        if let leftHub = campusHubKey(for: lhs), let rightHub = campusHubKey(for: rhs) {
+            return leftHub.caseInsensitiveCompare(rightHub) == .orderedSame
+        }
+        return false
     }
 
     /// "middle-earth-commons" -> "Middle Earth Commons".

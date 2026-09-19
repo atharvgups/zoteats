@@ -29,8 +29,13 @@ public enum EatDeepLinkApply {
         guard let locations else { return .discard }
 
         if let hallID, !hallID.isEmpty {
-            if locations.contains(where: { $0.id == hallID }) {
-                return .apply(hallID: hallID)
+            // Hub keys (`the-anteatery`) and Oasis aliases must land on the
+            // Eat feed id, not discard and leave the previously selected hall.
+            if let resolved = HallDirectory.resolvedID(
+                matching: hallID,
+                in: locations.map(\.id)
+            ) {
+                return .apply(hallID: resolved)
             }
             return .discard
         }
