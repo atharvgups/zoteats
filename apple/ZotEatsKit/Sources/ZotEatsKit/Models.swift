@@ -19,10 +19,29 @@ public enum HallDirectory {
     static let known: [String: (name: String, area: String)] = [
         "anteatery": ("The Anteatery", "Mesa Court"),
         "brandywine": ("Brandywine", "Middle Earth"),
+        "oasis": ("The Oasis", "Mesa Court"),
+    ]
+
+    /// Dining-hub URL keys for residential commons.
+    static let hubURLKeys: [String: String] = [
+        "anteatery": "the-anteatery",
+        "brandywine": "brandywine",
+        "oasis": "the-oasis-dining-hall",
     ]
 
     /// Fallback ordering when the live list is unavailable.
     public static let fallbackIDs = ["anteatery", "brandywine"]
+
+    /// Stable presentation order; Oasis is included when the hub lists it.
+    public static let preferredOrder = ["anteatery", "brandywine", "oasis"]
+
+    static func id(fromHubURLKey key: String) -> String? {
+        hubURLKeys.first { $0.value == key }?.key
+    }
+
+    static func hubURLKey(for id: String) -> String? {
+        hubURLKeys[id]
+    }
 
     public static func displayName(for id: String) -> String {
         known[id]?.name ?? prettify(id)
@@ -157,12 +176,13 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
 
 /// A station (e.g. "The Twisted Root") grouping menu items.
 public struct MenuStation: Codable, Sendable, Identifiable, Equatable {
+    /// Stable station id from the dining hub when we have one; otherwise the name.
+    public let id: String
     public let name: String
     public let items: [MenuItem]
 
-    public var id: String { name }
-
-    public init(name: String, items: [MenuItem]) {
+    public init(name: String, items: [MenuItem], id: String? = nil) {
+        self.id = id ?? name
         self.name = name
         self.items = items
     }
@@ -175,12 +195,41 @@ public struct DiningMenu: Codable, Sendable, Equatable {
     /// Meal-period name, e.g. "Lunch".
     public let period: String
     public let stations: [MenuStation]
+    /// True when this is a previously-good menu served after a failed refresh.
+    public let isStale: Bool
+    /// When this snapshot was fetched.
+    public let fetchedAt: Date?
+    /// Human-readable fetch issues (unresolved stations, source gaps) — never silent.
+    public let warnings: [String]
 
-    public init(locationId: String, date: String, period: String, stations: [MenuStation]) {
+    public init(
+        locationId: String,
+        date: String,
+        period: String,
+        stations: [MenuStation],
+        isStale: Bool = false,
+        fetchedAt: Date? = nil,
+        warnings: [String] = []
+    ) {
         self.locationId = locationId
         self.date = date
         self.period = period
         self.stations = stations
+        self.isStale = isStale
+        self.fetchedAt = fetchedAt
+        self.warnings = warnings
+    }
+
+    func markingStale() -> DiningMenu {
+        DiningMenu(
+            locationId: locationId,
+            date: date,
+            period: period,
+            stations: stations,
+            isStale: true,
+            fetchedAt: fetchedAt,
+            warnings: warnings
+        )
     }
 }
 

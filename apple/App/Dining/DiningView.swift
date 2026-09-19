@@ -46,10 +46,13 @@ struct DiningView: View {
                 prompt: "Search today's dishes"
             )
             .refreshable { await refresh() }
-            .task { await store.loadLocations() }
+            .task { await store.loadLocations(date: selectedDate) }
             .task(id: menuTaskID) { await loadCurrentMenu() }
             .onChange(of: store.locations.value) { syncPeriodSelection() }
             .onChange(of: selectedHall) { syncPeriodSelection() }
+            .onChange(of: selectedDate) {
+                Task { await store.loadLocations(date: selectedDate) }
+            }
             .sheet(item: $selectedDish) { dish in
                 DishDetailSheet(dish: dish, prefs: prefs)
             }
@@ -111,6 +114,20 @@ struct DiningView: View {
                     selection: $selectedPeriod
                 )
                 .accessibilityLabel("Meal period")
+            } else if selectedLocation?.id == "oasis" {
+                EmptyStateView(
+                    icon: "sun.haze",
+                    title: "Oasis menus aren't live yet",
+                    message: "The Oasis is listed on UCI Dining, but station menus haven't been published. We'll show them as soon as they go live."
+                )
+            } else if selectedLocation != nil {
+                EmptyStateView(
+                    icon: "moon.zzz",
+                    title: "No meals posted",
+                    message: selectedDate == nil
+                        ? "\(selectedLocation?.name ?? "This hall") hasn't published today's meals yet. Pull to refresh, or try another day."
+                        : "\(selectedLocation?.name ?? "This hall") hasn't posted meals for that day. Try another date."
+                )
             }
 
             HStack(spacing: 10) {
@@ -222,6 +239,12 @@ struct DiningView: View {
             }
         case .loaded(let menu):
             let stations = filteredStations(menu)
+            if menu.isStale {
+                staleBanner
+            }
+            if !menu.warnings.isEmpty && !stations.isEmpty {
+                warningsBanner(menu.warnings)
+            }
             if stations.isEmpty {
                 if hasActiveFilter {
                     EmptyStateView(
@@ -231,11 +254,11 @@ struct DiningView: View {
                     )
                 } else {
                     EmptyStateView(
-                        icon: "moon.zzz",
-                        title: "No menu posted",
-                        message: selectedDate == nil
-                            ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
-                            : "\(selectedLocation?.name ?? "This hall") hasn't posted that day's \(menu.period.lowercased()) yet — menus usually appear a few days ahead."
+                        icon: selectedHall == "oasis" ? "sun.haze" : "moon.zzz",
+                        title: selectedHall == "oasis" && menu.warnings.isEmpty
+                            ? "Oasis menus aren't live yet"
+                            : "No menu posted",
+                        message: emptyMenuMessage(for: menu)
                     )
                 }
             } else {
@@ -411,7 +434,7 @@ struct DiningView: View {
     private func filteredStations(_ menu: DiningMenu) -> [MenuStation] {
         menu.stations.compactMap { station in
             let items = station.items.filter(matches)
-            return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
+            return items.isEmpty ? nil : MenuStation(name: station.name, items: items, id: station.id)
         }
     }
 
@@ -434,8 +457,35 @@ struct DiningView: View {
         await store.loadMenu(hall: selectedHall, period: selectedPeriod, date: selectedDate)
     }
 
+    private func emptyMenuMessage(for menu: DiningMenu) -> String {
+        if selectedHall == "oasis" && menu.warnings.isEmpty {
+            return "The Oasis is on the dining hub, but UCI hasn't published station menus yet. We'll show them as soon as they go live."
+        }
+        if !menu.warnings.isEmpty {
+            return menu.warnings.joined(separator: " ")
+        }
+        return selectedDate == nil
+            ? "\(selectedLocation?.name ?? "This hall") hasn't published \(menu.period.lowercased()) yet. Check back soon."
+            : "\(selectedLocation?.name ?? "This hall") hasn't posted that day's \(menu.period.lowercased()) yet. Menus usually appear a few days ahead."
+    }
+
+    private var staleBanner: some View {
+        Text("Showing the last menu we successfully loaded. Pull to refresh.")
+            .font(ZotFont.caption)
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 20)
+            .accessibilityLabel("Stale menu. Pull to refresh.")
+    }
+
+    private func warningsBanner(_ warnings: [String]) -> some View {
+        Text(warnings.joined(separator: " "))
+            .font(ZotFont.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 20)
+    }
+
     private func refresh() async {
-        await store.loadLocations()
+        await store.loadLocations(date: selectedDate)
         syncPeriodSelection()
         await loadCurrentMenu()
     }

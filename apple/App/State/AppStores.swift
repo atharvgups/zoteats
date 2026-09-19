@@ -36,9 +36,9 @@ final class DiningStore {
         self.service = service
     }
 
-    func loadLocations() async {
+    func loadLocations(date: String? = nil) async {
         if locations.value == nil { locations = .loading }
-        let result = await service.locations()
+        let result = await service.locations(date: date)
         // The service degrades per-hall; treat "no data at all" as an error state.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")
