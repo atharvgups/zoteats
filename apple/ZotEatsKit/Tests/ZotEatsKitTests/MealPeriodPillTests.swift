@@ -21,4 +21,12 @@ struct MealPeriodPillTests {
     @Test func matchEmptyPillsReturnsNil() {
         #expect(MealPeriodPill.match("Brunch", in: []) == nil)
     }
+
+    @Test func allDayAndBrunchNeverBecomeSelectorPills() {
+        #expect(MealPeriodPill.canonical("Brunch") == "Breakfast")
+        #expect(MealPeriodPill.selectorPills(from: ["Brunch", "All Day", "Lite Lunch"])
+            == ["Breakfast", "Lunch", "Dinner"])
+        #expect(!MealPeriodPill.selectorPills().contains("Brunch"))
+        #expect(!MealPeriodPill.selectorPills().contains("All Day"))
+    }
 }

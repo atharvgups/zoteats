@@ -164,9 +164,6 @@ struct SettingsView: View {
                             .padding(.vertical, 3)
                             .background(Color.ink.opacity(0.12), in: Capsule())
                     }
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.tertiary)
                 }
             }
             .buttonStyle(.plain)

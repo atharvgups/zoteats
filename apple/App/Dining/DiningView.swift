@@ -307,7 +307,7 @@ struct DiningView: View {
                 // Always show Breakfast / Lunch / Dinner — never hide unposted meals.
                 // (Breakfast-only boards used to render a giant single pill.)
                 PillRow(
-                    items: DiningService.mealSelectorPills,
+                    items: MealPeriodPill.selectorPills(),
                     title: { $0 },
                     selection: $selectedPeriod,
                     fillsWidth: true
@@ -337,9 +337,7 @@ struct DiningView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: 6) {
-                        if plate.isEmpty {
-                            myPlateChip
-                        }
+                        myPlateChip
                         filterChip
                         if prefs.hasActiveMenuFilters {
                             Button {
@@ -378,39 +376,36 @@ struct DiningView: View {
         )
     }
 
-    /// Compact inline chip — idle like Filters unless the plate sheet is open.
-    /// Never inherit a tinted/filled look while browsing Eat.
+    /// Compact inline chip — idle like Filters (no fill, no blue) unless the
+    /// plate sheet is actually open. Always visible so My Plate cannot vanish.
     private var myPlateChip: some View {
-        let active = showPlate
-        return Button {
+        Button {
             showPlate = true
             Haptics.selection()
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: active ? "fork.knife.circle.fill" : "fork.knife.circle")
+                Image(systemName: "fork.knife.circle")
                     .font(.system(size: 13, weight: .semibold))
                 Text("Plate")
-                    .font(ZotFont.pill.weight(active ? .semibold : .medium))
+                    .font(ZotFont.pill.weight(.medium))
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(
-                active ? Color.ink.opacity(0.12) : Color.card,
-                in: Capsule()
-            )
-            .foregroundStyle(active ? Color.ink : Color.inkMuted)
+            .background(Color.card, in: Capsule())
+            .foregroundStyle(Color.primary)
             .overlay(
-                Capsule().strokeBorder(
-                    active ? Color.ink.opacity(0.35) : Color.cardBorder,
-                    lineWidth: 1
-                )
+                Capsule().strokeBorder(Color.cardBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .tint(Color.ink)
+        .tint(Color.primary)
         .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
         .accessibilityIdentifier("my-plate-chip")
-        .accessibilityLabel("My Plate, empty")
+        .accessibilityLabel(
+            plate.isEmpty
+                ? "My Plate, empty"
+                : "My Plate, \(plate.entries.count) dishes"
+        )
     }
 
     /// Inline Filters chip — always says "Filters" (details in VoiceOver / help).
@@ -458,33 +453,38 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width 3-across hall boxes — centered name + small status, no glyphs.
+    /// Equal-width 3-across hall boxes — Anteatery / Brandywine / Oasis on one
+    /// screen. No carousel, no fourth tile that pushes Oasis off-screen.
     @ViewBuilder
     private var hallSelector: some View {
-        let locations = store.locations.value
-        let spacing: CGFloat = 6
+        let locations = EatHallSelector.visible(store.locations.value ?? [])
+        let spacing = EatHallSelector.spacing
         GeometryReader { geo in
-            let count = CGFloat(max(locations?.count ?? 3, 1))
-            let cardWidth = max(0, (geo.size.width - spacing * (count - 1)) / count)
+            let cardWidth = EatHallSelector.cardWidth(
+                containerWidth: geo.size.width,
+                spacing: spacing
+            )
             let textWidth = max(0, cardWidth - EatHallTileMark.horizontalPadding * 2)
             let nameSize = sharedHallNameSize(textWidth: textWidth)
             HStack(spacing: spacing) {
-                if let locations, !locations.isEmpty {
-                    ForEach(locations) { location in
-                        hallCard(for: location, nameSize: nameSize)
+                if locations.isEmpty {
+                    ForEach(0..<EatHallSelector.slotCount, id: \.self) { _ in
+                        SkeletonCard(height: EatHallTileMark.tileHeight)
                             .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
                     }
                 } else {
-                    SkeletonCard(height: EatHallTileMark.tileHeight)
-                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
-                    SkeletonCard(height: EatHallTileMark.tileHeight)
-                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
-                    SkeletonCard(height: EatHallTileMark.tileHeight)
-                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                    ForEach(locations) { location in
+                        hallCard(for: location, nameSize: nameSize)
+                            .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                            .clipped()
+                    }
                 }
             }
+            .frame(width: geo.size.width, alignment: .leading)
+            .clipped()
         }
         .frame(height: EatHallTileMark.tileHeight)
+        .clipped()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Dining hall")
     }

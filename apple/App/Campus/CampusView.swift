@@ -243,27 +243,26 @@ struct CampusView: View {
                 places: filtered,
                 favoriteIDs: prefs.favoriteCampusPlaceIDs
             )
-            let brands = CampusPlaceSort.brandGroups(from: partition.main)
+            let layout = CampusPlaceSort.withTwistedRootFirst(
+                favorites: partition.favorites,
+                main: partition.main
+            )
+            let brands = CampusPlaceSort.brandGroups(from: layout.main)
 
-            if partition.favorites.isEmpty && brands.isEmpty {
+            if layout.twistedRoot == nil && layout.favorites.isEmpty && brands.isEmpty {
                 emptyState(for: places)
             } else {
-                if !partition.favorites.isEmpty {
-                    favoritesShelf(partition.favorites)
+                if let twistedRoot = layout.twistedRoot {
+                    campusPlaceCard(twistedRoot)
+                }
+                if !layout.favorites.isEmpty {
+                    favoritesShelf(layout.favorites)
                 }
 
                 VStack(spacing: 16) {
                     ForEach(Array(brands.enumerated()), id: \.element.brand) { _, entry in
                         if entry.places.count == 1 {
-                            CampusPlaceRow(
-                                place: entry.places[0],
-                                showBrandOnly: false,
-                                isFavorite: prefs.isCampusFavorite(entry.places[0].id),
-                                onToggleFavorite: { prefs.toggleCampusFavorite(entry.places[0].id) }
-                            ) {
-                                selectedPlace = entry.places[0]
-                                Haptics.selection()
-                            }
+                            campusPlaceCard(entry.places[0])
                         } else {
                             CampusBrandGroupRow(
                                 brand: entry.brand,
@@ -370,6 +369,18 @@ struct CampusView: View {
                 message: "No campus dining locations are listed right now."
             )
             .zotCard()
+        }
+    }
+
+    private func campusPlaceCard(_ place: CampusPlace) -> some View {
+        CampusPlaceRow(
+            place: place,
+            showBrandOnly: false,
+            isFavorite: prefs.isCampusFavorite(place.id),
+            onToggleFavorite: { prefs.toggleCampusFavorite(place.id) }
+        ) {
+            selectedPlace = place
+            Haptics.selection()
         }
     }
 

@@ -13,6 +13,12 @@ public enum MealPeriodPill {
         return trimmed
     }
 
+    /// Eat meal selector is always Breakfast / Lunch / Dinner. Extra API
+    /// names (Brunch, All Day) never become their own chips.
+    public static func selectorPills(from _: [String] = []) -> [String] {
+        DiningService.mealSelectorPills
+    }
+
     /// Prefer a pill present in `pills` that matches the live name.
     public static func match(_ liveName: String, in pills: [String]) -> String? {
         guard !pills.isEmpty else { return nil }

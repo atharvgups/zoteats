@@ -72,6 +72,23 @@ struct CampusPlaceSortTests {
         #expect(brands.map(\.brand) == ["Panda Express"])
     }
 
+    @Test func twistedRootLeadsTheWholeCampusListEvenWhenFavorited() {
+        let places = [
+            place(id: "px", name: "Panda Express", openNow: true),
+            place(id: "tr", name: "Twisted Root", openNow: false),
+            place(id: "sb", name: "Starbucks @ Student Center", openNow: true),
+        ]
+        let partition = CampusPlaceSort.partition(places: places, favoriteIDs: ["tr", "sb"])
+        let layout = CampusPlaceSort.withTwistedRootFirst(
+            favorites: partition.favorites,
+            main: partition.main
+        )
+        #expect(layout.twistedRoot?.id == "tr")
+        #expect(layout.favorites.map(\.id) == ["sb"])
+        #expect(!layout.favorites.contains { $0.id == "tr" })
+        #expect(!layout.main.contains { $0.id == "tr" })
+    }
+
     @Test func brandGroupsPinTwistedRootBrandFirst() {
         let brands = CampusPlaceSort.brandGroups(from: [
             place(id: "px", name: "Panda Express", openNow: true),
