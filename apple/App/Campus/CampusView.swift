@@ -463,7 +463,7 @@ private struct CampusBrandGroupRow: View {
                     Text(statusLine)
                         .font(ZotFont.caption.weight(.medium))
                         .foregroundStyle(openCount > 0 ? Color.openGreen : Color.inkMuted)
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    Image(systemName: ExpandChevron.systemName(isExpanded: isExpanded))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
                         .frame(width: 16, height: 16)
@@ -683,7 +683,7 @@ struct CampusMenuSheet: View {
                 let foodStations = filtered.filter {
                     $0.name != CampusTypicalMenus.bannerStationName
                 }
-                // Typical packs keep the disclaimer banner even when diet filters
+                // Typical packs keep the Typical menu link even when diet filters
                 // wipe every dish — treat “banner only” as a filter empty, not a menu.
                 if foodStations.isEmpty {
                     if let banner = filtered.first(where: {
@@ -739,7 +739,7 @@ struct CampusMenuSheet: View {
                             Text("\(station.items.count)")
                                 .font(ZotFont.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                            Image(systemName: allDayExpanded ? "chevron.up" : "chevron.down")
+                            Image(systemName: ExpandChevron.systemName(isExpanded: allDayExpanded))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                                 .frame(width: 18, height: 18)
@@ -787,9 +787,10 @@ struct CampusMenuSheet: View {
         }
     }
 
-    /// Honest label when Hub had no live SKUs and we filled a typical brand pack.
+    /// Typical pack header plus a link to the official online menu.
     private func typicalMenuBanner(_ station: MenuStation) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        _ = station
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 1, style: .continuous)
                     .fill(Color.accent)
@@ -798,18 +799,27 @@ struct CampusMenuSheet: View {
                     .font(ZotFont.sectionTitle)
                     .foregroundStyle(Color.ink)
             }
-            if let note = station.items.first?.name {
-                Text(note)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(Color.inkMuted)
-                    .fixedSize(horizontal: false, vertical: true)
+            if let url = CampusTypicalMenus.onlineMenuURL(
+                forPlaceID: place.id,
+                placeName: place.name
+            ) {
+                Link(destination: url) {
+                    HStack(spacing: 6) {
+                        Text(CampusTypicalMenus.onlineMenuLinkTitle)
+                            .font(ZotFont.body.weight(.semibold))
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.ink)
+                }
+                .accessibilityLabel("\(CampusTypicalMenus.onlineMenuLinkTitle) for \(place.name)")
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
         .padding(.horizontal, 20)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     /// Same Filters chip language as Eat — shared prefs, not a local single-select.

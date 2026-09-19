@@ -518,7 +518,7 @@ struct BusynessFacilityCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             Group {
                 if canRevealFloors {
                     Button {
@@ -549,10 +549,8 @@ struct BusynessFacilityCard: View {
                 floorsList
             }
         }
+        .zotCard()
         .onAppear {
-            if facility.category == "Library" {
-                expandIfHasFloors()
-            }
             expandIfRequested()
         }
         .onChange(of: initiallyExpanded) { _, shouldExpand in
@@ -654,7 +652,6 @@ struct BusynessFacilityCard: View {
             }
         }
         .padding(16)
-        .zotCard()
         .contentShape(Rectangle())
     }
 
@@ -675,9 +672,14 @@ struct BusynessFacilityCard: View {
 
     private var floorsList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(floors) { floor in
-                BusynessFloorBlock(floor: floor)
+            ZotHairline(leading: 16)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(floors) { floor in
+                    BusynessFloorBlock(floor: floor, embedded: true)
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
         .transition(.opacity)
     }
@@ -687,7 +689,7 @@ struct BusynessFacilityCard: View {
         HStack(spacing: 6) {
             Text(isExpanded ? "Hide floors" : "\(floors.count) floors")
                 .font(ZotFont.pill.weight(.semibold))
-            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+            Image(systemName: ExpandChevron.systemName(isExpanded: isExpanded))
                 .font(.caption.weight(.semibold))
                 .frame(width: 18, height: 18)
         }
@@ -703,6 +705,7 @@ struct BusynessFacilityCard: View {
 /// zone names; a lone "1st Floor" / "Basement" stays a single row.
 private struct BusynessFloorBlock: View {
     let floor: BusynessFloorGroup
+    var embedded = false
 
     private var isFlatFloor: Bool {
         floor.zones.count == 1 && floor.zones[0].displayName == floor.floorLabel
@@ -710,18 +713,21 @@ private struct BusynessFloorBlock: View {
 
     var body: some View {
         if isFlatFloor, let zone = floor.zones.first {
-            BusynessZoneRowView(zone: zone)
+            BusynessZoneRowView(zone: zone, embedded: embedded)
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text(floor.floorLabel)
                     .font(ZotFont.sectionTitle)
                     .foregroundStyle(Color.ink)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, embedded ? 0 : 4)
                     .accessibilityAddTraits(.isHeader)
 
-                VStack(spacing: 10) {
-                    ForEach(floor.zones) { zone in
-                        BusynessZoneRowView(zone: zone)
+                VStack(spacing: embedded ? 0 : 10) {
+                    ForEach(Array(floor.zones.enumerated()), id: \.element.id) { index, zone in
+                        if embedded, index > 0 {
+                            ZotHairline(leading: 0)
+                        }
+                        BusynessZoneRowView(zone: zone, embedded: embedded)
                     }
                 }
             }
@@ -731,6 +737,7 @@ private struct BusynessFloorBlock: View {
 
 struct BusynessZoneRowView: View {
     let zone: BusynessZoneRow
+    var embedded = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -749,9 +756,9 @@ struct BusynessZoneRowView: View {
                 .foregroundStyle(zone.level.color)
                 .frame(width: 40, alignment: .trailing)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .zotCard()
+        .padding(.horizontal, embedded ? 0 : 16)
+        .padding(.vertical, embedded ? 10 : 14)
+        .modifier(EmbeddedOrCard(embedded: embedded))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             StudyZoneAccessibilityLabel.label(
@@ -760,6 +767,18 @@ struct BusynessZoneRowView: View {
                 levelLabel: zone.level.label
             )
         )
+    }
+}
+
+private struct EmbeddedOrCard: ViewModifier {
+    var embedded: Bool
+
+    func body(content: Content) -> some View {
+        if embedded {
+            content
+        } else {
+            content.zotCard()
+        }
     }
 }
 

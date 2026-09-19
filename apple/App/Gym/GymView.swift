@@ -322,7 +322,7 @@ struct GymHoursCard: View {
                         .font(ZotFont.sectionTitle)
                         .foregroundStyle(.primary)
                     Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    Image(systemName: ExpandChevron.systemName(isExpanded: isExpanded))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 18, height: 18)

@@ -105,7 +105,7 @@ struct PillRow<Item: Hashable>: View {
     var body: some View {
         Group {
             if fillsWidth {
-                HStack(spacing: 8) {
+                HStack(spacing: EatMealPillMark.rowSpacing) {
                     ForEach(items, id: \.self) { item in
                         pill(item)
                             .frame(maxWidth: .infinity)
@@ -137,10 +137,18 @@ struct PillRow<Item: Hashable>: View {
             Haptics.selection()
         } label: {
             Text(title(item))
-                .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
+                .font(
+                    fillsWidth
+                        ? .system(
+                            size: EatMealPillMark.pointSize,
+                            weight: isSelected ? .bold : .semibold
+                          )
+                        : ZotFont.pill.weight(isSelected ? .semibold : .medium)
+                )
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
-                .padding(.horizontal, fillsWidth ? 8 : 14)
-                .padding(.vertical, fillsWidth ? 8 : 9)
+                .padding(.horizontal, fillsWidth ? EatMealPillMark.horizontalPadding : 14)
+                .padding(.vertical, fillsWidth ? EatMealPillMark.verticalPadding : 9)
+                .frame(minHeight: fillsWidth ? EatMealPillMark.minHeight : 0)
                 .background(
                     isSelected ? Color.selectWash : Color.clear,
                     in: Capsule()
