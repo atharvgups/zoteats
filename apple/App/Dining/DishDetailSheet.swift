@@ -22,6 +22,10 @@ struct DishDetailSheet: View {
         plate?.isOnPlate(dish.name) ?? false
     }
 
+    private var plateQuantity: Int {
+        plate?.quantity(for: dish.name) ?? 0
+    }
+
     private var hasTags: Bool {
         !dish.dietaryTags.isEmpty || !dish.allergens.isEmpty
     }
@@ -293,14 +297,14 @@ struct DishDetailSheet: View {
     private func headerPlateButton(_ plate: PlateStore) -> some View {
         Button {
             withAnimation(.snappy(duration: 0.25)) {
-                plate.toggle(dish)
+                plate.add(dish)
             }
             Haptics.soft()
         } label: {
-            Image(systemName: isOnPlate ? "checkmark.circle.fill" : "plus.circle")
+            Image(systemName: isOnPlate ? "plus.circle.fill" : "plus.circle")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(isOnPlate ? Color.ink : Color.inkMuted)
-                .symbolEffect(.bounce, value: isOnPlate)
+                .symbolEffect(.bounce, value: plateQuantity)
                 .frame(width: 44, height: 44)
                 .background(
                     isOnPlate ? Color.ink.opacity(0.12) : Color.primary.opacity(0.05),
@@ -309,7 +313,7 @@ struct DishDetailSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            isOnPlate ? "Remove \(dish.name) from my plate" : "Add \(dish.name) to my plate"
+            PlateQuantityCopy.addAccessibility(dishName: dish.name, quantity: plateQuantity)
         )
         .accessibilityIdentifier("dish-add-to-plate-icon")
     }
@@ -317,28 +321,25 @@ struct DishDetailSheet: View {
     private func plateToggle(_ plate: PlateStore) -> some View {
         Button {
             withAnimation(.snappy(duration: 0.25)) {
-                plate.toggle(dish)
+                plate.add(dish)
             }
             Haptics.soft()
         } label: {
             Label(
-                isOnPlate ? "Remove from Plate" : "Add to Plate",
-                systemImage: isOnPlate ? "minus.circle.fill" : "plus.circle.fill"
+                PlateQuantityCopy.addButtonTitle(quantity: plateQuantity),
+                systemImage: "plus.circle.fill"
             )
             .font(ZotFont.pill.weight(.semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(
-                isOnPlate ? AnyShapeStyle(Color.ink.opacity(0.15)) : AnyShapeStyle(Color.ink),
-                in: Capsule()
-            )
-            .foregroundStyle(isOnPlate ? Color.ink : Color.screen)
-            .symbolEffect(.bounce, value: isOnPlate)
+            .background(Color.ink, in: Capsule())
+            .foregroundStyle(Color.screen)
+            .symbolEffect(.bounce, value: plateQuantity)
         }
         .buttonStyle(.plain)
         .padding(.top, 2)
         .accessibilityLabel(
-            isOnPlate ? "Remove \(dish.name) from my plate" : "Add \(dish.name) to my plate"
+            PlateQuantityCopy.addAccessibility(dishName: dish.name, quantity: plateQuantity)
         )
         .accessibilityIdentifier("dish-add-to-plate")
     }

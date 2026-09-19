@@ -358,25 +358,70 @@ public struct NutritionFacts: Codable, Sendable, Equatable, Hashable {
 public struct PlateEntry: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public let dishName: String
+    /// Calories for one serving — totals multiply by `quantity`.
     public let calories: Int?
     public let proteinG: Double?
+    public let quantity: Int
 
-    public init(id: UUID = UUID(), dishName: String, calories: Int?, proteinG: Double?) {
+    public init(
+        id: UUID = UUID(),
+        dishName: String,
+        calories: Int?,
+        proteinG: Double?,
+        quantity: Int = 1
+    ) {
         self.id = id
         self.dishName = dishName
         self.calories = calories
         self.proteinG = proteinG
+        self.quantity = PlateQuantity.clamped(quantity)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, dishName, calories, proteinG, quantity
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        dishName = try container.decode(String.self, forKey: .dishName)
+        calories = try container.decodeIfPresent(Int.self, forKey: .calories)
+        proteinG = try container.decodeIfPresent(Double.self, forKey: .proteinG)
+        let raw = try container.decodeIfPresent(Int.self, forKey: .quantity) ?? 1
+        quantity = PlateQuantity.clamped(raw)
+    }
+
+    public func updatingQuantity(_ quantity: Int) -> PlateEntry {
+        PlateEntry(
+            id: id,
+            dishName: dishName,
+            calories: calories,
+            proteinG: proteinG,
+            quantity: quantity
+        )
+    }
+
+    public var lineCalories: Int? {
+        calories.map { $0 * quantity }
+    }
+
+    public var lineProteinG: Double? {
+        proteinG.map { $0 * Double(quantity) }
     }
 }
 
 /// Pure plate totals — shared by the app store and kit unit tests.
 public enum PlateTotals {
     public static func calories(from entries: [PlateEntry]) -> Int {
-        entries.compactMap(\.calories).reduce(0, +)
+        entries.compactMap(\.lineCalories).reduce(0, +)
     }
 
     public static func proteinGrams(from entries: [PlateEntry]) -> Int {
-        Int(entries.compactMap(\.proteinG).reduce(0, +).rounded())
+        Int(entries.compactMap(\.lineProteinG).reduce(0, +).rounded())
+    }
+
+    public static func servingCount(from entries: [PlateEntry]) -> Int {
+        entries.reduce(0) { $0 + $1.quantity }
     }
 }
 

@@ -19,11 +19,12 @@ struct EatPostedDaysTests {
         #expect(days.map(\.isoDate) == [
             "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"
         ])
-        #expect(days.map(\.label) == ["Today", "Tomorrow", "Wed Aug 19", "Thu Aug 20"])
+        #expect(days.map(\.label) == ["Today", "Tomorrow", "Wed 19", "Thu 20"])
         #expect(days.allSatisfy { !$0.skipsAhead })
+        #expect(days.allSatisfy { $0.hasPostedMenu })
     }
 
-    @Test func keepsTomorrowThenPostedThursday() {
+    @Test func keepsUnpostedDaysSelectable() {
         let days = EatPostedDays.visible(
             candidates: candidates,
             todayISO: "2026-08-17",
@@ -33,8 +34,9 @@ struct EatPostedDaysTests {
             "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"
         ])
         #expect(days.map(\.label).starts(with: ["Today", "Tomorrow"]) == true)
-        #expect(days.contains { $0.isoDate == "2026-08-20" })
-        #expect(EatPostedDays.skipsCalendarDays(from: "2026-08-17", to: "2026-08-20"))
+        #expect(days.first { $0.isoDate == "2026-08-19" }?.hasPostedMenu == false)
+        #expect(days.first { $0.isoDate == "2026-08-20" }?.hasPostedMenu == true)
+        #expect(days.first { $0.isoDate == "2026-08-19" }?.accessibilityLabel.contains("no menu") == true)
     }
 
     @Test func keepsTomorrowWhenItHasABoard() {
@@ -55,8 +57,7 @@ struct EatPostedDaysTests {
             postedISOs: ["2026-08-18", "2026-08-20"]
         )
         #expect(days.map(\.label).starts(with: ["Today", "Tomorrow"]) == true)
-        #expect(days.contains { $0.isoDate == "2026-08-20" })
-        #expect(days.contains { $0.label == "Thu Aug 20" || $0.label.contains("Thu Aug 20") })
+        #expect(days.contains { $0.isoDate == "2026-08-20" && $0.label == "Thu 20" })
     }
 
     @Test func jumpAfterTomorrowMarksNext() {
@@ -70,8 +71,14 @@ struct EatPostedDaysTests {
             todayISO: "2026-08-17",
             postedISOs: ["2026-08-17", "2026-08-18", "2026-08-20"]
         )
-        #expect(days.map(\.label) == ["Today", "Tomorrow", "Next · Thu Aug 20"])
+        #expect(days.map(\.label) == ["Today", "Tomorrow", "Next · Thu 20"])
         #expect(days[2].skipsAhead)
+    }
+
+    @Test func horizonGrowsWithoutDumpingPastTheCap() {
+        #expect(EatPostedDays.initialHorizonDays >= 14)
+        #expect(EatPostedDays.extendedHorizon(21) == 35)
+        #expect(EatPostedDays.extendedHorizon(EatPostedDays.maxHorizonDays) == EatPostedDays.maxHorizonDays)
     }
 
     @Test func browseCaptionNamesTheSkip() {
@@ -98,6 +105,7 @@ struct EatBrowseEmptyCopyTests {
         let msg = EatBrowseEmptyCopy.message(period: "Breakfast", browsingFutureDay: true)
         #expect(!msg.localizedCaseInsensitiveContains("date strip"))
         #expect(msg.localizedCaseInsensitiveContains("another day"))
+        #expect(msg.localizedCaseInsensitiveContains("posted"))
     }
 
     @Test func todayNamesTheMeal() {
