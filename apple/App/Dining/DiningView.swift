@@ -458,11 +458,11 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width 3-across hall boxes — identical templates, no glyphs.
+    /// Equal-width 3-across hall boxes — centered name + small status, no glyphs.
     @ViewBuilder
     private var hallSelector: some View {
         let locations = store.locations.value
-        let spacing: CGFloat = 8
+        let spacing: CGFloat = 6
         GeometryReader { geo in
             let count = CGFloat(max(locations?.count ?? 3, 1))
             let cardWidth = max(0, (geo.size.width - spacing * (count - 1)) / count)
@@ -493,7 +493,7 @@ struct DiningView: View {
     private func sharedHallNameSize(textWidth: CGFloat) -> CGFloat {
         let maxSize = EatHallTileMark.namePointSize
         let minSize = EatHallTileMark.nameMinimumPointSize
-        let font = UIFont.systemFont(ofSize: maxSize, weight: .bold)
+        let font = UIFont.systemFont(ofSize: maxSize, weight: .heavy)
         let needed = (EatHallTileMark.longestCompactName as NSString)
             .size(withAttributes: [.font: font]).width * EatHallTileMark.nameFitSlack
         guard needed > textWidth, needed > 0 else { return maxSize }
@@ -512,46 +512,35 @@ struct DiningView: View {
             }
             Haptics.selection()
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 4) {
                 Text(HallDirectory.compactName(for: location.id))
-                    .font(.system(size: nameSize, weight: .bold))
+                    .font(.system(size: nameSize, weight: .heavy))
                     .foregroundStyle(Color.ink)
-                    .multilineTextAlignment(.leading)
+                    .multilineTextAlignment(.center)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                     .frame(
                         maxWidth: .infinity,
                         minHeight: EatHallTileMark.nameBlockHeight,
-                        maxHeight: EatHallTileMark.nameBlockHeight,
-                        alignment: .topLeading
+                        maxHeight: EatHallTileMark.nameBlockHeight
                     )
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(status.primary)
-                        .font(.system(size: EatHallTileMark.statusPointSize, weight: .bold))
-                        .foregroundStyle(status.tint)
-                        .lineLimit(2)
-                    if let secondary = status.secondary {
-                        Text(secondary)
-                            .font(.system(size: EatHallTileMark.statusSecondaryPointSize, weight: .semibold))
-                            .foregroundStyle(status.tint)
-                            .lineLimit(2)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: EatHallTileMark.statusBlockHeight,
-                    maxHeight: EatHallTileMark.statusBlockHeight,
-                    alignment: .topLeading
-                )
+                Text(status.primary)
+                    .font(.system(size: EatHallTileMark.statusPointSize, weight: .medium))
+                    .foregroundStyle(status.tint)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: EatHallTileMark.statusBlockHeight,
+                        maxHeight: EatHallTileMark.statusBlockHeight
+                    )
             }
             .padding(.horizontal, EatHallTileMark.horizontalPadding)
-            .padding(.vertical, EatHallTileMark.verticalPadding)
             .frame(
                 maxWidth: .infinity,
                 minHeight: EatHallTileMark.tileHeight,
-                maxHeight: EatHallTileMark.tileHeight,
-                alignment: .topLeading
+                maxHeight: EatHallTileMark.tileHeight
             )
             .background(
                 isSelected ? Color.accent.opacity(0.12) : Color.card,
@@ -1237,7 +1226,7 @@ private struct DayStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: EatDateStripMark.spacing) {
                     ForEach(Array(days.enumerated()), id: \.element.isoDate) { index, day in
                         if index > 0,
                            EatPostedDays.skipsCalendarDays(
@@ -1256,15 +1245,22 @@ private struct DayStrip: View {
                             }
                             Haptics.selection()
                         } label: {
-                            VStack(spacing: 2) {
-                                Text(day.label)
-                                    .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                                    .foregroundStyle(isSelected ? Color.ink : .secondary)
-                                Capsule()
-                                    .fill(isSelected ? Color.ink : .clear)
-                                    .frame(height: 2.5)
-                            }
-                            .fixedSize()
+                            Text(day.label)
+                                .font(ZotFont.pill.weight(isSelected ? .bold : .medium))
+                                .foregroundStyle(isSelected ? Color.ink : .secondary)
+                                .padding(.horizontal, EatDateStripMark.horizontalPadding)
+                                .padding(.vertical, EatDateStripMark.verticalPadding)
+                                .frame(minHeight: EatDateStripMark.minHeight)
+                                .background(
+                                    isSelected ? Color.ink.opacity(0.12) : Color.card,
+                                    in: Capsule()
+                                )
+                                .overlay(
+                                    Capsule().strokeBorder(
+                                        isSelected ? Color.ink.opacity(0.4) : Color.cardBorder,
+                                        lineWidth: isSelected ? EatDateStripMark.selectedStroke : 1
+                                    )
+                                )
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(day.accessibilityLabel)
@@ -1445,7 +1441,7 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — open/closed plus meal, filling the tile.
+/// Short card subtext — Closed / Dinner / Coming Soon, centered under the name.
 private enum HallChromeStatus {
     static func resolve(
         for location: DiningLocation,

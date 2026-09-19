@@ -1,6 +1,7 @@
 import Foundation
 
-/// Short 3-across Eat hall status — open/closed plus meal, never a clock essay.
+/// Short 3-across Eat hall status — one small line under the name:
+/// Closed / Dinner / Coming Soon. Never a clock essay or paragraph.
 public struct EatHallCardStatus: Sendable, Equatable {
     public let primary: String
     public let secondary: String?
@@ -22,35 +23,19 @@ public enum EatHallCardChrome: Sendable {
     public static func status(
         comingSoon: Bool,
         state: HallOpenState,
-        opensTomorrowPeriod: String?,
-        opensNextPeriod: String?
+        opensTomorrowPeriod _: String?,
+        opensNextPeriod _: String?
     ) -> EatHallCardStatus {
         if comingSoon {
             return EatHallCardStatus(primary: OasisComingSoonCopy.cardStatus)
         }
         switch state {
         case .open(let period, _):
-            return EatHallCardStatus(
-                primary: "Open",
-                secondary: MealPeriodPill.canonical(period)
-            )
+            return EatHallCardStatus(primary: MealPeriodPill.canonical(period))
         case .openingLater(let period, _):
-            return EatHallCardStatus(
-                primary: "Soon",
-                secondary: MealPeriodPill.canonical(period)
-            )
-        case .awaitingMoreMeals:
-            return EatHallCardStatus(primary: "Later")
-        case .closedForToday:
-            if let meal = opensTomorrowPeriod ?? opensNextPeriod {
-                return EatHallCardStatus(
-                    primary: "Closed",
-                    secondary: MealPeriodPill.canonical(meal)
-                )
-            }
+            return EatHallCardStatus(primary: MealPeriodPill.canonical(period))
+        case .awaitingMoreMeals, .closedForToday, .unknown:
             return EatHallCardStatus(primary: "Closed")
-        case .unknown:
-            return EatHallCardStatus(primary: "Soon")
         }
     }
 

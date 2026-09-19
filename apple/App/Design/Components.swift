@@ -74,11 +74,12 @@ struct StarRatingControl: View {
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
-                                onRate(value)
+                                onRate(MealReviewLogic.toggleStars(current: stars, tapped: value))
                                 Haptics.selection()
                             }
                         )
                         .accessibilityLabel(MealReviewAccessibility.starsLabel(value))
+                        .accessibilityHint(value == stars ? "Clears the rating" : "Rates this dish")
                         .accessibilityAddTraits(value == stars ? [.isSelected, .isButton] : .isButton)
                         .accessibilityIdentifier("dish-star-\(value)")
                 } else {

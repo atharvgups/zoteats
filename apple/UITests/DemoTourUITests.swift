@@ -37,7 +37,7 @@ final class DemoTourUITests: XCTestCase {
             // Favorite from the sheet, then add to plate.
             tapFirstMatch(app.buttons, labelPrefixes: ["Add to Favorites", "Add "])
             pause(1)
-            tapFirstMatch(app.buttons, labelPrefixes: ["Add to My Plate"])
+            tapFirstMatch(app.buttons, labelPrefixes: ["Add to Plate"])
             pause(1.5)
             tapIfPresent(app.buttons["Close"])
             pause(1.5)

@@ -126,10 +126,10 @@ struct CampusView: View {
     /// Open now + compact type chips (All / Coffee / Food / Markets).
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: CampusFilterChipMark.rowSpacing) {
                 openNowChip
                 Divider()
-                    .frame(height: 22)
+                    .frame(height: 28)
                 ForEach(CampusTypeFilter.allCases, id: \.self) { filter in
                     let isSelected = typeFilter == filter
                     Button {
@@ -139,9 +139,13 @@ struct CampusView: View {
                         Haptics.selection()
                     } label: {
                         Text(filter.title)
-                            .font(ZotFont.pill.weight(isSelected ? .semibold : .medium))
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 7)
+                            .font(.system(
+                                size: CampusFilterChipMark.pointSize,
+                                weight: isSelected ? .semibold : .medium
+                            ))
+                            .padding(.horizontal, CampusFilterChipMark.horizontalPadding)
+                            .padding(.vertical, CampusFilterChipMark.verticalPadding)
+                            .frame(minHeight: CampusFilterChipMark.minHeight)
                             .background(
                                 isSelected ? Color.ink.opacity(0.12) : Color.card,
                                 in: Capsule()
@@ -153,6 +157,7 @@ struct CampusView: View {
                                     lineWidth: 1
                                 )
                             )
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(filter.title)
@@ -177,15 +182,19 @@ struct CampusView: View {
             }
             Haptics.selection()
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(openOnly ? Color.openGreen : Color.secondary.opacity(0.4))
                     .frame(width: 7, height: 7)
                 Text("Open now")
-                    .font(ZotFont.pill.weight(openOnly ? .semibold : .medium))
+                    .font(.system(
+                        size: CampusFilterChipMark.pointSize,
+                        weight: openOnly ? .semibold : .medium
+                    ))
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 7)
+            .padding(.horizontal, CampusFilterChipMark.horizontalPadding)
+            .padding(.vertical, CampusFilterChipMark.verticalPadding)
+            .frame(minHeight: CampusFilterChipMark.minHeight)
             .background(
                 openOnly ? Color.openGreen.opacity(0.12) : Color.card,
                 in: Capsule()
@@ -197,6 +206,7 @@ struct CampusView: View {
                     lineWidth: 1
                 )
             )
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(CampusOpenNowAccessibility.label(openOnly: openOnly))

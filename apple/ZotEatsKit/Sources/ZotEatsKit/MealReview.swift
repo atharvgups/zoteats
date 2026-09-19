@@ -27,6 +27,12 @@ public enum MealReviewLogic {
         min(5, max(1, stars))
     }
 
+    /// Tap the current star again to clear (returns 0). Otherwise 1...5.
+    public static func toggleStars(current: Int, tapped: Int) -> Int {
+        if current > 0, current == tapped { return 0 }
+        return clampStars(tapped)
+    }
+
     public static func sanitizeNote(_ note: String) -> String {
         String(note.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNoteLength))
     }
@@ -46,6 +52,9 @@ public enum MealReviewLogic {
     ) -> [MealReview] {
         let trimmed = dishName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return existing }
+        if stars <= 0 {
+            return remove(existing: existing, dishName: trimmed)
+        }
         let review = MealReview(dishName: trimmed, stars: stars, note: note, updatedAt: now)
         var next = existing.filter { MealReview.key(for: $0.dishName) != review.id }
         next.append(review)
