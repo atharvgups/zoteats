@@ -15,7 +15,7 @@ Nothing.
 
 ## What stays on your device
 
-Your preferences — favorited dishes and your dietary filter — are stored locally on
+Your preferences (favorited dishes and your dietary filter) are stored locally on
 your device using Apple's UserDefaults. They never leave your device, and we have no
 way to see them. Deleting the app deletes them.
 
@@ -24,13 +24,13 @@ way to see them. Deleting the app deletes them.
 The app fetches public campus data (dining menus, gym hours, facility busyness) from
 exactly two services:
 
-- `anteaterapi.com` — public UCI dining/menu data (Anteater API)
-- `waitz.io` — public live occupancy data for UCI facilities
+- `anteaterapi.com`: public UCI dining/menu data (Anteater API)
+- `waitz.io`: public live occupancy data for UCI facilities
 
 These are standard, read-only HTTPS requests with no account identifiers or personal
 data attached. Like any web request, the operators of those services may see your IP
 address as part of serving the request; ZotEats sends nothing else. We do not operate
-those services — see their own policies for details.
+those services. See their own policies for details.
 
 ## App Store Connect "App Privacy" answers
 
