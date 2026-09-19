@@ -1,4 +1,5 @@
 import SwiftUI
+import ZotEatsKit
 
 // Settings — appearance control plus honest app/data-source info.
 
@@ -11,6 +12,7 @@ struct SettingsView: View {
     // Easter egg: triple-tap the version row for a proper UCI cheer.
     @State private var versionTaps = 0
     @State private var showZot = false
+    @State private var showFeedbackForm = false
 
     @State private var alertsEnabled = FavoriteAlerts.isEnabled
     @State private var alertsDenied = false
@@ -28,6 +30,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
                         alertsCard
+                        feedbackCard
                         aboutCard
                         dataSourcesCard
                     }
@@ -55,6 +58,10 @@ struct SettingsView: View {
                     ZotCheer()
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
+            }
+            .sheet(isPresented: $showFeedbackForm) {
+                SafariView(url: FeedbackForm.url)
+                    .ignoresSafeArea()
             }
         }
         .presentationDetents([.large])
@@ -135,6 +142,41 @@ struct SettingsView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    // MARK: - Feedback
+
+    /// Own card on the main Settings screen so it is not buried under About.
+    private var feedbackCard: some View {
+        Button {
+            showFeedbackForm = true
+            Haptics.selection()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.uciBlue)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Feedback")
+                        .font(ZotFont.body)
+                        .foregroundStyle(.primary)
+                    Text("Share ideas or report a problem")
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zotCard()
+        .accessibilityLabel("Feedback. Opens the Anteats feedback form.")
+        .accessibilityHint("Opens in a browser view")
     }
 
     // MARK: - About
