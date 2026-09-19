@@ -1,18 +1,49 @@
 import Foundation
 
-/// A personal rating for a dining-hall dish. Keyed by dish name (IDs rotate daily).
+/// A dish rating. Personal reviews are keyed by dish + stable reviewer id
+/// (IDs on the dining feed rotate daily; names are stable). Community
+/// reviews from other people keep their own author id so they never
+/// overwrite "You".
 public struct MealReview: Codable, Equatable, Sendable, Identifiable {
-    public var id: String { Self.key(for: dishName) }
+    public var id: String { "\(Self.key(for: dishName))|\(resolvedAuthorID)" }
     public var dishName: String
     public var stars: Int
     public var note: String
     public var updatedAt: Date
+    public var authorID: String?
+    public var authorLabel: String?
 
-    public init(dishName: String, stars: Int, note: String = "", updatedAt: Date = Date()) {
+    public static let legacyLocalAuthorID = "local"
+    public static let youLabel = "You"
+
+    public init(
+        dishName: String,
+        stars: Int,
+        note: String = "",
+        updatedAt: Date = Date(),
+        authorID: String? = nil,
+        authorLabel: String? = nil
+    ) {
         self.dishName = dishName.trimmingCharacters(in: .whitespacesAndNewlines)
         self.stars = MealReviewLogic.clampStars(stars)
         self.note = MealReviewLogic.sanitizeNote(note)
         self.updatedAt = updatedAt
+        self.authorID = authorID
+        self.authorLabel = authorLabel
+    }
+
+    public var resolvedAuthorID: String {
+        let trimmed = (authorID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.legacyLocalAuthorID : trimmed
+    }
+
+    public var resolvedAuthorLabel: String {
+        let trimmed = (authorLabel ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.youLabel : trimmed
+    }
+
+    public var isLocalLegacy: Bool {
+        resolvedAuthorID == Self.legacyLocalAuthorID
     }
 
     public static func key(for dishName: String) -> String {
@@ -37,10 +68,39 @@ public enum MealReviewLogic {
         String(note.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNoteLength))
     }
 
-    public static func lookup(_ reviews: [MealReview], dishName: String) -> MealReview? {
+    public static func lookup(
+        _ reviews: [MealReview],
+        dishName: String,
+        authorID: String? = nil
+    ) -> MealReview? {
         let key = MealReview.key(for: dishName)
         guard !key.isEmpty else { return nil }
-        return reviews.first { MealReview.key(for: $0.dishName) == key }
+        let matches = reviews.filter { MealReview.key(for: $0.dishName) == key }
+        if let authorID {
+            let wanted = authorID.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !wanted.isEmpty {
+                return matches.first { $0.resolvedAuthorID == wanted }
+                    ?? matches.first { $0.isLocalLegacy && wanted != MealReview.legacyLocalAuthorID }
+            }
+        }
+        return matches.first
+    }
+
+    public static func reviews(for dishName: String, in reviews: [MealReview]) -> [MealReview] {
+        let key = MealReview.key(for: dishName)
+        guard !key.isEmpty else { return [] }
+        return sortedForDisplay(reviews.filter { MealReview.key(for: $0.dishName) == key })
+    }
+
+    public static func averageStars(_ reviews: [MealReview]) -> Double? {
+        guard !reviews.isEmpty else { return nil }
+        let total = reviews.reduce(0) { $0 + $1.stars }
+        return Double(total) / Double(reviews.count)
+    }
+
+    public static func roundedAverage(_ reviews: [MealReview]) -> Int {
+        guard let average = averageStars(reviews) else { return 0 }
+        return clampStars(Int(average.rounded()))
     }
 
     public static func upsert(
@@ -48,22 +108,51 @@ public enum MealReviewLogic {
         dishName: String,
         stars: Int,
         note: String,
-        now: Date = Date()
+        now: Date = Date(),
+        authorID: String? = nil,
+        authorLabel: String? = nil
     ) -> [MealReview] {
         let trimmed = dishName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return existing }
         if stars <= 0 {
-            return remove(existing: existing, dishName: trimmed)
+            return remove(existing: existing, dishName: trimmed, authorID: authorID)
         }
-        let review = MealReview(dishName: trimmed, stars: stars, note: note, updatedAt: now)
-        var next = existing.filter { MealReview.key(for: $0.dishName) != review.id }
+        let review = MealReview(
+            dishName: trimmed,
+            stars: stars,
+            note: note,
+            updatedAt: now,
+            authorID: authorID,
+            authorLabel: authorLabel
+        )
+        var next = existing.filter { $0.id != review.id }
+        // Legacy blobs stored one review per dish with no author — replace that
+        // row when the current reviewer claims the dish so we don't show two "You"s.
+        if review.resolvedAuthorID != MealReview.legacyLocalAuthorID {
+            next = next.filter { candidate in
+                !(MealReview.key(for: candidate.dishName) == MealReview.key(for: trimmed)
+                    && candidate.isLocalLegacy)
+            }
+        }
         next.append(review)
         return next.sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    public static func remove(existing: [MealReview], dishName: String) -> [MealReview] {
+    public static func remove(
+        existing: [MealReview],
+        dishName: String,
+        authorID: String? = nil
+    ) -> [MealReview] {
         let key = MealReview.key(for: dishName)
-        return existing.filter { MealReview.key(for: $0.dishName) != key }
+        return existing.filter { review in
+            guard MealReview.key(for: review.dishName) == key else { return true }
+            if let authorID, !authorID.isEmpty {
+                if review.resolvedAuthorID == authorID { return false }
+                if review.isLocalLegacy { return false }
+                return true
+            }
+            return false
+        }
     }
 
     /// Dining-hall glance: 4–5 stars is a hit worth pinning at the top.

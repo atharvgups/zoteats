@@ -96,6 +96,7 @@ struct DiningView: View {
             await store.loadLocations()
             // Failed feeds leave locations.value nil — still settle pending links.
             applyPendingDeepLinkIfNeeded()
+            await prefs.loadCommunityReviews()
         }
         .task(id: menuTaskID) {
             await loadCurrentMenu()
@@ -168,11 +169,10 @@ struct DiningView: View {
             }
         }
         .sheet(item: $selectedDish) { dish in
-            // Plate CTA only for today — future menus are browse-only.
             DishDetailSheet(
                 dish: dish,
                 prefs: prefs,
-                plate: selectedDate == nil ? plate : nil
+                plate: plate
             )
         }
         .sheet(isPresented: $showDietFilters) {
@@ -783,12 +783,9 @@ struct DiningView: View {
             item: item,
             isFavorite: prefs.isFavorite(item.name),
             isOnPlate: plate.isOnPlate(item.name),
-            stars: prefs.review(for: item.name)?.stars ?? 0,
+            stars: prefs.displayStars(for: item.name),
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
-            // Plate building only makes sense for food being served today.
-            onTogglePlate: selectedDate == nil
-                ? { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } }
-                : nil,
+            onTogglePlate: { withAnimation(.snappy(duration: 0.25)) { plate.toggle(item) } },
             onRate: { stars in
                 prefs.setReview(
                     dishName: item.name,
@@ -1527,6 +1524,7 @@ private struct DishRowCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(

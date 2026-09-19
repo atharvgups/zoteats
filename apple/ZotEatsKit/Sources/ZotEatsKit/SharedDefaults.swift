@@ -16,26 +16,22 @@ public enum SharedDefaults {
     }
 
     public static func favoriteDishNames() -> [String] {
-        suite.stringArray(forKey: favoritesKey)
-            ?? UserDefaults.standard.stringArray(forKey: favoritesKey)
-            ?? []
+        DurableStore.loadStringArray(
+            key: favoritesKey,
+            legacyKeys: DurableStore.favoriteLegacyKeys
+        )
     }
 
     public static func setFavoriteDishNames(_ names: [String]) {
-        suite.set(names, forKey: favoritesKey)
-        // Keep standard in sync for older code paths / migration.
-        UserDefaults.standard.set(names, forKey: favoritesKey)
+        DurableStore.saveStringArray(names, key: favoritesKey)
     }
 
     public static func favoriteCampusPlaceIDs() -> [String] {
-        suite.stringArray(forKey: campusFavoritePlaceIDsKey)
-            ?? UserDefaults.standard.stringArray(forKey: campusFavoritePlaceIDsKey)
-            ?? []
+        DurableStore.loadStringArray(key: campusFavoritePlaceIDsKey)
     }
 
     public static func setFavoriteCampusPlaceIDs(_ ids: [String]) {
-        suite.set(ids, forKey: campusFavoritePlaceIDsKey)
-        UserDefaults.standard.set(ids, forKey: campusFavoritePlaceIDsKey)
+        DurableStore.saveStringArray(ids, key: campusFavoritePlaceIDsKey)
     }
 
     public static func dietFilters() -> [String] {

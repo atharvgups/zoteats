@@ -22,24 +22,58 @@ public struct EatPostedDay: Equatable, Sendable, Identifiable {
     }
 }
 
-/// Days Eat should offer in the day picker — today always, future days only
-/// when that hall actually has a posted board (not every day inside `/dateRange`).
+/// Days Eat should offer in the day picker — Today and Tomorrow always, then
+/// more dates. Prefer days that actually have a board when that probe exists;
+/// never collapse the strip to only two chips.
 public enum EatPostedDays {
+    /// Floor so the strip still shows Mon 21 / Tue 22… after Tomorrow.
+    public static let minimumVisibleDays = 7
+
     public static func visible(
         candidates: [(isoDate: String, label: String)],
         todayISO: String,
         postedISOs: Set<String>?
     ) -> [EatPostedDay] {
-        let filtered = candidates.filter { day in
-            if day.isoDate == todayISO { return true }
-            guard let postedISOs else { return false }
-            return postedISOs.contains(day.isoDate)
+        guard let today = candidates.first(where: { $0.isoDate == todayISO })
+                ?? candidates.first
+        else { return [] }
+
+        let tomorrow = candidates.first { day in
+            day.isoDate != today.isoDate
+                && (calendarDays(from: today.isoDate, to: day.isoDate) ?? 0) == 1
+        } ?? candidates.dropFirst().first
+
+        var picked: [(isoDate: String, label: String)] = [today]
+        if let tomorrow {
+            picked.append(tomorrow)
         }
-        return filtered.enumerated().map { index, day in
+
+        let later = candidates.filter { day in
+            !picked.contains { $0.isoDate == day.isoDate }
+        }
+
+        if let postedISOs {
+            let postedLater = later.filter { postedISOs.contains($0.isoDate) }
+            picked.append(contentsOf: postedLater)
+        }
+
+        if picked.count < minimumVisibleDays {
+            for day in later where picked.count < minimumVisibleDays {
+                if !picked.contains(where: { $0.isoDate == day.isoDate }) {
+                    picked.append(day)
+                }
+            }
+        }
+
+        picked.sort { lhs, rhs in
+            lhs.isoDate < rhs.isoDate
+        }
+
+        return picked.enumerated().map { index, day in
+            let previousISO = index > 0 ? picked[index - 1].isoDate : todayISO
             let skipsAhead = index > 0
                 && day.isoDate != todayISO
-                && skipsCalendarDays(from: todayISO, to: day.isoDate)
-                && !filtered.prefix(index).contains { $0.isoDate != todayISO }
+                && skipsCalendarDays(from: previousISO, to: day.isoDate)
             let label = skipsAhead ? "Next · \(day.label)" : day.label
             let accessibilityLabel = skipsAhead
                 ? "Next posted menu, \(day.label)"
@@ -51,6 +85,20 @@ public enum EatPostedDays {
                 skipsAhead: skipsAhead
             )
         }
+    }
+
+    /// Inclusive Irvine ISO dates from `from` through `through`.
+    public static func isoDates(from: String, through: String) -> [String] {
+        var result: [String] = []
+        var iso = from
+        var steps = 0
+        while iso <= through, steps < 28 {
+            result.append(iso)
+            guard let next = UCITime.nextISO(after: iso) else { break }
+            iso = next
+            steps += 1
+        }
+        return result
     }
 
     /// True when `to` is at least two Irvine calendar days after `from`.

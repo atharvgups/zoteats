@@ -907,7 +907,7 @@ private struct CampusMenuItemRow: View {
     let onOpen: () -> Void
 
     private var stars: Int {
-        prefs.review(for: item.name)?.stars ?? 0
+        prefs.displayStars(for: item.name)
     }
 
     var body: some View {
@@ -957,6 +957,7 @@ private struct CampusMenuItemRow: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)

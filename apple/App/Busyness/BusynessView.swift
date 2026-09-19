@@ -513,15 +513,15 @@ struct BusynessFacilityCard: View {
     }
 
     private var floorsList: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             ZotHairline(leading: 16)
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(floors) { floor in
                     BusynessFloorBlock(floor: floor, embedded: true)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 14)
         }
         .transition(.opacity)
     }
@@ -564,26 +564,32 @@ private struct BusynessFloorBlock: View {
     }
 
     var body: some View {
-        if isFlatFloor, let zone = floor.zones.first {
-            BusynessZoneRowView(zone: zone, embedded: embedded)
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            if !isFlatFloor {
                 Text(floor.floorLabel)
-                    .font(ZotFont.sectionTitle)
-                    .foregroundStyle(Color.ink)
-                    .padding(.horizontal, embedded ? 0 : 4)
+                    .font(ZotFont.kicker)
+                    .foregroundStyle(Color.inkMuted)
+                    .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)
+            }
 
-                VStack(spacing: embedded ? 0 : 10) {
-                    ForEach(Array(floor.zones.enumerated()), id: \.element.id) { index, zone in
-                        if embedded, index > 0 {
-                            ZotHairline(leading: 0)
-                        }
-                        BusynessZoneRowView(zone: zone, embedded: embedded)
+            VStack(spacing: 0) {
+                ForEach(Array(visibleZones.enumerated()), id: \.element.id) { index, zone in
+                    if index > 0 {
+                        ZotHairline(leading: 12)
                     }
+                    BusynessZoneRowView(zone: zone, embedded: true)
+                        .padding(.leading, isFlatFloor ? 0 : 12)
                 }
             }
+            .padding(.vertical, 2)
+            .background(Color.ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
+        .padding(.horizontal, embedded ? 4 : 0)
+    }
+
+    private var visibleZones: [BusynessZoneRow] {
+        floor.zones
     }
 }
 
