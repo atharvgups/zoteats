@@ -1,0 +1,25 @@
+{
+  "slot": "APP_IPHONE_67",
+  "size": [1290, 2796],
+  "submit_for_review": false,
+  "files": [
+    "docs/screenshots/promo/eat.png",
+    "docs/screenshots/promo/study.png",
+    "docs/screenshots/promo/campus.png",
+    "docs/screenshots/promo/widgets.png",
+    "docs/screenshots/promo/widgets_lock.png"
+  ],
+  "composition": {
+    "docs/screenshots/promo/eat.png": "bottom-bleed, UCI blue #0064A4, gold title eat",
+    "docs/screenshots/promo/study.png": "dual overlapping phones, indigo, gold title study, floors phone bottom-bleed",
+    "docs/screenshots/promo/campus.png": "top-bleed, UCI gold #FFD200, navy title campus",
+    "docs/screenshots/promo/widgets.png": "mid-frame tilted phone, Home Screen Small+Medium dining widgets",
+    "docs/screenshots/promo/widgets_lock.png": "top-bleed, Lock Screen Small+Medium dining widgets, gold title glance"
+  },
+  "sources": {
+    "eat": "docs/screenshots/eat_light.png",
+    "study": "docs/screenshots/study.png",
+    "campus": "docs/screenshots/campus.png",
+    "widgets": "DiningStatusWidget layout in apple/Widgets/ZotEatsWidgets.swift, hall and library facts from the Eat and Study captures"
+  }
+}
