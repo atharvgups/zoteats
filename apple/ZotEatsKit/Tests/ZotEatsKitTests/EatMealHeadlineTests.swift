@@ -46,6 +46,24 @@ struct EatMealPillMarkTests {
     }
 }
 
+@Suite("CampusFilterChipMark")
+struct CampusFilterChipMarkTests {
+    @Test func tapTargetMeetsFortyFourPoints() {
+        #expect(CampusFilterChipMark.minHeight == 44)
+        #expect(CampusFilterChipMark.horizontalPadding >= 16)
+        #expect(CampusFilterChipMark.verticalPadding >= 10)
+    }
+}
+
+@Suite("EatDateStripMark")
+struct EatDateStripMarkTests {
+    @Test func daysSitApartWithAStrongSelectedStroke() {
+        #expect(EatDateStripMark.spacing >= 8)
+        #expect(EatDateStripMark.minHeight >= 36)
+        #expect(EatDateStripMark.selectedStroke > 1)
+    }
+}
+
 @Suite("ExpandChevron")
 struct ExpandChevronTests {
     @Test func pointsRightWhenCollapsedAndDownWhenExpanded() {

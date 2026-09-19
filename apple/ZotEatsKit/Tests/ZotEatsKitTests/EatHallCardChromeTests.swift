@@ -15,30 +15,30 @@ struct EatHallCardChromeTests {
         #expect(status.secondary == nil)
     }
 
-    @Test func openShowsOpenAndMealName() {
+    @Test func openShowsMealNameOnly() {
         let status = EatHallCardChrome.status(
             comingSoon: false,
             state: .open(period: "Lunch", closesAt: 900),
             opensTomorrowPeriod: nil,
             opensNextPeriod: nil
         )
-        #expect(status.primary == "Open")
-        #expect(status.secondary == "Lunch")
-        #expect(status.accessibilityLine == "Open, Lunch")
+        #expect(status.primary == "Lunch")
+        #expect(status.secondary == nil)
+        #expect(status.accessibilityLine == "Lunch")
     }
 
-    @Test func laterTodayIsSoonAndMealName() {
+    @Test func laterTodayShowsUpcomingMealName() {
         let status = EatHallCardChrome.status(
             comingSoon: false,
             state: .openingLater(period: "Dinner", opensAt: 990),
             opensTomorrowPeriod: nil,
             opensNextPeriod: nil
         )
-        #expect(status.primary == "Soon")
-        #expect(status.secondary == "Dinner")
+        #expect(status.primary == "Dinner")
+        #expect(status.secondary == nil)
     }
 
-    @Test func closedShowsClosedAndNextMealName() {
+    @Test func closedShowsClosedWithoutNextMealEssay() {
         let status = EatHallCardChrome.status(
             comingSoon: false,
             state: .closedForToday,
@@ -46,7 +46,7 @@ struct EatHallCardChromeTests {
             opensNextPeriod: nil
         )
         #expect(status.primary == "Closed")
-        #expect(status.secondary == "Breakfast")
+        #expect(status.secondary == nil)
     }
 
     @Test func statusLinesStayShort() {
@@ -79,9 +79,7 @@ struct EatHallCardChromeTests {
         let cap = OasisComingSoonCopy.cardStatus.count
         for status in samples {
             #expect(status.primary.count <= cap)
-            if let secondary = status.secondary {
-                #expect(secondary.count <= cap)
-            }
+            #expect(status.secondary == nil)
             #expect(!status.accessibilityLine.contains("…"))
         }
     }

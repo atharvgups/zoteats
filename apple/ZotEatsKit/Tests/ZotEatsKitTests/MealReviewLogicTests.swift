@@ -68,4 +68,17 @@ struct MealReviewLogicTests {
         #expect(MealReviewAccessibility.starsLabel(4) == "4 stars")
         #expect(MealReviewAccessibility.starsLabel(99) == "5 stars")
     }
+
+    @Test func tappingTheSameStarClears() {
+        #expect(MealReviewLogic.toggleStars(current: 0, tapped: 3) == 3)
+        #expect(MealReviewLogic.toggleStars(current: 4, tapped: 2) == 2)
+        #expect(MealReviewLogic.toggleStars(current: 5, tapped: 5) == 0)
+        #expect(MealReviewLogic.toggleStars(current: 1, tapped: 1) == 0)
+    }
+
+    @Test func upsertZeroStarsRemovesTheReview() {
+        var reviews = MealReviewLogic.upsert(existing: [], dishName: "Soup", stars: 4, note: "Good")
+        reviews = MealReviewLogic.upsert(existing: reviews, dishName: "Soup", stars: 0, note: "Good")
+        #expect(reviews.isEmpty)
+    }
 }

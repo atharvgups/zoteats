@@ -7,7 +7,7 @@ struct PlateEmptyCopyTests {
     @Test func pointsAtPlusAndSheetCTA() {
         #expect(PlateEmptyCopy.title == "Nothing on your plate yet")
         #expect(PlateEmptyCopy.message.contains("+"))
-        #expect(PlateEmptyCopy.message.contains("Add to My Plate"))
+        #expect(PlateEmptyCopy.message.contains("Add to Plate"))
         #expect(PlateEmptyCopy.footnote.localizedCaseInsensitiveContains("morning"))
     }
 

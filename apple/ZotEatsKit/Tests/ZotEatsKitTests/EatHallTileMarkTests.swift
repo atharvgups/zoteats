@@ -4,20 +4,21 @@ import Testing
 
 @Suite("EatHallTileMark")
 struct EatHallTileMarkTests {
-    @Test func namesShareOneLargeBoldSize() {
-        #expect(EatHallTileMark.namePointSize == 22)
-        #expect(EatHallTileMark.nameMinimumPointSize == 14)
+    @Test func namesAreLargerAndHeavierThanMealPills() {
+        #expect(EatHallTileMark.namePointSize == 26)
+        #expect(EatHallTileMark.nameMinimumPointSize == 16)
+        #expect(EatHallTileMark.namePointSize > EatMealPillMark.pointSize)
         #expect(EatHallTileMark.nameMinimumPointSize < EatHallTileMark.namePointSize)
     }
 
-    @Test func statusSharesOneSize() {
-        #expect(EatHallTileMark.statusPointSize == 16)
-        #expect(EatHallTileMark.statusSecondaryPointSize == 15)
+    @Test func statusIsSmallUnderTheName() {
+        #expect(EatHallTileMark.statusPointSize == 12)
         #expect(EatHallTileMark.statusPointSize < EatHallTileMark.namePointSize)
+        #expect(EatHallTileMark.statusPointSize < EatMealPillMark.pointSize)
     }
 
     @Test func tilesHaveOneFixedHeightThatContentFills() {
-        #expect(EatHallTileMark.tileHeight == 144)
+        #expect(EatHallTileMark.tileHeight == 88)
         #expect(EatHallTileMark.contentFillsTile)
         #expect(
             EatHallTileMark.nameBlockHeight
@@ -25,7 +26,8 @@ struct EatHallTileMarkTests {
                 + EatHallTileMark.verticalPadding * 2
                 == EatHallTileMark.tileHeight
         )
-        #expect(EatHallTileMark.nameBlockHeight == 32)
+        #expect(EatHallTileMark.nameBlockHeight == 34)
+        #expect(EatHallTileMark.statusBlockHeight == 18)
     }
 
     @Test func selectedBorderDoesNotChangeSize() {

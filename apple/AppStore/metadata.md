@@ -4,8 +4,8 @@ Source of truth for automation: `metadata.json` (this file is the human-readable
 
 | Field | Value |
 |---|---|
-| Name | Anteats |
-| Subtitle | UCI dining, campus & study |
+| Name | Anteats: UCI Dining |
+| Subtitle | Menus, campus food & study |
 | Bundle ID | `com.atharvgupta.zoteats` |
 | Primary category | Food & Drink |
 | Secondary | Lifestyle |

@@ -45,10 +45,6 @@ struct DishDetailSheet: View {
                     NutritionDetailsCard(facts: facts)
                 }
 
-                if let plate {
-                    plateToggle(plate)
-                }
-
                 favoriteToggle
             }
             .padding(20)
@@ -56,6 +52,16 @@ struct DishDetailSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .appCanvas()
+        .safeAreaInset(edge: .bottom) {
+            if let plate {
+                plateToggle(plate)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.screen)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             closeButton
         }
@@ -221,7 +227,7 @@ struct DishDetailSheet: View {
             Haptics.soft()
         } label: {
             Label(
-                isOnPlate ? "Remove from My Plate" : "Add to My Plate",
+                isOnPlate ? "Remove from Plate" : "Add to Plate",
                 systemImage: isOnPlate ? "minus.circle.fill" : "plus.circle.fill"
             )
             .font(ZotFont.pill.weight(.semibold))
