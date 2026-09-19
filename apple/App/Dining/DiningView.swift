@@ -337,9 +337,7 @@ struct DiningView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: 6) {
-                        if plate.isEmpty {
-                            myPlateChip
-                        }
+                        myPlateChip
                         filterChip
                         if prefs.hasActiveMenuFilters {
                             Button {
@@ -379,7 +377,7 @@ struct DiningView: View {
     }
 
     /// Compact inline chip — idle like Filters unless the plate sheet is open.
-    /// Never inherit a tinted/filled look while browsing Eat.
+    /// Always on the Eat row so Plate cannot vanish behind the tally.
     private var myPlateChip: some View {
         let active = showPlate
         return Button {
@@ -410,7 +408,11 @@ struct DiningView: View {
         .tint(Color.ink)
         .help(PlateTallyCopy.chipTitle(count: plate.entries.count))
         .accessibilityIdentifier("my-plate-chip")
-        .accessibilityLabel("My Plate, empty")
+        .accessibilityLabel(
+            plate.isEmpty
+                ? "My Plate, empty"
+                : "My Plate, \(plate.entries.count) dishes"
+        )
     }
 
     /// Inline Filters chip — always says "Filters" (details in VoiceOver / help).
@@ -458,33 +460,38 @@ struct DiningView: View {
         )
     }
 
-    /// Equal-width 3-across hall boxes — centered name + small status, no glyphs.
+    /// Equal-width 3-across hall boxes — Anteatery / Brandywine / Oasis on one
+    /// screen. No carousel, no fourth tile that pushes Oasis off-screen.
     @ViewBuilder
     private var hallSelector: some View {
-        let locations = store.locations.value
-        let spacing: CGFloat = 6
+        let locations = EatHallSelector.visible(store.locations.value ?? [])
+        let spacing = EatHallSelector.spacing
         GeometryReader { geo in
-            let count = CGFloat(max(locations?.count ?? 3, 1))
-            let cardWidth = max(0, (geo.size.width - spacing * (count - 1)) / count)
+            let cardWidth = EatHallSelector.cardWidth(
+                containerWidth: geo.size.width,
+                spacing: spacing
+            )
             let textWidth = max(0, cardWidth - EatHallTileMark.horizontalPadding * 2)
             let nameSize = sharedHallNameSize(textWidth: textWidth)
             HStack(spacing: spacing) {
-                if let locations, !locations.isEmpty {
-                    ForEach(locations) { location in
-                        hallCard(for: location, nameSize: nameSize)
+                if locations.isEmpty {
+                    ForEach(0..<EatHallSelector.slotCount, id: \.self) { _ in
+                        SkeletonCard(height: EatHallTileMark.tileHeight)
                             .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
                     }
                 } else {
-                    SkeletonCard(height: EatHallTileMark.tileHeight)
-                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
-                    SkeletonCard(height: EatHallTileMark.tileHeight)
-                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
-                    SkeletonCard(height: EatHallTileMark.tileHeight)
-                        .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                    ForEach(locations) { location in
+                        hallCard(for: location, nameSize: nameSize)
+                            .frame(width: cardWidth, height: EatHallTileMark.tileHeight)
+                            .clipped()
+                    }
                 }
             }
+            .frame(width: geo.size.width, alignment: .leading)
+            .clipped()
         }
         .frame(height: EatHallTileMark.tileHeight)
+        .clipped()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Dining hall")
     }
