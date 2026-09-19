@@ -29,21 +29,90 @@ final class DiningStore {
     private let service: DiningService
 
     var locations: LoadState<[DiningLocation]> = .idle
-    /// Keyed by "\(hallID)|\(period)".
+    /// Inclusive ISO window the feed currently publishes — clamps the day strip.
+    private(set) var publishedDateRange: DiningService.PublishedDateRange?
+    /// Per-hall days that actually have a posted board (not every day in the window).
+    private(set) var postedMenuDates: [String: Set<String>] = [:]
+    /// Keyed by "\(hallID)|\(period)|\(date ?? "today")".
     private(set) var menus: [String: LoadState<DiningMenu>] = [:]
+    /// Future-day meal windows keyed by "\(hallID)|\(dateISO)" — Eat pills/snap
+    /// must not reuse today's Brunch schedule when browsing tomorrow.
+    private(set) var dayPeriods: [String: LoadState<[MealPeriodWindow]>] = [:]
+    /// Irvine day `locations` were last loaded for — drives overnight rollover.
+    private(set) var locationsDateISO: String?
+    /// Bumps when live `"today"` menus are purged so Eat's `.task(id:)` refetches.
+    private(set) var dayEpoch: Int = 0
 
     init(service: DiningService = DiningService()) {
         self.service = service
     }
 
-    func loadLocations() async {
+    /// Purge stale live menus after Irvine midnight. Returns true when a refetch is needed.
+    @discardableResult
+    func ensureCurrentDay(todayISO: String = UCITime.todayISO()) -> Bool {
+        guard DiningDayMath.shouldRollover(loadedDateISO: locationsDateISO, todayISO: todayISO) else {
+            return false
+        }
+        menus = menus.filter { !DiningDayMath.isLiveTodayMenuKey($0.key) }
+        dayPeriods = [:]
+        postedMenuDates = [:]
+        locationsDateISO = nil
+        dayEpoch += 1
+        return true
+    }
+
+    func dayPeriodsState(hall: String, dateISO: String) -> LoadState<[MealPeriodWindow]> {
+        dayPeriods["\(hall)|\(dateISO)"] ?? .idle
+    }
+
+    func loadDayPeriods(hall: String, dateISO: String, forceRefresh: Bool = false) async {
+        let key = "\(hall)|\(dateISO)"
+        if dayPeriods[key]?.value == nil { dayPeriods[key] = .loading }
+        let next = await service.mealPeriods(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
+        if dayPeriods[key]?.value != next {
+            dayPeriods[key] = .loaded(next)
+        }
+    }
+
+    func loadLocations(forceRefresh: Bool = false) async {
         if locations.value == nil { locations = .loading }
-        let result = await service.locations()
+        async let range = service.publishedDateRange(forceRefresh: forceRefresh)
+        let result = await service.locations(forceRefresh: forceRefresh)
+        let nextRange = await range
+        if publishedDateRange != nextRange {
+            publishedDateRange = nextRange
+        }
+        locationsDateISO = UCITime.todayISO()
         // The service degrades per-hall; treat "no data at all" as an error state.
         if result.allSatisfy({ $0.availablePeriods.isEmpty && $0.todayHours == nil }) {
             locations = .failed("UCI Dining isn't reachable right now.")
-        } else {
+        } else if locations.value != result {
             locations = .loaded(result)
+        }
+        // App Group snapshot so Home Screen widgets show real text without
+        // waiting on a cold network fetch inside the extension process.
+        if let loaded = locations.value, !loaded.isEmpty {
+            WidgetSnapshotStore.saveDiningLocations(loaded)
+            WidgetReloader.reloadEatWidgets()
+        }
+        let halls = (locations.value ?? []).filter { !$0.isComingSoon }.map(\.id)
+        for hall in halls {
+            await loadPostedMenuDates(hall: hall, forceRefresh: forceRefresh)
+        }
+    }
+
+    func loadPostedMenuDates(hall: String, forceRefresh: Bool = false) async {
+        let today = UCITime.todayISO()
+        let latest = publishedDateRange?.latest ?? today
+        let from = max(today, publishedDateRange?.earliest ?? today)
+        let dates = await service.postedMenuDates(
+            hall: hall,
+            fromISO: from,
+            throughISO: latest,
+            forceRefresh: forceRefresh
+        )
+        if postedMenuDates[hall] != dates {
+            postedMenuDates[hall] = dates
         }
     }
 
@@ -51,17 +120,93 @@ final class DiningStore {
         menus["\(hall)|\(period)|\(date ?? "today")"] ?? .idle
     }
 
-    func loadMenu(hall: String, period: String, date: String? = nil) async {
+    func loadMenu(
+        hall: String,
+        period: String,
+        date: String? = nil,
+        forceRefresh: Bool = false,
+        reloadWidgets: Bool = true
+    ) async {
         let key = "\(hall)|\(period)|\(date ?? "today")"
         if menus[key]?.value == nil { menus[key] = .loading }
         do {
-            menus[key] = .loaded(try await service.menu(for: hall, period: period, date: date))
+            let next = try await service.menu(
+                for: hall,
+                period: period,
+                date: date,
+                forceRefresh: forceRefresh
+            )
+            // Boundary / pull reloads often return the same board — skip churn.
+            if menus[key]?.value != next {
+                menus[key] = .loaded(next)
+            }
+            // Today's board → App Group so Home Screen widgets paint without a
+            // cold extension menu fetch (Atharv: open app, still empty glance).
+            if date == nil {
+                WidgetSnapshotStore.saveDiningMenu(next)
+                if reloadWidgets {
+                    WidgetReloader.reloadEatWidgets()
+                }
+            }
         } catch {
             menus[key] = .failed(error.localizedDescription)
         }
     }
+
+    /// Snapshot today's current meal for sibling live halls into the App Group so
+    /// Favorites Today can scan Anteatery + Brandywine without a cold multi-fetch.
+    /// Preferred hall is assumed already saved by `loadMenu`.
+    func warmWidgetMenusForLiveHalls(
+        preferredHall: String?,
+        preferredPeriod: String?
+    ) async {
+        guard let locations = locations.value else { return }
+        let nowMinutes = UCITime.nowMinutes()
+        let todayISO = UCITime.todayISO()
+        var warmed = false
+        for hall in locations where !hall.isComingSoon {
+            if let preferredHall, hall.id == preferredHall { continue }
+            let timed = hall.periods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
+            let choice = TodaysMenuPeriodPick.choose(
+                timedPeriods: timed,
+                availablePeriods: hall.availablePeriods,
+                nowMinutes: nowMinutes
+            )
+            // Prefer the same meal pill the user is browsing when that meal exists
+            // on the sibling board (peek Lunch at both halls).
+            let pill: String
+            if let preferred = preferredPeriod,
+               !preferred.isEmpty,
+               DiningService.primaryPeriods(from: hall.availablePeriods)
+                .contains(where: { $0.caseInsensitiveCompare(preferred) == .orderedSame }) {
+                pill = preferred
+            } else {
+                pill = choice.period
+            }
+            guard !pill.isEmpty else { continue }
+            if let cached = WidgetSnapshotStore.loadDiningMenu(
+                hall: hall.id,
+                period: pill,
+                dateISO: todayISO
+            ), !cached.stations.isEmpty {
+                continue
+            }
+            await loadMenu(
+                hall: hall.id,
+                period: pill,
+                date: nil,
+                forceRefresh: false,
+                reloadWidgets: false
+            )
+            warmed = true
+        }
+        if warmed {
+            WidgetReloader.reloadEatWidgets()
+        }
+    }
 }
 
+#if ANTEATS_ENABLE_GYM
 @MainActor
 @Observable
 final class GymStore {
@@ -78,6 +223,7 @@ final class GymStore {
         status = .loaded(await service.status())
     }
 }
+#endif
 
 @MainActor
 @Observable
@@ -95,7 +241,16 @@ final class CampusStore {
     func loadPlaces() async {
         if places.value == nil { places = .loading }
         do {
-            places = .loaded(try await service.places())
+            let next = try await service.places()
+            // Boundary ticks recompute openNow from the same schedule — skip
+            // churn when nothing actually changed (smoother Campus scroll).
+            if places.value != next {
+                places = .loaded(next)
+            }
+            if let loaded = places.value, !loaded.isEmpty {
+                WidgetSnapshotStore.saveCampusPlaces(loaded)
+                WidgetReloader.reloadCampusOpen()
+            }
         } catch {
             places = .failed(error.localizedDescription)
         }
@@ -105,10 +260,22 @@ final class CampusStore {
         menus[placeID] ?? .idle
     }
 
-    func loadMenu(for placeID: String) async {
-        if menus[placeID]?.value == nil { menus[placeID] = .loading }
+    func loadMenu(for placeID: String, forceRefresh: Bool = false) async {
+        if forceRefresh || menus[placeID]?.value == nil {
+            menus[placeID] = .loading
+        }
+        let placeName = places.value?.first(where: { $0.id == placeID })?.name
         do {
-            menus[placeID] = .loaded(try await service.menu(for: placeID))
+            let next = try await service.menu(
+                for: placeID,
+                placeName: placeName,
+                forceRefresh: forceRefresh
+            )
+            if menus[placeID]?.value != next {
+                menus[placeID] = .loaded(next)
+            } else if case .loading = menus[placeID] {
+                menus[placeID] = .loaded(next)
+            }
         } catch {
             menus[placeID] = .failed(error.localizedDescription)
         }
@@ -119,19 +286,43 @@ final class CampusStore {
 @Observable
 final class BusynessStore {
     private let service: BusynessService
+    private let libraryHoursService: LibraryHoursService
 
     var facilities: LoadState<[BusynessPoint]> = .idle
+    /// Official Langson + Science building hours (LibCal). Soft-fails empty.
+    var libraryHours: [LibraryBuildingHours] = []
 
-    init(service: BusynessService = BusynessService()) {
+    init(
+        service: BusynessService = BusynessService(),
+        libraryHoursService: LibraryHoursService = LibraryHoursService()
+    ) {
         self.service = service
+        self.libraryHoursService = libraryHoursService
     }
 
     func load() async {
         if facilities.value == nil { facilities = .loading }
+        async let facilitiesTask = service.all()
+        async let hoursTask = libraryHoursService.today()
         do {
-            facilities = .loaded(try await service.all())
+            let next = try await facilitiesTask
+            // Waitz stamps a fresh updatedAt every poll — compare occupancy only.
+            let prior = facilities.value
+            let unchanged = prior.map {
+                BusynessSnapshot.equalsIgnoringFetchTime($0, next)
+            } ?? false
+            if !unchanged {
+                facilities = .loaded(next)
+            }
+            if let loaded = facilities.value, !loaded.isEmpty {
+                WidgetSnapshotStore.saveBusynessPlaces(loaded)
+                WidgetReloader.reloadStudyWidgets()
+            }
         } catch {
             facilities = .failed(error.localizedDescription)
+        }
+        if let hours = try? await hoursTask, hours != libraryHours {
+            libraryHours = hours
         }
     }
 }
@@ -141,22 +332,111 @@ final class BusynessStore {
 @MainActor
 @Observable
 final class Preferences {
-    private static let favoritesKey = "zoteats.favoriteDishNames"
-    private static let dietFilterKey = "zoteats.dietFilter"
+    private static let legacyDietFilterKey = "zoteats.dietFilter"
 
-    /// Favorite dishes by name (dish IDs rotate daily; names are stable).
+    /// Favorite dishes by name (IDs rotate daily; names are stable).
+    /// Mirrored into the App Group so Today's Menu widgets can pin them.
     var favoriteDishNames: Set<String> {
-        didSet { UserDefaults.standard.set(Array(favoriteDishNames), forKey: Self.favoritesKey) }
+        didSet {
+            SharedDefaults.setFavoriteDishNames(Array(favoriteDishNames).sorted())
+            WidgetReloader.reloadTodaysMenu()
+        }
     }
 
-    /// Active dietary filter tag (e.g. "Vegan"), or nil for everything.
+    /// Hearted Campus retail place IDs — distinct Favorites shelf; deduped from
+    /// the main Campus list (Atharv IA: never double a favorited place as a full card).
+    var favoriteCampusPlaceIDs: Set<String> {
+        didSet {
+            SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+            WidgetReloader.reloadCampusOpen()
+        }
+    }
+
+    /// Active dietary filter tags (AND). Empty = show everything.
+    /// Mirrored into the App Group so Today's Menu honors Eat Filters.
+    var dietFilters: Set<String> {
+        didSet {
+            SharedDefaults.setDietFilters(Array(dietFilters).sorted())
+            WidgetReloader.reloadTodaysMenu()
+        }
+    }
+
+    /// Allergens to hide (OR). A dish listing any avoided allergen is filtered out.
+    var allergenAvoids: Set<String> {
+        didSet {
+            SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
+            WidgetReloader.reloadTodaysMenu()
+        }
+    }
+
+    /// Personal dish ratings — on-device only, keyed by dish name.
+    var mealReviews: [MealReview] {
+        didSet {
+            SharedDefaults.setMealReviews(mealReviews)
+        }
+    }
+
+    /// Convenience for single-filter callers (campus sheet, etc.).
     var dietFilter: String? {
-        didSet { UserDefaults.standard.set(dietFilter, forKey: Self.dietFilterKey) }
+        get { dietFilters.sorted().first }
+        set {
+            if let newValue {
+                dietFilters = [newValue]
+            } else {
+                dietFilters = []
+            }
+        }
+    }
+
+    var hasActiveMenuFilters: Bool {
+        !dietFilters.isEmpty || !allergenAvoids.isEmpty
     }
 
     init() {
-        favoriteDishNames = Set(UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? [])
-        dietFilter = UserDefaults.standard.string(forKey: Self.dietFilterKey)
+        favoriteDishNames = Set(SharedDefaults.favoriteDishNames())
+        favoriteCampusPlaceIDs = Set(SharedDefaults.favoriteCampusPlaceIDs())
+        let storedDiets = SharedDefaults.dietFilters()
+        if !storedDiets.isEmpty {
+            dietFilters = Set(storedDiets)
+        } else if let legacy = UserDefaults.standard.string(forKey: Self.legacyDietFilterKey) {
+            dietFilters = [legacy]
+            UserDefaults.standard.removeObject(forKey: Self.legacyDietFilterKey)
+        } else {
+            dietFilters = []
+        }
+        allergenAvoids = Set(SharedDefaults.allergenAvoids())
+        mealReviews = SharedDefaults.mealReviews()
+        // Init assignments skip didSet — mirror into the App Group for widgets.
+        SharedDefaults.setDietFilters(Array(dietFilters).sorted())
+        SharedDefaults.setAllergenAvoids(Array(allergenAvoids).sorted())
+        SharedDefaults.setFavoriteCampusPlaceIDs(Array(favoriteCampusPlaceIDs).sorted())
+        SharedDefaults.setMealReviews(mealReviews)
+    }
+
+    func clearMenuFilters() {
+        dietFilters = []
+        allergenAvoids = []
+    }
+
+    /// Re-read Eat Filters from the App Group after the Today’s Menu widget
+    /// (or another process) clears or changes them while we were suspended.
+    func reloadMenuFiltersFromSharedDefaults() {
+        let diets = Set(SharedDefaults.dietFilters())
+        let allergens = Set(SharedDefaults.allergenAvoids())
+        if diets != dietFilters {
+            dietFilters = diets
+        }
+        if allergens != allergenAvoids {
+            allergenAvoids = allergens
+        }
+    }
+
+    func matchesMenuFilters(_ item: MenuItem) -> Bool {
+        MenuFilterMatching.matches(
+            item: item,
+            dietFilters: dietFilters,
+            allergenAvoids: allergenAvoids
+        )
     }
 
     func toggleFavorite(_ dishName: String) {
@@ -170,5 +450,39 @@ final class Preferences {
 
     func isFavorite(_ dishName: String) -> Bool {
         favoriteDishNames.contains(dishName)
+    }
+
+    func toggleCampusFavorite(_ placeID: String) {
+        if favoriteCampusPlaceIDs.contains(placeID) {
+            favoriteCampusPlaceIDs.remove(placeID)
+        } else {
+            favoriteCampusPlaceIDs.insert(placeID)
+        }
+        Haptics.soft()
+    }
+
+    func isCampusFavorite(_ placeID: String) -> Bool {
+        favoriteCampusPlaceIDs.contains(placeID)
+    }
+
+    func review(for dishName: String) -> MealReview? {
+        MealReviewLogic.lookup(mealReviews, dishName: dishName)
+    }
+
+    func setReview(dishName: String, stars: Int, note: String, playHaptic: Bool = true) {
+        mealReviews = MealReviewLogic.upsert(
+            existing: mealReviews,
+            dishName: dishName,
+            stars: stars,
+            note: note
+        )
+        if playHaptic {
+            Haptics.soft()
+        }
+    }
+
+    func clearReview(dishName: String) {
+        mealReviews = MealReviewLogic.remove(existing: mealReviews, dishName: dishName)
+        Haptics.soft()
     }
 }

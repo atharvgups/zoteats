@@ -1,55 +1,107 @@
 import SwiftUI
+import ZotEatsKit
 
-// ZotEats design language — UCI identity, warm and food-forward.
-// Inspired by the best campus dining apps (UCLA's Nom, PeterPlate) and
-// modern iOS food apps: rounded type, soft cards, confident color.
-
-// Notion-inspired restraint: plain background, hairline-bordered flat cards,
-// editorial type, color used sparingly as accent — content leads.
+// Anteats visual system — plain white / system-dark canvas, white cards, one gold
+// accent. Chrome is hairlines. Type is thick SF Pro — never ultraLight / thin.
 
 extension Color {
-    /// UCI primary blue (#0064A4).
+    /// UCI primary blue (#0064A4) — cheer easter egg only, never chrome.
     static let uciBlue = Color(red: 0 / 255, green: 100 / 255, blue: 164 / 255)
-    /// UCI gold (#FFD200).
+    /// UCI gold (#FFD200) — the one accent.
     static let uciGold = Color(red: 255 / 255, green: 210 / 255, blue: 0 / 255)
-    /// Deeper blue for gradients (#004A7C).
+    /// Deeper blue for the cheer gradient (#004A7C).
     static let uciBlueDeep = Color(red: 0 / 255, green: 74 / 255, blue: 124 / 255)
 
-    /// Card surface: same as the page in light (borders differentiate), elevated in dark.
-    static let card = Color(uiColor: .secondarySystemGroupedBackground)
-    /// Page background: plain, Notion-white (near-black in dark mode).
-    static let screen = Color(uiColor: .systemBackground)
-    /// Hairline card border.
-    static let cardBorder = Color.primary.opacity(0.09)
+    /// Primary ink — system label (cool, not cream).
+    static let ink = Color(uiColor: .label)
 
-    static let openGreen = Color(red: 52 / 255, green: 178 / 255, blue: 51 / 255)
-    static let busyOrange = Color(red: 245 / 255, green: 158 / 255, blue: 11 / 255)
-    static let crowdedRed = Color(red: 225 / 255, green: 29 / 255, blue: 72 / 255)
+    /// Secondary copy — system secondary label.
+    static let inkMuted = Color(uiColor: .secondaryLabel)
+
+    /// Ink-bar text on filled capsules — system page color, never beige.
+    static let screen = Color(uiColor: .systemBackground)
+
+    /// Raised surface — pure white in light, system elevated in dark.
+    static let card = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark {
+            return .secondarySystemGroupedBackground
+        }
+        return .white
+    })
+
+    /// Hairline — opacity, never a shadow.
+    static let cardBorder = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 1, alpha: 0.10)
+            : UIColor(red: 28 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.10)
+    })
+
+    /// Selected wash — charcoal at 6%, never campus blue.
+    static let selectWash = Color.ink.opacity(0.06)
+
+    /// Gold that still reads on white (full #FFD200 washes out in light).
+    static let accentUIColor = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 255 / 255, green: 210 / 255, blue: 0 / 255, alpha: 1)
+            : UIColor(red: 168 / 255, green: 122 / 255, blue: 0 / 255, alpha: 1)
+    }
+
+    static let accent = Color(uiColor: accentUIColor)
+
+    /// Open / positive — quiet green, not a second brand color.
+    static let openGreen = Color(red: 1 / 255, green: 168 / 255, blue: 88 / 255)
+    static let busyOrange = Color(red: 214 / 255, green: 140 / 255, blue: 32 / 255)
+    static let crowdedRed = Color(red: 196 / 255, green: 62 / 255, blue: 74 / 255)
 }
 
 enum ZotFont {
-    /// Screen title, e.g. "Dining" — bold but plain, editorial.
-    static func hero(_ size: CGFloat = 30) -> Font {
+    /// Sized SF Pro — medium floor so body never goes thin.
+    static func face(_ size: CGFloat, relativeTo _: Font.TextStyle = .body) -> Font {
+        .system(size: size, weight: .medium)
+    }
+
+    /// Screen titles — bold SF Pro.
+    static func hero(_ size: CGFloat = 34) -> Font {
         .system(size: size, weight: .bold)
     }
 
+    /// Stock iOS text styles at medium+ — never ultraLight / thin.
     static let cardTitle = Font.headline.weight(.semibold)
-    static let sectionTitle = Font.subheadline.weight(.semibold)
-    static let body = Font.body
-    static let caption = Font.caption
-    /// One notch larger than footnote: pills are primary controls, and the
-    /// extra size improves tap targets.
-    static let pill = Font.subheadline.weight(.medium)
+    /// Station / floor headers — same thick SF Pro as dish names, a touch larger.
+    static let sectionTitle = Font.system(size: 18, weight: .semibold)
+    static let body = Font.body.weight(.medium)
+    static let caption = Font.callout.weight(.medium)
+    static let pill = Font.subheadline.weight(.semibold)
+    static let kicker = Font.subheadline.weight(.semibold)
 }
 
-// MARK: - Radius tokens (one language of rounding everywhere)
+/// System UISwitch — gold when on, system well + knob when off.
+/// Leave the thumb system-default so dark-mode switches keep a visible knob.
+enum ZotSwitch {
+    static func configure() {
+        UISwitch.appearance().onTintColor = Color.accentUIColor
+        UISwitch.appearance().thumbTintColor = nil
+    }
+}
 
+// MARK: - Motion (soft springs — presence, not bounce)
+
+enum ZotMotion {
+    static let select = Animation.spring(response: 0.38, dampingFraction: 0.86)
+    static let soft = Animation.spring(response: 0.52, dampingFraction: 0.90)
+    static let appear = Animation.spring(response: 0.60, dampingFraction: 0.92)
+}
+
+// MARK: - Radius tokens
+
+/// Eat hall heroes — large rounded, not the list language.
+let zotHallRadius: CGFloat = 20
 /// Cards and sheets.
 let zotCardRadius: CGFloat = 16
-/// Rows and tiles nested inside cards.
+/// Rows nested inside cards.
 let zotInnerRadius: CGFloat = 10
-/// Small chips and badges.
-let zotChipRadius: CGFloat = 7
+/// Chips — fully pill.
+let zotChipRadius: CGFloat = 999
 
 struct CardStyle: ViewModifier {
     func body(content: Content) -> some View {
@@ -60,7 +112,6 @@ struct CardStyle: ViewModifier {
                 RoundedRectangle(cornerRadius: zotCardRadius, style: .continuous)
                     .strokeBorder(Color.cardBorder, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 }
 
@@ -68,26 +119,44 @@ extension View {
     func zotCard() -> some View {
         modifier(CardStyle())
     }
+
+    /// Root page / sheet fill — system white in light, system dark in dark.
+    func appCanvas() -> some View {
+        self
+            .scrollContentBackground(.hidden)
+            .background { AppCanvas() }
+    }
+}
+
+/// Shared canvas — plain system background. No gradient. No color picker.
+struct AppCanvas: View {
+    var body: some View {
+        Color(uiColor: .systemBackground)
+            .ignoresSafeArea()
+    }
+}
+
+/// Hairline rule — leading inset so lists read as one surface, not boxes.
+struct ZotHairline: View {
+    var leading: CGFloat = 16
+
+    var body: some View {
+        Color.cardBorder
+            .frame(height: 1)
+            .padding(.leading, leading)
+    }
 }
 
 // MARK: - Dietary tag colors
 
-/// Notion-style tag palette: muted, desaturated hues that read calm on both
-/// light and dark surfaces (the chip renders them at low-opacity fill + full text).
+/// Soft desaturated tags that sit calmly on white cards.
 enum TagPalette {
-    /// Muted moss green.
     static let sage = Color(red: 68 / 255, green: 131 / 255, blue: 97 / 255)
-    /// Soft eucalyptus.
     static let eucalyptus = Color(red: 89 / 255, green: 148 / 255, blue: 132 / 255)
-    /// Dusty slate blue.
     static let slate = Color(red: 84 / 255, green: 118 / 255, blue: 159 / 255)
-    /// Muted plum.
     static let plum = Color(red: 132 / 255, green: 104 / 255, blue: 156 / 255)
-    /// Warm sand/ochre.
     static let ochre = Color(red: 158 / 255, green: 124 / 255, blue: 76 / 255)
-    /// Soft clay brown.
     static let clay = Color(red: 147 / 255, green: 110 / 255, blue: 90 / 255)
-    /// Dusty terracotta for allergens — cautionary without shouting.
     static let terracotta = Color(red: 178 / 255, green: 106 / 255, blue: 87 / 255)
 
     static func dietColor(_ tag: String) -> Color {
@@ -99,6 +168,8 @@ enum TagPalette {
         case "Gluten-Free": ochre
         case "Organic": sage
         case "Locally Grown": clay
+        case "No Dairy": terracotta
+        case "Plant Forward", "Plant Powered": sage
         default: .secondary
         }
     }
@@ -107,8 +178,6 @@ enum TagPalette {
 }
 
 // MARK: - Busyness level presentation
-
-import ZotEatsKit
 
 extension BusynessLevel {
     var label: String {
