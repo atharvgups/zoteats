@@ -164,6 +164,54 @@ struct StudyFacilityAccessibilityLabelTests {
         )
     }
 
+    @Test("Closed LibCal Opens at lands in VoiceOver now that hours live on the card")
+    func closedLibCalHours() {
+        let hours = LibraryBuildingHours(
+            id: "langson",
+            shortName: "Langson",
+            rendered: "1:00 PM – 11:00 PM",
+            isOpen: false,
+            openMinutes: 13 * 60,
+            closeMinutes: 23 * 60
+        )
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Langson",
+                isOpen: false,
+                percent: nil,
+                levelLabel: nil,
+                peopleCount: nil,
+                capacity: nil,
+                libraryHours: hours,
+                nowMinutes: 11 * 60
+            ) == "Langson, closed, Opens at 1:00 PM"
+        )
+    }
+
+    @Test("Open LibCal Open until lands in VoiceOver")
+    func openLibCalHours() {
+        let hours = LibraryBuildingHours(
+            id: "science",
+            shortName: "Gateway",
+            rendered: "1:00 PM – 11:00 PM",
+            isOpen: true,
+            openMinutes: 13 * 60,
+            closeMinutes: 23 * 60
+        )
+        #expect(
+            StudyFacilityAccessibilityLabel.label(
+                name: "Gateway",
+                isOpen: true,
+                percent: 12,
+                levelLabel: "Not Busy",
+                peopleCount: nil,
+                capacity: nil,
+                hoursSummary: "open",
+                libraryHours: hours
+            ) == "Gateway, open, 12 percent full, Not Busy, Open until 11:00 PM"
+        )
+    }
+
     @Test("Blank updatedRelative is omitted")
     func blankUpdatedOmitted() {
         #expect(

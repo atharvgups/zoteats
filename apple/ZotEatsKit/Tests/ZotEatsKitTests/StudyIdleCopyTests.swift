@@ -148,4 +148,41 @@ struct StudyIdleCopyTests {
             ) == "Opens at 8:00 AM"
         )
     }
+
+    @Test func facilityHoursLineClosedOpensAt() {
+        #expect(
+            StudyIdleCopy.facilityHoursLine(
+                isOpen: false,
+                hoursSummary: "Closed until 1:00pm",
+                nowMinutes: 11 * 60
+            ) == "Opens at 1:00 PM"
+        )
+    }
+
+    @Test func facilityHoursLineOpenUntilFromWaitz() {
+        #expect(
+            StudyIdleCopy.facilityHoursLine(
+                isOpen: true,
+                hoursSummary: "8:00am-10:00pm"
+            ) == "Open until 10:00 PM"
+        )
+    }
+
+    @Test func facilityHoursLineOpenFallsBackToLibCalRange() {
+        let hours = LibraryBuildingHours(
+            id: "langson",
+            shortName: "Langson",
+            rendered: "1:00 PM – 11:00 PM",
+            isOpen: true,
+            openMinutes: 13 * 60,
+            closeMinutes: 23 * 60
+        )
+        #expect(
+            StudyIdleCopy.facilityHoursLine(
+                isOpen: true,
+                hoursSummary: "open",
+                libraryHours: hours
+            ) == "Open until 11:00 PM"
+        )
+    }
 }

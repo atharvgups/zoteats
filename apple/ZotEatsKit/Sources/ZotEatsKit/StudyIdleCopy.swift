@@ -75,4 +75,26 @@ public enum StudyIdleCopy {
         }
         return nil
     }
+
+    /// Hours line inside each library card (replaces the old "Today's hours"
+    /// strip). Closed → Opens at / tomorrow / LibCal span; open → Open until
+    /// or today's rendered hours.
+    public static func facilityHoursLine(
+        isOpen: Bool,
+        hoursSummary: String?,
+        nowMinutes: Int = UCITime.nowMinutes(),
+        libraryHours: LibraryBuildingHours? = nil
+    ) -> String? {
+        if StudyFacilityCrowding.showsLiveCrowding(isOpen: isOpen) {
+            return facilityOpenDetail(
+                hoursSummary: hoursSummary,
+                libraryHours: libraryHours
+            )
+        }
+        return facilityClosedDetail(
+            hoursSummary: hoursSummary,
+            nowMinutes: nowMinutes,
+            libraryHours: libraryHours
+        )
+    }
 }
