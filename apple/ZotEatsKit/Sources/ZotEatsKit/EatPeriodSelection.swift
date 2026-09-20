@@ -41,11 +41,12 @@ public enum EatPeriodSelection {
             return nil
         }
 
-        // Keep a user/deeplink peek unless that meal's window has already ended.
-        // Unposted Lunch/Dinner (no window yet) stay sticky at 7am.
+        // Keep a user/deeplink peek unless that meal has ended by hall hours.
+        // Unposted Lunch/Dinner stay sticky at 7am; Breakfast does not stick
+        // through afternoon Brunch (11:00–16:30 maps onto Breakfast).
         if let current,
            pills.contains(current),
-           !MealPillLiveness.hasEnded(
+           !EatMealWindow.hasEnded(
             pill: current,
             timedPeriods: timedPeriods,
             pills: matchPills,
@@ -54,6 +55,10 @@ public enum EatPeriodSelection {
             return current
         }
 
-        return choice.period.isEmpty ? nil : choice.period
+        return EatMealWindow.autoPill(
+            timedPeriods: timedPeriods,
+            availablePeriods: availablePeriods,
+            nowMinutes: nowMinutes
+        )
     }
 }

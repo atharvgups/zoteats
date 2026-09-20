@@ -180,7 +180,7 @@ struct EatPeriodSelectionTests {
         )
     }
 
-    @Test func partialBoardAwaitingKeepsLastPostedBreakfast() {
+    @Test func partialBoardAfterBreakfastAdvancesToClockMeal() {
         let partial = [
             MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
         ]
@@ -191,9 +191,8 @@ struct EatPeriodSelectionTests {
                 timedPeriods: partial,
                 nowMinutes: 700,
                 browsingFutureDay: false
-            ) == "Breakfast"
+            ) == "Lunch"
         )
-        // Ended sticky still resolves to last posted while awaiting Lunch/Dinner.
         #expect(
             EatPeriodSelection.snap(
                 current: "Breakfast",
@@ -201,8 +200,18 @@ struct EatPeriodSelectionTests {
                 timedPeriods: partial,
                 nowMinutes: 700,
                 browsingFutureDay: false
-            ) == "Breakfast"
+            ) == "Lunch"
         )
+        #expect(
+            EatPeriodSelection.snap(
+                current: nil,
+                availablePeriods: ["Breakfast"],
+                timedPeriods: partial,
+                nowMinutes: 15 * 60 + 30,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+        // Deep links still preserve an explicit Breakfast peek.
         #expect(
             EatDeepLinkPeriod.resolve(
                 requested: "Breakfast",
@@ -211,6 +220,81 @@ struct EatPeriodSelectionTests {
                 nowMinutes: 700,
                 browsingFutureDay: false
             ) == "Breakfast"
+        )
+    }
+
+    @Test func sundayAfternoonBrunchDoesNotStickBreakfast() {
+        // Live Sunday board: Breakfast 9–11, Brunch 11–16:30, Dinner 16:30–20.
+        let sunday = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 9 * 60, endMinutes: 11 * 60),
+            MealPeriodWindow(name: "Brunch", startMinutes: 11 * 60, endMinutes: 16 * 60 + 30),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+        ]
+        let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
+        #expect(
+            EatPeriodSelection.snap(
+                current: nil,
+                availablePeriods: available,
+                timedPeriods: sunday,
+                nowMinutes: 10 * 60,
+                browsingFutureDay: false
+            ) == "Breakfast"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Breakfast",
+                availablePeriods: available,
+                timedPeriods: sunday,
+                nowMinutes: 12 * 60,
+                browsingFutureDay: false
+            ) == "Lunch"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Breakfast",
+                availablePeriods: available,
+                timedPeriods: sunday,
+                nowMinutes: 15 * 60 + 30,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: nil,
+                availablePeriods: available,
+                timedPeriods: sunday,
+                nowMinutes: 15 * 60 + 30,
+                browsingFutureDay: false
+            ) == "Dinner"
+        )
+        #expect(
+            EatMealHeadline.subtitle(period: "Dinner", nowMinutes: 15 * 60 + 30)
+                == "What’s for Dinner"
+        )
+    }
+
+    @Test func manualLunchPeekHoldsUntilLunchCut() {
+        let sunday = [
+            MealPeriodWindow(name: "Brunch", startMinutes: 11 * 60, endMinutes: 16 * 60 + 30),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+        ]
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Lunch",
+                availablePeriods: ["Brunch", "Dinner"],
+                timedPeriods: sunday,
+                nowMinutes: 12 * 60 + 15,
+                browsingFutureDay: false
+            ) == "Lunch"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Lunch",
+                availablePeriods: ["Brunch", "Dinner"],
+                timedPeriods: sunday,
+                nowMinutes: 15 * 60 + 30,
+                browsingFutureDay: false
+            ) == "Dinner"
         )
     }
 }

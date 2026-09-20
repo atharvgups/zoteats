@@ -5,31 +5,35 @@ import Testing
 @Suite("EatMealHeadline")
 struct EatMealHeadlineTests {
     @Test func breakfastFollowsSelectedMeal() {
-        #expect(EatMealHeadline.subtitle(period: "Breakfast", hour: 9) == "What’s for Breakfast")
-        #expect(EatMealHeadline.subtitle(period: "Brunch", hour: 10) == "What’s for Breakfast")
-        #expect(EatMealHeadline.subtitle(period: "Breakfast", hour: 2) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: "Breakfast", nowMinutes: 9 * 60) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: "Brunch", nowMinutes: 10 * 60) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: "Breakfast", nowMinutes: 2 * 60) == "What’s for Breakfast")
     }
 
     @Test func lunchAndDinnerFollowSelectedMeal() {
-        #expect(EatMealHeadline.subtitle(period: "Lunch", hour: 8) == "What’s for Lunch")
-        #expect(EatMealHeadline.subtitle(period: "Dinner", hour: 12) == "What’s for Dinner")
-        #expect(EatMealHeadline.subtitle(period: "Limited Dinner", hour: 19) == "What’s for Dinner")
-        #expect(EatMealHeadline.subtitle(period: "Dinner", hour: 22) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: "Lunch", nowMinutes: 8 * 60) == "What’s for Lunch")
+        #expect(EatMealHeadline.subtitle(period: "Dinner", nowMinutes: 12 * 60) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: "Limited Dinner", nowMinutes: 19 * 60) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: "Dinner", nowMinutes: 22 * 60) == "What’s for Dinner")
     }
 
     @Test func clockFallbackWhenNoMealSelected() {
-        #expect(EatMealHeadline.subtitle(period: nil, hour: 9) == "What’s for Breakfast")
-        #expect(EatMealHeadline.subtitle(period: nil, hour: 13) == "What’s for Lunch")
-        #expect(EatMealHeadline.subtitle(period: nil, hour: 19) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: nil, nowMinutes: 9 * 60) == "What’s for Breakfast")
+        #expect(EatMealHeadline.subtitle(period: nil, nowMinutes: 13 * 60) == "What’s for Lunch")
+        #expect(EatMealHeadline.subtitle(period: nil, nowMinutes: 15 * 60 + 30) == "What’s for Dinner")
+        #expect(EatMealHeadline.subtitle(period: nil, nowMinutes: 19 * 60) == "What’s for Dinner")
     }
 }
 
 @Suite("EatMealPillMark")
 struct EatMealPillMarkTests {
-    @Test func tapTargetMeetsFortyFourPoints() {
-        #expect(EatMealPillMark.minHeight == 44)
-        #expect(EatMealPillMark.pointSize >= 17)
-        #expect(EatMealPillMark.verticalPadding >= 12)
+    @Test func mealPillsStaySmallerThanHallNames() {
+        #expect(EatMealPillMark.pointSize == 15)
+        #expect(EatMealPillMark.pointSize < EatHallTileMark.namePointSize)
+        #expect(EatMealPillMark.minHeight == 36)
+        #expect(EatMealPillMark.minHeight < EatHallTileMark.tileHeight)
+        #expect(EatMealPillMark.verticalPadding == 7)
+        #expect(EatMealPillMark.rowSpacing == 6)
     }
 }
 
