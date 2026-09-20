@@ -20,6 +20,8 @@ Source of truth for automation: `metadata.json` (this file is the human-readable
 3. CI attaches the latest VALID build, applies listing metadata / screenshots, and submits for App Review via the ASC `reviewSubmissions` API.
 4. In-flight Waiting for Review submissions are canceled first when `CANCEL_IN_FLIGHT_REVIEW=true` (default on the App Store workflow). If ASC refuses, cancel once in the UI: **App Store Connect → Anteats → App Review → Cancel Submission**.
 
+Hard rule for listing copy: no em dashes in `metadata.json` (What's New, description, review notes, or any other uploaded field). Keep short human sentences with commas or periods. `check_appstore_copy.py` and the App Store ship script refuse em dashes so `appstore-*` tags cannot publish that voice.
+
 First submission may still need a one-time pass in App Store Connect for age rating, pricing (Free), and any missing screenshot size if Apple rejects the 6.7" set.
 
 ## User-only App Store Connect blockers

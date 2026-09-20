@@ -165,7 +165,21 @@ def find_app_id(token: str) -> str:
 def load_metadata() -> dict:
     if not METADATA_PATH.is_file():
         die(f"Missing metadata file: {METADATA_PATH}")
-    return json.loads(METADATA_PATH.read_text())
+    meta = json.loads(METADATA_PATH.read_text())
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from check_appstore_copy import listing_em_dash_fields
+
+    bad = listing_em_dash_fields(meta)
+    if bad:
+        die(
+            "App Store listing copy contains em dashes (U+2014) in: "
+            + ", ".join(bad)
+            + ". Rewrite with commas or periods. No em dashes in metadata, "
+            "release notes, or What's New."
+        )
+    return meta
 
 
 def list_builds(token: str, app_id: str, limit: int = 50) -> tuple[list[dict], dict]:

@@ -137,6 +137,29 @@ def main() -> None:
         }:
             waiting.append((v["id"], attrs.get("versionString"), attrs.get("appStoreState")))
 
+    print("--- listingCopy ---", flush=True)
+    for v in (versions.get("data") or [])[:3]:
+        attrs = v.get("attributes") or {}
+        locs = api(
+            "GET",
+            f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations?limit=5",
+            token,
+            ok_empty=True,
+        ).get("data") or []
+        for loc in locs:
+            lattrs = loc.get("attributes") or {}
+            if lattrs.get("locale") not in {None, "en-US"}:
+                continue
+            wn = (lattrs.get("whatsNew") or "").replace("\n", " ")
+            print(
+                f"version={attrs.get('versionString')} "
+                f"appStoreState={attrs.get('appStoreState')} "
+                f"whatsNew={wn[:400]!r}",
+                flush=True,
+            )
+            if "\u2014" in wn:
+                print("  note=What's New still contains an em dash", flush=True)
+
     sq = urllib.parse.urlencode(
         {"filter[app]": app_id, "filter[platform]": "IOS", "limit": "10"}
     )
