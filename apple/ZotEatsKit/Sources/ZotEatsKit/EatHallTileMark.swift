@@ -6,7 +6,7 @@ import Foundation
 public enum EatHallTileMark: Sendable {
     /// Shared large semibold size for Anteatery / Brandywine / Oasis.
     /// Middle ground: not regular (too light) and not heavy (too bold).
-    /// Bigger than Breakfast / Lunch / Dinner pills (17pt).
+    /// Bigger than Breakfast / Lunch / Dinner pills (15pt).
     public static let namePointSize: CGFloat = 26
 
     /// Floor if the longest name must shrink to fit — applied to every hall.

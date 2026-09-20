@@ -60,6 +60,12 @@ public enum EatBoundaryRefresh {
             ))
         }
 
+        // Typical B/L/D cuts — weekend Brunch does not end at 14:30, but Eat
+        // still advances Breakfast → Lunch → Dinner on those clocks.
+        for cut in EatMealWindow.autoSelectCuts where cut > nowMinutes {
+            dates.append(UCITime.date(forMinutes: cut, nowMinutes: nowMinutes, now: now))
+        }
+
         return dates
     }
 

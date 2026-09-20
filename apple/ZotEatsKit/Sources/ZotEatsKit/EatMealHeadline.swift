@@ -10,7 +10,10 @@ public enum EatMealHeadline: Sendable {
     }
 
     /// Classic “What’s for Breakfast / Lunch / Dinner” line.
-    public static func subtitle(period: String?, hour: Int = UCITime.hour()) -> String {
+    public static func subtitle(
+        period: String?,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> String {
         switch mealLabel(period: period) {
         case "Breakfast":
             return "What’s for Breakfast"
@@ -19,11 +22,7 @@ public enum EatMealHeadline: Sendable {
         case "Dinner":
             return "What’s for Dinner"
         default:
-            switch hour {
-            case ..<12: return "What’s for Breakfast"
-            case ..<17: return "What’s for Lunch"
-            default: return "What’s for Dinner"
-            }
+            return "What’s for \(EatMealWindow.clockPill(nowMinutes: nowMinutes))"
         }
     }
 }

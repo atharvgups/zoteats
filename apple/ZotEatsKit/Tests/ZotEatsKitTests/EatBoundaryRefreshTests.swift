@@ -53,6 +53,12 @@ struct EatBoundaryRefreshTests {
         )
         // Brunch ends 840 → auto-start at 795.
         #expect(dates.contains(UCITime.date(forMinutes: 795, nowMinutes: nowMinutes, now: midBrunch)))
+        // Typical lunch cut so Eat leaves Lunch at 2:30 even while Brunch is live.
+        #expect(dates.contains(UCITime.date(
+            forMinutes: EatMealWindow.lunchEndMinutes,
+            nowMinutes: nowMinutes,
+            now: midBrunch
+        )))
     }
 
     @Test func includesEveryHallsWrapUp() {

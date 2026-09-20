@@ -710,7 +710,10 @@ struct DiningView: View {
         LazyVStack(alignment: .leading, spacing: 28) {
             Text(
                 EatPostedDays.browseCaption(
-                    period: menu.period,
+                    period: {
+                        let selected = EatMealHeadline.mealLabel(period: selectedPeriod)
+                        return selected.isEmpty ? menu.period : selected
+                    }(),
                     prettyDate: prettyDate(menu.date),
                     skipsAhead: upcomingDays.contains { $0.isoDate == menu.date && $0.skipsAhead }
                 )
