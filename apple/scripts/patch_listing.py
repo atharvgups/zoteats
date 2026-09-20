@@ -192,27 +192,27 @@ def main() -> None:
     detail = json.dumps(errors or patched)[:800]
     warn(f"Full listing patch failed ({patched.get('http_status')}): {detail}")
 
-    # Live versions often lock What's New. Retry without it so other fields can update.
-    no_wn = {k: v for k, v in patch_attrs.items() if k != "whatsNew"}
-    retried = api(
-        "PATCH",
-        f"/v1/appStoreVersionLocalizations/{loc_id}",
-        token,
-        {
-            "data": {
-                "type": "appStoreVersionLocalizations",
-                "id": loc_id,
-                "attributes": no_wn,
-            }
-        },
+    locked = any(
+        (err.get("code") == "STATE_ERROR")
+        or "cannot be edited" in str((err.get("detail") or "")).lower()
+        for err in errors
     )
-    if retried.get("data"):
+    if locked or state in {
+        "READY_FOR_SALE",
+        "PENDING_APPLE_RELEASE",
+        "PROCESSING_FOR_APP_STORE",
+        "WAITING_FOR_REVIEW",
+        "IN_REVIEW",
+        "PENDING_DEVELOPER_RELEASE",
+    }:
         warn(
-            f"What's New is locked on {ver} ({state}). Other listing fields updated. "
-            "A new App Store version is required to change live release notes."
+            f"Listing copy is locked on {ver} ({state}). "
+            "Apple will not edit What's New on a live or in-review version. "
+            "Repo copy is clean. The next appstore-* ship will publish the new notes. "
+            "Not inventing a new binary just to change release notes."
         )
         sys.exit(0)
-    die(f"Could not patch listing for {ver}: {json.dumps(retried)[:800]}")
+    die(f"Could not patch listing for {ver}: {detail}")
 
 
 if __name__ == "__main__":
