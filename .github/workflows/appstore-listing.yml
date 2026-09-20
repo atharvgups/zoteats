@@ -1,0 +1,53 @@
+# Metadata-only App Store listing patch. No archive, no new binary, no review cancel.
+name: App Store listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "App Store version to patch (default newest / 1.0.326)"
+        required: false
+        default: "1.0.326"
+  push:
+    paths:
+      - "apple/AppStore/metadata.json"
+      - "apple/scripts/patch_listing.py"
+      - "apple/scripts/check_appstore_copy.py"
+      - ".github/workflows/appstore-listing.yml"
+
+jobs:
+  patch:
+    name: Patch listing copy
+    runs-on: ubuntu-latest
+    env:
+      APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      MARKETING_VERSION: ${{ inputs.marketing_version || '1.0.326' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          for name in APP_STORE_CONNECT_API_KEY_P8 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name"
+              exit 1
+            fi
+          done
+
+      - name: Refuse em dashes locally
+        run: python3 apple/scripts/check_appstore_copy.py
+
+      - name: Patch ASC listing
+        run: |
+          mkdir -p "$HOME/private_keys"
+          echo "$APP_STORE_CONNECT_API_KEY_P8" | base64 --decode \
+            > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          export APP_STORE_CONNECT_API_KEY_PATH="$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          python3 -m venv "$RUNNER_TEMP/asc-venv"
+          # shellcheck disable=SC1091
+          source "$RUNNER_TEMP/asc-venv/bin/activate"
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet 'PyJWT[crypto]'
+          python apple/scripts/patch_listing.py

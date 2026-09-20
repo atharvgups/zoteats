@@ -36,6 +36,9 @@ jobs:
       - name: Run package tests
         run: swift test --package-path apple/ZotEatsKit
 
+      - name: Refuse em dashes in App Store listing copy
+        run: python3 apple/scripts/check_appstore_copy.py
+
   app-build:
     name: App build + screenshots (macOS)
     # macOS runners bill at 10x — run only on manual dispatch or when a commit
