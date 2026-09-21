@@ -720,11 +720,132 @@ public struct DiningService: Sendable {
         switch primary.lowercased() {
         case "breakfast":
             return match("Breakfast") ?? match("Brunch") ?? primary
+        case "lunch":
+            // Weekend Lunch is often an untimed All-Day clone; Brunch is the
+            // real midday board (Crossroads tacos). Prefer Lunch when it
+            // exists, then Brunch so a Lunch-only peek isn't empty.
+            return match("Lunch") ?? match("Brunch") ?? primary
         case "dinner":
             return match("Dinner") ?? match("Limited Dinner") ?? primary
         default:
             return match(primary) ?? primary
         }
+    }
+
+    /// Periods to scrape for a primary pill. Lunch unions Brunch so weekend
+    /// midday dishes (Sesame Shrimp Taco on Brunch, missing from untimed Lunch)
+    /// still show when Lunch is selected. Breakfast stays Breakfast-only.
+    public static func menuPeriodNames(primary: String, available: [String]) -> [String] {
+        let resolved = resolvePeriod(primary, available: available)
+        var names: [String] = []
+        func add(_ needle: String) {
+            guard let match = available.first(where: {
+                $0.caseInsensitiveCompare(needle) == .orderedSame
+            }) else { return }
+            if !names.contains(where: { $0.caseInsensitiveCompare(match) == .orderedSame }) {
+                names.append(match)
+            }
+        }
+        add(resolved)
+        if MealPeriodPill.canonical(primary) == "Lunch" {
+            add("Lunch")
+            add("Brunch")
+        }
+        return names.filter { !$0.localizedCaseInsensitiveContains("all day") }
+    }
+
+    /// Union stations from several meal periods. Same station name keeps one
+    /// section; items are deduped by name (case-insensitive).
+    public static func mergeStations(_ groups: [MenuStation]...) -> [MenuStation] {
+        mergeStationLists(Array(groups))
+    }
+
+    public static func mergeStationLists(_ groups: [[MenuStation]]) -> [MenuStation] {
+        var displayName: [String: String] = [:]
+        var order: [String] = []
+        var items: [String: [MenuItem]] = [:]
+        var seen: [String: Set<String>] = [:]
+
+        for group in groups {
+            for station in group {
+                let key = station.name
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                guard !key.isEmpty else { continue }
+                if displayName[key] == nil {
+                    displayName[key] = station.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    order.append(key)
+                    items[key] = []
+                    seen[key] = []
+                }
+                for item in station.items {
+                    let nameKey = item.name.lowercased()
+                    if seen[key]!.insert(nameKey).inserted {
+                        items[key]!.append(item)
+                    }
+                }
+            }
+        }
+        return order.compactMap { key in
+            guard let name = displayName[key], let list = items[key], !list.isEmpty else {
+                return nil
+            }
+            return MenuStation(name: name, items: list)
+        }
+    }
+
+    /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
+    /// that aren't All-Day grill/salad staples and aren't already on the board.
+    public static func hubExclusiveItems(
+        onMenu menu: DiningMenu,
+        hubStations: [MenuStation]
+    ) -> [MenuItem] {
+        let live = menu.period.lowercased()
+        let matching = hubStations.filter { station in
+            let name = station.name.lowercased()
+            if live.contains("lunch") || live.contains("brunch") {
+                return name.contains("lunch") || name.contains("brunch")
+            }
+            if live.contains("breakfast") {
+                return name.contains("breakfast") && !name.contains("brunch")
+            }
+            if live.contains("dinner") {
+                return name.contains("dinner")
+            }
+            return name.caseInsensitiveCompare(menu.period) == .orderedSame
+        }
+        let allDayNames = Set(
+            hubStations
+                .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+                .flatMap(\.items)
+                .map { $0.name.lowercased() }
+        )
+        var seen = Set(menu.stations.flatMap(\.items).map { $0.name.lowercased() })
+        var extras: [MenuItem] = []
+        for item in matching.flatMap(\.items) {
+            let key = item.name.lowercased()
+            if seen.contains(key) || allDayNames.contains(key) { continue }
+            seen.insert(key)
+            extras.append(item)
+        }
+        return extras
+    }
+
+    public static func insertingHubExtras(_ extras: [MenuItem], into menu: DiningMenu) -> DiningMenu {
+        guard !extras.isEmpty else { return menu }
+        var stations = menu.stations
+        let extra = MenuStation(name: "Also served", items: extras)
+        if let idx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }) {
+            stations.insert(extra, at: idx)
+        } else {
+            stations.append(extra)
+        }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: stations
+        )
     }
 
     /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
@@ -756,14 +877,19 @@ public struct DiningService: Sendable {
         }
 
         let resolved = Self.resolvePeriod(period, available: available)
+        let periodNames = Self.menuPeriodNames(primary: period, available: available)
         let stationNames = try await stationMap()
 
-        var mealStations = try await stations(
-            for: resolved, in: today, stationNames: stationNames
-        )
+        var mealStations: [MenuStation] = []
+        for name in periodNames {
+            let more = try await stations(
+                for: name, in: today, stationNames: stationNames
+            )
+            mealStations = Self.mergeStations(mealStations, more)
+        }
 
-        let periodMatched = available.contains {
-            $0.caseInsensitiveCompare(resolved) == .orderedSame
+        let periodMatched = periodNames.contains { name in
+            available.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
         }
         if periodMatched,
            !resolved.localizedCaseInsensitiveContains("all day"),
@@ -811,8 +937,11 @@ public struct DiningService: Sendable {
         guard !stations.isEmpty else { return nil }
         let available = stations.map(\.name)
         let resolved = Self.resolvePeriod(period, available: available)
-        let matched = stations.filter { $0.name.caseInsensitiveCompare(resolved) == .orderedSame }
-        let board = matched.isEmpty ? stations : matched
+        let names = Self.menuPeriodNames(primary: period, available: available)
+        let matched = names.compactMap { name in
+            stations.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        }
+        let board = matched.isEmpty ? stations : Self.mergeStationLists([matched])
         return DiningMenu(
             locationId: HallDirectory.oasisComingSoonID,
             date: dateISO,
@@ -845,38 +974,42 @@ public struct DiningService: Sendable {
                 }
             }
         }
-        guard !tagsByKey.isEmpty || !allergensByKey.isEmpty else { return menu }
-
-        let stations = menu.stations.map { station in
-            MenuStation(
-                name: station.name,
-                items: station.items.map { item in
-                    let hubTags = Self.dietLookupKeys(for: item.name)
-                        .compactMap { tagsByKey[$0] }.first ?? []
-                    let hubAllergens = Self.dietLookupKeys(for: item.name)
-                        .compactMap { allergensByKey[$0] }.first ?? []
-                    let tags = Self.mergeUnique(item.dietaryTags, hubTags)
-                    let allergens = Self.mergeUnique(item.allergens, hubAllergens)
-                    guard tags != item.dietaryTags || allergens != item.allergens else { return item }
-                    return MenuItem(
-                        id: item.id,
-                        name: item.name,
-                        description: item.description,
-                        calories: item.calories,
-                        servingSize: item.servingSize,
-                        allergens: allergens,
-                        dietaryTags: tags,
-                        nutrition: item.nutrition
-                    )
-                }
+        var tagged = menu
+        if !tagsByKey.isEmpty || !allergensByKey.isEmpty {
+            let stations = menu.stations.map { station in
+                MenuStation(
+                    name: station.name,
+                    items: station.items.map { item in
+                        let hubTags = Self.dietLookupKeys(for: item.name)
+                            .compactMap { tagsByKey[$0] }.first ?? []
+                        let hubAllergens = Self.dietLookupKeys(for: item.name)
+                            .compactMap { allergensByKey[$0] }.first ?? []
+                        let tags = Self.mergeUnique(item.dietaryTags, hubTags)
+                        let allergens = Self.mergeUnique(item.allergens, hubAllergens)
+                        guard tags != item.dietaryTags || allergens != item.allergens else { return item }
+                        return MenuItem(
+                            id: item.id,
+                            name: item.name,
+                            description: item.description,
+                            calories: item.calories,
+                            servingSize: item.servingSize,
+                            allergens: allergens,
+                            dietaryTags: tags,
+                            nutrition: item.nutrition
+                        )
+                    }
+                )
+            }
+            tagged = DiningMenu(
+                locationId: menu.locationId,
+                date: menu.date,
+                period: menu.period,
+                stations: stations
             )
         }
-        return DiningMenu(
-            locationId: menu.locationId,
-            date: menu.date,
-            period: menu.period,
-            stations: stations
-        )
+
+        let extras = Self.hubExclusiveItems(onMenu: tagged, hubStations: hubStations)
+        return Self.insertingHubExtras(extras, into: tagged)
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
