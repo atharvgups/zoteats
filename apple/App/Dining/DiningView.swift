@@ -1468,7 +1468,7 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — Closed / Dinner / Coming Soon, centered under the name.
+/// Short card subtext — Open · until / Closed · opens, centered under the name.
 private enum HallChromeStatus {
     static func resolve(
         for location: DiningLocation,
@@ -1478,8 +1478,9 @@ private enum HallChromeStatus {
         let status = EatHallCardChrome.status(
             comingSoon: location.comingSoonSubtitle != nil,
             state: state,
-            opensTomorrowPeriod: location.opensTomorrowPeriod,
-            opensNextPeriod: location.opensNextPeriod
+            opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
+            opensNextAtMinutes: location.opensNextAtMinutes,
+            opensNextWeekday: location.opensNextWeekday
         )
         let tint: Color = {
             if location.comingSoonSubtitle != nil { return .secondary }

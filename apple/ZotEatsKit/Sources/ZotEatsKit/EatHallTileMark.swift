@@ -12,7 +12,7 @@ public enum EatHallTileMark: Sendable {
     /// Floor if the longest name must shrink to fit — applied to every hall.
     public static let nameMinimumPointSize: CGFloat = 16
 
-    /// Closed / Dinner / Coming Soon — small under the name.
+    /// Open · until / Closed · opens / Coming Soon — small under the name.
     public static let statusPointSize: CGFloat = 12
 
     /// Kept for layout math; tiles no longer show a second status line.

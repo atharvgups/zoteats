@@ -130,6 +130,78 @@ struct DiningServiceTests {
     @Test func resolvePeriodMapsBreakfastToBrunch() {
         #expect(DiningService.resolvePeriod("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
+        #expect(DiningService.resolvePeriod("Lunch", available: ["Brunch", "Dinner"]) == "Brunch")
+    }
+
+    @Test func lunchMenuPeriodNamesUnionBrunch() {
+        let weekend = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
+        #expect(DiningService.menuPeriodNames(primary: "Lunch", available: weekend) == ["Lunch", "Brunch"])
+        #expect(DiningService.menuPeriodNames(primary: "Breakfast", available: weekend) == ["Breakfast"])
+        #expect(DiningService.menuPeriodNames(primary: "Lunch", available: ["Brunch", "Dinner"]) == ["Brunch"])
+        #expect(!DiningService.menuPeriodNames(primary: "Lunch", available: weekend).contains("All Day"))
+    }
+
+    @Test func mergeStationsUnionsBrunchTacosIntoLunch() {
+        let taco = MenuItem(
+            id: "taco", name: "Sesame Shrimp Taco", description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let burger = MenuItem(
+            id: "burger", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let lunch = [
+            MenuStation(name: "Ember", items: [burger]),
+        ]
+        let brunch = [
+            MenuStation(name: "Ember", items: [burger]),
+            MenuStation(name: "Crossroads", items: [taco]),
+        ]
+        let merged = DiningService.mergeStations(lunch, brunch)
+        #expect(merged.contains { $0.name == "Crossroads" && $0.items.contains { $0.name == "Sesame Shrimp Taco" } })
+        #expect(merged.first { $0.name == "Ember" }?.items.count == 1)
+    }
+
+    @Test func hubExclusiveAddsMealSpecificGapsNotAllDayStaples() {
+        let totchos = MenuItem(
+            id: "1", name: "Beef Totchos", description: nil, calories: 500,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let ravioli = MenuItem(
+            id: "2", name: "Creamy Marsala Ravioli", description: nil, calories: 410,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let lettuce = MenuItem(
+            id: "3", name: "Lettuce", description: nil, calories: 5,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let taco = MenuItem(
+            id: "4", name: "Sesame Shrimp Taco", description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-20",
+            period: "Lunch",
+            stations: [MenuStation(name: "Crossroads", items: [totchos])]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [lettuce, totchos]),
+            MenuStation(name: "Lunch", items: [lettuce, totchos, ravioli]),
+            MenuStation(name: "Brunch", items: [lettuce, taco]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        let names = extras.map(\.name)
+        #expect(names.contains("Creamy Marsala Ravioli"))
+        #expect(names.contains("Sesame Shrimp Taco"))
+        #expect(!names.contains("Lettuce"))
+        #expect(!names.contains("Beef Totchos"))
+        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        #expect(combined.stations.contains { $0.name == "Also served" })
+        #expect(
+            combined.stations.first { $0.name == "Also served" }?.items.map(\.name).sorted()
+                == ["Creamy Marsala Ravioli", "Sesame Shrimp Taco"].sorted()
+        )
     }
 
     @Test func lunchMenuFoldsAllDayIntoAvailableAllDayStation() async throws {
