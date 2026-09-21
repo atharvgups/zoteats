@@ -478,12 +478,44 @@ public struct DiningMenu: Codable, Sendable, Equatable {
     /// Meal-period name, e.g. "Lunch".
     public let period: String
     public let stations: [MenuStation]
+    /// Primary pills (Breakfast / Lunch / Dinner) whose live board has Twisted Root
+    /// dishes today. Empty when the station isn't posted — never invented.
+    public let twistedRootMeals: [String]
 
-    public init(locationId: String, date: String, period: String, stations: [MenuStation]) {
+    public init(
+        locationId: String,
+        date: String,
+        period: String,
+        stations: [MenuStation],
+        twistedRootMeals: [String] = []
+    ) {
         self.locationId = locationId
         self.date = date
         self.period = period
         self.stations = stations
+        self.twistedRootMeals = twistedRootMeals
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        locationId = try container.decode(String.self, forKey: .locationId)
+        date = try container.decode(String.self, forKey: .date)
+        period = try container.decode(String.self, forKey: .period)
+        stations = try container.decode([MenuStation].self, forKey: .stations)
+        twistedRootMeals = try container.decodeIfPresent([String].self, forKey: .twistedRootMeals) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(locationId, forKey: .locationId)
+        try container.encode(date, forKey: .date)
+        try container.encode(period, forKey: .period)
+        try container.encode(stations, forKey: .stations)
+        try container.encode(twistedRootMeals, forKey: .twistedRootMeals)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case locationId, date, period, stations, twistedRootMeals
     }
 }
 

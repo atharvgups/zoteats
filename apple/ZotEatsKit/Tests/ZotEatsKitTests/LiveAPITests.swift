@@ -79,4 +79,21 @@ struct LiveAPITests {
         #expect(places.contains { $0.name.contains("Starbucks") })
         #expect(!places.contains { $0.id == "the-anteatery" })
     }
+
+    @Test func twistedRootOnlyWhenSourcePostsTheStation() async throws {
+        let dining = DiningService()
+        for hall in ["anteatery", "brandywine"] {
+            for period in DiningService.mealSelectorPills {
+                let menu = try await dining.menu(for: hall, period: period)
+                let onBoard = menu.stations.contains { DiningService.isTwistedRoot(stationName: $0.name) }
+                let listed = menu.twistedRootMeals.contains {
+                    $0.caseInsensitiveCompare(period) == .orderedSame
+                }
+                #expect(onBoard == listed)
+                if onBoard {
+                    #expect(DiningService.isTwistedRoot(stationName: menu.stations[0].name))
+                }
+            }
+        }
+    }
 }
