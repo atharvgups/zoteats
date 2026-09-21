@@ -528,7 +528,7 @@ private enum DiningStatusPaint {
                 .init(
                     id: "oasis",
                     name: "The Oasis",
-                    statusText: "Coming Soon",
+                    statusText: OasisComingSoonCopy.cardStatus,
                     isOpen: false,
                     occupancy: WidgetPlaceholderHonesty.galleryHallOccupancy,
                     countdownEnd: nil,
@@ -566,10 +566,17 @@ private enum DiningStatusPaint {
 
         let halls = visibleLocations.map { location -> DiningStatusEntry.HallStatus in
             if location.isComingSoon {
+                let chrome = EatHallCardChrome.status(
+                    comingSoon: true,
+                    state: location.openState(nowMinutes: nowMinutes),
+                    opensTomorrowAtMinutes: location.opensTomorrowAtMinutes,
+                    opensNextAtMinutes: location.opensNextAtMinutes,
+                    opensNextWeekday: location.opensNextWeekday
+                )
                 return .init(
                     id: location.id,
                     name: location.name,
-                    statusText: location.comingSoonSubtitle ?? "Coming Soon",
+                    statusText: chrome.primary,
                     isOpen: false,
                     occupancy: nil,
                     countdownEnd: nil,
@@ -979,7 +986,7 @@ struct DiningStatusView: View {
         halls: [
             .init(id: "anteatery", name: "The Anteatery", statusText: "Lunch · 11:30 AM", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil),
             .init(id: "brandywine", name: "Brandywine", statusText: "Breakfast · 11:00 AM", isOpen: true, occupancy: nil, countdownEnd: nil, countdownKind: .closes),
-            .init(id: "oasis", name: "The Oasis", statusText: "Coming Soon", isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil, isComingSoon: true),
+            .init(id: "oasis", name: "The Oasis", statusText: OasisComingSoonCopy.cardStatus, isOpen: false, occupancy: nil, countdownEnd: nil, countdownKind: nil, isComingSoon: true),
         ],
         boardHallName: "Brandywine",
         boardHallID: "brandywine",

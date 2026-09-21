@@ -596,46 +596,76 @@ public struct DiningService: Sendable {
                 allowTypicalFallback: false
             )) ?? []
             if !recipes.isEmpty {
-                next.append(Self.oasisLocationFromHubRecipes(recipes))
+                next.append(Self.oasisLocationFromHubRecipes(recipes, dateISO: dateISO, now: now()))
                 return next
             }
-            next.append(Self.oasisComingSoonLocation())
+            next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
             return next
         case .comingSoon, .notListed:
-            next.append(Self.oasisComingSoonLocation())
+            next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
             return next
         }
     }
 
-    /// Hub posted SKUs — meal-period names become available periods. No hours,
-    /// openNow, or occupancy are invented when the listing has none.
-    private static func oasisLocationFromHubRecipes(_ recipes: [MenuStation]) -> DiningLocation {
-        let periods = recipes.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    /// Hub posted SKUs — meal-period names become available periods. After
+    /// `OasisSchedule.firstServiceISO`, attach Hub weekday hours so the tile
+    /// can show until/opens like the other halls.
+    private static func oasisLocationFromHubRecipes(
+        _ recipes: [MenuStation],
+        dateISO: String,
+        now: Date
+    ) -> DiningLocation {
+        let names = recipes.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let weekday = PacificTime.weekdayName(now: now)
+        let nowMinutes = PacificTime.nowMinutes(now: now)
+        let windows = OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
+        let next = OasisSchedule.nextService(after: dateISO)
         return DiningLocation(
             id: HallDirectory.oasisComingSoonID,
             name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
             area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
-            openNow: false,
-            todayHours: nil,
-            availablePeriods: periods,
-            periods: [],
-            hoursApproximate: true
+            openNow: OasisSchedule.isOpen(on: dateISO, weekday: weekday, nowMinutes: nowMinutes),
+            todayHours: OasisSchedule.todayHours(on: dateISO, weekday: weekday),
+            availablePeriods: names,
+            periods: windows,
+            hoursApproximate: true,
+            opensTomorrowAtMinutes: next?.dayOffset == 1 ? next?.minutes : nil,
+            opensTomorrowPeriod: next?.dayOffset == 1 ? next?.period : nil,
+            opensNextAtMinutes: (next?.dayOffset ?? 0) >= 2 ? next?.minutes : nil,
+            opensNextDayOffset: (next?.dayOffset ?? 0) >= 2 ? next?.dayOffset : nil,
+            opensNextWeekday: (next?.dayOffset ?? 0) >= 2 ? next?.weekday : nil,
+            opensNextPeriod: (next?.dayOffset ?? 0) >= 2 ? next?.period : nil,
+            opensNextDateISO: (next?.dayOffset ?? 0) >= 2 ? next?.iso : nil
         )
     }
 
     /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
-    /// Mon–Fri; meal plans start Sept 21 2026. No invented live board.
-    public static func oasisComingSoonLocation() -> DiningLocation {
-        DiningLocation(
+    /// Mon–Fri from `OasisSchedule.firstServiceISO`. No invented live board.
+    public static func oasisComingSoonLocation(
+        dateISO: String = PacificTime.todayISO(),
+        now: Date = Date()
+    ) -> DiningLocation {
+        let weekday = PacificTime.weekdayName(now: now)
+        let nowMinutes = PacificTime.nowMinutes(now: now)
+        let windows = OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
+        let next = OasisSchedule.nextService(after: dateISO)
+        return DiningLocation(
             id: HallDirectory.oasisComingSoonID,
             name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
             area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
-            openNow: false,
-            todayHours: nil,
+            openNow: OasisSchedule.isOpen(on: dateISO, weekday: weekday, nowMinutes: nowMinutes),
+            todayHours: OasisSchedule.todayHours(on: dateISO, weekday: weekday),
             availablePeriods: [],
-            periods: [],
+            periods: windows,
             hoursApproximate: true,
-            comingSoonSubtitle: OasisComingSoonCopy.cardStatus
+            opensTomorrowAtMinutes: next?.dayOffset == 1 ? next?.minutes : nil,
+            opensTomorrowPeriod: next?.dayOffset == 1 ? next?.period : nil,
+            opensNextAtMinutes: (next?.dayOffset ?? 0) >= 2 ? next?.minutes : nil,
+            opensNextDayOffset: (next?.dayOffset ?? 0) >= 2 ? next?.dayOffset : nil,
+            opensNextWeekday: (next?.dayOffset ?? 0) >= 2 ? next?.weekday : nil,
+            opensNextPeriod: (next?.dayOffset ?? 0) >= 2 ? next?.period : nil,
+            opensNextDateISO: (next?.dayOffset ?? 0) >= 2 ? next?.iso : nil,
+            comingSoonSubtitle: OasisComingSoonCopy.cardStatus(on: dateISO)
         )
     }
 

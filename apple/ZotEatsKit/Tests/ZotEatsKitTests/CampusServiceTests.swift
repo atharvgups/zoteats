@@ -215,9 +215,11 @@ struct CampusServiceTests {
             ]) == .liveBoard(urlKey: "the-oasis-dining-hall")
         )
         #expect(OasisHubListing.resolve([("brandywine", true)]) == .notListed)
-        #expect(OasisComingSoonCopy.selectedLine == "Opens Sept 21 · Lunch & Dinner")
-        #expect(!OasisComingSoonCopy.selectedLine.contains("meal-plan"))
-        #expect(!OasisComingSoonCopy.selectedLine.contains("Mon"))
+        #expect(OasisComingSoonCopy.selectedLine(on: "2026-09-21") == "Opens Mon Oct 5 · Lunch & Dinner")
+        #expect(OasisComingSoonCopy.cardStatus(on: "2026-09-21") == "Opens Mon Oct 5")
+        #expect(OasisComingSoonCopy.selectedLine(on: OasisSchedule.firstServiceISO) == "Lunch & Dinner · Mon–Fri")
+        #expect(!OasisComingSoonCopy.selectedLine(on: "2026-09-21").contains("meal-plan"))
+        #expect(!OasisComingSoonCopy.selectedLine(on: "2026-09-21").contains("Sept 21"))
     }
 
     @Test func brandAndLocationSplitting() {

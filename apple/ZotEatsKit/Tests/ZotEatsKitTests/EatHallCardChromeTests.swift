@@ -4,15 +4,26 @@ import Testing
 
 @Suite("EatHallCardChrome")
 struct EatHallCardChromeTests {
-    @Test func oasisStaysComingSoonMuted() {
+    @Test func oasisShowsOpenDateBeforeFirstService() {
         let status = EatHallCardChrome.status(
             comingSoon: true,
             state: .open(period: "Lunch", closesAt: 900),
-            opensTomorrowAtMinutes: nil
+            opensTomorrowAtMinutes: nil,
+            todayISO: "2026-09-21"
         )
-        #expect(status.primary == "Coming Soon")
+        #expect(status.primary == "Opens Mon Oct 5")
         #expect(status.secondary == nil)
         #expect(status.tone == .muted)
+    }
+
+    @Test func oasisUsesHoursAfterFirstService() {
+        let status = EatHallCardChrome.status(
+            comingSoon: true,
+            state: .open(period: "Lunch", closesAt: 14 * 60 + 30),
+            todayISO: OasisSchedule.firstServiceISO
+        )
+        #expect(status.primary == "until 2:30 PM")
+        #expect(status.tone == .open)
     }
 
     @Test func openShowsUntilClockGreen() {
@@ -101,7 +112,8 @@ struct EatHallCardChromeTests {
             EatHallCardChrome.status(
                 comingSoon: true,
                 state: .unknown,
-                opensTomorrowAtMinutes: nil
+                opensTomorrowAtMinutes: nil,
+                todayISO: "2026-09-21"
             ),
             EatHallCardChrome.status(
                 comingSoon: false,

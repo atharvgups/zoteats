@@ -19,9 +19,10 @@ public enum HallDirectory {
     static let known: [String: (name: String, area: String)] = [
         "anteatery": ("The Anteatery", "Mesa Court"),
         "brandywine": ("Brandywine", "Middle Earth"),
-        // Third residential dining commons — Hub lists The Oasis as Coming Soon
-        // (meal-plan only, Lunch/Dinner, no breakfast). Anteater API `/restaurants`
-        // will list a live id when menus exist; until then Eat injects a Coming Soon card.
+        // Third residential dining commons — meal-plan only, Lunch/Dinner, no
+        // breakfast. First service is `OasisSchedule.firstServiceISO`. Anteater
+        // API `/restaurants` lists a live id when menus exist; until then Eat
+        // injects an Opens-date card, then Hub hours after that day.
         "oasis": ("The Oasis", "Mesa Court"),
         "the-oasis": ("The Oasis", "Mesa Court"),
         "the-oasis-dining-hall": ("The Oasis", "Mesa Court"),
@@ -194,7 +195,7 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     /// Irvine ISO for `opensNext*` (deep links / See-next CTA).
     public let opensNextDateISO: String?
     /// Non-nil for halls Hub lists before menus exist (e.g. The Oasis).
-    /// Never invent a live board for these — Eat shows Coming Soon copy only.
+    /// Never invent a live board for these — Eat shows the Opens-date line.
     public let comingSoonSubtitle: String?
 
     public init(

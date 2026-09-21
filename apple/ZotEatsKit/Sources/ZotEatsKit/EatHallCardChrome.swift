@@ -1,11 +1,11 @@
 import Foundation
 
 /// Short 3-across Eat hall status — one small hours line under the name:
-/// "until 8 PM" (open / green) / "opens 7 AM" (closed / muted) / Coming Soon.
+/// "until 8 PM" (open / green) / "opens 7 AM" (closed / muted) / Opens Mon Oct 5.
 public enum EatHallCardTone: String, Sendable, Equatable {
     /// Serving now — green hours copy.
     case open
-    /// Closed, coming soon, or unknown — muted grey hours copy.
+    /// Closed, not yet open, or unknown — muted grey hours copy.
     case muted
 }
 
@@ -48,11 +48,12 @@ public enum EatHallCardChrome: Sendable {
         opensNextAtMinutes: Int? = nil,
         opensNextWeekday: String? = nil,
         opensTomorrowPeriod _: String? = nil,
-        opensNextPeriod _: String? = nil
+        opensNextPeriod _: String? = nil,
+        todayISO: String = PacificTime.todayISO()
     ) -> EatHallCardStatus {
-        if comingSoon {
+        if comingSoon, !OasisSchedule.hasOpened(on: todayISO) {
             return EatHallCardStatus(
-                primary: OasisComingSoonCopy.cardStatus,
+                primary: OasisComingSoonCopy.cardStatus(on: todayISO),
                 tone: .muted
             )
         }
@@ -100,7 +101,8 @@ public enum EatHallCardChrome: Sendable {
         opensNextAtMinutes: Int? = nil,
         opensNextWeekday: String? = nil,
         opensTomorrowPeriod: String? = nil,
-        opensNextPeriod: String? = nil
+        opensNextPeriod: String? = nil,
+        todayISO: String = PacificTime.todayISO()
     ) -> String {
         status(
             comingSoon: comingSoon,
@@ -109,7 +111,8 @@ public enum EatHallCardChrome: Sendable {
             opensNextAtMinutes: opensNextAtMinutes,
             opensNextWeekday: opensNextWeekday,
             opensTomorrowPeriod: opensTomorrowPeriod,
-            opensNextPeriod: opensNextPeriod
+            opensNextPeriod: opensNextPeriod,
+            todayISO: todayISO
         ).accessibilityLine
     }
 
