@@ -15,6 +15,7 @@ public struct MealReview: Codable, Equatable, Sendable, Identifiable {
 
     public static let legacyLocalAuthorID = "local"
     public static let youLabel = "You"
+    public static let communityAuthorLabel = "Anteater"
 
     public init(
         dishName: String,

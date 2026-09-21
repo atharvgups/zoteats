@@ -53,4 +53,69 @@ struct CommunityReviewFeedTests {
         #expect(MealReviewLogic.lookup(reviews, dishName: "Soup", authorID: "me")?.note == "Mine")
         #expect(MealReviewLogic.lookup(reviews, dishName: "Soup", authorID: "other")?.stars == 2)
     }
+
+    @Test func submitPublishesAndHidesOwnReview() async {
+        let http = ReviewingHTTP()
+        let url = URL(string: "https://example.test/reviews")!
+        await http.seed(CommunityReviewFeed.encode([
+            MealReview(dishName: "Soup", stars: 4, note: "Nice", authorID: "other", authorLabel: "Anteater"),
+        ]))
+        let next = await CommunityReviewFeed.submit(
+            http: http,
+            dishName: "Soup",
+            stars: 5,
+            note: "Best",
+            authorID: "me",
+            authorLabel: MealReview.communityAuthorLabel,
+            excludingAuthorID: "me",
+            url: url
+        )
+        #expect(next.count == 1)
+        #expect(next[0].resolvedAuthorID == "other")
+        let stored = CommunityReviewFeed.decode(await http.payload())
+        #expect(stored.count == 2)
+        #expect(stored.contains { $0.resolvedAuthorID == "me" && $0.stars == 5 && $0.note == "Best" })
+        #expect(stored.contains { $0.resolvedAuthorID == "other" })
+    }
+
+    @Test func submitZeroStarsRemovesOwnReview() async {
+        let http = ReviewingHTTP()
+        let url = URL(string: "https://example.test/reviews")!
+        await http.seed(CommunityReviewFeed.encode([
+            MealReview(dishName: "Soup", stars: 5, note: "Mine", authorID: "me", authorLabel: "Anteater"),
+            MealReview(dishName: "Soup", stars: 3, note: "Theirs", authorID: "other", authorLabel: "Anteater"),
+        ]))
+        let next = await CommunityReviewFeed.submit(
+            http: http,
+            dishName: "Soup",
+            stars: 0,
+            note: "",
+            authorID: "me",
+            authorLabel: MealReview.communityAuthorLabel,
+            excludingAuthorID: "me",
+            url: url
+        )
+        #expect(next.count == 1)
+        #expect(next[0].resolvedAuthorID == "other")
+        let stored = CommunityReviewFeed.decode(await http.payload())
+        #expect(stored.map(\.resolvedAuthorID) == ["other"])
+    }
+}
+
+actor ReviewingHTTP: HTTPFetching {
+    private var stored = Data("{}".utf8)
+
+    func seed(_ data: Data) {
+        stored = data
+    }
+
+    func payload() -> Data { stored }
+
+    func data(from url: URL) async throws -> Data { stored }
+
+    func send(method: String, url: URL, headers: [String: String], body: Data?) async throws -> Data {
+        if method.uppercased() == "GET" { return stored }
+        if let body { stored = body }
+        return stored
+    }
 }

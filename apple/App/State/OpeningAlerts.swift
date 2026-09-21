@@ -3,8 +3,8 @@ import UserNotifications
 import ZotEatsKit
 
 // Useful local alerts: dining meal start / closing soon, campus-favorite
-// open/close, plus a separate Waitz library-busy check. Quiet defaults — every
-// type is off until the user flips a Settings switch. Dining uses the hall
+// open/close, plus a separate Waitz library-busy check. Master Notifications
+// switch in Settings; per-type flags live in Advanced. Dining uses the hall
 // watchlist (Anteatery if none picked). Campus uses hearted places with hours.
 // No servers — iOS fires scheduled banners even if the app stays closed.
 
@@ -46,8 +46,50 @@ enum OpeningAlerts {
         set { UserDefaults.standard.set(newValue, forKey: campusHoursKey) }
     }
 
+    static var anyChildEnabled: Bool {
+        diningOpenEnabled || diningClosingEnabled || campusHoursEnabled
+            || LibraryBusyAlerts.isEnabled || MealActivityManager.autoStartEnabled
+    }
+
+    static var masterEnabled: Bool {
+        get {
+            let stored: Bool?
+            if UserDefaults.standard.object(forKey: NotificationMasterLogic.masterKey) == nil {
+                stored = nil
+            } else {
+                stored = UserDefaults.standard.bool(forKey: NotificationMasterLogic.masterKey)
+            }
+            return NotificationMasterLogic.masterEnabled(
+                stored: stored,
+                anyChildEnabled: anyChildEnabled
+            )
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: NotificationMasterLogic.masterKey)
+        }
+    }
+
+    static var advancedCustomized: Bool {
+        get { UserDefaults.standard.bool(forKey: NotificationMasterLogic.customizedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: NotificationMasterLogic.customizedKey) }
+    }
+
     static var anyEnabled: Bool {
-        diningOpenEnabled || diningClosingEnabled || campusHoursEnabled || LibraryBusyAlerts.isEnabled
+        masterEnabled && (
+            diningOpenEnabled || diningClosingEnabled || campusHoursEnabled || LibraryBusyAlerts.isEnabled
+        )
+    }
+
+    static func applySensibleDefaults() {
+        diningOpenEnabled = true
+        diningClosingEnabled = true
+        campusHoursEnabled = true
+        LibraryBusyAlerts.isEnabled = true
+        MealActivityManager.autoStartEnabled = true
+    }
+
+    static func markAdvancedCustomized() {
+        advancedCustomized = true
     }
 
     static func isWatching(_ id: String) -> Bool {
@@ -91,8 +133,8 @@ enum OpeningAlerts {
                 .filter { $0.hasPrefix(openPrefix) || $0.hasPrefix(closePrefix) }
         )
 
-        let wantDining = diningOpenEnabled || diningClosingEnabled
-        let wantCampus = campusHoursEnabled
+        let wantDining = masterEnabled && (diningOpenEnabled || diningClosingEnabled)
+        let wantCampus = masterEnabled && campusHoursEnabled
         guard wantDining || wantCampus else { return }
 
         var diningCandidates: [OpeningAlertPlanner.Candidate] = []

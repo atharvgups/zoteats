@@ -361,6 +361,9 @@ final class BusynessStore {
 final class Preferences {
     private static let legacyDietFilterKey = "zoteats.dietFilter"
 
+    @ObservationIgnored
+    private var publishTask: Task<Void, Never>?
+
     /// Favorite dishes by name (IDs rotate daily; names are stable).
     /// Mirrored into the App Group so Today's Menu widgets can pin them.
     var favoriteDishNames: Set<String> {
@@ -396,7 +399,7 @@ final class Preferences {
         }
     }
 
-    /// Personal dish ratings — on-device only, keyed by dish name.
+    /// Personal dish ratings — on-device, and published to the shared community feed.
     var mealReviews: [MealReview] {
         didSet {
             SharedDefaults.setMealReviews(mealReviews)
@@ -548,6 +551,7 @@ final class Preferences {
         if playHaptic {
             Haptics.soft()
         }
+        schedulePublish(dishName: dishName, delay: playHaptic ? .milliseconds(200) : .seconds(1))
     }
 
     func clearReview(dishName: String) {
@@ -557,10 +561,36 @@ final class Preferences {
             authorID: reviewerID
         )
         Haptics.soft()
+        schedulePublish(dishName: dishName, delay: .milliseconds(200))
     }
 
     func loadCommunityReviews(http: any HTTPFetching = HTTPClient()) async {
         let next = await CommunityReviewFeed.fetch(http: http, excludingAuthorID: reviewerID)
+        if next != communityReviews {
+            communityReviews = next
+        }
+    }
+
+    private func schedulePublish(dishName: String, delay: Duration) {
+        publishTask?.cancel()
+        publishTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await self?.publishReview(dishName: dishName)
+        }
+    }
+
+    func publishReview(dishName: String, http: any HTTPFetching = HTTPClient()) async {
+        let mine = review(for: dishName)
+        let next = await CommunityReviewFeed.submit(
+            http: http,
+            dishName: dishName,
+            stars: mine?.stars ?? 0,
+            note: mine?.note ?? "",
+            authorID: reviewerID,
+            authorLabel: MealReview.communityAuthorLabel,
+            excludingAuthorID: reviewerID
+        )
         if next != communityReviews {
             communityReviews = next
         }

@@ -24,12 +24,21 @@ public enum HTTPError: Error, LocalizedError {
 public protocol HTTPFetching: Sendable {
     func data(from url: URL) async throws -> Data
     func data(from url: URL, headers: [String: String]) async throws -> Data
+    func send(method: String, url: URL, headers: [String: String], body: Data?) async throws -> Data
 }
 
 public extension HTTPFetching {
     /// Fixture-friendly default: stubs that only route by URL ignore headers.
     func data(from url: URL, headers: [String: String]) async throws -> Data {
         try await data(from: url)
+    }
+
+    /// Default send is GET-only so existing stubs keep compiling.
+    func send(method: String, url: URL, headers: [String: String], body: Data?) async throws -> Data {
+        if method.uppercased() == "GET" || method.uppercased() == "HEAD" {
+            return try await data(from: url, headers: headers)
+        }
+        throw HTTPError.network(underlying: URLError(.unsupportedURL), url: url)
     }
 }
 
@@ -50,14 +59,21 @@ public struct HTTPClient: HTTPFetching {
     }
 
     public func data(from url: URL) async throws -> Data {
-        try await data(from: url, headers: [:])
+        try await send(method: "GET", url: url, headers: [:], body: nil)
     }
 
     public func data(from url: URL, headers: [String: String]) async throws -> Data {
+        try await send(method: "GET", url: url, headers: headers, body: nil)
+    }
+
+    public func send(method: String, url: URL, headers: [String: String], body: Data?) async throws -> Data {
         var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.timeoutInterval = timeout
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
+        request.httpBody = body
 
         let (data, response): (Data, URLResponse)
         do {

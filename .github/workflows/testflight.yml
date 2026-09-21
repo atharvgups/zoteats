@@ -65,6 +65,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       TESTFLIGHT_EXTERNAL_GROUP_NAME: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP_NAME || 'Zot Eats Testers!' }}
       PROMOTE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_only }}
+      ZOTEATS_REVIEWS_TOKEN: ${{ secrets.ZOTEATS_REVIEWS_TOKEN }}
     steps:
       # Fail fast with an explicit list of missing secrets instead of a cryptic
       # xcodebuild signing error 20 minutes in.
@@ -149,6 +150,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            ZOTEATS_REVIEWS_TOKEN="${ZOTEATS_REVIEWS_TOKEN:-}" \
             archive
 
       # method app-store-connect + destination upload (Xcode 15+) signs the archive
