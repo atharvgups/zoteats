@@ -642,7 +642,7 @@ public struct DiningService: Sendable {
     /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
     /// Mon–Fri from `OasisSchedule.firstServiceISO`. No invented live board.
     public static func oasisComingSoonLocation(
-        dateISO: String = PacificTime.todayISO(),
+        dateISO: String = UCITime.todayISO(),
         now: Date = Date()
     ) -> DiningLocation {
         let weekday = PacificTime.weekdayName(now: now)

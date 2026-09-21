@@ -49,7 +49,7 @@ public enum EatHallCardChrome: Sendable {
         opensNextWeekday: String? = nil,
         opensTomorrowPeriod _: String? = nil,
         opensNextPeriod _: String? = nil,
-        todayISO: String = PacificTime.todayISO()
+        todayISO: String = UCITime.todayISO()
     ) -> EatHallCardStatus {
         if comingSoon, !OasisSchedule.hasOpened(on: todayISO) {
             return EatHallCardStatus(
@@ -102,7 +102,7 @@ public enum EatHallCardChrome: Sendable {
         opensNextWeekday: String? = nil,
         opensTomorrowPeriod: String? = nil,
         opensNextPeriod: String? = nil,
-        todayISO: String = PacificTime.todayISO()
+        todayISO: String = UCITime.todayISO()
     ) -> String {
         status(
             comingSoon: comingSoon,

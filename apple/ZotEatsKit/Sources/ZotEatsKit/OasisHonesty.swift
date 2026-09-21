@@ -61,6 +61,18 @@ public enum OasisSchedule: Sendable {
         after iso: String
     ) -> (iso: String, weekday: String, dayOffset: Int, minutes: Int, period: String)? {
         guard let start = date(fromISO: iso) else { return nil }
+        if let open = date(fromISO: firstServiceISO), iso < firstServiceISO {
+            let offset = PacificTime.calendar.dateComponents([.day], from: start, to: open).day ?? 0
+            if offset > 0 {
+                return (
+                    firstServiceISO,
+                    PacificTime.weekdayName(now: open),
+                    offset,
+                    lunchStartMinutes,
+                    "Lunch"
+                )
+            }
+        }
         for offset in 1...10 {
             let day = PacificTime.calendar.date(byAdding: .day, value: offset, to: start) ?? start
             let dayISO = PacificTime.todayISO(now: day)
@@ -103,9 +115,9 @@ public enum OasisSchedule: Sendable {
 /// never a fake menu or occupancy.
 public enum OasisComingSoonCopy: Sendable {
     /// Hall-card status — one meal-name slot. Derived from `OasisSchedule`.
-    public static var cardStatus: String { cardStatus(on: PacificTime.todayISO()) }
+    public static var cardStatus: String { cardStatus(on: UCITime.todayISO()) }
     /// Selected empty board — one short line, not Hub policy text.
-    public static var selectedLine: String { selectedLine(on: PacificTime.todayISO()) }
+    public static var selectedLine: String { selectedLine(on: UCITime.todayISO()) }
 
     public static func cardStatus(on iso: String) -> String {
         OasisSchedule.hasOpened(on: iso) ? "Lunch & Dinner" : OasisSchedule.opensLine
