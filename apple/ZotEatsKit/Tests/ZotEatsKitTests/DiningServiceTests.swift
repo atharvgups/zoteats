@@ -314,6 +314,55 @@ struct DiningServiceTests {
                 == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay]
         )
     }
+
+    @Test func lunchBrunchUnionKeepsTwistedRootAndDoesNotInventBreakfast() {
+        let tofu = MenuItem(
+            id: "tofu", name: "Indian-Spiced Tofu Saute", description: nil, calories: 220,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"]
+        )
+        let taco = MenuItem(
+            id: "taco", name: "Sesame Shrimp Taco", description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let hash = MenuItem(
+            id: "hash", name: "Hash Brown Potato Patty", description: nil, calories: 140,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        let lunch = [
+            MenuStation(name: "The Twisted Root", items: [tofu]),
+            MenuStation(name: "Home", items: [hash]),
+        ]
+        let brunch = [
+            MenuStation(name: "Crossroads", items: [taco]),
+        ]
+        let breakfast = [
+            MenuStation(name: "Home", items: [hash]),
+        ]
+        let merged = DiningService.pinTwistedRootFirst(DiningService.mergeStations(lunch, brunch))
+        #expect(merged.first?.name == "The Twisted Root")
+        #expect(merged.contains { $0.name == "Crossroads" })
+        #expect(!breakfast.contains { DiningService.isTwistedRoot(stationName: $0.name) })
+
+        let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
+        let meals = DiningService.primaryMealsServingTwistedRoot(available: available) { name in
+            name.caseInsensitiveCompare("Lunch") == .orderedSame
+                || name.caseInsensitiveCompare("Dinner") == .orderedSame
+        }
+        #expect(meals == ["Lunch", "Dinner"])
+        #expect(
+            TwistedRootBoardCopy.otherMealsNote(selectedPeriod: "Breakfast", mealsToday: meals)
+                == "Twisted Root isn't on Breakfast. It's on Lunch and Dinner today."
+        )
+        #expect(TwistedRootBoardCopy.otherMealsNote(selectedPeriod: "Lunch", mealsToday: meals) == nil)
+        #expect(TwistedRootBoardCopy.otherMealsNote(selectedPeriod: "Breakfast", mealsToday: []) == nil)
+    }
+
+    @Test func diningMenuDecodesLegacySnapshotsWithoutTwistedRootMeals() throws {
+        let json = Data(#"{"locationId":"anteatery","date":"2026-09-21","period":"Breakfast","stations":[]}"#.utf8)
+        let menu = try JSONDecoder().decode(DiningMenu.self, from: json)
+        #expect(menu.twistedRootMeals.isEmpty)
+        #expect(menu.stations.isEmpty)
+    }
 }
 
 @Suite("HallOpenState")

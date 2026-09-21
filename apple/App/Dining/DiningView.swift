@@ -668,6 +668,10 @@ struct DiningView: View {
             }
         case .loaded(let menu):
             let stations = filteredStations(menu)
+            let rootNote = TwistedRootBoardCopy.otherMealsNote(
+                selectedPeriod: selectedPeriod ?? menu.period,
+                mealsToday: menu.twistedRootMeals
+            )
             if stations.isEmpty {
                 if let copy = EatFilterEmptyCopy.resolve(
                     hasSearch: false,
@@ -676,7 +680,7 @@ struct DiningView: View {
                     EmptyStateView(
                         icon: "ant",
                         title: copy.title,
-                        message: copy.message,
+                        message: [copy.message, rootNote].compactMap { $0 }.joined(separator: " "),
                         actionTitle: copy.actionTitle,
                         retry: {
                             prefs.clearMenuFilters()
@@ -684,40 +688,46 @@ struct DiningView: View {
                         }
                     )
                 } else {
+                    let posted = selectedDate == nil
+                        ? EatBrowseEmptyCopy.message(
+                            period: menu.period,
+                            browsingFutureDay: false
+                        )
+                        : EatBrowseEmptyCopy.message(
+                            period: menu.period,
+                            browsingFutureDay: true
+                        )
                     EmptyStateView(
                         icon: "moon.zzz",
                         title: "No menu posted yet",
-                        message: selectedDate == nil
-                            ? EatBrowseEmptyCopy.message(
-                                period: menu.period,
-                                browsingFutureDay: false
-                            )
-                            : EatBrowseEmptyCopy.message(
-                                period: menu.period,
-                                browsingFutureDay: true
-                            )
+                        message: [posted, rootNote].compactMap { $0 }.joined(separator: " ")
                     )
                 }
             } else {
-                menuList(menu: menu, stations: stations)
+                menuList(menu: menu, stations: stations, rootNote: rootNote)
             }
         }
     }
 
-    private func menuList(menu: DiningMenu, stations: [MenuStation]) -> some View {
+    private func menuList(menu: DiningMenu, stations: [MenuStation], rootNote: String?) -> some View {
         // Generous spacing between stations welds each header to its own
         // section instead of floating between two.
         LazyVStack(alignment: .leading, spacing: 28) {
-            Text(
-                EatPostedDays.browseCaption(
-                    period: {
-                        let selected = EatMealHeadline.mealLabel(period: selectedPeriod)
-                        return selected.isEmpty ? menu.period : selected
-                    }(),
-                    prettyDate: prettyDate(menu.date),
-                    skipsAhead: upcomingDays.contains { $0.isoDate == menu.date && $0.skipsAhead }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(
+                    EatPostedDays.browseCaption(
+                        period: {
+                            let selected = EatMealHeadline.mealLabel(period: selectedPeriod)
+                            return selected.isEmpty ? menu.period : selected
+                        }(),
+                        prettyDate: prettyDate(menu.date),
+                        skipsAhead: upcomingDays.contains { $0.isoDate == menu.date && $0.skipsAhead }
+                    )
                 )
-            )
+                if let rootNote {
+                    Text(rootNote)
+                }
+            }
             .font(ZotFont.caption)
             .foregroundStyle(.tertiary)
             .padding(.horizontal, 20)
