@@ -134,6 +134,38 @@ struct CampusServiceTests {
         #expect(CampusService.allergens(fromIntoleranceIDs: ["45,57"]) == ["Milk", "Soy"])
     }
 
+    @Test func assignedStationIDPrefersTwistedRoot() {
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1372", "1375", "1821", "1893"]
+            ) == "1893"
+        )
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1821", "1872", "1893"]
+            ) == "1893"
+        )
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1372", "1375", "1821", "1881"]
+            ) == "1881"
+        )
+        #expect(CampusService.assignedStationID(fromCategoryIDs: []) == nil)
+    }
+
+    @Test func forceRefreshBypassesStaleHubMenu() async throws {
+        let http = CountingHubMenuHTTP()
+        let cache = TTLCache()
+        let service = CampusService(http: http, cache: cache, now: { mondayMorning })
+        _ = try await service.menu(for: "halal-shack", date: "2026-07-13")
+        let afterFirst = await http.hits()
+        #expect(afterFirst >= 1)
+        _ = try await service.menu(for: "halal-shack", date: "2026-07-13")
+        #expect(await http.hits() == afterFirst)
+        _ = try await service.menu(for: "halal-shack", date: "2026-07-13", forceRefresh: true)
+        #expect(await http.hits() > afterFirst)
+    }
+
     @Test func publishedMenuMapsDietaryTagsAndAllergens() async throws {
         let service = CampusService(http: FixtureHTTP(), now: { mondayMorning })
         let stations = try await service.menu(for: "halal-shack", date: "2026-07-13")

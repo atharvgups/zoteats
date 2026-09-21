@@ -983,7 +983,7 @@ struct DiningView: View {
     }
 
     private func refresh() async {
-        // Pull-to-refresh must bypass the 20-minute restaurantToday TTL so a
+        // Pull-to-refresh must bypass the today-board (and Hub menu) TTL so a
         // publish that landed minutes ago shows up immediately.
         await store.loadLocations(forceRefresh: true)
         syncPeriodSelection()

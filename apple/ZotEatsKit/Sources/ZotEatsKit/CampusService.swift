@@ -15,7 +15,9 @@ import Foundation
 public struct CampusService: Sendable {
     private static let meshURL = "https://api.elevate-dxp.com/api/mesh/c087f756-cc72-4649-a36f-3a41b700c519/graphql"
     private static let locationsTTL: TimeInterval = 60 * 60
-    private static let menuTTL: TimeInterval = 30 * 60
+    /// Match Eat's today-board TTL so Hub extras (station-tagged tofu, etc.)
+    /// aren't stuck for half an hour after dining publishes them.
+    private static let menuTTL: TimeInterval = 10 * 60
 
     /// Residential commons already covered by the Eat tab.
     private static var excludedKeys: Set<String> { HallDirectory.campusHubExcludedKeys }
@@ -597,6 +599,7 @@ public struct CampusService: Sendable {
         var allergensFromStatement: [String] = []
         var allergensFromIDs: [String] = []
         var dietaryTags: [String] = []
+        var stationID: String?
 
         for attribute in raw.attributes ?? [] {
             switch attribute.name {
@@ -622,6 +625,10 @@ public struct CampusService: Sendable {
             case "recipe_attributes":
                 dietaryTags = attribute.values.flatMap { $0.components(separatedBy: ",") }
                     .compactMap { dietaryTagIDs[$0.trimmingCharacters(in: .whitespaces)] }
+            case "assigned_category_ids":
+                if stationID == nil {
+                    stationID = assignedStationID(fromCategoryIDs: attribute.values)
+                }
             default:
                 break
             }
@@ -646,8 +653,23 @@ public struct CampusService: Sendable {
             calories: calories,
             servingSize: serving,
             allergens: allergens,
-            dietaryTags: dietaryTags
+            dietaryTags: dietaryTags,
+            stationID: stationID
         )
+    }
+
+    /// Hub `assigned_category_ids` end with the dining station. Prefer Twisted
+    /// Root when present so a plant-based extra isn't filed under a sibling id.
+    static func assignedStationID(fromCategoryIDs values: [String]) -> String? {
+        let ids = values.flatMap { $0.components(separatedBy: ",") }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if let twisted = ids.first(where: { DiningService.twistedRootStationIDs.contains($0) }) {
+            return twisted
+        }
+        return ids.last { id in
+            id.count >= 4 && id.allSatisfy(\.isNumber)
+        }
     }
 
     private static func mergeUniqueLabels(_ a: [String], _ b: [String]) -> [String] {

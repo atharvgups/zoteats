@@ -98,7 +98,7 @@ struct NotFoundHTTP: HTTPFetching {
 
 /// Mutable dining HTTP — first `restaurantToday` responses are empty boards;
 /// after `publish()`, subsequent reads return the full fixture. Used to prove
-/// `forceRefresh` bypasses the 20-minute today TTL when Lunch/Dinner lands.
+/// `forceRefresh` bypasses the today-board TTL when Lunch/Dinner lands.
 actor PublishProbeHTTP: HTTPFetching {
     private var published = false
     private(set) var restaurantTodayHits = 0
@@ -180,6 +180,23 @@ actor TomorrowPublishHTTP: HTTPFetching {
             return try FixtureHTTP.load("date_range")
         }
         throw FixtureHTTP.UnexpectedRequest(url: url)
+    }
+}
+
+/// Counts Hub recipe fetches so Eat pull-to-refresh can prove it busts the menu TTL.
+actor CountingHubMenuHTTP: HTTPFetching {
+    private(set) var menuHits = 0
+
+    func hits() -> Int { menuHits }
+
+    func data(from url: URL) async throws -> Data {
+        if url.host?.contains("elevate-dxp.com") == true {
+            let query = url.query ?? ""
+            if query.contains("getLocationMealPeriodRecipes") {
+                menuHits += 1
+            }
+        }
+        return try await FixtureHTTP().data(from: url)
     }
 }
 

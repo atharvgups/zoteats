@@ -19,7 +19,10 @@ public struct DiningService: Sendable {
     private let now: @Sendable () -> Date
 
     private static let stationsTTL: TimeInterval = 24 * 60 * 60
-    private static let todayTTL: TimeInterval = 20 * 60
+    /// Short enough that a dish added to the live board mid-meal isn't stuck
+    /// behind a 20-minute TTL until pull-to-refresh. Pull-to-refresh still
+    /// bypasses this entirely.
+    private static let todayTTL: TimeInterval = 10 * 60
     private static let dishesTTL: TimeInterval = 30 * 60
     private static let dateRangeTTL: TimeInterval = 60 * 60
 
@@ -414,7 +417,8 @@ public struct DiningService: Sendable {
             servingSize: serving,
             allergens: dish.dietRestriction?.allergens ?? [],
             dietaryTags: dish.dietRestriction?.dietaryTags ?? [],
-            nutrition: facts
+            nutrition: facts,
+            stationID: dish.stationId
         )
     }
 
@@ -477,7 +481,8 @@ public struct DiningService: Sendable {
                 servingSize: item.servingSize,
                 allergens: item.allergens,
                 dietaryTags: tags,
-                nutrition: item.nutrition
+                nutrition: item.nutrition,
+                stationID: item.stationID ?? stationID
             )
         }
     }
@@ -895,6 +900,8 @@ public struct DiningService: Sendable {
 
     /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
     /// that aren't All-Day grill/salad staples and aren't already on the board.
+    /// Twisted Root extras still union even when Hub also dumps them on All Day,
+    /// so a station dish the API missed isn't swallowed by the staple filter.
     public static func hubExclusiveItems(
         onMenu menu: DiningMenu,
         hubStations: [MenuStation]
@@ -913,19 +920,30 @@ public struct DiningService: Sendable {
             }
             return name.caseInsensitiveCompare(menu.period) == .orderedSame
         }
-        let allDayNames = Set(
-            hubStations
-                .filter { $0.name.localizedCaseInsensitiveContains("all day") }
-                .flatMap(\.items)
-                .map { $0.name.lowercased() }
-        )
+        let allDayItems = hubStations
+            .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+            .flatMap(\.items)
+        let allDayNames = Set(allDayItems.map { $0.name.lowercased() })
+        let mealHasTwistedRoot = menu.stations.contains {
+            isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        } || matching.flatMap(\.items).contains {
+            isTwistedRoot(stationName: "", stationID: $0.stationID)
+        }
         var seen = Set(menu.stations.flatMap(\.items).map { $0.name.lowercased() })
         var extras: [MenuItem] = []
-        for item in matching.flatMap(\.items) {
+        func consider(_ item: MenuItem) {
             let key = item.name.lowercased()
-            if seen.contains(key) || allDayNames.contains(key) { continue }
+            if seen.contains(key) { return }
+            let twisted = isTwistedRoot(stationName: "", stationID: item.stationID)
+            if !twisted, allDayNames.contains(key) { return }
             seen.insert(key)
             extras.append(item)
+        }
+        for item in matching.flatMap(\.items) { consider(item) }
+        if mealHasTwistedRoot {
+            for item in allDayItems where isTwistedRoot(stationName: "", stationID: item.stationID) {
+                consider(item)
+            }
         }
         return extras
     }
@@ -933,12 +951,70 @@ public struct DiningService: Sendable {
     public static func insertingHubExtras(_ extras: [MenuItem], into menu: DiningMenu) -> DiningMenu {
         guard !extras.isEmpty else { return menu }
         var stations = menu.stations
-        let extra = MenuStation(name: "Also served", items: extras)
-        if let idx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }) {
-            stations.insert(extra, at: idx)
-        } else {
-            stations.append(extra)
+        var leftover: [MenuItem] = []
+
+        func merge(into index: Int, items: [MenuItem], stationID: String?) {
+            let station = stations[index]
+            var seen = Set(station.items.map { $0.name.lowercased() })
+            var next = station.items
+            let tagged = applyStationTags(
+                items,
+                station: station.name,
+                stationID: station.stationID ?? stationID
+            )
+            for item in tagged where seen.insert(item.name.lowercased()).inserted {
+                next.append(item)
+            }
+            stations[index] = station.withItems(next)
         }
+
+        func insertBeforeAllDay(_ station: MenuStation) {
+            if let idx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }) {
+                stations.insert(station, at: idx)
+            } else {
+                stations.append(station)
+            }
+        }
+
+        for item in extras {
+            let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if sid.isEmpty {
+                leftover.append(item)
+                continue
+            }
+            if let idx = stations.firstIndex(where: { station in
+                if let existing = station.stationID, existing == sid { return true }
+                return isTwistedRoot(stationName: station.name, stationID: station.stationID)
+                    && isTwistedRoot(stationName: "", stationID: sid)
+            }) {
+                merge(into: idx, items: [item], stationID: sid)
+                continue
+            }
+            let name = displayStationName(nil, stationID: sid)
+            if let idx = stations.firstIndex(where: {
+                $0.name.caseInsensitiveCompare(name) == .orderedSame
+            }) {
+                merge(into: idx, items: [item], stationID: sid)
+                continue
+            }
+            insertBeforeAllDay(MenuStation(
+                name: name,
+                items: applyStationTags([item], station: name, stationID: sid),
+                stationID: sid
+            ))
+        }
+
+        if !leftover.isEmpty {
+            insertBeforeAllDay(MenuStation(name: "Also served", items: leftover))
+        }
+
+        stations = pinTwistedRootFirst(stations)
+        if let allDayIdx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }),
+           allDayIdx != stations.count - 1 {
+            let allDay = stations.remove(at: allDayIdx)
+            stations.append(allDay)
+        }
+
         return DiningMenu(
             locationId: menu.locationId,
             date: menu.date,
@@ -1026,7 +1102,7 @@ public struct DiningService: Sendable {
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
-        return await enrichDietTags(built)
+        return await enrichDietTags(built, forceRefresh: forceRefresh)
     }
 
     /// Scrape Dining Hub recipes when Oasis is populated. Empty Hub / Coming Soon
@@ -1064,12 +1140,17 @@ public struct DiningService: Sendable {
     }
 
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.
-    private func enrichDietTags(_ menu: DiningMenu) async -> DiningMenu {
+    private func enrichDietTags(_ menu: DiningMenu, forceRefresh: Bool = false) async -> DiningMenu {
         guard let hubKey = HallDirectory.campusHubKey(for: menu.locationId) else { return menu }
         let hubStations: [MenuStation]
         do {
             hubStations = try await CampusService(http: http, cache: cache, now: now)
-                .menu(for: hubKey, date: menu.date)
+                .menu(
+                    for: hubKey,
+                    date: menu.date,
+                    forceRefresh: forceRefresh,
+                    allowTypicalFallback: false
+                )
         } catch {
             return menu
         }
@@ -1107,7 +1188,8 @@ public struct DiningService: Sendable {
                             servingSize: item.servingSize,
                             allergens: allergens,
                             dietaryTags: tags,
-                            nutrition: item.nutrition
+                            nutrition: item.nutrition,
+                            stationID: item.stationID
                         )
                     }
                 )
