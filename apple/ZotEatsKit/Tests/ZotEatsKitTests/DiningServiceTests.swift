@@ -204,6 +204,92 @@ struct DiningServiceTests {
         )
     }
 
+    @Test func hubExclusiveTwistedRootTofuJoinsTheStation() {
+        let sausage = MenuItem(
+            id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        let tofu = MenuItem(
+            id: "2", name: "Turmeric Tofu Scramble", description: nil, calories: 220,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let lettuce = MenuItem(
+            id: "3", name: "Lettuce", description: nil, calories: 5,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-21",
+            period: "Breakfast",
+            stations: [MenuStation(name: "The Twisted Root", items: [sausage], stationID: "1893")]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [lettuce, tofu]),
+            MenuStation(name: "Breakfast", items: [lettuce, sausage, tofu]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.map(\.name) == ["Turmeric Tofu Scramble"])
+        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        let twisted = combined.stations.first { $0.name.contains("Twisted Root") }
+        #expect(twisted?.items.map(\.name).contains("Turmeric Tofu Scramble") == true)
+        #expect(twisted?.items.contains { $0.name == "Incogmeato™ Sausage Patty" } == true)
+        #expect(twisted?.items.allSatisfy { $0.dietaryTags.contains("Vegan") } == true)
+        #expect(!combined.stations.contains { $0.name == "Also served" })
+        #expect(combined.stations.first?.name.contains("Twisted Root") == true)
+    }
+
+    @Test func hubExclusiveUnionsAllDayTwistedRootOntoBreakfast() {
+        let sausage = MenuItem(
+            id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        let tofu = MenuItem(
+            id: "2", name: "Turmeric Tofu Scramble", description: nil, calories: 220,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-21",
+            period: "Breakfast",
+            stations: [MenuStation(name: "The Twisted Root", items: [sausage], stationID: "1893")]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [tofu]),
+            MenuStation(name: "Breakfast", items: [sausage]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.map(\.name) == ["Turmeric Tofu Scramble"])
+    }
+
+    @Test func hubExclusiveDoesNotInventMissingTofu() {
+        let sausage = MenuItem(
+            id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        let frittata = MenuItem(
+            id: "2", name: "Plant-Based Spinach Frittata", description: nil, calories: 339,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-21",
+            period: "Breakfast",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [sausage, frittata],
+                stationID: "1893"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [sausage, frittata]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.isEmpty)
+        #expect(DiningService.insertingHubExtras(extras, into: menu) == menu)
+    }
+
     @Test func lunchMenuFoldsAllDayIntoAvailableAllDayStation() async throws {
         let menu = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
         #expect(menu.stations.contains { $0.name == "Available all day" })

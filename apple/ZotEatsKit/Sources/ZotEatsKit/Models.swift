@@ -436,6 +436,10 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let dietaryTags: [String]
     /// Full label when the feed provides it; nil keeps old snapshots decodable.
     public let nutrition: NutritionFacts?
+    /// Dining-hub / Anteater station id when known. Hub meals are grouped by
+    /// Breakfast/Lunch/Dinner — this keeps Twisted Root extras on that station
+    /// instead of a generic "Also served" bucket. Optional so old snapshots decode.
+    public let stationID: String?
 
     public init(
         id: String,
@@ -445,7 +449,8 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         servingSize: String?,
         allergens: [String],
         dietaryTags: [String],
-        nutrition: NutritionFacts? = nil
+        nutrition: NutritionFacts? = nil,
+        stationID: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -455,6 +460,7 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         self.allergens = allergens
         self.dietaryTags = dietaryTags
         self.nutrition = nutrition
+        self.stationID = stationID
     }
 }
 
