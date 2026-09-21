@@ -292,15 +292,64 @@ public struct DiningService: Sendable {
         }
     }
 
+    /// Chunk sizes for `/dishes/batch`. A truncated payload used to be cached
+    /// for 30 minutes and silently dropped entire stations.
+    static let dishBatchChunkSizes = [40, 8, 1]
+
+    static func chunks(_ ids: [String], size: Int) -> [[String]] {
+        guard size > 0, !ids.isEmpty else { return ids.isEmpty ? [] : [ids] }
+        var result: [[String]] = []
+        var index = ids.startIndex
+        while index < ids.endIndex {
+            let end = ids.index(index, offsetBy: size, limitedBy: ids.endIndex) ?? ids.endIndex
+            result.append(Array(ids[index..<end]))
+            index = end
+        }
+        return result
+    }
+
     private func dishes(ids: [String]) async throws -> [String: APIDish] {
         let unique = Array(Set(ids)).sorted()
         guard !unique.isEmpty else { return [:] }
-        let joined = unique.joined(separator: ",")
-        let encoded = joined.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? joined
-        return try await cache.remember("dining:dishes:\(joined)", ttl: Self.dishesTTL) {
-            let dishes = try await getData([APIDish].self, path: "/dishes/batch?ids=\(encoded)")
-            return Dictionary(dishes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var result: [String: APIDish] = [:]
+        var pending = unique
+        for size in Self.dishBatchChunkSizes {
+            guard !pending.isEmpty else { break }
+            var stillMissing: [String] = []
+            for chunk in Self.chunks(pending, size: size) {
+                let fetched = try await fetchDishChunk(chunk)
+                for id in chunk {
+                    if let dish = fetched[id] {
+                        result[id] = dish
+                    } else {
+                        stillMissing.append(id)
+                    }
+                }
+            }
+            pending = stillMissing
+            if size == 1 { break }
         }
+        return result
+    }
+
+    /// Fetch one id list. Incomplete payloads are not TTL-cached so a truncated
+    /// batch can't hide stations until the 30-minute dish cache expires.
+    private func fetchDishChunk(_ ids: [String]) async throws -> [String: APIDish] {
+        let unique = Array(Set(ids)).sorted()
+        guard !unique.isEmpty else { return [:] }
+        let joined = unique.joined(separator: ",")
+        let key = "dining:dishes:\(joined)"
+        if let cached = await cache.get(key, as: [String: APIDish].self),
+           unique.allSatisfy({ cached[$0] != nil }) {
+            return cached
+        }
+        let encoded = joined.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? joined
+        let dishes = try await getData([APIDish].self, path: "/dishes/batch?ids=\(encoded)")
+        let map = Dictionary(dishes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        if unique.allSatisfy({ map[$0] != nil }) {
+            await cache.set(key, value: map, ttl: Self.dishesTTL)
+        }
+        return map
     }
 
     /// Meal-period presentation order: the day's natural sequence, with
@@ -394,6 +443,17 @@ public struct DiningService: Sendable {
         return lowered.contains("twisted root") || lowered.contains("twistedroot")
     }
 
+    /// Prefer the live name; fall back to the brand so a missing station map
+    /// never relabels Twisted Root as generic "Menu".
+    public static func displayStationName(_ mapped: String?, stationID: String) -> String {
+        let trimmed = mapped?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if isTwistedRoot(stationName: trimmed, stationID: stationID) {
+            return isTwistedRoot(stationName: trimmed) ? trimmed : "The Twisted Root"
+        }
+        return trimmed.isEmpty ? "Menu" : trimmed
+    }
+
     public static func applyStationTags(
         _ items: [MenuItem],
         station: String,
@@ -429,11 +489,15 @@ public struct DiningService: Sendable {
             date: menu.date,
             period: menu.period,
             stations: menu.stations.map { station in
-                MenuStation(
-                    name: station.name,
-                    items: applyStationTags(station.items, station: station.name)
+                station.withItems(
+                    applyStationTags(
+                        station.items,
+                        station: station.name,
+                        stationID: station.stationID
+                    )
                 )
-            }
+            },
+            twistedRootMeals: menu.twistedRootMeals
         )
     }
 
@@ -441,9 +505,32 @@ public struct DiningService: Sendable {
     /// Relative order of everything else is preserved (Available all day stays last
     /// when the caller already pinned it there).
     public static func pinTwistedRootFirst(_ stations: [MenuStation]) -> [MenuStation] {
-        let twisted = stations.filter { isTwistedRoot(stationName: $0.name) }
-        let rest = stations.filter { !isTwistedRoot(stationName: $0.name) }
+        let twisted = stations.filter {
+            isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        let rest = stations.filter {
+            !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
         return twisted + rest
+    }
+
+    /// Eat pills whose boards actually listed Twisted Root (Lunch unions Brunch).
+    public static func twistedRootPills(
+        available: [String],
+        stationIDsByPeriod: [String: [String]],
+        stationNames: [String: String]
+    ) -> [String] {
+        mealSelectorPills.filter { pill in
+            let names = menuPeriodNames(primary: pill, available: available)
+            return names.contains { period in
+                let ids = stationIDsByPeriod.first { key, _ in
+                    key.caseInsensitiveCompare(period) == .orderedSame
+                }?.value ?? []
+                return ids.contains { id in
+                    isTwistedRoot(stationName: stationNames[id] ?? "", stationID: id)
+                }
+            }
+        }
     }
 
     // MARK: - Public API
@@ -754,10 +841,19 @@ public struct DiningService: Sendable {
         return names.filter { !$0.localizedCaseInsensitiveContains("all day") }
     }
 
-    /// Union stations from several meal periods. Same station name keeps one
-    /// section; items are deduped by name (case-insensitive).
+    /// Union stations from several meal periods. Same station id (or name when
+    /// the id is unknown) keeps one section; items are deduped by name.
     public static func mergeStations(_ groups: [MenuStation]...) -> [MenuStation] {
         mergeStationLists(Array(groups))
+    }
+
+    public static func mergeKey(for station: MenuStation) -> String? {
+        if let id = station.stationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !id.isEmpty {
+            return "id:\(id)"
+        }
+        let name = station.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return name.isEmpty ? nil : "name:\(name)"
     }
 
     public static func mergeStationLists(_ groups: [[MenuStation]]) -> [MenuStation] {
@@ -765,18 +861,21 @@ public struct DiningService: Sendable {
         var order: [String] = []
         var items: [String: [MenuItem]] = [:]
         var seen: [String: Set<String>] = [:]
+        var ids: [String: String] = [:]
 
         for group in groups {
             for station in group {
-                let key = station.name
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .lowercased()
-                guard !key.isEmpty else { continue }
+                guard let key = mergeKey(for: station) else { continue }
                 if displayName[key] == nil {
                     displayName[key] = station.name.trimmingCharacters(in: .whitespacesAndNewlines)
                     order.append(key)
                     items[key] = []
                     seen[key] = []
+                }
+                if ids[key] == nil,
+                   let stationID = station.stationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !stationID.isEmpty {
+                    ids[key] = stationID
                 }
                 for item in station.items {
                     let nameKey = item.name.lowercased()
@@ -790,7 +889,7 @@ public struct DiningService: Sendable {
             guard let name = displayName[key], let list = items[key], !list.isEmpty else {
                 return nil
             }
-            return MenuStation(name: name, items: list)
+            return MenuStation(name: name, items: list, stationID: ids[key])
         }
     }
 
@@ -844,7 +943,8 @@ public struct DiningService: Sendable {
             locationId: menu.locationId,
             date: menu.date,
             period: menu.period,
-            stations: stations
+            stations: stations,
+            twistedRootMeals: menu.twistedRootMeals
         )
     }
 
@@ -909,7 +1009,20 @@ public struct DiningService: Sendable {
         }
 
         let built = DiningMenu(
-            locationId: hall, date: dateISO, period: resolved, stations: mealStations
+            locationId: hall,
+            date: dateISO,
+            period: resolved,
+            stations: mealStations,
+            twistedRootMeals: Self.twistedRootPills(
+                available: available,
+                stationIDsByPeriod: Dictionary(
+                    (today.periods ?? [:]).values.map { period in
+                        (period.name, Array((period.stationToDishes ?? [:]).keys))
+                    },
+                    uniquingKeysWith: { first, _ in first }
+                ),
+                stationNames: stationNames
+            )
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
@@ -977,9 +1090,8 @@ public struct DiningService: Sendable {
         var tagged = menu
         if !tagsByKey.isEmpty || !allergensByKey.isEmpty {
             let stations = menu.stations.map { station in
-                MenuStation(
-                    name: station.name,
-                    items: station.items.map { item in
+                station.withItems(
+                    station.items.map { item in
                         let hubTags = Self.dietLookupKeys(for: item.name)
                             .compactMap { tagsByKey[$0] }.first ?? []
                         let hubAllergens = Self.dietLookupKeys(for: item.name)
@@ -1004,7 +1116,8 @@ public struct DiningService: Sendable {
                 locationId: menu.locationId,
                 date: menu.date,
                 period: menu.period,
-                stations: stations
+                stations: stations,
+                twistedRootMeals: menu.twistedRootMeals
             )
         }
 
@@ -1078,7 +1191,7 @@ public struct DiningService: Sendable {
         var stations: [MenuStation] = []
         for (stationID, dishIDs) in stationToDishes.sorted(by: { $0.key < $1.key }) {
             var seenNames = Set<String>()
-            let stationName = stationNames[stationID] ?? "Menu"
+            let stationName = Self.displayStationName(stationNames[stationID], stationID: stationID)
             let items = dishIDs
                 .compactMap { dishMap[$0] }
                 .map(Self.menuItem(from:))
@@ -1086,7 +1199,8 @@ public struct DiningService: Sendable {
             if !items.isEmpty {
                 stations.append(MenuStation(
                     name: stationName,
-                    items: Self.applyStationTags(items, station: stationName, stationID: stationID)
+                    items: Self.applyStationTags(items, station: stationName, stationID: stationID),
+                    stationID: stationID
                 ))
             }
         }

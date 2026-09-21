@@ -313,6 +313,60 @@ struct DiningServiceTests {
             DiningService.pinTwistedRootFirst(stations).map(\.name)
                 == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay]
         )
+        let unnamed = MenuStation(name: "Menu", items: [dish], stationID: "1929")
+        #expect(DiningService.pinTwistedRootFirst([stations[0], unnamed]).first?.stationID == "1929")
+        #expect(DiningService.displayStationName(nil, stationID: "1929") == "The Twisted Root")
+        #expect(DiningService.displayStationName("Home", stationID: "1932") == "Home")
+    }
+
+    @Test func twistedRootMealsNamePillsThatPostedTheStation() async throws {
+        let breakfast = try await service().menu(for: "anteatery", period: "Breakfast", date: "2026-07-09")
+        #expect(breakfast.twistedRootMeals == ["Breakfast", "Lunch"])
+        #expect(breakfast.stations.contains { $0.name.contains("Twisted Root") })
+        let dinner = try await service().menu(for: "anteatery", period: "Dinner", date: "2026-07-09")
+        #expect(dinner.twistedRootMeals == ["Breakfast", "Lunch"])
+        #expect(
+            !dinner.stations.contains {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            }
+        )
+        #expect(
+            TwistedRootBoardCopy.message(
+                currentMeal: "Dinner", postedMeals: dinner.twistedRootMeals
+            ) == "Twisted Root isn’t posted for Dinner. It’s on Breakfast and Lunch today."
+        )
+    }
+
+    @Test func mergeKeepsUnknownStationsWithDifferentIds() {
+        let a = MenuItem(
+            id: "a", name: "Tofu", description: nil, calories: 100,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let b = MenuItem(
+            id: "b", name: "Rice", description: nil, calories: 120,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let merged = DiningService.mergeStations(
+            [MenuStation(name: "Menu", items: [a], stationID: "1929")],
+            [MenuStation(name: "Menu", items: [b], stationID: "1932")]
+        )
+        #expect(merged.count == 2)
+        #expect(Set(merged.compactMap(\.stationID)) == ["1929", "1932"])
+    }
+
+    @Test func truncatedDishBatchRetriesUntilStationsLoad() async throws {
+        let http = TruncatedDishesHTTP()
+        let service = DiningService(http: http, now: { fixtureNoon })
+        let menu = try await service.menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        #expect(await http.batchHits > 1)
+        #expect(menu.stations.contains { $0.name.contains("Twisted Root") })
+        #expect(!menu.stations.isEmpty)
+    }
+
+    @Test func dishIDChunksSplitEvenly() {
+        #expect(DiningService.chunks(["a", "b", "c", "d"], size: 2) == [["a", "b"], ["c", "d"]])
+        #expect(DiningService.chunks(["a"], size: 40) == [["a"]])
+        #expect(DiningService.chunks([], size: 8).isEmpty)
     }
 }
 

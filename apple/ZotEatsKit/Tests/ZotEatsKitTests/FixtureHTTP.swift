@@ -182,3 +182,26 @@ actor TomorrowPublishHTTP: HTTPFetching {
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }
 }
+
+/// First `/dishes/batch` with several IDs returns an empty list (truncated
+/// payload). Later/smaller retries return the fixture so missing stations recover.
+actor TruncatedDishesHTTP: HTTPFetching {
+    private(set) var batchHits = 0
+
+    func data(from url: URL) async throws -> Data {
+        if url.path.hasSuffix("/dishes/batch") {
+            batchHits += 1
+            let ids = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "ids" })?
+                .value?
+                .split(separator: ",")
+                .map(String.init) ?? []
+            if ids.count > 1 {
+                return Data(#"{"ok":true,"data":[]}"#.utf8)
+            }
+            return try FixtureHTTP.load("dishes_batch")
+        }
+        return try await FixtureHTTP().data(from: url)
+    }
+}
