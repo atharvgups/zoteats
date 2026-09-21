@@ -30,7 +30,7 @@ public enum MenuFilterMatching {
             let items = station.items.filter {
                 matches(item: $0, dietFilters: dietFilters, allergenAvoids: allergenAvoids)
             }
-            return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
+            return items.isEmpty ? nil : station.withItems(items)
         }
     }
 }
