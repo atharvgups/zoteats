@@ -320,9 +320,14 @@ struct DiningServiceTests {
     }
 
     @Test func twistedRootMealsNamePillsThatPostedTheStation() async throws {
+        // Fixture restaurantToday lists Twisted Root on Breakfast + Lunch.
+        // Breakfast dish ids are not in dishes_batch, so the section is absent
+        // on the rendered board — pills still tell the truth from the source.
         let breakfast = try await service().menu(for: "anteatery", period: "Breakfast", date: "2026-07-09")
         #expect(breakfast.twistedRootMeals == ["Breakfast", "Lunch"])
-        #expect(breakfast.stations.contains { $0.name.contains("Twisted Root") })
+        let lunch = try await service().menu(for: "anteatery", period: "Lunch", date: "2026-07-09")
+        #expect(lunch.twistedRootMeals == ["Breakfast", "Lunch"])
+        #expect(lunch.stations.contains { $0.name.contains("Twisted Root") })
         let dinner = try await service().menu(for: "anteatery", period: "Dinner", date: "2026-07-09")
         #expect(dinner.twistedRootMeals == ["Breakfast", "Lunch"])
         #expect(
@@ -334,6 +339,11 @@ struct DiningServiceTests {
             TwistedRootBoardCopy.message(
                 currentMeal: "Dinner", postedMeals: dinner.twistedRootMeals
             ) == "Twisted Root isn’t posted for Dinner. It’s on Breakfast and Lunch today."
+        )
+        #expect(
+            TwistedRootBoardCopy.message(
+                currentMeal: "Lunch", postedMeals: lunch.twistedRootMeals
+            ) == nil
         )
     }
 
