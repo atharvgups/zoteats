@@ -85,13 +85,13 @@ struct DiningServiceTests {
     }
 
     @Test func oasisComingSoonHasNoInventedMenu() {
-        let oasis = DiningService.oasisComingSoonLocation()
+        let oasis = DiningService.oasisComingSoonLocation(dateISO: "2026-07-09", now: fixtureNoon)
         #expect(oasis.isComingSoon)
         #expect(oasis.availablePeriods.isEmpty)
         #expect(oasis.periods.isEmpty)
         #expect(oasis.openNow == false)
         #expect(oasis.todayHours == nil)
-        #expect(oasis.comingSoonSubtitle == OasisComingSoonCopy.cardStatus)
+        #expect(oasis.comingSoonSubtitle == "Opens Mon Oct 5")
         #expect(HallDirectory.campusHubKey(for: oasis.id) == "the-oasis-dining-hall")
         #expect(CampusTypicalMenus.kind(forPlaceID: "the-oasis-dining-hall", placeName: "The Oasis") == nil)
     }
@@ -125,6 +125,17 @@ struct DiningServiceTests {
         let menu = try await service.menu(for: "oasis", period: "Lunch", date: "2026-07-09")
         #expect(menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
         #expect(!menu.stations.contains { $0.name == CampusTypicalMenus.bannerStationName })
+    }
+
+    @Test func hubRecipesAfterOpenAttachWeekdayHours() async {
+        let mondayNoon = ISO8601DateFormatter().date(from: "2026-10-05T19:30:00Z")!
+        let service = DiningService(http: OasisLiveHubHTTP(), now: { mondayNoon })
+        let oasis = await service.locations().first { HallDirectory.isOasis($0.id) }
+        #expect(oasis?.isComingSoon == false)
+        #expect(oasis?.availablePeriods.contains("Lunch") == true)
+        #expect(oasis?.openNow == true)
+        #expect(oasis?.todayHours == "11:00 AM – 8:00 PM")
+        #expect(oasis?.periods.map(\.name) == ["Lunch", "Dinner"])
     }
 
     @Test func resolvePeriodMapsBreakfastToBrunch() {

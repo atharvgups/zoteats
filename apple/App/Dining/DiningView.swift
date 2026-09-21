@@ -372,7 +372,7 @@ struct DiningView: View {
         let name = selectedLocation?.name ?? "This hall"
         return EmptyStateView(
             icon: "building.2",
-            title: "\(name) · Coming Soon",
+            title: name,
             message: OasisComingSoonCopy.selectedLine
         )
     }
@@ -1509,7 +1509,7 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — until / opens / Coming Soon, green when open, muted when closed.
+/// Short card subtext — until / opens / Opens Mon Oct 5, green when open, muted when closed.
 private enum HallChromeStatus {
     static func resolve(
         for location: DiningLocation,
