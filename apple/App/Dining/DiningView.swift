@@ -669,34 +669,37 @@ struct DiningView: View {
         case .loaded(let menu):
             let stations = filteredStations(menu)
             if stations.isEmpty {
-                if let copy = EatFilterEmptyCopy.resolve(
-                    hasSearch: false,
-                    hasMenuFilters: prefs.hasActiveMenuFilters
-                ) {
-                    EmptyStateView(
-                        icon: "ant",
-                        title: copy.title,
-                        message: copy.message,
-                        actionTitle: copy.actionTitle,
-                        retry: {
-                            prefs.clearMenuFilters()
-                            Haptics.selection()
-                        }
-                    )
-                } else {
-                    EmptyStateView(
-                        icon: "moon.zzz",
-                        title: "No menu posted yet",
-                        message: selectedDate == nil
-                            ? EatBrowseEmptyCopy.message(
-                                period: menu.period,
-                                browsingFutureDay: false
-                            )
-                            : EatBrowseEmptyCopy.message(
-                                period: menu.period,
-                                browsingFutureDay: true
-                            )
-                    )
+                VStack(spacing: 16) {
+                    twistedRootHint(for: menu)
+                    if let copy = EatFilterEmptyCopy.resolve(
+                        hasSearch: false,
+                        hasMenuFilters: prefs.hasActiveMenuFilters
+                    ) {
+                        EmptyStateView(
+                            icon: "ant",
+                            title: copy.title,
+                            message: copy.message,
+                            actionTitle: copy.actionTitle,
+                            retry: {
+                                prefs.clearMenuFilters()
+                                Haptics.selection()
+                            }
+                        )
+                    } else {
+                        EmptyStateView(
+                            icon: "moon.zzz",
+                            title: "No menu posted yet",
+                            message: selectedDate == nil
+                                ? EatBrowseEmptyCopy.message(
+                                    period: menu.period,
+                                    browsingFutureDay: false
+                                )
+                                : EatBrowseEmptyCopy.message(
+                                    period: menu.period,
+                                    browsingFutureDay: true
+                                )
+                        )
+                    }
                 }
             } else {
                 menuList(menu: menu, stations: stations)
@@ -721,6 +724,8 @@ struct DiningView: View {
             .font(ZotFont.caption)
             .foregroundStyle(.tertiary)
             .padding(.horizontal, 20)
+
+            twistedRootHint(for: menu)
 
             let favorites = favoriteItems(in: stations)
             let hits = hitItems(in: stations)
@@ -882,9 +887,45 @@ struct DiningView: View {
         // Owner vegan preference: float Twisted Root to the top of the station list.
         let stations = DiningService.withStationDietOverrides(menu).stations.compactMap { station in
             let items = station.items.filter(matches)
-            return items.isEmpty ? nil : MenuStation(name: station.name, items: items)
+            return items.isEmpty ? nil : station.withItems(items)
         }
         return DiningService.pinTwistedRootFirst(stations)
+    }
+
+    @ViewBuilder
+    private func twistedRootHint(for menu: DiningMenu) -> some View {
+        let meal = selectedPeriod ?? menu.period
+        if let message = TwistedRootBoardCopy.message(
+            currentMeal: meal,
+            postedMeals: menu.twistedRootMeals
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(message)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(Color.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let title = TwistedRootBoardCopy.actionTitle(
+                    currentMeal: meal,
+                    postedMeals: menu.twistedRootMeals
+                ),
+                   let jump = TwistedRootBoardCopy.actionMeal(
+                    currentMeal: meal,
+                    postedMeals: menu.twistedRootMeals
+                   ) {
+                    Button(title) {
+                        selectedPeriod = jump
+                        pinnedDeepLinkPeriod = jump
+                        Haptics.selection()
+                    }
+                    .font(ZotFont.kicker)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .zotCard()
+            .padding(.horizontal, 20)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     /// Favorited dishes being served right now, deduplicated by name.
