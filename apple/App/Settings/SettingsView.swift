@@ -1,10 +1,9 @@
 import SwiftUI
 import ZotEatsKit
 
-// Settings — quiet cards for appearance, alerts, this iPhone, and honest sources.
+// Settings — quiet cards for appearance, notifications, and honest sources.
 
 struct SettingsView: View {
-    let prefs: Preferences
     @AppStorage(AppearanceSetting.storageKey)
     private var appearanceRaw: String = AppearanceSetting.system.rawValue
 
@@ -15,15 +14,8 @@ struct SettingsView: View {
     @State private var showZot = false
     @State private var showFeedbackForm = false
 
-    @State private var diningOpenEnabled = OpeningAlerts.diningOpenEnabled
-    @State private var diningClosingEnabled = OpeningAlerts.diningClosingEnabled
-    @State private var campusHoursEnabled = OpeningAlerts.campusHoursEnabled
-    @State private var libraryBusyEnabled = LibraryBusyAlerts.isEnabled
-    @State private var autoMealActivity = MealActivityManager.autoStartEnabled
+    @State private var notificationsEnabled = OpeningAlerts.masterEnabled
     @State private var alertsDenied = false
-    @State private var watchedPlaces = OpeningAlerts.watchedIDs
-    @State private var showOpeningAlerts = false
-    @State private var testPingSent = false
 
     private var appearance: AppearanceSetting {
         AppearanceSetting(rawValue: appearanceRaw) ?? .system
@@ -33,13 +25,12 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ScreenHeader(title: "Settings", subtitle: "Alerts, sources, and this iPhone")
+                    ScreenHeader(title: "Settings", subtitle: "Appearance, alerts, and sources")
 
                     VStack(alignment: .leading, spacing: 16) {
                         appearanceCard
                         feedbackCard
-                        alertsCard
-                        thisIPhoneCard
+                        notificationsCard
                         sourcesCard
                         aboutCard
                     }
@@ -70,9 +61,6 @@ struct SettingsView: View {
                     ZotCheer()
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
-            }
-            .sheet(isPresented: $showOpeningAlerts) {
-                OpeningAlertsPicker(watched: $watchedPlaces)
             }
             .sheet(isPresented: $showFeedbackForm) {
                 SafariView(url: FeedbackForm.url)
@@ -150,158 +138,33 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings-feedback-row")
     }
 
-    // MARK: - Alerts (+ Live Activity)
+    // MARK: - Notifications
 
-    private var alertsCard: some View {
+    private var notificationsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Alerts")
+            Text("Notifications")
                 .font(ZotFont.sectionTitle)
                 .textCase(.uppercase)
                 .foregroundStyle(Color.inkMuted)
                 .padding(.bottom, 8)
 
-            alertToggle(
-                isOn: $diningOpenEnabled,
-                title: "Halls opening",
-                caption: "Ping when a watched hall’s meal starts.",
-                identifier: "dining-open-alerts-toggle"
-            ) { enabled in
-                OpeningAlerts.diningOpenEnabled = enabled
-                if enabled {
-                    await OpeningAlerts.refreshSchedules()
-                    await FavoriteAlerts.scheduleNextRefresh()
-                } else {
-                    await OpeningAlerts.refreshSchedules()
-                }
-            }
-
-            ZotHairline(leading: 0)
-
-            alertToggle(
-                isOn: $diningClosingEnabled,
-                title: "Halls closing soon",
-                caption: "Twenty minutes before that meal ends.",
-                identifier: "dining-closing-alerts-toggle"
-            ) { enabled in
-                OpeningAlerts.diningClosingEnabled = enabled
-                await OpeningAlerts.refreshSchedules()
-            }
-
-            ZotHairline(leading: 0)
-
-            Button {
-                showOpeningAlerts = true
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Halls to watch")
-                            .font(ZotFont.body)
-                            .foregroundStyle(.primary)
-                        Text("Anteatery is the default if you pick none.")
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if !watchedPlaces.isEmpty {
-                        Text("\(watchedPlaces.count)")
-                            .font(ZotFont.pill.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.ink.opacity(0.12), in: Capsule())
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .comfortableRowHit()
-                .padding(.vertical, 6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("opening-alerts-row")
-
-            ZotHairline(leading: 0)
-
-            alertToggle(
-                isOn: $campusHoursEnabled,
-                title: "Campus favorites",
-                caption: "Open and closing pings for hearted cafés with posted hours.",
-                identifier: "campus-hours-alerts-toggle"
-            ) { enabled in
-                OpeningAlerts.campusHoursEnabled = enabled
-                await OpeningAlerts.refreshSchedules()
-            }
-
-            ZotHairline(leading: 0)
-
-            alertToggle(
-                isOn: $libraryBusyEnabled,
-                title: "Library getting busy",
-                caption: "When Waitz shows a library at \(LibraryBusyAlertMath.percentThreshold)% or busier. Real occupancy only.",
-                identifier: "library-busy-alerts-toggle"
-            ) { enabled in
-                LibraryBusyAlerts.isEnabled = enabled
-                if enabled {
-                    await LibraryBusyAlerts.runCheck()
-                }
-            }
-
-            ZotHairline(leading: 0)
-
-            Toggle(isOn: $autoMealActivity) {
+            Toggle(isOn: $notificationsEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Meal countdown")
+                    Text("Notifications")
                         .font(ZotFont.body)
-                    Text("Island / Lock Screen in the last \(MealActivityManager.autoStartWindowMinutes) minutes of a meal.")
+                    Text("Pings for halls, campus, and study.")
                         .font(ZotFont.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             .toggleStyle(.switch)
             .tint(Color.accent)
-            .accessibilityIdentifier("auto-meal-activity-toggle")
-            .onChange(of: autoMealActivity) { _, enabled in
-                MealActivityManager.autoStartEnabled = enabled
-                Haptics.selection()
+            .accessibilityIdentifier("notifications-master-toggle")
+            .onChange(of: notificationsEnabled) { _, enabled in
+                Task { await setMasterEnabled(enabled) }
             }
             .comfortableRowHit()
             .padding(.vertical, 6)
-
-            if !MealActivityManager.systemActivitiesEnabled {
-                ZotHairline(leading: 0)
-                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
-                    Text("Live Activities are off — open iOS Settings for Anteats")
-                        .font(ZotFont.caption)
-                        .foregroundStyle(TagPalette.terracotta)
-                        .comfortableRowHit()
-                        .padding(.vertical, 6)
-                }
-                .accessibilityIdentifier("live-activities-off-link")
-            }
-
-            if diningOpenEnabled || diningClosingEnabled || campusHoursEnabled || libraryBusyEnabled {
-                ZotHairline(leading: 0)
-                Button {
-                    Task {
-                        let granted = await FavoriteAlerts.requestPermission()
-                        if granted {
-                            alertsDenied = false
-                            await FavoriteAlerts.sendTestNotification()
-                            withAnimation { testPingSent = true }
-                        } else {
-                            alertsDenied = true
-                        }
-                    }
-                } label: {
-                    Text(testPingSent ? "Test ping sent" : "Send test notification")
-                        .font(ZotFont.caption.weight(.semibold))
-                        .foregroundStyle(Color.ink)
-                        .comfortableRowHit()
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("test-notification-button")
-            }
 
             if alertsDenied {
                 ZotHairline(leading: 0)
@@ -313,115 +176,66 @@ struct SettingsView: View {
                         .padding(.vertical, 6)
                 }
             }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .zotCard()
-    }
-
-    private func alertToggle(
-        isOn: Binding<Bool>,
-        title: String,
-        caption: String,
-        identifier: String,
-        onEnable: @escaping (Bool) async -> Void
-    ) -> some View {
-        Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(ZotFont.body)
-                Text(caption)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .toggleStyle(.switch)
-        .tint(Color.accent)
-        .accessibilityIdentifier(identifier)
-        .onChange(of: isOn.wrappedValue) { _, enabled in
-            guard enabled else {
-                Task { await onEnable(false) }
-                return
-            }
-            Task {
-                let granted = await FavoriteAlerts.requestPermission()
-                if granted {
-                    alertsDenied = false
-                    await onEnable(true)
-                    await FavoriteAlerts.scheduleNextRefresh()
-                } else {
-                    isOn.wrappedValue = false
-                    alertsDenied = true
-                }
-            }
-        }
-        .comfortableRowHit()
-        .padding(.vertical, 6)
-    }
-
-    // MARK: - This iPhone (ratings + plate honesty)
-
-    private var thisIPhoneCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("This iPhone")
-                .font(ZotFont.sectionTitle)
-                .textCase(.uppercase)
-                .foregroundStyle(Color.inkMuted)
-                .padding(.bottom, 8)
-
-            if prefs.mealReviews.isEmpty {
-                Text("Star a dish on Eat. Ratings stay on this iPhone.")
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                ForEach(Array(MealReviewLogic.sortedForDisplay(prefs.mealReviews).enumerated()), id: \.element.id) { index, review in
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(review.dishName)
-                                .font(ZotFont.body.weight(.semibold))
-                                .foregroundStyle(Color.ink)
-                            StarRatingControl(stars: review.stars, size: 12, interactive: false)
-                            if !review.note.isEmpty {
-                                Text(review.note)
-                                    .font(ZotFont.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer(minLength: 8)
-                        Button {
-                            prefs.clearReview(dishName: review.dishName)
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove rating for \(review.dishName)")
-                    }
-                    .padding(.vertical, 8)
-                    if index < prefs.mealReviews.count - 1 {
-                        ZotHairline(leading: 0)
-                    }
-                }
-            }
 
             ZotHairline(leading: 0)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Nutrition and Plate")
-                    .font(ZotFont.body)
-                Text("Macros come from Anteater API when a dish posts them. Plate is local and resets each Irvine day.")
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
+            NavigationLink {
+                AdvancedNotificationsView()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Advanced")
+                            .font(ZotFont.body)
+                            .foregroundStyle(.secondary)
+                        Text("Halls, campus, library, meal countdown.")
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .comfortableRowHit()
+                .padding(.vertical, 6)
             }
-            .padding(.vertical, 10)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("advanced-notifications-row")
+            .accessibilityLabel("Advanced notifications")
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    private func setMasterEnabled(_ enabled: Bool) async {
+        guard enabled else {
+            OpeningAlerts.masterEnabled = false
+            await OpeningAlerts.refreshSchedules()
+            Haptics.selection()
+            return
+        }
+        let granted = await FavoriteAlerts.requestPermission()
+        if granted {
+            alertsDenied = false
+            let applyDefaults = NotificationMasterLogic.shouldApplySensibleDefaults(
+                masterJustEnabled: true,
+                advancedCustomized: OpeningAlerts.advancedCustomized,
+                anyChildEnabled: OpeningAlerts.anyChildEnabled
+            )
+            OpeningAlerts.masterEnabled = true
+            if applyDefaults {
+                OpeningAlerts.applySensibleDefaults()
+            }
+            await OpeningAlerts.refreshSchedules()
+            if LibraryBusyAlerts.isEnabled {
+                await LibraryBusyAlerts.runCheck()
+            }
+            Haptics.selection()
+        } else {
+            notificationsEnabled = false
+            alertsDenied = true
+        }
     }
 
     // MARK: - Sources
@@ -537,13 +351,6 @@ struct SettingsView: View {
                     }
                 }
             }
-
-            ZotHairline(leading: 0)
-
-            Text("Home Screen → Add Anteats. Open Eat once so glances paint from today’s snapshot.")
-                .font(ZotFont.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 10)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -633,5 +440,5 @@ private struct AppearanceOption: View {
 }
 
 #Preview {
-    SettingsView(prefs: Preferences())
+    SettingsView()
 }

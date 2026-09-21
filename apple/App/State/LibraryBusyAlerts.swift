@@ -18,7 +18,7 @@ enum LibraryBusyAlerts {
     }
 
     static func runCheck() async {
-        guard isEnabled else { return }
+        guard OpeningAlerts.masterEnabled, isEnabled else { return }
         let facilities: [BusynessPoint]
         do {
             facilities = try await BusynessService().all()

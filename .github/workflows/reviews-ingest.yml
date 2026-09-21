@@ -1,0 +1,36 @@
+# Merge a dish rating into apple/community-reviews.json.
+# Trigger: repository_dispatch type "meal-review" with client_payload
+# {dishName, stars, note, authorID, authorLabel, updatedAt}.
+name: Ingest community review
+
+on:
+  repository_dispatch:
+    types: [meal-review]
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    name: Merge review into community feed
+    runs-on: ubuntu-latest
+    if: github.event.client_payload.dishName != '' && github.event.client_payload.authorID != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Merge review
+        env:
+          REVIEW_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: python3 apple/scripts/ingest_community_review.py
+
+      - name: Commit feed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apple/community-reviews.json
+          if git diff --staged --quiet; then
+            echo "No community review changes"
+            exit 0
+          fi
+          git commit -m "chore(reviews): ingest community dish rating"
+          git push

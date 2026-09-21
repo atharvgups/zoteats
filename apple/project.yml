@@ -17,6 +17,7 @@ settings:
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
     DEVELOPMENT_TEAM: ""
+    ZOTEATS_REVIEWS_TOKEN: ""
 
 schemes:
   ZotEats:
@@ -63,6 +64,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: Anteats
             CFBundleURLSchemes: [anteats]
+        ZotEatsReviewsToken: $(ZOTEATS_REVIEWS_TOKEN)
     entitlements:
       path: App/ZotEats.entitlements
     settings:

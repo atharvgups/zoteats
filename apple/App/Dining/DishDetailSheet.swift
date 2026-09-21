@@ -209,7 +209,7 @@ struct DishDetailSheet: View {
             .accessibilityIdentifier("dish-star-rating")
 
             if currentReview != nil {
-                TextField("Add a note", text: $noteDraft, axis: .vertical)
+                TextField(CommunityReviewCopy.reviewPlaceholder, text: $noteDraft, axis: .vertical)
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1...2)

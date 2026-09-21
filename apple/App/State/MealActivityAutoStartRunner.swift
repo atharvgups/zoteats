@@ -12,7 +12,7 @@ enum MealActivityAutoStartRunner {
         let locations = await service.locations()
         // Refresh baked post-close even when already tracking (board grew).
         manager.refreshPostCloseIfNeeded(locations: locations)
-        guard MealActivityManager.autoStartEnabled else { return }
+        guard OpeningAlerts.masterEnabled, MealActivityManager.autoStartEnabled else { return }
         guard let pick = MealActivityAutoStart.pick(
             locations: locations,
             nowMinutes: UCITime.nowMinutes(),

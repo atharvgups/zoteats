@@ -1,7 +1,7 @@
 import SwiftUI
 import ZotEatsKit
 
-// The dining-hall watchlist behind Settings → Alerts → Halls to watch.
+// The dining-hall watchlist behind Settings → Notifications → Advanced → Halls to watch.
 
 struct OpeningAlertsPicker: View {
     @Environment(\.dismiss) private var dismiss

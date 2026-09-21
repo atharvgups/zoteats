@@ -153,7 +153,7 @@ struct RootTabView: View {
             }
             .animation(.snappy(duration: 0.28), value: feedbackPrompt.isOffering)
             .sheet(isPresented: $showSettings) {
-                SettingsView(prefs: preferences)
+                SettingsView()
                     .tint(Color.accent)
             }
             .task(id: wrapUpWatchID) {

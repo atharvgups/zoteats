@@ -1509,7 +1509,7 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — Open · until / Closed · opens, centered under the name.
+/// Short card subtext — until / opens / Coming Soon, green when open, muted when closed.
 private enum HallChromeStatus {
     static func resolve(
         for location: DiningLocation,
@@ -1523,14 +1523,7 @@ private enum HallChromeStatus {
             opensNextAtMinutes: location.opensNextAtMinutes,
             opensNextWeekday: location.opensNextWeekday
         )
-        let tint: Color = {
-            if location.comingSoonSubtitle != nil { return .secondary }
-            switch state {
-            case .open: return .openGreen
-            case .openingLater, .awaitingMoreMeals: return .busyOrange
-            case .closedForToday, .unknown: return .secondary
-            }
-        }()
+        let tint: Color = status.tone == .open ? .openGreen : .secondary
         return (status.primary, status.secondary, status.accessibilityLine, tint)
     }
 }
