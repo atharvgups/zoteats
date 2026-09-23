@@ -6,6 +6,36 @@ import Testing
 /// Run with: ZOTEATS_LIVE_TESTS=1 swift test --filter LiveAPI
 @Suite("LiveAPI", .enabled(if: ProcessInfo.processInfo.environment["ZOTEATS_LIVE_TESTS"] == "1"))
 struct LiveAPITests {
+    @Test func twistedRootStaysOnItsOwnHallToday() async throws {
+        let service = DiningService()
+        let date = UCITime.todayISO()
+        let brandywine = try await service.menu(for: "brandywine", period: "Lunch", date: date)
+        let anteatery = try await service.menu(for: "anteatery", period: "Lunch", date: date)
+        func twistedNames(_ menu: DiningMenu) -> [String] {
+            menu.stations
+                .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+                .flatMap(\.items)
+                .map(\.name)
+        }
+        let brandywineTR = twistedNames(brandywine)
+        let anteateryTR = twistedNames(anteatery)
+        #expect(
+            brandywine.stations
+                .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+                .allSatisfy { $0.stationID != "1929" }
+        )
+        #expect(
+            anteatery.stations
+                .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+                .allSatisfy { $0.stationID != "1893" }
+        )
+        if date == "2026-09-23" {
+            #expect(brandywineTR.contains { $0.localizedCaseInsensitiveContains("masala") })
+            #expect(!brandywineTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
+            #expect(anteateryTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
+        }
+    }
+
     @Test func diningLocationsAndMenuFromLiveAPI() async throws {
         let service = DiningService()
         let locations = await service.locations()

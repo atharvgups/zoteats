@@ -274,6 +274,165 @@ struct DiningServiceTests {
         #expect(extras.map(\.name) == ["Turmeric Tofu Scramble"])
     }
 
+    @Test func hubBoardDropsOtherHallsTwistedRootDish() {
+        // 2026-09-23 live miss: Anteater API copied Anteatery's Buffalo
+        // Cauliflower onto Brandywine Twisted Root. Hub lunch is Tikka
+        // Masala Tofu + rice (Atharv: "tills masala tofu and rice").
+        let buffalo = MenuItem(
+            id: "1821_122168_M34960_1_17232",
+            name: "Buffalo Cauliflower Wings",
+            description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let rice = MenuItem(
+            id: "1821_122168_M9636_1_34577",
+            name: "White Rice",
+            description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let potatoes = MenuItem(
+            id: "1821_122168_M9876_1_29904",
+            name: "Roasted Garlic Potatoes",
+            description: nil, calories: 140,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let tikka = MenuItem(
+            id: "1821_122168_M40358_1_93481",
+            name: "Tikka Masala Tofu",
+            description: nil, calories: 220,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let lettuce = MenuItem(
+            id: "side", name: "Lettuce", description: nil, calories: 5,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-23",
+            period: "Lunch",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [buffalo, rice, potatoes],
+                stationID: "1893"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [lettuce, rice]),
+            MenuStation(name: "Lunch", items: [lettuce, rice, potatoes, tikka]),
+            MenuStation(name: "Brunch", items: [lettuce]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        let trimmedNames = trimmed.stations.flatMap(\.items).map(\.name)
+        #expect(!trimmedNames.contains("Buffalo Cauliflower Wings"))
+        #expect(trimmedNames.contains("White Rice"))
+        #expect(trimmedNames.contains("Roasted Garlic Potatoes"))
+        let extras = DiningService.hubExclusiveItems(onMenu: trimmed, hubStations: hub)
+        let combined = DiningService.insertingHubExtras(extras, into: trimmed)
+        let twisted = combined.stations.first { $0.name.contains("Twisted Root") }
+        let names = twisted?.items.map(\.name) ?? []
+        #expect(names.contains("Tikka Masala Tofu"))
+        #expect(names.contains("White Rice"))
+        #expect(!names.contains("Buffalo Cauliflower Wings"))
+        #expect(twisted?.stationID == "1893")
+        #expect(!combined.stations.contains { $0.name == "Also served" })
+    }
+
+    @Test func hubBoardKeepsAnteateryTwistedRootWhenHubAgrees() {
+        let buffalo = MenuItem(
+            id: "1923_101628_M34960_1_17232",
+            name: "Buffalo Cauliflower Wings",
+            description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-09-23",
+            period: "Lunch",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [buffalo],
+                stationID: "1929"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "Lunch", items: [buffalo]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        #expect(trimmed.stations.flatMap(\.items).map(\.name) == ["Buffalo Cauliflower Wings"])
+        #expect(DiningService.hubExclusiveItems(onMenu: trimmed, hubStations: hub).isEmpty)
+    }
+
+    @Test func hubWithoutStationIDsDoesNotDropTwistedRoot() {
+        let buffalo = MenuItem(
+            id: "x", name: "Buffalo Cauliflower Wings", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let burger = MenuItem(
+            id: "y", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-07-09",
+            period: "Lunch",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [buffalo],
+                stationID: "1929"
+            )]
+        )
+        let hub = [MenuStation(name: "Lunch", items: [burger])]
+        #expect(DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub) == menu)
+    }
+
+    @Test func emptyHubMealLeavesAnteaterBoardAlone() {
+        let buffalo = MenuItem(
+            id: "x", name: "Buffalo Cauliflower Wings", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-23",
+            period: "Lunch",
+            stations: [MenuStation(name: "The Twisted Root", items: [buffalo], stationID: "1893")]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [buffalo])]
+        #expect(DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub) == menu)
+    }
+
+    @Test func twistedRootExtrasDoNotBleedAcrossHallStationIDs() {
+        let brandywineRice = MenuItem(
+            id: "bw-rice", name: "White Rice", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let anteateryWings = MenuItem(
+            id: "ae-wings", name: "Buffalo Cauliflower Wings", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-23",
+            period: "Lunch",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [brandywineRice],
+                stationID: "1893"
+            )]
+        )
+        #expect(!DiningService.canMergeHubExtra(into: menu.stations[0], extraStationID: "1929"))
+        #expect(DiningService.canMergeHubExtra(into: menu.stations[0], extraStationID: "1893"))
+        #expect(!DiningService.stationBelongs(onHall: "brandywine", stationID: "1929"))
+        #expect(DiningService.stationBelongs(onHall: "brandywine", stationID: "1893"))
+        let combined = DiningService.insertingHubExtras([anteateryWings], into: menu)
+        #expect(combined == menu)
+        #expect(!combined.stations.contains { $0.stationID == "1929" })
+    }
+
     @Test func hubExclusiveDoesNotInventMissingTofu() {
         let sausage = MenuItem(
             id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
