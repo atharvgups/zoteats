@@ -439,6 +439,23 @@ public struct DiningService: Sendable {
         "1893", // Brandywine
     ]
 
+    /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
+    public static func hallID(forTwistedRootStation stationID: String) -> String? {
+        switch stationID {
+        case "1929": return "anteatery"
+        case "1893": return "brandywine"
+        default: return nil
+        }
+    }
+
+    /// False when a Hub extra is tagged with the other hall's Twisted Root id.
+    public static func stationBelongs(onHall hallID: String, stationID: String?) -> Bool {
+        guard let stationID,
+              let owner = Self.hallID(forTwistedRootStation: stationID)
+        else { return true }
+        return owner.caseInsensitiveCompare(hallID) == .orderedSame
+    }
+
     public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
         if let stationID, twistedRootStationIDs.contains(stationID) { return true }
         let lowered = stationName.lowercased()
@@ -928,16 +945,14 @@ public struct DiningService: Sendable {
         }
     }
 
-    /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
-    /// that aren't All-Day grill/salad staples and aren't already on the board.
-    /// Twisted Root extras still union even when Hub also dumps them on All Day,
-    /// so a station dish the API missed isn't swallowed by the staple filter.
-    public static func hubExclusiveItems(
-        onMenu menu: DiningMenu,
-        hubStations: [MenuStation]
-    ) -> [MenuItem] {
-        let live = menu.period.lowercased()
-        let matching = hubStations.filter { station in
+    /// Hub meal-period sections that belong on this Eat pill. Lunch unions
+    /// Brunch so weekend midday boards stay complete.
+    public static func hubMealStations(
+        matchingPeriod period: String,
+        in hubStations: [MenuStation]
+    ) -> [MenuStation] {
+        let live = period.lowercased()
+        return hubStations.filter { station in
             let name = station.name.lowercased()
             if live.contains("lunch") || live.contains("brunch") {
                 return name.contains("lunch") || name.contains("brunch")
@@ -948,8 +963,82 @@ public struct DiningService: Sendable {
             if live.contains("dinner") {
                 return name.contains("dinner")
             }
-            return name.caseInsensitiveCompare(menu.period) == .orderedSame
+            return name.caseInsensitiveCompare(period) == .orderedSame
         }
+    }
+
+    /// Official Hub names for this meal (plus Twisted Root All-Day extras).
+    /// Used to drop Anteater dishes that belong to another hall.
+    public static func hubBoardItems(
+        matchingPeriod period: String,
+        hubStations: [MenuStation]
+    ) -> [MenuItem] {
+        let matching = hubMealStations(matchingPeriod: period, in: hubStations)
+        var items = matching.flatMap(\.items)
+        let allDayTwisted = hubStations
+            .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+            .flatMap(\.items)
+            .filter { isTwistedRoot(stationName: "", stationID: $0.stationID) }
+        items.append(contentsOf: allDayTwisted)
+        return items
+    }
+
+    static func hubBoardNameKeys(from items: [MenuItem]) -> Set<String> {
+        Set(items.flatMap { dietLookupKeys(for: $0.name) })
+    }
+
+    static func appearsOnHubBoard(_ item: MenuItem, keys: Set<String>) -> Bool {
+        dietLookupKeys(for: item.name).contains { keys.contains($0) }
+    }
+
+    /// Anteater `restaurantToday` sometimes copies the other hall's recipe onto
+    /// a shared station (Twisted Root). When this hall's Hub meal tagged that
+    /// station, keep only dishes the Hub actually listed — never invent, never
+    /// show Anteatery's plate under Brandywine. Available-all-day stays
+    /// Anteater. A Hub payload with no station ids (or an empty meal) leaves
+    /// the Anteater board untouched.
+    public static func droppingOffBoardAnteaterItems(
+        onMenu menu: DiningMenu,
+        hubStations: [MenuStation]
+    ) -> DiningMenu {
+        let board = hubBoardItems(matchingPeriod: menu.period, hubStations: hubStations)
+        guard !board.isEmpty else { return menu }
+        let keys = hubBoardNameKeys(from: board)
+        let stations = menu.stations.compactMap { station -> MenuStation? in
+            if CampusMenuNormalize.isAvailableAllDay(station.name) {
+                return station
+            }
+            // Only reconcile when Hub tagged dishes for this hall + station.
+            // A generic Hub payload (no station ids) must not wipe Anteater.
+            let hubHasThisStation = board.contains { item in
+                guard let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !sid.isEmpty,
+                      stationBelongs(onHall: menu.locationId, stationID: sid)
+                else { return false }
+                return canMergeHubExtra(into: station, extraStationID: sid)
+            }
+            guard hubHasThisStation else { return station }
+            let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
+            return kept.isEmpty ? nil : station.withItems(kept)
+        }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: stations,
+            twistedRootMeals: menu.twistedRootMeals
+        )
+    }
+
+    /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
+    /// that aren't All-Day grill/salad staples and aren't already on the board.
+    /// Twisted Root extras still union even when Hub also dumps them on All Day,
+    /// so a station dish the API missed isn't swallowed by the staple filter.
+    public static func hubExclusiveItems(
+        onMenu menu: DiningMenu,
+        hubStations: [MenuStation]
+    ) -> [MenuItem] {
+        let matching = hubMealStations(matchingPeriod: menu.period, in: hubStations)
         let allDayItems = hubStations
             .filter { $0.name.localizedCaseInsensitiveContains("all day") }
             .flatMap(\.items)
@@ -964,6 +1053,7 @@ public struct DiningService: Sendable {
         func consider(_ item: MenuItem) {
             let key = item.name.lowercased()
             if seen.contains(key) { return }
+            if !stationBelongs(onHall: menu.locationId, stationID: item.stationID) { return }
             let twisted = isTwistedRoot(stationName: "", stationID: item.stationID)
             if !twisted, allDayNames.contains(key) { return }
             seen.insert(key)
@@ -976,6 +1066,21 @@ public struct DiningService: Sendable {
             }
         }
         return extras
+    }
+
+    /// Same station id always merges. Twisted Root extras may join a brand
+    /// section whose id is still unknown — but Anteatery `1929` must never
+    /// land on Brandywine `1893` just because both are named Twisted Root.
+    public static func canMergeHubExtra(into station: MenuStation, extraStationID: String) -> Bool {
+        let extraID = extraStationID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !extraID.isEmpty else { return false }
+        let existingID = station.stationID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !existingID.isEmpty, existingID == extraID { return true }
+        let stationTwisted = isTwistedRoot(stationName: station.name, stationID: station.stationID)
+        let extraTwisted = isTwistedRoot(stationName: "", stationID: extraID)
+        guard stationTwisted, extraTwisted else { return false }
+        if existingID.isEmpty { return true }
+        return existingID == extraID
     }
 
     public static func insertingHubExtras(_ extras: [MenuItem], into menu: DiningMenu) -> DiningMenu {
@@ -1012,10 +1117,11 @@ public struct DiningService: Sendable {
                 leftover.append(item)
                 continue
             }
-            if let idx = stations.firstIndex(where: { station in
-                if let existing = station.stationID, existing == sid { return true }
-                return isTwistedRoot(stationName: station.name, stationID: station.stationID)
-                    && isTwistedRoot(stationName: "", stationID: sid)
+            if !stationBelongs(onHall: menu.locationId, stationID: sid) {
+                continue
+            }
+            if let idx = stations.firstIndex(where: {
+                canMergeHubExtra(into: $0, extraStationID: sid)
             }) {
                 merge(into: idx, items: [item], stationID: sid)
                 continue
@@ -1023,6 +1129,7 @@ public struct DiningService: Sendable {
             let name = displayStationName(nil, stationID: sid)
             if let idx = stations.firstIndex(where: {
                 $0.name.caseInsensitiveCompare(name) == .orderedSame
+                    && canMergeHubExtra(into: $0, extraStationID: sid)
             }) {
                 merge(into: idx, items: [item], stationID: sid)
                 continue
@@ -1233,8 +1340,9 @@ public struct DiningService: Sendable {
             )
         }
 
-        let extras = Self.hubExclusiveItems(onMenu: tagged, hubStations: hubStations)
-        return Self.insertingHubExtras(extras, into: tagged)
+        let onBoard = Self.droppingOffBoardAnteaterItems(onMenu: tagged, hubStations: hubStations)
+        let extras = Self.hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
+        return Self.insertingHubExtras(extras, into: onBoard)
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
