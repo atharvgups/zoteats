@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-15 ~12:20 PM PT — read-only. Report live store, 1.0.300 DEVELOPER_REJECTED vs any WAITING_FOR_REVIEW / IN_REVIEW, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. No new testflight tag unless a real regression.
+Launch-loop peek 2026-09-23 ~1:20 PM PT — read-only. Confirm Internal 1.0.334 / build 340 VALID. Do NOT cancel. Do NOT submit App Store. Do NOT touch live 1.0.326.
 """
 
 from __future__ import annotations
