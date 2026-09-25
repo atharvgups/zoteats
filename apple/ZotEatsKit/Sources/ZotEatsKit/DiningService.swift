@@ -518,8 +518,7 @@ public struct DiningService: Sendable {
                         stationID: station.stationID
                     )
                 )
-            },
-            twistedRootMeals: menu.twistedRootMeals
+            }
         )
     }
 
@@ -534,25 +533,6 @@ public struct DiningService: Sendable {
             !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
         }
         return twisted + rest
-    }
-
-    /// Eat pills whose boards actually listed Twisted Root (Lunch unions Brunch).
-    public static func twistedRootPills(
-        available: [String],
-        stationIDsByPeriod: [String: [String]],
-        stationNames: [String: String]
-    ) -> [String] {
-        mealSelectorPills.filter { pill in
-            let names = menuPeriodNames(primary: pill, available: available)
-            return names.contains { period in
-                let ids = stationIDsByPeriod.first { key, _ in
-                    key.caseInsensitiveCompare(period) == .orderedSame
-                }?.value ?? []
-                return ids.contains { id in
-                    isTwistedRoot(stationName: stationNames[id] ?? "", stationID: id)
-                }
-            }
-        }
     }
 
     // MARK: - Public API
@@ -1025,8 +1005,7 @@ public struct DiningService: Sendable {
             locationId: menu.locationId,
             date: menu.date,
             period: menu.period,
-            stations: stations,
-            twistedRootMeals: menu.twistedRootMeals
+            stations: stations
         )
     }
 
@@ -1156,8 +1135,7 @@ public struct DiningService: Sendable {
             locationId: menu.locationId,
             date: menu.date,
             period: menu.period,
-            stations: stations,
-            twistedRootMeals: menu.twistedRootMeals
+            stations: stations
         )
     }
 
@@ -1225,17 +1203,7 @@ public struct DiningService: Sendable {
             locationId: hall,
             date: dateISO,
             period: resolved,
-            stations: mealStations,
-            twistedRootMeals: Self.twistedRootPills(
-                available: available,
-                stationIDsByPeriod: Dictionary(
-                    (today.periods ?? [:]).values.map { period in
-                        (period.name, Array((period.stationToDishes ?? [:]).keys))
-                    },
-                    uniquingKeysWith: { first, _ in first }
-                ),
-                stationNames: stationNames
-            )
+            stations: mealStations
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
@@ -1335,8 +1303,7 @@ public struct DiningService: Sendable {
                 locationId: menu.locationId,
                 date: menu.date,
                 period: menu.period,
-                stations: stations,
-                twistedRootMeals: menu.twistedRootMeals
+                stations: stations
             )
         }
 
