@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-24 ~3:05 PM PT — read-only. Report live store, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. Do NOT touch live 1.0.326.
+Confirm Internal 1.0.335 (341) after Eat hint-card removal — read-only. Report live store, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. Do NOT touch live 1.0.326.
 """
 
 from __future__ import annotations
