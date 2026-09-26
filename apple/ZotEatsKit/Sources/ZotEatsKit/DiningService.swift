@@ -971,33 +971,63 @@ public struct DiningService: Sendable {
         dietLookupKeys(for: item.name).contains { keys.contains($0) }
     }
 
-    /// Anteater `restaurantToday` sometimes copies the other hall's recipe onto
-    /// a shared station (Twisted Root). When this hall's Hub meal tagged that
-    /// station, keep only dishes the Hub actually listed — never invent, never
-    /// show Anteatery's plate under Brandywine. Available-all-day stays
-    /// Anteater. A Hub payload with no station ids (or an empty meal) leaves
-    /// the Anteater board untouched.
+    /// Hub meal items whose station id belongs on this Eat hall.
+    static func hubMealHasStationTags(onHall hallID: String, board: [MenuItem]) -> Bool {
+        board.contains { item in
+            guard let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !sid.isEmpty
+            else { return false }
+            return stationBelongs(onHall: hallID, stationID: sid)
+        }
+    }
+
+    /// Hub dishes filed on this Anteater station (same id, or this hall's Twisted Root).
+    static func hubItems(
+        matching station: MenuStation,
+        onHall hallID: String,
+        from board: [MenuItem]
+    ) -> [MenuItem] {
+        board.filter { item in
+            guard let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !sid.isEmpty,
+                  stationBelongs(onHall: hallID, stationID: sid)
+            else { return false }
+            return canMergeHubExtra(into: station, extraStationID: sid)
+        }
+    }
+
+    /// Anteater `restaurantToday` sometimes copies another hall's recipe, or
+    /// leaves a leftover on Twisted Root after the kitchen moved on. When Hub
+    /// published this meal with station tags, Twisted Root is Hub-only: keep
+    /// only dishes Hub filed on that hall's station, and drop the section if
+    /// Hub didn't list one. Other stations still reconcile when Hub tagged
+    /// them. A generic Hub payload (no station ids) or an empty meal leaves
+    /// the Anteater board untouched. Available-all-day stays Anteater.
     public static func droppingOffBoardAnteaterItems(
         onMenu menu: DiningMenu,
         hubStations: [MenuStation]
     ) -> DiningMenu {
         let board = hubBoardItems(matchingPeriod: menu.period, hubStations: hubStations)
         guard !board.isEmpty else { return menu }
-        let keys = hubBoardNameKeys(from: board)
+        let hubTagged = hubMealHasStationTags(onHall: menu.locationId, board: board)
         let stations = menu.stations.compactMap { station -> MenuStation? in
             if CampusMenuNormalize.isAvailableAllDay(station.name) {
                 return station
             }
-            // Only reconcile when Hub tagged dishes for this hall + station.
-            // A generic Hub payload (no station ids) must not wipe Anteater.
-            let hubHasThisStation = board.contains { item in
-                guard let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !sid.isEmpty,
-                      stationBelongs(onHall: menu.locationId, stationID: sid)
-                else { return false }
-                return canMergeHubExtra(into: station, extraStationID: sid)
+            let hubForStation = hubItems(
+                matching: station,
+                onHall: menu.locationId,
+                from: board
+            )
+            let isTwisted = isTwistedRoot(stationName: station.name, stationID: station.stationID)
+            if isTwisted, hubTagged {
+                guard !hubForStation.isEmpty else { return nil }
+                let keys = hubBoardNameKeys(from: hubForStation)
+                let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
+                return kept.isEmpty ? nil : station.withItems(kept)
             }
-            guard hubHasThisStation else { return station }
+            guard !hubForStation.isEmpty else { return station }
+            let keys = hubBoardNameKeys(from: hubForStation)
             let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
             return kept.isEmpty ? nil : station.withItems(kept)
         }

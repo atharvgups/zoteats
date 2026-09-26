@@ -34,6 +34,19 @@ struct LiveAPITests {
             #expect(!brandywineTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
             #expect(anteateryTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
         }
+        if date == "2026-09-25" {
+            let anteateryDinner = try await service.menu(for: "anteatery", period: "Dinner", date: date)
+            let brandywineDinner = try await service.menu(for: "brandywine", period: "Dinner", date: date)
+            let aeDinnerTR = twistedNames(anteateryDinner)
+            let bwDinnerTR = twistedNames(brandywineDinner)
+            #expect(!bwDinnerTR.contains { $0.localizedCaseInsensitiveContains("buffalo tofu") })
+            #expect(
+                bwDinnerTR.contains { $0.localizedCaseInsensitiveContains("mac") }
+                    || bwDinnerTR.contains { $0.localizedCaseInsensitiveContains("nugget") }
+                    || bwDinnerTR.isEmpty
+            )
+            #expect(!aeDinnerTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
+        }
     }
 
     @Test func diningLocationsAndMenuFromLiveAPI() async throws {

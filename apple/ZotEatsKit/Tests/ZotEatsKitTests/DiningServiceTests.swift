@@ -390,6 +390,69 @@ struct DiningServiceTests {
         #expect(DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub) == menu)
     }
 
+    @Test func hubMealWithOtherStationTagsDropsLeftoverTwistedRoot() {
+        // 2026-09-25 class of miss: Hub dinner tagged Home but not Twisted
+        // Root. Anteater still listed Spicy Asian Burrito on 1929. Prefer Hub.
+        let burrito = MenuItem(
+            id: "1923_101628_M21036_1_390963",
+            name: "Spicy Asian Burrito",
+            description: nil, calories: 378,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let penne = MenuItem(
+            id: "home-penne", name: "Buttery Penne", description: nil, calories: 110,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegetarian"],
+            stationID: "1932"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-09-25",
+            period: "Dinner",
+            stations: [
+                MenuStation(name: "The Twisted Root", items: [burrito], stationID: "1929"),
+                MenuStation(name: "Home", items: [penne], stationID: "1932"),
+            ]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [penne])]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        #expect(
+            !trimmed.stations.contains {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            }
+        )
+        #expect(trimmed.stations.contains { $0.stationID == "1932" })
+        #expect(!trimmed.stations.flatMap(\.items).map(\.name).contains("Spicy Asian Burrito"))
+    }
+
+    @Test func hubTwistedRootNamesDoNotKeepOtherStationsLeftovers() {
+        let burrito = MenuItem(
+            id: "ae-burrito", name: "Spicy Asian Burrito", description: nil, calories: 378,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let loaf = MenuItem(
+            id: "ae-loaf", name: "Mystery Loaf", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1932"
+        )
+        let penne = MenuItem(
+            id: "hub-penne", name: "Buttery Penne", description: nil, calories: 110,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegetarian"], stationID: "1932"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-09-25",
+            period: "Dinner",
+            stations: [
+                MenuStation(name: "The Twisted Root", items: [burrito], stationID: "1929"),
+                MenuStation(name: "Home", items: [loaf], stationID: "1932"),
+            ]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [burrito, penne])]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        #expect(trimmed.stations.flatMap(\.items).map(\.name) == ["Spicy Asian Burrito"])
+        #expect(!trimmed.stations.contains { $0.stationID == "1932" })
+    }
+
     @Test func emptyHubMealLeavesAnteaterBoardAlone() {
         let buffalo = MenuItem(
             id: "x", name: "Buffalo Cauliflower Wings", description: nil, calories: 180,
