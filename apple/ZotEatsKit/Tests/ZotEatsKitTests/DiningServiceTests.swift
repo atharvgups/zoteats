@@ -315,7 +315,7 @@ struct DiningServiceTests {
         #expect(combined.stations.first?.name.contains("Twisted Root") == true)
     }
 
-    @Test func hubExclusiveDoesNotGraftAllDayTwistedRootOntoEveryMeal() {
+    @Test func hubExclusiveAllDayTwistedRootOnlyWhenNotTaggedToOneMeal() {
         let sausage = MenuItem(
             id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
             servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
@@ -325,27 +325,46 @@ struct DiningServiceTests {
             servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
             stationID: "1893"
         )
-        let menu = DiningMenu(
+        let scramble = MenuItem(
+            id: "3", name: "Turmeric Tofu Scramble", description: nil, calories: 220,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let shawarma = MenuItem(
+            id: "4", name: "Tofu Shawarma", description: nil, calories: 280,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let breakfastMenu = DiningMenu(
             locationId: "brandywine",
             date: "2026-09-21",
             period: "Breakfast",
             stations: [MenuStation(name: "The Twisted Root", items: [sausage], stationID: "1893")]
         )
-        let hub = [
-            MenuStation(name: "All Day", items: [fries]),
-            MenuStation(name: "Breakfast", items: [sausage]),
-            MenuStation(name: "Dinner", items: [sausage]),
-        ]
-        #expect(DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub).isEmpty)
-        let dinner = DiningMenu(
+        let dinnerMenu = DiningMenu(
             locationId: "brandywine",
             date: "2026-09-21",
             period: "Dinner",
             stations: [MenuStation(name: "The Twisted Root", items: [sausage], stationID: "1893")]
         )
-        #expect(DiningService.hubExclusiveItems(onMenu: dinner, hubStations: hub).isEmpty)
-        let board = DiningService.hubBoardItems(matchingPeriod: "Dinner", hubStations: hub)
-        #expect(!board.map(\.name).contains("Seasoned Fries"))
+        let allDayOnly = [
+            MenuStation(name: "All Day", items: [fries]),
+            MenuStation(name: "Breakfast", items: [sausage]),
+            MenuStation(name: "Dinner", items: [sausage]),
+        ]
+        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: allDayOnly).map(\.name) == ["Seasoned Fries"])
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: allDayOnly).map(\.name) == ["Seasoned Fries"])
+        #expect(!DiningService.hubBoardItems(matchingPeriod: "Dinner", hubStations: allDayOnly).map(\.name).contains("Seasoned Fries"))
+
+        let tagged = [
+            MenuStation(name: "All Day", items: [fries, scramble, shawarma]),
+            MenuStation(name: "Breakfast", items: [sausage, scramble]),
+            MenuStation(name: "Dinner", items: [sausage, shawarma]),
+        ]
+        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name) == ["Turmeric Tofu Scramble", "Seasoned Fries"])
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name) == ["Tofu Shawarma", "Seasoned Fries"])
+        #expect(!DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name).contains("Tofu Shawarma"))
+        #expect(!DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name).contains("Turmeric Tofu Scramble"))
     }
 
     @Test func hubMealStationsMatchByPillNameNotPosition() {

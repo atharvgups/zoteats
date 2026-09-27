@@ -976,9 +976,10 @@ public struct DiningService: Sendable {
         }
     }
 
-    /// Official Hub names for this meal. All-Day Twisted Root stays on the
-    /// All Day board (folded to Available all day) instead of every pill.
-    /// Lunch drops Hub Breakfast-only dishes that arrived via Brunch.
+    /// Official Hub names for this meal. All-Day Twisted Root is not copied
+    /// onto this list: dropping stays meal-specific so an All-Day staple
+    /// cannot hide a breakfast or dinner dish. Lunch drops Hub Breakfast-only
+    /// dishes that arrived via Brunch.
     public static func hubBoardItems(
         matchingPeriod period: String,
         hubStations: [MenuStation]
@@ -986,6 +987,36 @@ public struct DiningService: Sendable {
         let matching = hubMealStations(matchingPeriod: period, in: hubStations)
             .flatMap(\.items)
         return excludingBreakfastOnlyBrunchItems(matching, period: period, hubStations: hubStations)
+    }
+
+    /// Twisted Root Hub lists on All Day and on no timed meal. Those are
+    /// actually served all day, so extras may add them to every pill. A dish
+    /// Hub also filed on Breakfast / Lunch / Dinner stays on that meal only.
+    static func allDayOnlyTwistedRootItems(in hubStations: [MenuStation]) -> [MenuItem] {
+        let timed = hubStations
+            .filter { station in
+                let name = station.name.lowercased()
+                if name.contains("all day") { return false }
+                return name.contains("breakfast")
+                    || name.contains("brunch")
+                    || name.contains("lunch")
+                    || name.contains("dinner")
+            }
+            .flatMap(\.items)
+        let timedKeys = hubBoardNameKeys(from: timed)
+        let allDayItems = hubStations
+            .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+            .flatMap(\.items)
+        var seen = Set<String>()
+        var extras: [MenuItem] = []
+        for item in allDayItems {
+            guard isTwistedRoot(stationName: "", stationID: item.stationID) else { continue }
+            let key = item.name.lowercased()
+            if !seen.insert(key).inserted { continue }
+            if appearsOnHubBoard(item, keys: timedKeys) { continue }
+            extras.append(item)
+        }
+        return extras
     }
 
     static func excludingBreakfastOnlyBrunchItems(
@@ -1090,8 +1121,8 @@ public struct DiningService: Sendable {
     /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
     /// that aren't All-Day grill/salad staples and aren't already on the board.
     /// Twisted Root extras that Hub filed on this meal still union even when
-    /// Hub also lists them on All Day. All-Day-only Twisted Root stays off
-    /// the Breakfast / Lunch / Dinner pills.
+    /// Hub also lists them on All Day. All-Day-only Twisted Root (no timed
+    /// meal tag) still shows on every pill; a dish tagged to one meal does not.
     public static func hubExclusiveItems(
         onMenu menu: DiningMenu,
         hubStations: [MenuStation]
@@ -1117,6 +1148,7 @@ public struct DiningService: Sendable {
             extras.append(item)
         }
         for item in matching { consider(item) }
+        for item in allDayOnlyTwistedRootItems(in: hubStations) { consider(item) }
         return extras
     }
 
