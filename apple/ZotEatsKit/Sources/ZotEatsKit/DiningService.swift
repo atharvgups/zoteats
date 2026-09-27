@@ -853,7 +853,8 @@ public struct DiningService: Sendable {
 
     /// Periods to scrape for a primary pill. Lunch unions Brunch so weekend
     /// midday dishes (Sesame Shrimp Taco on Brunch, missing from untimed Lunch)
-    /// still show when Lunch is selected. Breakfast stays Breakfast-only.
+    /// still show when Lunch is selected. Breakfast stays Breakfast-only when
+    /// that period exists; otherwise it falls through to Brunch.
     public static func menuPeriodNames(primary: String, available: [String]) -> [String] {
         let resolved = resolvePeriod(primary, available: available)
         var names: [String] = []
@@ -871,6 +872,26 @@ public struct DiningService: Sendable {
             add("Brunch")
         }
         return names.filter { !$0.localizedCaseInsensitiveContains("all day") }
+    }
+
+    /// Weekend Brunch is often Breakfast plus the All-Day grill. After Lunch
+    /// unions Brunch, drop dishes that are only on Breakfast so eggs and
+    /// oatmeal do not show under the Lunch pill. Dishes that Lunch itself
+    /// posted stay, even if Breakfast also lists them.
+    public static func subtractingBreakfastOnlyBrunchDishes(
+        from merged: [MenuStation],
+        lunch: [MenuStation],
+        breakfast: [MenuStation]
+    ) -> [MenuStation] {
+        let breakfastKeys = hubBoardNameKeys(from: breakfast.flatMap(\.items))
+        guard !breakfastKeys.isEmpty else { return merged }
+        let lunchKeys = hubBoardNameKeys(from: lunch.flatMap(\.items))
+        return merged.compactMap { station in
+            let kept = station.items.filter { item in
+                appearsOnHubBoard(item, keys: lunchKeys) || !appearsOnHubBoard(item, keys: breakfastKeys)
+            }
+            return kept.isEmpty ? nil : station.withItems(kept)
+        }
     }
 
     /// Union stations from several meal periods. Same station id (or name when
@@ -925,42 +946,100 @@ public struct DiningService: Sendable {
         }
     }
 
-    /// Hub meal-period sections that belong on this Eat pill. Lunch unions
-    /// Brunch so weekend midday boards stay complete.
+    /// Hub meal-period sections that belong on this Eat pill. Match by pill
+    /// name, not list position. Lunch unions Brunch; Breakfast uses Brunch
+    /// only when Hub posted no Breakfast; Dinner never picks up brunch.
     public static func hubMealStations(
         matchingPeriod period: String,
         in hubStations: [MenuStation]
     ) -> [MenuStation] {
-        let live = period.lowercased()
+        let pill = MealPeriodPill.canonical(period)
+        let hasBreakfast = hubStations.contains {
+            let name = $0.name.lowercased()
+            return name.contains("breakfast") && !name.contains("brunch")
+        }
         return hubStations.filter { station in
             let name = station.name.lowercased()
-            if live.contains("lunch") || live.contains("brunch") {
+            switch pill {
+            case "Lunch":
                 return name.contains("lunch") || name.contains("brunch")
-            }
-            if live.contains("breakfast") {
-                return name.contains("breakfast") && !name.contains("brunch")
-            }
-            if live.contains("dinner") {
+            case "Breakfast":
+                if hasBreakfast {
+                    return name.contains("breakfast") && !name.contains("brunch")
+                }
+                return name.contains("brunch")
+            case "Dinner":
                 return name.contains("dinner")
+            default:
+                return name.caseInsensitiveCompare(period) == .orderedSame
             }
-            return name.caseInsensitiveCompare(period) == .orderedSame
         }
     }
 
-    /// Official Hub names for this meal (plus Twisted Root All-Day extras).
-    /// Used to drop Anteater dishes that belong to another hall.
+    /// Official Hub names for this meal. All-Day Twisted Root is not copied
+    /// onto this list: dropping stays meal-specific so an All-Day staple
+    /// cannot hide a breakfast or dinner dish. Lunch drops Hub Breakfast-only
+    /// dishes that arrived via Brunch.
     public static func hubBoardItems(
         matchingPeriod period: String,
         hubStations: [MenuStation]
     ) -> [MenuItem] {
         let matching = hubMealStations(matchingPeriod: period, in: hubStations)
-        var items = matching.flatMap(\.items)
-        let allDayTwisted = hubStations
+            .flatMap(\.items)
+        return excludingBreakfastOnlyBrunchItems(matching, period: period, hubStations: hubStations)
+    }
+
+    /// Twisted Root Hub lists on All Day and on no timed meal. Those are
+    /// actually served all day, so extras may add them to every pill. A dish
+    /// Hub also filed on Breakfast / Lunch / Dinner stays on that meal only.
+    static func allDayOnlyTwistedRootItems(in hubStations: [MenuStation]) -> [MenuItem] {
+        let timed = hubStations
+            .filter { station in
+                let name = station.name.lowercased()
+                if name.contains("all day") { return false }
+                return name.contains("breakfast")
+                    || name.contains("brunch")
+                    || name.contains("lunch")
+                    || name.contains("dinner")
+            }
+            .flatMap(\.items)
+        let timedKeys = hubBoardNameKeys(from: timed)
+        let allDayItems = hubStations
             .filter { $0.name.localizedCaseInsensitiveContains("all day") }
             .flatMap(\.items)
-            .filter { isTwistedRoot(stationName: "", stationID: $0.stationID) }
-        items.append(contentsOf: allDayTwisted)
-        return items
+        var seen = Set<String>()
+        var extras: [MenuItem] = []
+        for item in allDayItems {
+            guard isTwistedRoot(stationName: "", stationID: item.stationID) else { continue }
+            let key = item.name.lowercased()
+            if !seen.insert(key).inserted { continue }
+            if appearsOnHubBoard(item, keys: timedKeys) { continue }
+            extras.append(item)
+        }
+        return extras
+    }
+
+    static func excludingBreakfastOnlyBrunchItems(
+        _ items: [MenuItem],
+        period: String,
+        hubStations: [MenuStation]
+    ) -> [MenuItem] {
+        guard MealPeriodPill.canonical(period) == "Lunch" else { return items }
+        let breakfast = hubStations
+            .filter {
+                let name = $0.name.lowercased()
+                return name.contains("breakfast") && !name.contains("brunch")
+            }
+            .flatMap(\.items)
+        let breakfastKeys = hubBoardNameKeys(from: breakfast)
+        guard !breakfastKeys.isEmpty else { return items }
+        let lunch = hubStations
+            .filter { $0.name.lowercased().contains("lunch") }
+            .flatMap(\.items)
+        let lunchKeys = hubBoardNameKeys(from: lunch)
+        return items.filter { item in
+            appearsOnHubBoard(item, keys: lunchKeys) || !appearsOnHubBoard(item, keys: breakfastKeys)
+        }
     }
 
     static func hubBoardNameKeys(from items: [MenuItem]) -> Set<String> {
@@ -1041,22 +1120,22 @@ public struct DiningService: Sendable {
 
     /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
     /// that aren't All-Day grill/salad staples and aren't already on the board.
-    /// Twisted Root extras still union even when Hub also dumps them on All Day,
-    /// so a station dish the API missed isn't swallowed by the staple filter.
+    /// Twisted Root extras that Hub filed on this meal still union even when
+    /// Hub also lists them on All Day. All-Day-only Twisted Root (no timed
+    /// meal tag) still shows on every pill; a dish tagged to one meal does not.
     public static func hubExclusiveItems(
         onMenu menu: DiningMenu,
         hubStations: [MenuStation]
     ) -> [MenuItem] {
-        let matching = hubMealStations(matchingPeriod: menu.period, in: hubStations)
+        let matching = excludingBreakfastOnlyBrunchItems(
+            hubMealStations(matchingPeriod: menu.period, in: hubStations).flatMap(\.items),
+            period: menu.period,
+            hubStations: hubStations
+        )
         let allDayItems = hubStations
             .filter { $0.name.localizedCaseInsensitiveContains("all day") }
             .flatMap(\.items)
         let allDayNames = Set(allDayItems.map { $0.name.lowercased() })
-        let mealHasTwistedRoot = menu.stations.contains {
-            isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
-        } || matching.flatMap(\.items).contains {
-            isTwistedRoot(stationName: "", stationID: $0.stationID)
-        }
         var seen = Set(menu.stations.flatMap(\.items).map { $0.name.lowercased() })
         var extras: [MenuItem] = []
         func consider(_ item: MenuItem) {
@@ -1068,12 +1147,8 @@ public struct DiningService: Sendable {
             seen.insert(key)
             extras.append(item)
         }
-        for item in matching.flatMap(\.items) { consider(item) }
-        if mealHasTwistedRoot {
-            for item in allDayItems where isTwistedRoot(stationName: "", stationID: item.stationID) {
-                consider(item)
-            }
-        }
+        for item in matching { consider(item) }
+        for item in allDayOnlyTwistedRootItems(in: hubStations) { consider(item) }
         return extras
     }
 
@@ -1202,11 +1277,29 @@ public struct DiningService: Sendable {
         let stationNames = try await stationMap()
 
         var mealStations: [MenuStation] = []
+        var scraped: [String: [MenuStation]] = [:]
         for name in periodNames {
             let more = try await stations(
                 for: name, in: today, stationNames: stationNames
             )
+            scraped[name] = more
             mealStations = Self.mergeStations(mealStations, more)
+        }
+        if MealPeriodPill.canonical(period) == "Lunch",
+           let breakfastName = available.first(where: {
+               $0.caseInsensitiveCompare("Breakfast") == .orderedSame
+           }) {
+            let breakfastStations = try await stations(
+                for: breakfastName, in: today, stationNames: stationNames
+            )
+            let lunchStations = scraped.first { key, _ in
+                key.caseInsensitiveCompare("Lunch") == .orderedSame
+            }?.value ?? []
+            mealStations = Self.subtractingBreakfastOnlyBrunchDishes(
+                from: mealStations,
+                lunch: lunchStations,
+                breakfast: breakfastStations
+            )
         }
 
         let periodMatched = periodNames.contains { name in
