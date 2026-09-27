@@ -47,6 +47,33 @@ struct LiveAPITests {
             )
             #expect(!aeDinnerTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
         }
+        if date == "2026-09-27" {
+            for hall in ["anteatery", "brandywine"] {
+                let breakfast = try await service.menu(for: hall, period: "Breakfast", date: date)
+                let lunch = try await service.menu(for: hall, period: "Lunch", date: date)
+                let dinner = try await service.menu(for: hall, period: "Dinner", date: date)
+                func mealNames(_ menu: DiningMenu) -> Set<String> {
+                    Set(
+                        menu.stations
+                            .filter { !CampusMenuNormalize.isAvailableAllDay($0.name) }
+                            .flatMap(\.items)
+                            .map { $0.name.lowercased() }
+                    )
+                }
+                let breakfastNames = mealNames(breakfast)
+                let lunchNames = mealNames(lunch)
+                let dinnerNames = mealNames(dinner)
+                #expect(!breakfastNames.isEmpty)
+                let breakfastOnly = breakfastNames.subtracting(lunchNames)
+                #expect(!breakfastOnly.isEmpty)
+                #expect(breakfastOnly.isDisjoint(with: dinnerNames))
+                if hall == "brandywine" {
+                    #expect(breakfastNames.contains { $0.contains("scramble") || $0.contains("tofu") })
+                    #expect(!lunchNames.contains { $0.contains("scramble") })
+                    #expect(!dinnerNames.contains { $0.contains("scramble") })
+                }
+            }
+        }
     }
 
     @Test func diningLocationsAndMenuFromLiveAPI() async throws {
