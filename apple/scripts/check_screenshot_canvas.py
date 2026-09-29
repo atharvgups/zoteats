@@ -72,8 +72,28 @@ def check_file(path: Path, want_dark: bool, sheet: bool) -> list[str]:
     return errors
 
 
+def check_preview_frames(root: Path) -> list[str]:
+    frames = sorted(root.glob("*.png"))
+    if not frames:
+        return [f"no preview frames in {root}"]
+    errors: list[str] = []
+    beige_frames = 0
+    for path in frames:
+        im = Image.open(path).convert("RGB")
+        samples = [sample(im, fx, fy) for fx, fy in TAB_POINTS]
+        if sum(1 for rgb in samples if is_beige(rgb)) >= 2:
+            beige_frames += 1
+            errors.append(f"{path.name}: preview frame still looks beige ({samples[:3]})")
+        print(f"preview {path.name}: {im.size[0]}x{im.size[1]} samples={samples[:2]}", flush=True)
+    if beige_frames:
+        errors.append(f"{beige_frames} preview frame(s) still beige")
+    return errors
+
+
 def main() -> None:
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else "screenshots/listing")
+    args = [a for a in sys.argv[1:] if a]
+    root = Path(args[0] if args else "screenshots/listing")
+    preview_root = Path(args[1]) if len(args) > 1 else None
     if not root.is_dir():
         print(f"::error::Screenshot listing dir missing: {root}", flush=True)
         sys.exit(1)
@@ -100,6 +120,11 @@ def main() -> None:
     study = root / "study.png"
     if study.is_file() and study.stat().st_size < 200_000:
         errors.append("study.png looks like a skeleton / empty load")
+    if preview_root is not None:
+        if preview_root.is_dir():
+            errors.extend(check_preview_frames(preview_root))
+        else:
+            errors.append(f"preview frames dir missing: {preview_root}")
     if errors:
         for err in errors:
             print(f"::error::{err}", flush=True)

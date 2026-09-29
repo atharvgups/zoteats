@@ -39,5 +39,5 @@ jobs:
           # shellcheck disable=SC1091
           source "$RUNNER_TEMP/asc-venv/bin/activate"
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet 'PyJWT[crypto]'
+          python -m pip install --quiet 'PyJWT[crypto]' Pillow
           python apple/scripts/asc_status.py

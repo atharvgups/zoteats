@@ -439,6 +439,17 @@ def main() -> None:
         attrs = version.get("attributes") or {}
         info(f"Version {attrs.get('versionString')}: {attrs.get('appStoreState')}")
         if attrs.get("appStoreState") in {
+            "WAITING_FOR_REVIEW",
+            "IN_REVIEW",
+            "PROCESSING_FOR_REVIEW",
+        }:
+            die(
+                f"Refusing screenshot upload: {attrs.get('versionString')} is "
+                f"{attrs.get('appStoreState')}. Apple does not allow uploading "
+                "or editing screenshots or app previews during review. "
+                "Do not cancel review. Stage media in the repo instead."
+            )
+        if attrs.get("appStoreState") in {
             "READY_FOR_SALE",
             "PENDING_APPLE_RELEASE",
             "PROCESSING_FOR_APP_STORE",

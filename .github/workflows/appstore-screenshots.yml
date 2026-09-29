@@ -1,17 +1,26 @@
-# Capture current-UI App Store screenshots on a 6.7" simulator and replace
-# listing media in App Store Connect. NEVER submits for App Review and NEVER
-# releases a version — Atharv froze public binary releases.
+# Capture current-UI App Store screenshots + a short preview on a 6.7"
+# simulator. NEVER submits for App Review and NEVER releases a version.
+# Default is capture-only. ASC upload stays off while 1.0.337 is in review
+# (Apple locks screenshots/previews on WAITING_FOR_REVIEW).
 name: App Store Screenshots
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_asc:
+        description: Upload to App Store Connect (never while a version is in review)
+        type: boolean
+        default: false
   push:
     branches: ["cursor/**"]
 
 jobs:
   capture-and-upload:
-    name: Capture + upload listing screenshots (no review)
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')
+    name: Capture listing screenshots (no review)
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[screenshots]') ||
+      contains(github.event.head_commit.message, '[screenshots-only]')
     runs-on: macos-15
     env:
       APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
@@ -48,6 +57,28 @@ jobs:
         run: |
           APP_PATH="apple/DerivedData/Build/Products/Debug-iphonesimulator/ZotEats.app"
           bash apple/scripts/capture_screenshots.sh --app "$APP_PATH" --out screenshots
+          DEVICE=$(cat screenshots/device.txt)
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+
+      - name: Build UI tests for preview recording
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project apple/ZotEats.xcodeproj \
+            -scheme ZotEats \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -derivedDataPath apple/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build-for-testing
+
+      - name: Record App Store preview
+        run: |
+          export DERIVED_DATA="$GITHUB_WORKSPACE/apple/DerivedData"
+          bash apple/scripts/record_app_preview.sh --out demo --device "$DEVICE"
+          mkdir -p docs/previews
+          if [ -f demo/app_preview.mp4 ]; then
+            cp demo/app_preview.mp4 docs/previews/iphone67.mp4
+          fi
 
       - name: Copy listing names into docs/screenshots
         run: |
@@ -61,6 +92,8 @@ jobs:
           path: |
             screenshots/
             docs/screenshots/*.png
+            demo/
+            docs/previews/
           if-no-files-found: warn
 
       - name: Check canvas is plain white / black
@@ -70,9 +103,29 @@ jobs:
           source "$RUNNER_TEMP/shot-venv/bin/activate"
           python -m pip install --quiet --upgrade pip
           python -m pip install --quiet Pillow
-          python apple/scripts/check_screenshot_canvas.py screenshots/listing
+          python apple/scripts/check_screenshot_canvas.py screenshots/listing demo/preview_frames
+
+      - name: Refuse upload while review is in flight
+        id: upload_gate
+        run: |
+          want_upload=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.upload_to_asc }}" = "true" ]; then
+            want_upload=true
+          fi
+          if [ "${{ github.event_name }}" = "push" ] && \
+             echo "${{ github.event.head_commit.message }}" | grep -q '\[screenshots\]' && \
+             ! echo "${{ github.event.head_commit.message }}" | grep -q '\[screenshots-only\]'; then
+            want_upload=true
+          fi
+          echo "want_upload=$want_upload" >> "$GITHUB_OUTPUT"
+          if [ "$want_upload" = "true" ]; then
+            echo "::warning::Upload requested, but 1.0.337 is in review. Script will refuse if ASC still locks media."
+          else
+            echo "Capture-only. Not uploading to App Store Connect."
+          fi
 
       - name: Check App Store Connect secrets
+        if: steps.upload_gate.outputs.want_upload == 'true'
         run: |
           missing=()
           for name in APP_STORE_CONNECT_API_KEY_P8 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
@@ -86,6 +139,7 @@ jobs:
           fi
 
       - name: Upload screenshots to App Store Connect (no review, no release)
+        if: steps.upload_gate.outputs.want_upload == 'true'
         run: |
           mkdir -p "$HOME/private_keys"
           echo "$APP_STORE_CONNECT_API_KEY_P8" | base64 --decode \

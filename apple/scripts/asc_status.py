@@ -3,7 +3,8 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Launch-loop peek 2026-09-15 ~12:20 PM PT — read-only. Report live store, 1.0.300 DEVELOPER_REJECTED vs any WAITING_FOR_REVIEW / IN_REVIEW, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. No new testflight tag unless a real regression.
+Inventory listing screenshots and app previews on live 1.0.326 and pending
+1.0.337. Read-only. Do not cancel review. Do not submit. Do not upload media.
 """
 
 from __future__ import annotations
@@ -68,6 +69,183 @@ def api(method: str, path: str, token: str, ok_empty: bool = False) -> dict:
         if ok_empty and exc.code in {404, 403}:
             return {}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+
+
+def _is_beige(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return r > 210 and g > 200 and b < 235 and (r - b) > 12 and (g - b) > 8
+
+
+def _sample_png_or_jpeg(data: bytes) -> list[tuple[int, int, int]]:
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+    from io import BytesIO
+
+    im = Image.open(BytesIO(data)).convert("RGB")
+    points = ((0.03, 0.20), (0.97, 0.20), (0.03, 0.38), (0.97, 0.38), (0.50, 0.12))
+    samples: list[tuple[int, int, int]] = []
+    for fx, fy in points:
+        x = min(im.width - 1, max(0, int(im.width * fx)))
+        y = min(im.height - 1, max(0, int(im.height * fy)))
+        px = im.getpixel((x, y))
+        samples.append((int(px[0]), int(px[1]), int(px[2])))
+    return samples
+
+
+def _asset_url(image_asset: dict | None, width: int = 240, height: int = 520) -> str | None:
+    if not image_asset:
+        return None
+    template = image_asset.get("templateUrl")
+    if not isinstance(template, str) or not template:
+        return None
+    return (
+        template.replace("{w}", str(width))
+        .replace("{h}", str(height))
+        .replace("{f}", "png")
+    )
+
+
+def _fetch_bytes(url: str) -> bytes | None:
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AnteatsASC/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read()
+    except Exception:  # noqa: BLE001 — inventory only
+        return None
+
+
+def _canvas_note(data: bytes | None) -> str:
+    if not data:
+        return "canvas=unsampled"
+    samples = _sample_png_or_jpeg(data)
+    if not samples:
+        return "canvas=unsampled"
+    beige = sum(1 for rgb in samples if _is_beige(rgb))
+    near_white = sum(1 for r, g, b in samples if min(r, g, b) >= 245)
+    near_black = sum(1 for r, g, b in samples if max(r, g, b) <= 40)
+    if beige >= 2:
+        label = "BEIGE"
+    elif near_white >= 2:
+        label = "white"
+    elif near_black >= 2:
+        label = "black"
+    else:
+        label = "other"
+    return f"canvas={label} samples={samples[:3]}"
+
+
+def dump_listing_media(token: str, version: dict) -> None:
+    attrs = version.get("attributes") or {}
+    ver = attrs.get("versionString")
+    state = attrs.get("appStoreState")
+    print(f"version={ver} appStoreState={state}", flush=True)
+    if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW"}:
+        print(
+            "  mediaEditable=no "
+            "(Apple: cannot upload or edit screenshots or app previews "
+            "while Waiting for Review / In Review; deleting a preview is "
+            "allowed but we will not. Replacing media requires removing "
+            "the version from review, which we will not do.)",
+            flush=True,
+        )
+    elif state in {
+        "PREPARE_FOR_SUBMISSION",
+        "DEVELOPER_REJECTED",
+        "REJECTED",
+        "METADATA_REJECTED",
+        "INVALID_BINARY",
+    }:
+        print("  mediaEditable=yes (draft / rejected states only)", flush=True)
+    else:
+        print(
+            "  mediaEditable=no (live / locked version; new version required)",
+            flush=True,
+        )
+
+    locs = api(
+        "GET",
+        f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=5",
+        token,
+        ok_empty=True,
+    ).get("data") or []
+    if not locs:
+        print("  (no localizations)", flush=True)
+        return
+    for loc in locs:
+        locale = (loc.get("attributes") or {}).get("locale")
+        print(f"  locale={locale} localization={loc['id']}", flush=True)
+        sets = api(
+            "GET",
+            f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets?limit=20",
+            token,
+            ok_empty=True,
+        ).get("data") or []
+        if not sets:
+            print("  screenshots=(none)", flush=True)
+        for shot_set in sets:
+            display = (shot_set.get("attributes") or {}).get("screenshotDisplayType")
+            print(f"  screenshotSet type={display} id={shot_set['id']}", flush=True)
+            shots = api(
+                "GET",
+                f"/v1/appScreenshotSets/{shot_set['id']}/appScreenshots?limit=20",
+                token,
+                ok_empty=True,
+            ).get("data") or []
+            if not shots:
+                print("    (empty set)", flush=True)
+            for index, shot in enumerate(shots):
+                sattrs = shot.get("attributes") or {}
+                delivery = (sattrs.get("assetDeliveryState") or {}).get("state")
+                name = sattrs.get("fileName")
+                size = sattrs.get("fileSize")
+                url = _asset_url(sattrs.get("imageAsset"))
+                note = _canvas_note(_fetch_bytes(url) if url else None)
+                print(
+                    f"    shot[{index}] file={name} bytes={size} "
+                    f"delivery={delivery} {note}",
+                    flush=True,
+                )
+
+        preview_sets = api(
+            "GET",
+            f"/v1/appStoreVersionLocalizations/{loc['id']}/appPreviewSets?limit=20",
+            token,
+            ok_empty=True,
+        ).get("data") or []
+        if not preview_sets:
+            print("  previews=(none)", flush=True)
+            continue
+        for preview_set in preview_sets:
+            display = (preview_set.get("attributes") or {}).get("previewType")
+            print(f"  previewSet type={display} id={preview_set['id']}", flush=True)
+            previews = api(
+                "GET",
+                f"/v1/appPreviewSets/{preview_set['id']}/appPreviews?limit=10",
+                token,
+                ok_empty=True,
+            ).get("data") or []
+            if not previews:
+                print("    (empty set)", flush=True)
+            for index, preview in enumerate(previews):
+                pattrs = preview.get("attributes") or {}
+                delivery = (pattrs.get("assetDeliveryState") or {}).get("state")
+                video_state = (pattrs.get("videoDeliveryState") or {}).get("state")
+                poster = _asset_url(pattrs.get("previewFrameImage") or pattrs.get("imageAsset"))
+                if not poster:
+                    preview_image = pattrs.get("previewImage") or {}
+                    poster = _asset_url(preview_image if isinstance(preview_image, dict) else None)
+                note = _canvas_note(_fetch_bytes(poster) if poster else None)
+                print(
+                    f"    preview[{index}] file={pattrs.get('fileName')} "
+                    f"bytes={pattrs.get('fileSize')} mime={pattrs.get('mimeType')} "
+                    f"delivery={delivery} video={video_state} "
+                    f"posterTime={pattrs.get('previewFrameTimeCode')} {note}",
+                    flush=True,
+                )
+                if pattrs.get("videoUrl"):
+                    print(f"      videoUrl={pattrs.get('videoUrl')}", flush=True)
 
 
 def _days_ago(iso: str | None) -> str:
@@ -159,6 +337,25 @@ def main() -> None:
             )
             if "\u2014" in wn:
                 print("  note=What's New still contains an em dash", flush=True)
+
+    print("--- listingMedia ---", flush=True)
+    media_versions = []
+    for v in versions.get("data") or []:
+        state = (v.get("attributes") or {}).get("appStoreState")
+        ver = (v.get("attributes") or {}).get("versionString")
+        if state in {
+            "READY_FOR_SALE",
+            "WAITING_FOR_REVIEW",
+            "IN_REVIEW",
+            "PROCESSING_FOR_REVIEW",
+            "PENDING_DEVELOPER_RELEASE",
+            "PENDING_APPLE_RELEASE",
+        } or ver in {"1.0.326", "1.0.337"}:
+            media_versions.append(v)
+    if not media_versions:
+        print("(none)", flush=True)
+    for v in media_versions:
+        dump_listing_media(token, v)
 
     sq = urllib.parse.urlencode(
         {"filter[app]": app_id, "filter[platform]": "IOS", "limit": "10"}
