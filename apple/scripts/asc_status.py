@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Tuesday noon PT launch-loop peek 2026-09-29. Read-only. Report live store, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. Do NOT touch live 1.0.326.
+Tuesday afternoon PT launch-loop peek 2026-09-29. Read-only. Report live store, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. Do NOT touch live 1.0.326.
 """
 
 from __future__ import annotations
