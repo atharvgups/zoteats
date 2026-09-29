@@ -425,6 +425,43 @@ def attach_build(token: str, version_id: str, build_id: str) -> None:
         info(f"Attached build {build_id} to version {version_id}.")
 
 
+def ensure_release_type(token: str, app_id: str, version_id: str) -> None:
+    """Manual release, unless a live version is already set to automatic."""
+    automatic = False
+    for version in list_ios_versions(token, app_id):
+        state = (version.get("attributes") or {}).get("appStoreState")
+        if state not in LIVE_OR_RELEASING_STATES:
+            continue
+        detail = api("GET", f"/v1/appStoreVersions/{version['id']}", token)
+        live_type = ((detail.get("data") or {}).get("attributes") or {}).get("releaseType")
+        info(
+            "Live version "
+            f"{(version.get('attributes') or {}).get('versionString')} "
+            f"releaseType={live_type}"
+        )
+        if live_type == "AFTER_APPROVAL":
+            automatic = True
+            break
+    wanted = "AFTER_APPROVAL" if automatic else "MANUAL"
+    result = api(
+        "PATCH",
+        f"/v1/appStoreVersions/{version_id}",
+        token,
+        {
+            "data": {
+                "type": "appStoreVersions",
+                "id": version_id,
+                "attributes": {"releaseType": wanted},
+            }
+        },
+        ok_codes={200, 204, 409, 422},
+    )
+    if result.get("errors") and not result.get("data"):
+        warn(f"Could not set releaseType={wanted}: {json.dumps(result)[:500]}")
+        return
+    info(f"Set releaseType={wanted}.")
+
+
 def ensure_version_copyright(token: str, version_id: str, meta: dict) -> None:
     copyright_text = (meta.get("copyright") or "").strip()
     if not copyright_text:
@@ -1388,6 +1425,9 @@ def main() -> None:
     info(f"App {BUNDLE_ID} → {app_id}")
 
     version_string = MARKETING_VERSION or meta.get("default_version") or "1.0.25"
+    global BUILD_NUMBER
+    if not BUILD_NUMBER:
+        BUILD_NUMBER = str(meta.get("default_build") or "").strip()
     build = wait_for_build(token, app_id)
     build_id = build["id"]
     build_ver = (build.get("attributes") or {}).get("version")
@@ -1401,6 +1441,7 @@ def main() -> None:
     version = get_or_create_version(token, app_id, version_string)
     version_id = version["id"]
     attach_build(token, version_id, build_id)
+    ensure_release_type(token, app_id, version_id)
     ensure_export_compliance(token, build_id)
     ensure_content_rights(token, app_id)
     ensure_version_copyright(token, version_id, meta)
