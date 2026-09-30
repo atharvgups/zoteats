@@ -359,13 +359,16 @@ def main() -> None:
                 "ASC failed to process the preview video. "
                 f"attrs={json.dumps(attrs)[:800]}"
             )
-        if delivery == "COMPLETE" and video in {"COMPLETE", None}:
-            info("Preview is ready.")
+        if delivery == "COMPLETE":
+            info(
+                "Preview asset is COMPLETE "
+                f"(video={video}). attrs={json.dumps(attrs)[:500]}"
+            )
             return
         time.sleep(15)
     die(
-        "Preview still processing after 5 minutes. "
-        "Not submitting until Apple marks the video COMPLETE."
+        "Preview delivery still not COMPLETE after 5 minutes. "
+        f"Last video={video}."
     )
 
 
