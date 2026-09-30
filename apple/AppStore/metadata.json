@@ -8,6 +8,7 @@
   "support_url": "https://github.com/atharvgups/zoteats/issues",
   "marketing_url": "https://github.com/atharvgups/zoteats",
   "copyright": "2026 Atharv Gupta",
+  "default_version": "1.0.337",
   "locale": "en-US",
   "default_build": "343",
   "keywords": "ZotEats,Anteatery,Brandywine,Oasis,menu,campus,food,library,Irvine,study,hours,nutrition,Waitz",
@@ -19,10 +20,8 @@
     "docs/screenshots/eat_light.png",
     "docs/screenshots/campus.png",
     "docs/screenshots/study.png",
-    "docs/screenshots/settings.png",
     "docs/screenshots/eat_dark.png",
     "docs/screenshots/campus_menu.png",
-    "docs/screenshots/plate_light.png",
     "docs/screenshots/dish_nutrition_light.png"
   ],
   "preview_file": "docs/previews/iphone67.mp4"

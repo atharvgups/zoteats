@@ -198,6 +198,20 @@ def display_types_from_sets(sets: list[dict]) -> list[str]:
 
 
 def pick_editable_version(versions: list[dict]) -> dict | None:
+    wanted = os.environ.get("TARGET_VERSION", "").strip()
+    if wanted:
+        for version in versions:
+            attrs = version.get("attributes") or {}
+            if attrs.get("versionString") != wanted:
+                continue
+            state = attrs.get("appStoreState")
+            if state in EDITABLE_STATES:
+                return version
+            die(
+                f"{wanted} is {state}, not an editable draft. "
+                "Cancel review first, then upload."
+            )
+        die(f"{wanted} was not found among App Store versions.")
     for version in versions:
         state = (version.get("attributes") or {}).get("appStoreState")
         if state in EDITABLE_STATES:
