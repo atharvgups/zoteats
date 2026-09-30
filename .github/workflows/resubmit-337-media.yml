@@ -154,6 +154,7 @@ jobs:
           SUBMIT_FOR_REVIEW: "true"
           CANCEL_IN_FLIGHT_REVIEW: "false"
           RELEASE_PENDING_DEVELOPER_RELEASE: "false"
+          SKIP_SCREENSHOT_UPLOAD: "true"
         run: |
           # shellcheck disable=SC1091
           source "$ASC_VENV/bin/activate"

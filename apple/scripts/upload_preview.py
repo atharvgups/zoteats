@@ -116,6 +116,8 @@ def api(
             return {"errors": [{"status": "409"}], "already_exists": True, "raw": detail}
         if exc.code in ok:
             return json.loads(detail) if detail else {}
+        if exc.code >= 500:
+            return {"errors": [{"status": str(exc.code)}], "server_error": True, "raw": detail}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:1200]}")
 
 
@@ -268,7 +270,19 @@ def main() -> None:
         "GET", f"/v1/appPreviewSets/{set_id}/appPreviews?limit=10", token
     ).get("data") or []
     for preview in existing:
-        api("DELETE", f"/v1/appPreviews/{preview['id']}", token, ok_codes={200, 204, 404})
+        for attempt in range(4):
+            result = api(
+                "DELETE",
+                f"/v1/appPreviews/{preview['id']}",
+                token,
+                ok_codes={200, 204, 404},
+            )
+            if not result.get("server_error"):
+                break
+            info(f"ASC 5xx deleting preview {preview['id']}; retry {attempt + 1}")
+            time.sleep(3 + attempt * 3)
+        else:
+            die(f"Could not delete existing preview {preview['id']} after retries.")
 
     data = src.read_bytes()
     checksum = hashlib.md5(data).hexdigest()
@@ -283,7 +297,7 @@ def main() -> None:
                     "fileName": src.name,
                     "fileSize": len(data),
                     "mimeType": "video/mp4",
-                    "previewFrameTimeCode": "00:00:02:00",
+                    "previewFrameTimeCode": "00:00:05:00",
                 },
                 "relationships": {
                     "appPreviewSet": {
@@ -325,7 +339,7 @@ def main() -> None:
                 "attributes": {
                     "uploaded": True,
                     "sourceFileChecksum": checksum,
-                    "previewFrameTimeCode": "00:00:02:00",
+                    "previewFrameTimeCode": "00:00:05:00",
                 },
             }
         },
@@ -345,12 +359,14 @@ def main() -> None:
                 "ASC failed to process the preview video. "
                 f"attrs={json.dumps(attrs)[:800]}"
             )
-        if delivery in {"COMPLETE", None} and video in {"COMPLETE", None, "COMPLETE"}:
-            return
-        if delivery == "COMPLETE":
+        if delivery == "COMPLETE" and video in {"COMPLETE", None}:
+            info("Preview is ready.")
             return
         time.sleep(15)
-    info("Preview still processing; continuing.")
+    die(
+        "Preview still processing after 5 minutes. "
+        "Not submitting until Apple marks the video COMPLETE."
+    )
 
 
 if __name__ == "__main__":
