@@ -341,7 +341,10 @@ def main() -> None:
         video = (attrs.get("videoDeliveryState") or {}).get("state")
         info(f"Preview processing delivery={delivery} video={video}")
         if delivery == "FAILED" or video == "FAILED":
-            die("ASC failed to process the preview video.")
+            die(
+                "ASC failed to process the preview video. "
+                f"attrs={json.dumps(attrs)[:800]}"
+            )
         if delivery in {"COMPLETE", None} and video in {"COMPLETE", None, "COMPLETE"}:
             return
         if delivery == "COMPLETE":
