@@ -1,0 +1,175 @@
+# Atharv-explicit: pull 1.0.337 off review, replace beige listing media with
+# the current white/black screenshots + light preview, then resubmit build 343.
+# Never touches PR #27. Never force-retags. Live 1.0.326 stays on the store.
+name: Resubmit 1.0.337 media
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["cursor/**"]
+
+jobs:
+  resubmit:
+    name: Cancel, replace media, resubmit 1.0.337
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[resubmit-337-media]') ||
+      contains(github.event.head_commit.message, '[submit-337-now]')
+    runs-on: ubuntu-latest
+    env:
+      APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      REVIEW_CONTACT_PHONE: ${{ secrets.REVIEW_CONTACT_PHONE }}
+      TARGET_VERSION: "1.0.337"
+      PROTECTED_LIVE_VERSION: "1.0.326"
+      MARKETING_VERSION: "1.0.337"
+      BUILD_NUMBER: "343"
+      SUBMIT_FOR_REVIEW: "true"
+      CANCEL_IN_FLIGHT_REVIEW: "true"
+      RELEASE_PENDING_DEVELOPER_RELEASE: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          for name in APP_STORE_CONNECT_API_KEY_P8 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name"
+              exit 1
+            fi
+          done
+
+      - name: Check listing copy and canvas
+        run: |
+          python3 apple/scripts/check_appstore_copy.py
+          python3 -m venv "$RUNNER_TEMP/shot-venv"
+          # shellcheck disable=SC1091
+          source "$RUNNER_TEMP/shot-venv/bin/activate"
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet Pillow
+          python apple/scripts/check_screenshot_canvas.py docs/screenshots
+
+      - name: Write API key
+        run: |
+          mkdir -p "$HOME/private_keys"
+          echo "$APP_STORE_CONNECT_API_KEY_P8" | base64 --decode \
+            > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          echo "APP_STORE_CONNECT_API_KEY_PATH=$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      - name: Install Python deps
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc-venv"
+          # shellcheck disable=SC1091
+          source "$RUNNER_TEMP/asc-venv/bin/activate"
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet 'PyJWT[crypto]' Pillow
+          echo "ASC_VENV=$RUNNER_TEMP/asc-venv" >> "$GITHUB_ENV"
+
+      - name: Cancel 1.0.337 review
+        run: |
+          # shellcheck disable=SC1091
+          source "$ASC_VENV/bin/activate"
+          python apple/scripts/cancel_waiting_review.py
+
+      - name: Wait until 1.0.337 is editable
+        run: |
+          # shellcheck disable=SC1091
+          source "$ASC_VENV/bin/activate"
+          python - <<'PY'
+          import os, time, urllib.parse
+          import jwt
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+          import json, urllib.request
+
+          key = Path(os.environ["APP_STORE_CONNECT_API_KEY_PATH"]).read_text()
+          now = datetime.now(timezone.utc)
+          token = jwt.encode(
+              {
+                  "iss": os.environ["APP_STORE_CONNECT_ISSUER_ID"],
+                  "iat": int(now.timestamp()),
+                  "exp": int((now + timedelta(minutes=15)).timestamp()),
+                  "aud": "appstoreconnect-v1",
+              },
+              key,
+              algorithm="ES256",
+              headers={"kid": os.environ["APP_STORE_CONNECT_KEY_ID"], "typ": "JWT"},
+          )
+          editable = {
+              "PREPARE_FOR_SUBMISSION",
+              "DEVELOPER_REJECTED",
+              "REJECTED",
+              "METADATA_REJECTED",
+              "INVALID_BINARY",
+          }
+          deadline = time.time() + 180
+          while time.time() < deadline:
+              req = urllib.request.Request(
+                  "https://api.appstoreconnect.apple.com/v1/apps/6790896660/appStoreVersions?"
+                  + urllib.parse.urlencode({"filter[platform]": "IOS", "limit": "10"}),
+                  headers={"Authorization": f"Bearer {token}"},
+              )
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  versions = json.loads(resp.read()).get("data") or []
+              for v in versions:
+                  attrs = v.get("attributes") or {}
+                  if attrs.get("versionString") != "1.0.337":
+                      continue
+                  state = attrs.get("appStoreState")
+                  print(f"1.0.337 appStoreState={state}", flush=True)
+                  if state in editable:
+                      raise SystemExit(0)
+                  if state in {"WAITING_FOR_REVIEW", "IN_REVIEW", "PROCESSING_FOR_REVIEW", "CANCELING"}:
+                      break
+                  print(f"::error::1.0.337 landed in unexpected state {state}")
+                  raise SystemExit(1)
+              time.sleep(10)
+          print("::error::1.0.337 did not become editable after cancel")
+          raise SystemExit(1)
+          PY
+
+      - name: Replace screenshots on 1.0.337
+        if: ${{ !contains(github.event.head_commit.message, '[submit-337-now]') }}
+        env:
+          SUBMIT_FOR_REVIEW: "false"
+          RELEASE_PENDING_DEVELOPER_RELEASE: "false"
+        run: |
+          # shellcheck disable=SC1091
+          source "$ASC_VENV/bin/activate"
+          export SCREENSHOT_ROOT="$GITHUB_WORKSPACE"
+          python apple/scripts/upload_screenshots.py
+
+      - name: Install ffmpeg for preview probe
+        if: ${{ !contains(github.event.head_commit.message, '[submit-337-now]') }}
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Replace preview on 1.0.337
+        if: ${{ !contains(github.event.head_commit.message, '[submit-337-now]') }}
+        env:
+          SUBMIT_FOR_REVIEW: "false"
+        run: |
+          # shellcheck disable=SC1091
+          source "$ASC_VENV/bin/activate"
+          python apple/scripts/upload_preview.py
+
+      - name: Resubmit 1.0.337 build 343
+        env:
+          SUBMIT_FOR_REVIEW: "true"
+          CANCEL_IN_FLIGHT_REVIEW: "false"
+          RELEASE_PENDING_DEVELOPER_RELEASE: "false"
+          SKIP_SCREENSHOT_UPLOAD: "true"
+        run: |
+          # shellcheck disable=SC1091
+          source "$ASC_VENV/bin/activate"
+          export SCREENSHOT_ROOT="$GITHUB_WORKSPACE"
+          export REVIEW_CONTACT_EMAIL="atharvgups@gmail.com"
+          export REVIEW_CONTACT_FIRST_NAME="Atharv"
+          export REVIEW_CONTACT_LAST_NAME="Gupta"
+          python apple/scripts/submit_app_store.py
+
+      - name: Verify WAITING_FOR_REVIEW
+        run: |
+          # shellcheck disable=SC1091
+          source "$ASC_VENV/bin/activate"
+          python apple/scripts/asc_status.py

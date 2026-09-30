@@ -143,6 +143,8 @@ def api(
             return {"errors": [{"status": "409"}], "already_exists": True, "raw": detail}
         if exc.code in ok:
             return json.loads(detail) if detail else {}
+        if exc.code >= 500:
+            return {"errors": [{"status": str(exc.code)}], "server_error": True, "raw": detail}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:1200]}")
 
 
@@ -198,6 +200,20 @@ def display_types_from_sets(sets: list[dict]) -> list[str]:
 
 
 def pick_editable_version(versions: list[dict]) -> dict | None:
+    wanted = os.environ.get("TARGET_VERSION", "").strip()
+    if wanted:
+        for version in versions:
+            attrs = version.get("attributes") or {}
+            if attrs.get("versionString") != wanted:
+                continue
+            state = attrs.get("appStoreState")
+            if state in EDITABLE_STATES:
+                return version
+            die(
+                f"{wanted} is {state}, not an editable draft. "
+                "Cancel review first, then upload."
+            )
+        die(f"{wanted} was not found among App Store versions.")
     for version in versions:
         state = (version.get("attributes") or {}).get("appStoreState")
         if state in EDITABLE_STATES:
@@ -312,7 +328,19 @@ def clear_set(token: str, set_id: str) -> None:
         "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=20", token
     ).get("data") or []
     for shot in existing:
-        api("DELETE", f"/v1/appScreenshots/{shot['id']}", token, ok_codes={200, 204, 404})
+        for attempt in range(4):
+            result = api(
+                "DELETE",
+                f"/v1/appScreenshots/{shot['id']}",
+                token,
+                ok_codes={200, 204, 404},
+            )
+            if not result.get("server_error"):
+                break
+            warn(f"ASC 5xx deleting screenshot {shot['id']}; retry {attempt + 1}")
+            time.sleep(3 + attempt * 3)
+        else:
+            warn(f"Could not delete screenshot {shot['id']} after retries; continuing.")
 
 
 def upload_set(token: str, set_id: str, display_type: str, files: list[Path], tmp: Path) -> int:
@@ -438,6 +466,17 @@ def main() -> None:
     for version in versions:
         attrs = version.get("attributes") or {}
         info(f"Version {attrs.get('versionString')}: {attrs.get('appStoreState')}")
+        if attrs.get("appStoreState") in {
+            "WAITING_FOR_REVIEW",
+            "IN_REVIEW",
+            "PROCESSING_FOR_REVIEW",
+        }:
+            die(
+                f"Refusing screenshot upload: {attrs.get('versionString')} is "
+                f"{attrs.get('appStoreState')}. Apple does not allow uploading "
+                "or editing screenshots or app previews during review. "
+                "Do not cancel review. Stage media in the repo instead."
+            )
         if attrs.get("appStoreState") in {
             "READY_FOR_SALE",
             "PENDING_APPLE_RELEASE",

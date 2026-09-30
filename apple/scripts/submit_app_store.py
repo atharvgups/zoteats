@@ -14,6 +14,7 @@ Optional env:
   BUILD_NUMBER              — prefer this CFBundleVersion when attaching a build
   METADATA_PATH             — default apple/AppStore/metadata.json
   SCREENSHOT_ROOT           — repo root for relative screenshot paths (default cwd)
+  SKIP_SCREENSHOT_UPLOAD    — "true" to keep already-replaced screenshots
   SUBMIT_FOR_REVIEW         — "true" (default) or "false" to only prepare listing
   REVIEW_CONTACT_EMAIL      — default atharvgups@gmail.com
   REVIEW_CONTACT_FIRST_NAME — default Atharv
@@ -53,6 +54,11 @@ BUILD_NUMBER = os.environ.get("BUILD_NUMBER", "").strip()
 METADATA_PATH = Path(os.environ.get("METADATA_PATH", "apple/AppStore/metadata.json"))
 SCREENSHOT_ROOT = Path(os.environ.get("SCREENSHOT_ROOT", ".")).resolve()
 SUBMIT = os.environ.get("SUBMIT_FOR_REVIEW", "true").lower() not in {"0", "false", "no"}
+SKIP_SCREENSHOT_UPLOAD = os.environ.get("SKIP_SCREENSHOT_UPLOAD", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 # When true, cancel WAITING_FOR_REVIEW only (never IN_REVIEW / approved).
 # First public version 1.0.221 is approved — do not pull it from review.
 CANCEL_IN_FLIGHT = os.environ.get("CANCEL_IN_FLIGHT_REVIEW", "true").lower() not in {
@@ -151,6 +157,8 @@ def api(
             return {"errors": [{"status": "409"}], "already_exists": True, "raw": detail}
         if exc.code in ok:
             return json.loads(detail) if detail else {}
+        if exc.code >= 500:
+            return {"errors": [{"status": str(exc.code)}], "server_error": True, "raw": detail}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:1200]}")
 
 
@@ -865,7 +873,19 @@ def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
         "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=20", token
     ).get("data") or []
     for shot in existing:
-        api("DELETE", f"/v1/appScreenshots/{shot['id']}", token, ok_codes={200, 204, 404})
+        for attempt in range(4):
+            result = api(
+                "DELETE",
+                f"/v1/appScreenshots/{shot['id']}",
+                token,
+                ok_codes={200, 204, 404},
+            )
+            if not result.get("server_error"):
+                break
+            warn(f"ASC 5xx deleting screenshot {shot['id']}; retry {attempt + 1}")
+            time.sleep(3 + attempt * 3)
+        else:
+            warn(f"Could not delete screenshot {shot['id']} after retries; continuing.")
 
     tmp = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "anteats-screenshots"
     for index, rel in enumerate(files[:10]):
@@ -1450,13 +1470,16 @@ def main() -> None:
     loc_id = ensure_version_localization(token, version_id, meta)
     ensure_review_detail(token, version_id, meta)
     ensure_age_rating(token, version_id, app_id)
-    try:
-        ensure_screenshots(token, loc_id, meta)
-    except SystemExit:
-        raise
-    except Exception as exc:  # noqa: BLE001 — best-effort screenshots
-        warn(f"Screenshot upload failed ({exc}); continue and let ASC validate.")
-    wait_for_screenshot_processing(token, loc_id)
+    if SKIP_SCREENSHOT_UPLOAD:
+        info("SKIP_SCREENSHOT_UPLOAD=true — leaving current 1.0.337 screenshots in place.")
+    else:
+        try:
+            ensure_screenshots(token, loc_id, meta)
+        except SystemExit:
+            raise
+        except Exception as exc:  # noqa: BLE001 — best-effort screenshots
+            warn(f"Screenshot upload failed ({exc}); continue and let ASC validate.")
+        wait_for_screenshot_processing(token, loc_id)
 
     if not SUBMIT:
         info("SUBMIT_FOR_REVIEW=false — listing prepared, not submitted.")
