@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Confirm App Store 1.0.337 (343) after Atharv-approved public submit. Read-only. Report live store plus WAITING_FOR_REVIEW / IN_REVIEW. Do NOT cancel. Do NOT submit again.
+Tuesday evening PT launch-loop peek 2026-09-29. Read-only. Report live store, 1.0.337 review, Internal newest, External. Do NOT cancel. Do NOT submit. Do NOT retag.
 """
 
 from __future__ import annotations
