@@ -143,6 +143,8 @@ def api(
             return {"errors": [{"status": "409"}], "already_exists": True, "raw": detail}
         if exc.code in ok:
             return json.loads(detail) if detail else {}
+        if exc.code >= 500:
+            return {"errors": [{"status": str(exc.code)}], "server_error": True, "raw": detail}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:1200]}")
 
 
@@ -326,7 +328,19 @@ def clear_set(token: str, set_id: str) -> None:
         "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=20", token
     ).get("data") or []
     for shot in existing:
-        api("DELETE", f"/v1/appScreenshots/{shot['id']}", token, ok_codes={200, 204, 404})
+        for attempt in range(4):
+            result = api(
+                "DELETE",
+                f"/v1/appScreenshots/{shot['id']}",
+                token,
+                ok_codes={200, 204, 404},
+            )
+            if not result.get("server_error"):
+                break
+            warn(f"ASC 5xx deleting screenshot {shot['id']}; retry {attempt + 1}")
+            time.sleep(3 + attempt * 3)
+        else:
+            warn(f"Could not delete screenshot {shot['id']} after retries; continuing.")
 
 
 def upload_set(token: str, set_id: str, display_type: str, files: list[Path], tmp: Path) -> int:
