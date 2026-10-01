@@ -3,7 +3,7 @@
 
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
-Wednesday evening PT launch-loop peek 2026-09-30. Read-only. Report live store, 1.0.337 review, Internal newest, External. Do NOT cancel. Do NOT submit. Do NOT retag.
+Thursday morning PT launch-loop peek 2026-10-01. Read-only. Report live store, review queue, Internal newest, External. Do NOT cancel. Do NOT submit. Do NOT retag.
 """
 
 from __future__ import annotations
