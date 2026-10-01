@@ -22,3 +22,11 @@ apple/*.xcodeproj
 apple/DerivedData/
 apple/build/
 *.xcuserstate
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/**/*.iml
+android/.idea/
