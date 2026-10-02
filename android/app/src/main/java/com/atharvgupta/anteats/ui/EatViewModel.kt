@@ -1,6 +1,7 @@
 package com.atharvgupta.anteats.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.atharvgupta.anteats.data.DiningLocation
 import com.atharvgupta.anteats.data.DiningLogic
@@ -12,6 +13,7 @@ import com.atharvgupta.anteats.data.HallDirectory
 import com.atharvgupta.anteats.data.MenuItem
 import com.atharvgupta.anteats.data.PacificTime
 import com.atharvgupta.anteats.data.PlateStore
+import com.atharvgupta.anteats.data.PreferencesStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,12 +32,14 @@ data class EatUiState(
     val error: String? = null,
     val selectedDish: MenuItem? = null,
     val showPlate: Boolean = false,
+    val showFilters: Boolean = false,
     val screenshotReady: Boolean = false,
 )
 
 class EatViewModel(
     private val repository: DiningRepository = DiningRepository(),
-    val plate: PlateStore = PlateStore(),
+    val plate: PlateStore,
+    val prefs: PreferencesStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(EatUiState())
     val state: StateFlow<EatUiState> = _state.asStateFlow()
@@ -112,6 +116,10 @@ class EatViewModel(
         _state.update { it.copy(showPlate = show) }
     }
 
+    fun showFilters(show: Boolean) {
+        _state.update { it.copy(showFilters = show) }
+    }
+
     fun applyScreenshot(mode: String?) {
         viewModelScope.launch {
             val current = _state.value
@@ -122,6 +130,7 @@ class EatViewModel(
                     firstDish?.let { plate.add(it) }
                     showPlate(true)
                 }
+                "filters" -> showFilters(true)
             }
             _state.update { it.copy(screenshotReady = true) }
         }
@@ -147,4 +156,13 @@ class EatViewModel(
             }
         }
     }
+}
+
+class EatViewModelFactory(
+    private val plate: PlateStore,
+    private val prefs: PreferencesStore,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        EatViewModel(plate = plate, prefs = prefs) as T
 }

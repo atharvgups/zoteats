@@ -6,55 +6,91 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-val Ink = Color(0xFF1C1B18)
-val InkOnDark = Color(0xFFF5F5F5)
+val InkLight = Color(0xFF1C1B18)
+val InkDark = Color(0xFFF5F5F4)
 val CanvasLight = Color(0xFFFFFFFF)
 val CanvasDark = Color(0xFF000000)
 val CardLight = Color(0xFFFFFFFF)
-val CardDark = Color(0xFF1A1A1A)
+val CardDark = Color(0xFF2C2C2E)
 val HairlineLight = Color(0x1A1C1B18)
 val HairlineDark = Color(0x1AFFFFFF)
+val SelectWash = Color(0x0F1C1B18)
+val AccentLight = Color(0xFFA87A00)
+val AccentDark = Color(0xFFFFD200)
 val OpenGreen = Color(0xFF01A858)
-val Gold = Color(0xFFA87A00)
-val GoldDark = Color(0xFFFFD200)
-val Sage = Color(0xFF4A7C59)
+val BusyOrange = Color(0xFFD68C20)
+val CrowdedRed = Color(0xFFC43E4A)
+val Sage = Color(0xFF448365)
+val Eucalyptus = Color(0xFF599484)
+val Slate = Color(0xFF54769F)
+val Plum = Color(0xFF84689C)
+val Ochre = Color(0xFF9E7C4C)
+val Clay = Color(0xFF936E5A)
+val Terracotta = Color(0xFFB26A57)
+val FavoritePink = Color(0xFFFF2D55)
+val UciBlue = Color(0xFF0064A4)
 
-private val LightColors = lightColorScheme(
-    primary = Ink,
-    onPrimary = CanvasLight,
-    background = CanvasLight,
-    onBackground = Ink,
-    surface = CardLight,
-    onSurface = Ink,
-    surfaceVariant = Color(0xFFF4F4F4),
-    onSurfaceVariant = Color(0xFF5C5C5C),
-    outline = HairlineLight,
-    secondary = Gold,
-    tertiary = OpenGreen,
-)
+val HallRadius = 20.dp
+val CardRadius = 16.dp
+val InnerRadius = 10.dp
+val ChipRadius = 999.dp
+val HallTileHeight = 88.dp
+val HallNameSize = 26.sp
+val HallStatusSize = 12.sp
+val PillTextSize = 15.sp
+val HeroSize = 34.sp
+val SheetHeroSize = 26.sp
+val SectionSize = 18.sp
 
-private val DarkColors = darkColorScheme(
-    primary = InkOnDark,
-    onPrimary = CanvasDark,
-    background = CanvasDark,
-    onBackground = InkOnDark,
-    surface = CardDark,
-    onSurface = InkOnDark,
-    surfaceVariant = Color(0xFF222222),
-    onSurfaceVariant = Color(0xFFBDBDBD),
-    outline = HairlineDark,
-    secondary = GoldDark,
-    tertiary = OpenGreen,
-)
+fun dietColor(tag: String): Color = when (tag.lowercase()) {
+    "vegan" -> Sage
+    "vegetarian" -> Eucalyptus
+    "halal" -> Slate
+    "kosher" -> Plum
+    "gluten-free", "gluten free" -> Ochre
+    "organic" -> Clay
+    else -> Slate
+}
 
 @Composable
 fun AnteatsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        content = content,
-    )
+    val colors = if (darkTheme) {
+        darkColorScheme(
+            primary = InkDark,
+            onPrimary = CanvasDark,
+            background = CanvasDark,
+            onBackground = InkDark,
+            surface = CardDark,
+            onSurface = InkDark,
+            surfaceVariant = Color(0xFF3A3A3C),
+            onSurfaceVariant = Color(0xFFAEAEB2),
+            outline = HairlineDark,
+            secondary = AccentDark,
+            tertiary = OpenGreen,
+        )
+    } else {
+        lightColorScheme(
+            primary = InkLight,
+            onPrimary = CanvasLight,
+            background = CanvasLight,
+            onBackground = InkLight,
+            surface = CardLight,
+            onSurface = InkLight,
+            surfaceVariant = Color(0xFFF4F4F4),
+            onSurfaceVariant = Color(0xFF6E6E73),
+            outline = HairlineLight,
+            secondary = AccentLight,
+            tertiary = OpenGreen,
+        )
+    }
+    MaterialTheme(colorScheme = colors, content = content)
 }
+
+@Composable
+fun accentGold(dark: Boolean = isSystemInDarkTheme()): Color = if (dark) AccentDark else AccentLight

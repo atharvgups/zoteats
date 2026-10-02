@@ -74,7 +74,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: android/dist/anteats-android.apk
           body: |
-            Sideload APK for Anteats (Eat + Plate). Not on Google Play.
+            Sideload APK for Anteats (Eat, Campus, Study, Settings). Matches iOS 1.0.337 chrome. Not on Google Play.
             Direct download: https://github.com/${{ github.repository }}/releases/download/android-sideload/anteats-android.apk
             On the phone: Settings, allow installs from this source, then open the APK.
 

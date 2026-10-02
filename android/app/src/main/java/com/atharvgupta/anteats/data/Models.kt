@@ -131,9 +131,8 @@ object OasisSchedule {
     const val dinnerEndMinutes = 20 * 60
 
     fun opensLine(iso: String = firstServiceISO): String {
-        val weekday = PacificTime.weekdayShort(iso) ?: "Mon"
-        val monthDay = PacificTime.monthDay(iso) ?: "Oct 5"
-        return "Opens $weekday $monthDay"
+        val stamp = PacificTime.opensStamp(iso) ?: "Mon Oct 5"
+        return "Opens $stamp"
     }
 
     fun comingSoonLocation(dateISO: String = PacificTime.todayISO()): DiningLocation =

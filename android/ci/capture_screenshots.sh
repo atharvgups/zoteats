@@ -37,8 +37,26 @@ snap "$OUT/dish_light.png"
 launch plate false
 snap "$OUT/plate_light.png"
 
+launch filters false
+snap "$OUT/filters_light.png"
+
+launch campus false
+snap "$OUT/campus_light.png"
+
+launch study false
+snap "$OUT/study_light.png"
+
+launch settings false
+snap "$OUT/settings_light.png"
+
 launch eat true
 snap "$OUT/eat_dark.png"
+
+launch campus true
+snap "$OUT/campus_dark.png"
+
+launch study true
+snap "$OUT/study_dark.png"
 
 adb shell cmd uimode night no || true
 ls -la "$OUT"

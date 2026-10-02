@@ -13,6 +13,7 @@ object PacificTime {
     private val weekdayShort: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE", Locale.US)
     private val monthDay: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.US)
     private val compactChip: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.US)
+    private val opensStampFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE MMM d", Locale.US)
 
     fun now(): ZonedDateTime = ZonedDateTime.now(zone)
 
@@ -32,6 +33,8 @@ object PacificTime {
     fun monthDay(iso: String): String? = parseISO(iso)?.format(monthDay)
 
     fun compactChip(iso: String): String? = parseISO(iso)?.format(compactChip)
+
+    fun opensStamp(iso: String): String? = parseISO(iso)?.format(opensStampFmt)
 
     fun upcomingDays(count: Int, todayISO: String = todayISO()): List<String> {
         val start = parseISO(todayISO) ?: return emptyList()

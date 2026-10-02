@@ -207,7 +207,7 @@ object DiningLogic {
     }
 
     fun emptyMenuCopy(period: String, browsingFuture: Boolean, comingSoon: Boolean): String {
-        if (comingSoon) return "The Oasis is not serving menus yet. Hours will show when Dining Hub posts them."
+        if (comingSoon) return "${OasisSchedule.opensLine()} · Lunch & Dinner"
         val meal = period.trim()
         return if (browsingFuture) {
             if (meal.isEmpty()) {

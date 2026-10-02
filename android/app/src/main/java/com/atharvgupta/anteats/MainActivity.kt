@@ -4,29 +4,40 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
-import com.atharvgupta.anteats.ui.AnteatsTheme
-import com.atharvgupta.anteats.ui.EatScreen
+import com.atharvgupta.anteats.ui.AppTab
+import com.atharvgupta.anteats.ui.RootApp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val app = application as AnteatsApp
         val screenshot = intent.getStringExtra(EXTRA_SCREENSHOT)
-        val forceDark = intent.getBooleanExtra(EXTRA_DARK, false)
+        val tabExtra = intent.getStringExtra(EXTRA_TAB)
+        val forceDark = if (intent.hasExtra(EXTRA_DARK)) intent.getBooleanExtra(EXTRA_DARK, false) else null
+        val initialTab = when (tabExtra?.lowercase() ?: screenshot?.lowercase()) {
+            "campus" -> AppTab.Campus
+            "study" -> AppTab.Study
+            else -> AppTab.Eat
+        }
+        val version = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull() ?: "1.0.337"
         setContent {
-            AnteatsTheme(darkTheme = if (intent.hasExtra(EXTRA_DARK)) forceDark else androidx.compose.foundation.isSystemInDarkTheme()) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    EatScreen(screenshotMode = screenshot)
-                }
-            }
+            RootApp(
+                prefs = app.preferences,
+                plate = app.plate,
+                screenshotMode = screenshot,
+                initialTab = initialTab,
+                versionName = version ?: "1.0.337",
+                forceDark = forceDark,
+            )
         }
     }
 
     companion object {
         const val EXTRA_SCREENSHOT = "screenshot"
         const val EXTRA_DARK = "dark"
+        const val EXTRA_TAB = "tab"
     }
 }
