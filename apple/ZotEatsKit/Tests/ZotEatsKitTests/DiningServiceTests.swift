@@ -76,12 +76,26 @@ struct DiningServiceTests {
         #expect(locations.allSatisfy { !$0.openNow && $0.availablePeriods.isEmpty })
     }
 
-    @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
+    @Test func primaryPeriodsMapSnackAndLateNightFromRealNames() {
         let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
         #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
-        #expect(DiningService.mealSelectorPills == ["Breakfast", "Lunch", "Dinner"])
+        #expect(
+            DiningService.primaryPeriods(from: ["Breakfast", "Afternoon Snack", "Evening Snack"])
+                == ["Breakfast", "Afternoon Snack", "Late Night"]
+        )
+        #expect(
+            DiningService.primaryPeriods(from: ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Evening Snack"])
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
+        )
+        #expect(DiningService.primaryPeriods(from: ["Overnight"]) == ["Late Night"])
+        #expect(
+            DiningService.mealSelectorPills
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
+        )
+        #expect(DiningService.pillIsPosted("Late Night", available: ["Evening Snack"]))
+        #expect(!DiningService.pillIsPosted("Late Night", available: ["Lunch", "Dinner"]))
     }
 
     @Test func oasisComingSoonHasNoInventedMenu() {
@@ -142,6 +156,10 @@ struct DiningServiceTests {
         #expect(DiningService.resolvePeriod("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Brunch", "Dinner"]) == "Brunch")
+        #expect(DiningService.resolvePeriod("Late Night", available: ["Dinner", "Evening Snack"]) == "Evening Snack")
+        #expect(DiningService.resolvePeriod("Afternoon Snack", available: ["Lunch", "Afternoon Snack"]) == "Afternoon Snack")
+        #expect(DiningService.resolvePeriod("Late Night", available: ["Overnight"]) == "Overnight")
+        #expect(DiningService.menuPeriodNames(primary: "Late Night", available: ["Dinner", "Evening Snack"]) == ["Evening Snack"])
     }
 
     @Test func lunchMenuPeriodNamesUnionBrunch() {
@@ -278,6 +296,64 @@ struct DiningServiceTests {
             combined.stations.first { $0.name == "Also served" }?.items.map(\.name).sorted()
                 == ["Creamy Marsala Ravioli", "Sesame Shrimp Taco"].sorted()
         )
+    }
+
+    @Test func hubExclusiveDropsLunchSkusCopiedOntoBreakfast() {
+        let oats = MenuItem(
+            id: "oats", name: "Overnight Chia Oats", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let chicken = MenuItem(
+            id: "chicken", name: "Asian Seared Chicken", description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1932"
+        )
+        let sandwich = MenuItem(
+            id: "sub", name: "Ham & Swiss Sandwich", description: nil, calories: 410,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1950"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-03",
+            period: "Breakfast",
+            stations: [MenuStation(name: "Farmer's Market", items: [oats], stationID: "1947")]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [oats, chicken, sandwich]),
+            MenuStation(name: "Lunch", items: [chicken, sandwich]),
+            MenuStation(name: "Dinner", items: [chicken]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.isEmpty)
+        #expect(!extras.map(\.name).contains("Asian Seared Chicken"))
+        #expect(!extras.map(\.name).contains("Ham & Swiss Sandwich"))
+    }
+
+    @Test func insertingHubExtrasUsesStationMapNames() {
+        let sandwich = MenuItem(
+            id: "sub", name: "Classic Italian Sub", description: nil, calories: 480,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1950"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-02",
+            period: "Lunch",
+            stations: [MenuStation(name: "Home", items: [
+                MenuItem(
+                    id: "rice", name: "Jasmine Rice", description: nil, calories: 150,
+                    servingSize: nil, allergens: [], dietaryTags: []
+                ),
+            ], stationID: "1932")]
+        )
+        let combined = DiningService.insertingHubExtras(
+            [sandwich],
+            into: menu,
+            stationNames: ["1950": "The Deli"]
+        )
+        #expect(combined.stations.contains { $0.name == "The Deli" && $0.items.map(\.name) == ["Classic Italian Sub"] })
+        #expect(!combined.stations.contains { $0.name == "Menu" })
     }
 
     @Test func hubExclusiveTwistedRootTofuJoinsTheStation() {

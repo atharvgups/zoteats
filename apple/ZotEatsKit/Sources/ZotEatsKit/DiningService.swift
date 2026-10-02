@@ -806,12 +806,16 @@ public struct DiningService: Sendable {
         return (minutes, period)
     }
 
-    /// Always-visible Eat meal chips. Breakfast / Lunch / Dinner stay on screen
-    /// even when the live board has only posted one period (Atharv 7am peek).
-    public static let mealSelectorPills = ["Breakfast", "Lunch", "Dinner"]
+    /// Always-visible Eat meal chips. Unposted meals stay tappable and show
+    /// the empty board instead of invented dishes.
+    public static let mealSelectorPills = [
+        "Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night",
+    ]
 
-    /// Primary meal pills present on a board. Brunch maps into Breakfast;
-    /// All Day is folded into each meal as "Available all day" (no own pill).
+    /// Primary meal pills present on a board. Chronological: Breakfast, Lunch,
+    /// Afternoon Snack, Dinner, Late Night last. Brunch maps into Breakfast;
+    /// Evening Snack / Overnight map into Late Night; All Day is folded into
+    /// each meal as "Available all day" (no own pill).
     /// Prefer `mealSelectorPills` for the Eat chip row so unposted meals stay tappable.
     public static func primaryPeriods(from available: [String]) -> [String] {
         var result: [String] = []
@@ -822,13 +826,24 @@ public struct DiningService: Sendable {
         if available.contains(where: { $0.caseInsensitiveCompare("Lunch") == .orderedSame }) {
             result.append("Lunch")
         }
+        if available.contains(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) {
+            result.append("Afternoon Snack")
+        }
         if available.contains(where: {
             $0.caseInsensitiveCompare("Dinner") == .orderedSame
                 || $0.caseInsensitiveCompare("Limited Dinner") == .orderedSame
         }) {
             result.append("Dinner")
         }
+        if available.contains(where: { MealPeriodPill.isLateNight($0.lowercased()) }) {
+            result.append("Late Night")
+        }
         return result
+    }
+
+    /// Whether this Eat chip has a real posted period (not an invented menu).
+    public static func pillIsPosted(_ pill: String, available: [String]) -> Bool {
+        primaryPeriods(from: available).contains { $0.caseInsensitiveCompare(pill) == .orderedSame }
     }
 
     /// Resolve a primary pill to the real API period name for a hall.
@@ -846,6 +861,14 @@ public struct DiningService: Sendable {
             return match("Lunch") ?? match("Brunch") ?? primary
         case "dinner":
             return match("Dinner") ?? match("Limited Dinner") ?? primary
+        case "afternoon snack":
+            return available.first(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) ?? primary
+        case "late night":
+            return match("Late Night")
+                ?? match("Evening Snack")
+                ?? match("Overnight")
+                ?? available.first(where: { MealPeriodPill.isLateNight($0.lowercased()) })
+                ?? primary
         default:
             return match(primary) ?? primary
         }
@@ -1050,6 +1073,34 @@ public struct DiningService: Sendable {
         dietLookupKeys(for: item.name).contains { keys.contains($0) }
     }
 
+    /// Lunch unions Brunch. All Day is ignored. Breakfast / Dinner / snacks
+    /// stay separate so a Hub dump of midday SKUs onto Breakfast is not an extra.
+    static func hubMealFamily(for period: String) -> String? {
+        let lower = period.lowercased()
+        if lower.contains("all day") { return nil }
+        if MealPeriodPill.isLateNight(lower) { return "late night" }
+        if MealPeriodPill.isAfternoonSnack(lower) { return "afternoon snack" }
+        if lower.contains("lunch") || lower.contains("brunch") { return "lunch" }
+        if lower.contains("breakfast") { return "breakfast" }
+        if lower.contains("dinner") { return "dinner" }
+        return nil
+    }
+
+    static func appearsOnOtherHubMealFamily(
+        _ item: MenuItem,
+        period: String,
+        hubStations: [MenuStation]
+    ) -> Bool {
+        guard let live = hubMealFamily(for: period) else { return false }
+        let other = hubStations
+            .filter { station in
+                guard let family = hubMealFamily(for: station.name) else { return false }
+                return family != live
+            }
+            .flatMap(\.items)
+        return appearsOnHubBoard(item, keys: hubBoardNameKeys(from: other))
+    }
+
     /// Hub meal items whose station id belongs on this Eat hall.
     static func hubMealHasStationTags(onHall hallID: String, board: [MenuItem]) -> Bool {
         board.contains { item in
@@ -1144,6 +1195,12 @@ public struct DiningService: Sendable {
             if !stationBelongs(onHall: menu.locationId, stationID: item.stationID) { return }
             let twisted = isTwistedRoot(stationName: "", stationID: item.stationID)
             if !twisted, allDayNames.contains(key) { return }
+            // Hub often copies lunch SKUs onto Breakfast / Afternoon Snack.
+            // Keep only dishes that belong to this meal family (Twisted Root
+            // still unions even when Hub also dumps them on All Day).
+            if !twisted, appearsOnOtherHubMealFamily(item, period: menu.period, hubStations: hubStations) {
+                return
+            }
             seen.insert(key)
             extras.append(item)
         }
@@ -1167,7 +1224,11 @@ public struct DiningService: Sendable {
         return existingID == extraID
     }
 
-    public static func insertingHubExtras(_ extras: [MenuItem], into menu: DiningMenu) -> DiningMenu {
+    public static func insertingHubExtras(
+        _ extras: [MenuItem],
+        into menu: DiningMenu,
+        stationNames: [String: String] = [:]
+    ) -> DiningMenu {
         guard !extras.isEmpty else { return menu }
         var stations = menu.stations
         var leftover: [MenuItem] = []
@@ -1210,7 +1271,7 @@ public struct DiningService: Sendable {
                 merge(into: idx, items: [item], stationID: sid)
                 continue
             }
-            let name = displayStationName(nil, stationID: sid)
+            let name = displayStationName(stationNames[sid], stationID: sid)
             if let idx = stations.firstIndex(where: {
                 $0.name.caseInsensitiveCompare(name) == .orderedSame
                     && canMergeHubExtra(into: $0, extraStationID: sid)
@@ -1330,7 +1391,7 @@ public struct DiningService: Sendable {
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
-        return await enrichDietTags(built, forceRefresh: forceRefresh)
+        return await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
     }
 
     /// Scrape Dining Hub recipes when Oasis is populated. Empty Hub / Coming Soon
@@ -1368,7 +1429,11 @@ public struct DiningService: Sendable {
     }
 
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.
-    private func enrichDietTags(_ menu: DiningMenu, forceRefresh: Bool = false) async -> DiningMenu {
+    private func enrichDietTags(
+        _ menu: DiningMenu,
+        stationNames: [String: String] = [:],
+        forceRefresh: Bool = false
+    ) async -> DiningMenu {
         guard let hubKey = HallDirectory.campusHubKey(for: menu.locationId) else { return menu }
         let hubStations: [MenuStation]
         do {
@@ -1432,7 +1497,7 @@ public struct DiningService: Sendable {
 
         let onBoard = Self.droppingOffBoardAnteaterItems(onMenu: tagged, hubStations: hubStations)
         let extras = Self.hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
-        return Self.insertingHubExtras(extras, into: onBoard)
+        return Self.insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
