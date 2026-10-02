@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -366,14 +368,19 @@ private fun HallRow(
 @Composable
 private fun MealPills(selected: String, available: List<String>, onSelect: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+    val pills = DiningLogic.mealSelectorPills
+    val listState = rememberLazyListState()
+    LaunchedEffect(selected) {
+        val index = pills.indexOfFirst { it.equals(selected, true) }
+        if (index >= 0) listState.animateScrollToItem(index)
+    }
+    LazyRow(
+        state = listState,
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        DiningLogic.mealSelectorPills.forEach { pill ->
+        items(pills, key = { it }) { pill ->
             val active = pill.equals(selected, true)
             val posted = DiningLogic.pillIsPosted(pill, available)
             Text(

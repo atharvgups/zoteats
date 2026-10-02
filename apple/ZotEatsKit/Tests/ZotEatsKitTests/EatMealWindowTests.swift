@@ -48,6 +48,18 @@ struct EatMealWindowTests {
                 browsingFutureDay: false
             ) == "Late Night"
         )
+        let untimedSnack = [
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60 + 30),
+            MealPeriodWindow(name: "Afternoon Snack", startMinutes: nil, endMinutes: nil),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+        ]
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: untimedSnack,
+                availablePeriods: ["Lunch", "Afternoon Snack", "Dinner"],
+                nowMinutes: 15 * 60
+            ) == "Afternoon Snack"
+        )
     }
 
     @Test func sundayBrunchBoardFollowsBldCuts() {

@@ -1,7 +1,7 @@
 package com.atharvgupta.anteats.data
 
 object DiningLogic {
-    val mealSelectorPills = listOf("Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night")
+    val mealSelectorPills = listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night")
     val twistedRootStationIDs = setOf("1929", "1893")
     val dishBatchChunkSizes = listOf(40, 8, 1)
 
@@ -52,10 +52,10 @@ object DiningLogic {
             result += "Breakfast"
         }
         if (available.any { it.equals("Lunch", true) }) result += "Lunch"
+        if (available.any { isAfternoonSnack(it) }) result += "Afternoon Snack"
         if (available.any { it.equals("Dinner", true) || it.equals("Limited Dinner", true) }) {
             result += "Dinner"
         }
-        if (available.any { isAfternoonSnack(it) }) result += "Afternoon Snack"
         if (available.any { isLateNight(it) }) result += "Late Night"
         return result
     }
@@ -204,15 +204,27 @@ object DiningLogic {
         else -> "Dinner"
     }
 
-    fun autoPill(periods: List<MealPeriodWindow>, nowMinutes: Int): String {
+    fun autoPill(
+        periods: List<MealPeriodWindow>,
+        nowMinutes: Int,
+        available: List<String> = emptyList(),
+    ): String {
         val timed = periods.filter { it.startMinutes != null && it.endMinutes != null }
         val live = timed.filter { nowMinutes >= it.startMinutes!! && nowMinutes < it.endMinutes!! }
+        val postedSnack = available.any { isAfternoonSnack(it) } ||
+            periods.any { isAfternoonSnack(it.name) }
+        val postedLate = available.any { isLateNight(it) } ||
+            periods.any { isLateNight(it.name) }
         if (live.any { canonicalPill(it.name) == "Late Night" }) return "Late Night"
-        if (live.any { canonicalPill(it.name) == "Dinner" }) return "Dinner"
         if (live.any { canonicalPill(it.name) == "Afternoon Snack" }) return "Afternoon Snack"
+        if (postedSnack && nowMinutes >= 14 * 60 + 30 && nowMinutes < 16 * 60 + 30) {
+            return "Afternoon Snack"
+        }
+        if (live.any { canonicalPill(it.name) == "Dinner" }) return "Dinner"
         if (live.any { trueMeal(it.name, "lunch", "brunch") }) return "Lunch"
         if (live.any { trueMeal(it.name, "breakfast", "brunch") }) return "Breakfast"
         if (live.any { it.name.contains("brunch", true) }) return clockPill(nowMinutes)
+        if (postedLate && nowMinutes >= 20 * 60) return "Late Night"
         val upcoming = timed.filter { it.startMinutes!! > nowMinutes }.minByOrNull { it.startMinutes!! }
         if (upcoming != null) {
             return if (upcoming.name.contains("brunch", true)) clockPill(nowMinutes) else canonicalPill(upcoming.name)

@@ -51,7 +51,7 @@ public enum FavoritesMatcher {
         }
     }
 
-    /// Primary-pill order for tie-breaks (Breakfast → Lunch → Dinner).
+    /// Primary-pill order for tie-breaks (Breakfast → Lunch → Afternoon Snack → Dinner → Late Night).
     public static func primaryPillRank(_ period: String) -> Int {
         switch MealPeriodPill.canonical(period) {
         case "Breakfast": return 0

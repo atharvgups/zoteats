@@ -809,10 +809,11 @@ public struct DiningService: Sendable {
     /// Always-visible Eat meal chips. Unposted meals stay tappable and show
     /// the empty board instead of invented dishes.
     public static let mealSelectorPills = [
-        "Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night",
+        "Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night",
     ]
 
-    /// Primary meal pills present on a board. Brunch maps into Breakfast;
+    /// Primary meal pills present on a board. Chronological: Breakfast, Lunch,
+    /// Afternoon Snack, Dinner, Late Night last. Brunch maps into Breakfast;
     /// Evening Snack / Overnight map into Late Night; All Day is folded into
     /// each meal as "Available all day" (no own pill).
     /// Prefer `mealSelectorPills` for the Eat chip row so unposted meals stay tappable.
@@ -825,14 +826,14 @@ public struct DiningService: Sendable {
         if available.contains(where: { $0.caseInsensitiveCompare("Lunch") == .orderedSame }) {
             result.append("Lunch")
         }
+        if available.contains(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) {
+            result.append("Afternoon Snack")
+        }
         if available.contains(where: {
             $0.caseInsensitiveCompare("Dinner") == .orderedSame
                 || $0.caseInsensitiveCompare("Limited Dinner") == .orderedSame
         }) {
             result.append("Dinner")
-        }
-        if available.contains(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) {
-            result.append("Afternoon Snack")
         }
         if available.contains(where: { MealPeriodPill.isLateNight($0.lowercased()) }) {
             result.append("Late Night")

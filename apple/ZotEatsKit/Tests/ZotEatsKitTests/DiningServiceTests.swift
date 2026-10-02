@@ -85,10 +85,14 @@ struct DiningServiceTests {
             DiningService.primaryPeriods(from: ["Breakfast", "Afternoon Snack", "Evening Snack"])
                 == ["Breakfast", "Afternoon Snack", "Late Night"]
         )
+        #expect(
+            DiningService.primaryPeriods(from: ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Evening Snack"])
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
+        )
         #expect(DiningService.primaryPeriods(from: ["Overnight"]) == ["Late Night"])
         #expect(
             DiningService.mealSelectorPills
-                == ["Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night"]
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
         )
         #expect(DiningService.pillIsPosted("Late Night", available: ["Evening Snack"]))
         #expect(!DiningService.pillIsPosted("Late Night", available: ["Lunch", "Dinner"]))

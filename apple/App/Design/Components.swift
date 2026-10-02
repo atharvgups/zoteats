@@ -119,17 +119,29 @@ struct PillRow<Item: Hashable>: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 2)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: usesMealMark ? EatMealPillMark.rowSpacing : 8) {
-                        ForEach(items, id: \.self) { item in
-                            pill(item)
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: usesMealMark ? EatMealPillMark.rowSpacing : 8) {
+                            ForEach(items, id: \.self) { item in
+                                pill(item)
+                                    .id(item)
+                            }
                         }
+                        .padding(.horizontal, usesMealMark ? 16 : 20)
+                        .padding(.vertical, 2)
                     }
-                    .padding(.horizontal, usesMealMark ? 16 : 20)
-                    .padding(.vertical, 2)
+                    .onAppear { scrollSelected(proxy) }
+                    .onChange(of: selection) { _, _ in
+                        withAnimation(ZotMotion.select) { scrollSelected(proxy) }
+                    }
                 }
             }
         }
+    }
+
+    private func scrollSelected(_ proxy: ScrollViewProxy) {
+        guard let selection else { return }
+        proxy.scrollTo(selection, anchor: .center)
     }
 
     @ViewBuilder

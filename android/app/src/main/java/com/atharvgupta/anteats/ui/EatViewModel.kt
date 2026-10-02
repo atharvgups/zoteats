@@ -61,7 +61,11 @@ class EatViewModel(
                     ?: halls.firstOrNull()?.id
                     ?: HallDirectory.ANTEATERY
                 val hall = halls.firstOrNull { it.id == selectedHall }
-                val period = DiningLogic.autoPill(hall?.periods.orEmpty(), PacificTime.nowMinutes())
+                val period = DiningLogic.autoPill(
+                    hall?.periods.orEmpty(),
+                    PacificTime.nowMinutes(),
+                    hall?.availablePeriods.orEmpty(),
+                )
                     .takeIf { it in DiningLogic.mealSelectorPills }
                     ?: DiningLogic.clockPill(PacificTime.nowMinutes())
                 _state.update {

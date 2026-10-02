@@ -9,13 +9,19 @@ class DiningLogicTest {
     @Test
     fun pillsAreBreakfastLunchDinnerOnly() {
         assertEquals(
-            listOf("Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night"),
+            listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"),
             DiningLogic.mealSelectorPills,
         )
         val available = listOf("Breakfast", "Brunch", "Lunch", "Dinner", "All Day")
         assertEquals(listOf("Breakfast", "Lunch", "Dinner"), DiningLogic.primaryPeriods(available))
         assertEquals(listOf("Breakfast", "Dinner"), DiningLogic.primaryPeriods(listOf("Brunch", "Dinner", "All Day")))
         assertTrue(DiningLogic.primaryPeriods(listOf("All Day")).isEmpty())
+        assertEquals(
+            listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"),
+            DiningLogic.primaryPeriods(
+                listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Evening Snack"),
+            ),
+        )
         assertEquals(
             listOf("Breakfast", "Afternoon Snack", "Late Night"),
             DiningLogic.primaryPeriods(listOf("Breakfast", "Afternoon Snack", "Evening Snack")),
@@ -102,6 +108,16 @@ class DiningLogicTest {
         assertEquals("Afternoon Snack", DiningLogic.autoPill(weekday, 15 * 60))
         assertEquals("Dinner", DiningLogic.autoPill(weekday, 18 * 60))
         assertEquals("Late Night", DiningLogic.autoPill(weekday, 21 * 60))
+        val untimedSnack = listOf(
+            MealPeriodWindow("Lunch", 11 * 60, 14 * 60 + 30),
+            MealPeriodWindow("Afternoon Snack", null, null),
+            MealPeriodWindow("Dinner", 16 * 60 + 30, 20 * 60),
+        )
+        assertEquals(
+            "Afternoon Snack",
+            DiningLogic.autoPill(untimedSnack, 15 * 60, listOf("Lunch", "Afternoon Snack", "Dinner")),
+        )
+        assertEquals("Dinner", DiningLogic.autoPill(brunch, 15 * 60, listOf("Breakfast", "Brunch", "Lunch", "Dinner")))
         assertEquals("Late Night", DiningLogic.canonicalPill("Evening Snack"))
         assertEquals("Afternoon Snack", DiningLogic.canonicalPill("Afternoon Snack"))
     }
