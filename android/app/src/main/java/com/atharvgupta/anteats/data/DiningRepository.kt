@@ -323,6 +323,7 @@ class DiningRepository(
                 readTimeout = 20_000
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/json")
+                setRequestProperty("User-Agent", "Anteats/1.0 (UCI student utility)")
             }
             try {
                 val code = conn.responseCode

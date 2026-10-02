@@ -298,6 +298,64 @@ struct DiningServiceTests {
         )
     }
 
+    @Test func hubExclusiveDropsLunchSkusCopiedOntoBreakfast() {
+        let oats = MenuItem(
+            id: "oats", name: "Overnight Chia Oats", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let chicken = MenuItem(
+            id: "chicken", name: "Asian Seared Chicken", description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1932"
+        )
+        let sandwich = MenuItem(
+            id: "sub", name: "Ham & Swiss Sandwich", description: nil, calories: 410,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1950"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-03",
+            period: "Breakfast",
+            stations: [MenuStation(name: "Farmer's Market", items: [oats], stationID: "1947")]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [oats, chicken, sandwich]),
+            MenuStation(name: "Lunch", items: [chicken, sandwich]),
+            MenuStation(name: "Dinner", items: [chicken]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.isEmpty)
+        #expect(!extras.map(\.name).contains("Asian Seared Chicken"))
+        #expect(!extras.map(\.name).contains("Ham & Swiss Sandwich"))
+    }
+
+    @Test func insertingHubExtrasUsesStationMapNames() {
+        let sandwich = MenuItem(
+            id: "sub", name: "Classic Italian Sub", description: nil, calories: 480,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1950"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-02",
+            period: "Lunch",
+            stations: [MenuStation(name: "Home", items: [
+                MenuItem(
+                    id: "rice", name: "Jasmine Rice", description: nil, calories: 150,
+                    servingSize: nil, allergens: [], dietaryTags: []
+                ),
+            ], stationID: "1932")]
+        )
+        let combined = DiningService.insertingHubExtras(
+            [sandwich],
+            into: menu,
+            stationNames: ["1950": "The Deli"]
+        )
+        #expect(combined.stations.contains { $0.name == "The Deli" && $0.items.map(\.name) == ["Classic Italian Sub"] })
+        #expect(!combined.stations.contains { $0.name == "Menu" })
+    }
+
     @Test func hubExclusiveTwistedRootTofuJoinsTheStation() {
         let sausage = MenuItem(
             id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,

@@ -170,6 +170,7 @@ class CampusRepository {
             readTimeout = 20_000
             requestMethod = "GET"
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "Anteats/1.0 (UCI student utility)")
             setRequestProperty("Referer", "https://uci.mydininghub.com/")
             setRequestProperty("Origin", "https://uci.mydininghub.com")
             setRequestProperty("store", "ch_uci_en")
