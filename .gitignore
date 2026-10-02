@@ -30,3 +30,4 @@ android/app/build/
 android/local.properties
 android/**/*.iml
 android/.idea/
+apple/scripts/__pycache__/

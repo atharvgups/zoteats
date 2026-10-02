@@ -122,7 +122,11 @@ fun EatScreen(
                     )
                     val hall = state.halls.firstOrNull { it.id == state.selectedHall }
                     if (hall?.isComingSoon != true) {
-                        MealPills(selected = state.selectedPeriod, onSelect = viewModel::selectPeriod)
+                        MealPills(
+                            selected = state.selectedPeriod,
+                            available = hall?.availablePeriods.orEmpty(),
+                            onSelect = viewModel::selectPeriod,
+                        )
                         DateActionRow(
                             days = state.days,
                             selected = state.selectedDate,
@@ -277,6 +281,8 @@ private fun whatsFor(period: String): String = when (DiningLogic.canonicalPill(p
     "Breakfast" -> "What's for Breakfast"
     "Lunch" -> "What's for Lunch"
     "Dinner" -> "What's for Dinner"
+    "Afternoon Snack" -> "What's for Afternoon Snack"
+    "Late Night" -> "What's for Late Night"
     else -> "What's for $period"
 }
 
@@ -358,31 +364,32 @@ private fun HallRow(
 }
 
 @Composable
-private fun MealPills(selected: String, onSelect: (String) -> Unit) {
+private fun MealPills(selected: String, available: List<String>, onSelect: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         DiningLogic.mealSelectorPills.forEach { pill ->
             val active = pill.equals(selected, true)
+            val posted = DiningLogic.pillIsPosted(pill, available)
             Text(
                 pill,
                 modifier = Modifier
-                    .weight(1f)
                     .height(36.dp)
                     .clip(RoundedCornerShape(ChipRadius))
                     .background(if (active) colors.onBackground.copy(alpha = 0.06f) else colors.background)
                     .border(1.dp, if (active) colors.onBackground.copy(alpha = 0.28f) else colors.outline, RoundedCornerShape(ChipRadius))
                     .clickable { onSelect(pill) }
-                    .padding(horizontal = 8.dp, vertical = 7.dp)
+                    .padding(horizontal = 10.dp, vertical = 7.dp)
                     .testTag("meal-$pill"),
                 textAlign = TextAlign.Center,
                 fontSize = PillTextSize,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
-                color = colors.onBackground,
+                color = colors.onBackground.copy(alpha = if (posted || active) 1f else 0.45f),
             )
         }
     }

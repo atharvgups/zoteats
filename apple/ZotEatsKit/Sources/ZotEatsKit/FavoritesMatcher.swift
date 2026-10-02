@@ -56,7 +56,9 @@ public enum FavoritesMatcher {
         switch MealPeriodPill.canonical(period) {
         case "Breakfast": return 0
         case "Lunch": return 1
-        case "Dinner": return 2
+        case "Afternoon Snack": return 2
+        case "Dinner": return 3
+        case "Late Night": return 4
         default: return 99
         }
     }
@@ -64,7 +66,7 @@ public enum FavoritesMatcher {
     /// Earlier primary pills than `period` (e.g. Dinner → Breakfast, Lunch).
     public static func earlierPrimaryPills(before period: String) -> [String] {
         let rank = primaryPillRank(period)
-        return ["Breakfast", "Lunch", "Dinner"].filter { primaryPillRank($0) < rank }
+        return DiningService.mealSelectorPills.filter { primaryPillRank($0) < rank }
     }
 
     /// Whether this check should post a notification for `match`.

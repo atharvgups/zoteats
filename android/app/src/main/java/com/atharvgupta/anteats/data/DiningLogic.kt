@@ -1,15 +1,28 @@
 package com.atharvgupta.anteats.data
 
 object DiningLogic {
-    val mealSelectorPills = listOf("Breakfast", "Lunch", "Dinner")
+    val mealSelectorPills = listOf("Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night")
     val twistedRootStationIDs = setOf("1929", "1893")
     val dishBatchChunkSizes = listOf(40, 8, 1)
+
+    fun isAfternoonSnack(name: String): Boolean {
+        val lower = name.lowercase()
+        if ("afternoon snack" in lower) return true
+        return "snack" in lower && "evening" !in lower && "late" !in lower
+    }
+
+    fun isLateNight(name: String): Boolean {
+        val lower = name.lowercase()
+        return "late night" in lower || "evening snack" in lower || "overnight" in lower
+    }
 
     fun canonicalPill(liveName: String): String {
         val lower = liveName.trim().lowercase()
         if ("brunch" in lower || "breakfast" in lower) return "Breakfast"
         if ("lunch" in lower) return "Lunch"
         if ("dinner" in lower) return "Dinner"
+        if (isAfternoonSnack(lower)) return "Afternoon Snack"
+        if (isLateNight(lower)) return "Late Night"
         return liveName.trim()
     }
 
@@ -42,8 +55,13 @@ object DiningLogic {
         if (available.any { it.equals("Dinner", true) || it.equals("Limited Dinner", true) }) {
             result += "Dinner"
         }
+        if (available.any { isAfternoonSnack(it) }) result += "Afternoon Snack"
+        if (available.any { isLateNight(it) }) result += "Late Night"
         return result
     }
+
+    fun pillIsPosted(pill: String, available: List<String>): Boolean =
+        primaryPeriods(available).any { it.equals(pill, true) }
 
     fun resolvePeriod(primary: String, available: List<String>): String {
         fun match(name: String) = available.firstOrNull { it.equals(name, true) }
@@ -51,6 +69,13 @@ object DiningLogic {
             "breakfast" -> match("Breakfast") ?: match("Brunch") ?: primary
             "lunch" -> match("Lunch") ?: match("Brunch") ?: primary
             "dinner" -> match("Dinner") ?: match("Limited Dinner") ?: primary
+            "afternoon snack" -> available.firstOrNull { isAfternoonSnack(it) } ?: primary
+            "late night" ->
+                match("Late Night")
+                    ?: match("Evening Snack")
+                    ?: match("Overnight")
+                    ?: available.firstOrNull { isLateNight(it) }
+                    ?: primary
             else -> match(primary) ?: primary
         }
     }
@@ -182,7 +207,9 @@ object DiningLogic {
     fun autoPill(periods: List<MealPeriodWindow>, nowMinutes: Int): String {
         val timed = periods.filter { it.startMinutes != null && it.endMinutes != null }
         val live = timed.filter { nowMinutes >= it.startMinutes!! && nowMinutes < it.endMinutes!! }
+        if (live.any { canonicalPill(it.name) == "Late Night" }) return "Late Night"
         if (live.any { canonicalPill(it.name) == "Dinner" }) return "Dinner"
+        if (live.any { canonicalPill(it.name) == "Afternoon Snack" }) return "Afternoon Snack"
         if (live.any { trueMeal(it.name, "lunch", "brunch") }) return "Lunch"
         if (live.any { trueMeal(it.name, "breakfast", "brunch") }) return "Breakfast"
         if (live.any { it.name.contains("brunch", true) }) return clockPill(nowMinutes)

@@ -10,7 +10,26 @@ public enum MealPeriodPill {
         if lower.contains("brunch") || lower.contains("breakfast") { return "Breakfast" }
         if lower.contains("lunch") { return "Lunch" }
         if lower.contains("dinner") { return "Dinner" }
+        if isAfternoonSnack(lower) { return "Afternoon Snack" }
+        if isLateNight(lower) { return "Late Night" }
         return trimmed
+    }
+
+    /// Anteater posts `Afternoon Snack` (2:30–4:30). Bare "Snack" counts only
+    /// when it is not the evening / late board.
+    public static func isAfternoonSnack(_ lower: String) -> Bool {
+        if lower.contains("afternoon snack") { return true }
+        return lower.contains("snack")
+            && !lower.contains("evening")
+            && !lower.contains("late")
+    }
+
+    /// Anteater has no `Late Night` name today. Evening Snack (8–11 PM) and
+    /// untimed Overnight are the real late boards.
+    public static func isLateNight(_ lower: String) -> Bool {
+        lower.contains("late night")
+            || lower.contains("evening snack")
+            || lower.contains("overnight")
     }
 
     /// Prefer a pill present in `pills` that matches the live name.
