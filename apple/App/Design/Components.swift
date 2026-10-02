@@ -102,6 +102,10 @@ struct PillRow<Item: Hashable>: View {
     /// When true, pills share the row evenly (no horizontal scroll) — used for
     /// Breakfast / Lunch / Dinner so they match the hall cards' full width.
     var fillsWidth = false
+    /// Eat meal chips: 15pt mark, even when the row scrolls (five pills).
+    var usesMealMark = false
+    /// Unposted meals stay tappable but dim so empty boards are obvious.
+    var isPosted: ((Item) -> Bool)? = nil
 
     var body: some View {
         Group {
@@ -116,12 +120,12 @@ struct PillRow<Item: Hashable>: View {
                 .padding(.vertical, 2)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: usesMealMark ? EatMealPillMark.rowSpacing : 8) {
                         ForEach(items, id: \.self) { item in
                             pill(item)
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, usesMealMark ? 16 : 20)
                     .padding(.vertical, 2)
                 }
             }
@@ -139,7 +143,7 @@ struct PillRow<Item: Hashable>: View {
         } label: {
             Text(title(item))
                 .font(
-                    fillsWidth
+                    fillsWidth || usesMealMark
                         ? .system(
                             size: EatMealPillMark.pointSize,
                             weight: isSelected ? .bold : .semibold
@@ -147,9 +151,9 @@ struct PillRow<Item: Hashable>: View {
                         : ZotFont.pill.weight(isSelected ? .semibold : .medium)
                 )
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
-                .padding(.horizontal, fillsWidth ? EatMealPillMark.horizontalPadding : 14)
-                .padding(.vertical, fillsWidth ? EatMealPillMark.verticalPadding : 9)
-                .frame(minHeight: fillsWidth ? EatMealPillMark.minHeight : 0)
+                .padding(.horizontal, fillsWidth || usesMealMark ? EatMealPillMark.horizontalPadding : 14)
+                .padding(.vertical, fillsWidth || usesMealMark ? EatMealPillMark.verticalPadding : 9)
+                .frame(minHeight: fillsWidth || usesMealMark ? EatMealPillMark.minHeight : 0)
                 .background(
                     isSelected ? Color.selectWash : Color.clear,
                     in: Capsule()
@@ -161,6 +165,7 @@ struct PillRow<Item: Hashable>: View {
                         lineWidth: 1
                     )
                 )
+                .opacity(isPosted?(item) == false ? 0.45 : 1)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)

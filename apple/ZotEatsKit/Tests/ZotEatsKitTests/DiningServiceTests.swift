@@ -76,12 +76,22 @@ struct DiningServiceTests {
         #expect(locations.allSatisfy { !$0.openNow && $0.availablePeriods.isEmpty })
     }
 
-    @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
+    @Test func primaryPeriodsMapSnackAndLateNightFromRealNames() {
         let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
         #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
-        #expect(DiningService.mealSelectorPills == ["Breakfast", "Lunch", "Dinner"])
+        #expect(
+            DiningService.primaryPeriods(from: ["Breakfast", "Afternoon Snack", "Evening Snack"])
+                == ["Breakfast", "Afternoon Snack", "Late Night"]
+        )
+        #expect(DiningService.primaryPeriods(from: ["Overnight"]) == ["Late Night"])
+        #expect(
+            DiningService.mealSelectorPills
+                == ["Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night"]
+        )
+        #expect(DiningService.pillIsPosted("Late Night", available: ["Evening Snack"]))
+        #expect(!DiningService.pillIsPosted("Late Night", available: ["Lunch", "Dinner"]))
     }
 
     @Test func oasisComingSoonHasNoInventedMenu() {
@@ -142,6 +152,10 @@ struct DiningServiceTests {
         #expect(DiningService.resolvePeriod("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Brunch", "Dinner"]) == "Brunch")
+        #expect(DiningService.resolvePeriod("Late Night", available: ["Dinner", "Evening Snack"]) == "Evening Snack")
+        #expect(DiningService.resolvePeriod("Afternoon Snack", available: ["Lunch", "Afternoon Snack"]) == "Afternoon Snack")
+        #expect(DiningService.resolvePeriod("Late Night", available: ["Overnight"]) == "Overnight")
+        #expect(DiningService.menuPeriodNames(primary: "Late Night", available: ["Dinner", "Evening Snack"]) == ["Evening Snack"])
     }
 
     @Test func lunchMenuPeriodNamesUnionBrunch() {

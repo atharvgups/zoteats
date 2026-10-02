@@ -12,6 +12,42 @@ struct EatMealWindowTests {
         #expect(EatMealWindow.clockPill(nowMinutes: 14 * 60 + 29) == "Lunch")
         #expect(EatMealWindow.clockPill(nowMinutes: 14 * 60 + 30) == "Dinner")
         #expect(EatMealWindow.clockPill(nowMinutes: 15 * 60 + 30) == "Dinner")
+        #expect(EatMealWindow.afternoonSnackEndMinutes == 16 * 60 + 30)
+        #expect(EatMealWindow.dinnerEndMinutes == 20 * 60)
+        #expect(EatMealWindow.autoSelectCuts.contains(EatMealWindow.afternoonSnackEndMinutes))
+        #expect(EatMealWindow.autoSelectCuts.contains(EatMealWindow.dinnerEndMinutes))
+    }
+
+    @Test func liveAfternoonSnackAndEveningSnackWinOverClock() {
+        let weekday = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 7 * 60 + 15, endMinutes: 11 * 60),
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60 + 30),
+            MealPeriodWindow(name: "Afternoon Snack", startMinutes: 14 * 60 + 30, endMinutes: 16 * 60 + 30),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+            MealPeriodWindow(name: "Evening Snack", startMinutes: 20 * 60, endMinutes: 23 * 60),
+        ]
+        let available = weekday.map(\.name)
+        #expect(
+            EatMealWindow.autoPill(timedPeriods: weekday, availablePeriods: available, nowMinutes: 15 * 60)
+                == "Afternoon Snack"
+        )
+        #expect(
+            EatMealWindow.autoPill(timedPeriods: weekday, availablePeriods: available, nowMinutes: 18 * 60)
+                == "Dinner"
+        )
+        #expect(
+            EatMealWindow.autoPill(timedPeriods: weekday, availablePeriods: available, nowMinutes: 21 * 60)
+                == "Late Night"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Dinner",
+                availablePeriods: available,
+                timedPeriods: weekday,
+                nowMinutes: 21 * 60,
+                browsingFutureDay: false
+            ) == "Late Night"
+        )
     }
 
     @Test func sundayBrunchBoardFollowsBldCuts() {

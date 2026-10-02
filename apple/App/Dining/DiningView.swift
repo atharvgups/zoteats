@@ -308,11 +308,15 @@ struct DiningView: View {
                     items: DiningService.mealSelectorPills,
                     title: { $0 },
                     selection: $selectedPeriod,
-                    fillsWidth: true
+                    fillsWidth: false,
+                    usesMealMark: true,
+                    isPosted: { pill in
+                        DiningService.pillIsPosted(pill, available: boardAvailablePeriods ?? [])
+                    }
                 )
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Meal period")
-                .accessibilityHint("Peek Lunch or Dinner even before that meal is posted")
+                .accessibilityHint("Peek Lunch, Dinner, Afternoon Snack, or Late Night even before that meal is posted")
 
                 // Dates + Plate + Filters on one row — actions stay fixedSize so
                 // they never truncate to "My…" / "Fil…" while dates scroll.
