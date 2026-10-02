@@ -806,12 +806,16 @@ public struct DiningService: Sendable {
         return (minutes, period)
     }
 
-    /// Always-visible Eat meal chips. Breakfast / Lunch / Dinner stay on screen
-    /// even when the live board has only posted one period (Atharv 7am peek).
-    public static let mealSelectorPills = ["Breakfast", "Lunch", "Dinner"]
+    /// Always-visible Eat meal chips. Unposted meals stay tappable and show
+    /// the empty board instead of invented dishes.
+    public static let mealSelectorPills = [
+        "Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night",
+    ]
 
-    /// Primary meal pills present on a board. Brunch maps into Breakfast;
-    /// All Day is folded into each meal as "Available all day" (no own pill).
+    /// Primary meal pills present on a board. Chronological: Breakfast, Lunch,
+    /// Afternoon Snack, Dinner, Late Night last. Brunch maps into Breakfast;
+    /// Evening Snack / Overnight map into Late Night; All Day is folded into
+    /// each meal as "Available all day" (no own pill).
     /// Prefer `mealSelectorPills` for the Eat chip row so unposted meals stay tappable.
     public static func primaryPeriods(from available: [String]) -> [String] {
         var result: [String] = []
@@ -822,13 +826,24 @@ public struct DiningService: Sendable {
         if available.contains(where: { $0.caseInsensitiveCompare("Lunch") == .orderedSame }) {
             result.append("Lunch")
         }
+        if available.contains(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) {
+            result.append("Afternoon Snack")
+        }
         if available.contains(where: {
             $0.caseInsensitiveCompare("Dinner") == .orderedSame
                 || $0.caseInsensitiveCompare("Limited Dinner") == .orderedSame
         }) {
             result.append("Dinner")
         }
+        if available.contains(where: { MealPeriodPill.isLateNight($0.lowercased()) }) {
+            result.append("Late Night")
+        }
         return result
+    }
+
+    /// Whether this Eat chip has a real posted period (not an invented menu).
+    public static func pillIsPosted(_ pill: String, available: [String]) -> Bool {
+        primaryPeriods(from: available).contains { $0.caseInsensitiveCompare(pill) == .orderedSame }
     }
 
     /// Resolve a primary pill to the real API period name for a hall.
@@ -846,6 +861,14 @@ public struct DiningService: Sendable {
             return match("Lunch") ?? match("Brunch") ?? primary
         case "dinner":
             return match("Dinner") ?? match("Limited Dinner") ?? primary
+        case "afternoon snack":
+            return available.first(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) ?? primary
+        case "late night":
+            return match("Late Night")
+                ?? match("Evening Snack")
+                ?? match("Overnight")
+                ?? available.first(where: { MealPeriodPill.isLateNight($0.lowercased()) })
+                ?? primary
         default:
             return match(primary) ?? primary
         }
