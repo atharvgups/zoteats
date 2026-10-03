@@ -1172,8 +1172,8 @@ public struct DiningService: Sendable {
     /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
     /// that aren't All-Day grill/salad staples and aren't already on the board.
     /// Twisted Root extras that Hub filed on this meal still union even when
-    /// Hub also lists them on All Day. All-Day-only Twisted Root (no timed
-    /// meal tag) still shows on every pill; a dish tagged to one meal does not.
+    /// Hub also lists them on All Day. All-Day fries/rice that Hub copies onto
+    /// every meal stay off the Twisted Root section (Atharv Fri board).
     public static func hubExclusiveItems(
         onMenu menu: DiningMenu,
         hubStations: [MenuStation]
@@ -1186,26 +1186,28 @@ public struct DiningService: Sendable {
         let allDayItems = hubStations
             .filter { $0.name.localizedCaseInsensitiveContains("all day") }
             .flatMap(\.items)
-        let allDayNames = Set(allDayItems.map { $0.name.lowercased() })
-        var seen = Set(menu.stations.flatMap(\.items).map { $0.name.lowercased() })
+        let allDayKeys = hubBoardNameKeys(from: allDayItems)
+        var seen = Set(menu.stations.flatMap(\.items).flatMap { dietLookupKeys(for: $0.name) })
         var extras: [MenuItem] = []
         func consider(_ item: MenuItem) {
-            let key = item.name.lowercased()
-            if seen.contains(key) { return }
+            let keys = dietLookupKeys(for: item.name)
+            if keys.contains(where: { seen.contains($0) }) { return }
             if !stationBelongs(onHall: menu.locationId, stationID: item.stationID) { return }
             let twisted = isTwistedRoot(stationName: "", stationID: item.stationID)
-            if !twisted, allDayNames.contains(key) { return }
-            // Hub often copies lunch SKUs onto Breakfast / Afternoon Snack.
-            // Keep only dishes that belong to this meal family (Twisted Root
-            // still unions even when Hub also dumps them on All Day).
-            if !twisted, appearsOnOtherHubMealFamily(item, period: menu.period, hubStations: hubStations) {
-                return
-            }
-            seen.insert(key)
+            let onAllDay = appearsOnHubBoard(item, keys: allDayKeys)
+            let onOtherMeal = appearsOnOtherHubMealFamily(
+                item, period: menu.period, hubStations: hubStations
+            )
+            // Grill fries / rice Hub dumps on All Day plus every meal are not
+            // tonight's Twisted Root entrees. Meal-tagged TR food (tofu) still
+            // unions even when Hub also lists it on All Day.
+            if onAllDay, onOtherMeal { return }
+            if !twisted, onAllDay { return }
+            if !twisted, onOtherMeal { return }
+            for key in keys { seen.insert(key) }
             extras.append(item)
         }
         for item in matching { consider(item) }
-        for item in allDayOnlyTwistedRootItems(in: hubStations) { consider(item) }
         return extras
     }
 

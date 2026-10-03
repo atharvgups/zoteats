@@ -356,6 +356,54 @@ struct DiningServiceTests {
         #expect(!combined.stations.contains { $0.name == "Menu" })
     }
 
+    @Test func hubExclusiveDoesNotDuplicateUCIMacOrAllDayFriesOnTwistedRoot() {
+        let mac = MenuItem(
+            id: "mac-ae", name: "Vegan Mac & Cheese UCI", description: nil, calories: 330,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let cauliflower = MenuItem(
+            id: "cauli", name: "Buffalo Cauliflower Wings", description: nil, calories: 523,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let hubMac = MenuItem(
+            id: "mac-hub", name: "Vegan Mac & Cheese", description: nil, calories: 330,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let fries = MenuItem(
+            id: "fries", name: "Crispy Homestyle French Fries", description: nil, calories: 112,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-02",
+            period: "Dinner",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [mac, cauliflower],
+                stationID: "1929"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [fries]),
+            MenuStation(name: "Lunch", items: [fries]),
+            MenuStation(name: "Dinner", items: [hubMac, cauliflower, fries]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.isEmpty)
+        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        let names = combined.stations
+            .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+            .flatMap(\.items)
+            .map(\.name)
+        #expect(names == ["Vegan Mac & Cheese UCI", "Buffalo Cauliflower Wings"])
+        #expect(!names.contains("Crispy Homestyle French Fries"))
+        #expect(names.filter { $0.localizedCaseInsensitiveContains("mac") }.count == 1)
+    }
+
     @Test func hubExclusiveTwistedRootTofuJoinsTheStation() {
         let sausage = MenuItem(
             id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
@@ -428,8 +476,8 @@ struct DiningServiceTests {
             MenuStation(name: "Breakfast", items: [sausage]),
             MenuStation(name: "Dinner", items: [sausage]),
         ]
-        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: allDayOnly).map(\.name) == ["Seasoned Fries"])
-        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: allDayOnly).map(\.name) == ["Seasoned Fries"])
+        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: allDayOnly).isEmpty)
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: allDayOnly).isEmpty)
         #expect(!DiningService.hubBoardItems(matchingPeriod: "Dinner", hubStations: allDayOnly).map(\.name).contains("Seasoned Fries"))
 
         let tagged = [
@@ -437,8 +485,8 @@ struct DiningServiceTests {
             MenuStation(name: "Breakfast", items: [sausage, scramble]),
             MenuStation(name: "Dinner", items: [sausage, shawarma]),
         ]
-        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name) == ["Turmeric Tofu Scramble", "Seasoned Fries"])
-        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name) == ["Tofu Shawarma", "Seasoned Fries"])
+        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name) == ["Turmeric Tofu Scramble"])
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name) == ["Tofu Shawarma"])
         #expect(!DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name).contains("Tofu Shawarma"))
         #expect(!DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name).contains("Turmeric Tofu Scramble"))
     }
