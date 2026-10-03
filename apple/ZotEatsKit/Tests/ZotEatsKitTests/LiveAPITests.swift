@@ -98,8 +98,8 @@ struct LiveAPITests {
 
         for location in await dining.locations() where !location.isComingSoon {
             let primary = DiningService.primaryPeriods(from: location.availablePeriods)
-            #expect(primary == ["Breakfast", "Lunch", "Dinner"] || primary.allSatisfy {
-                ["Breakfast", "Lunch", "Dinner"].contains($0)
+            #expect(primary.allSatisfy {
+                DiningService.mealSelectorPills.contains($0)
             })
             #expect(!primary.contains(where: { $0.localizedCaseInsensitiveContains("Brunch") }))
             #expect(!primary.contains(where: { $0.localizedCaseInsensitiveContains("All Day") }))
