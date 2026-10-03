@@ -235,6 +235,128 @@ struct DiningServiceTests {
         #expect(!names.contains("Eggs"))
     }
 
+    @Test func lunchKeepsBrunchTwistedRootWhenAlsoOnBreakfast() {
+        // Sat Oct 3: untimed Lunch has no TR. Brunch TR hash is also on
+        // Breakfast. Do not erase the midday plant-based station.
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let eggs = MenuItem(
+            id: "eggs", name: "Scrambled Eggs", description: nil, calories: 140,
+            servingSize: nil, allergens: ["Eggs"], dietaryTags: []
+        )
+        let hotdog = MenuItem(
+            id: "dog", name: "Classic Hot Dog", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let breakfast = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+            MenuStation(name: "Home", items: [eggs], stationID: "1932"),
+        ]
+        let lunch = [
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let brunch = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+            MenuStation(name: "Home", items: [eggs], stationID: "1932"),
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let filtered = DiningService.subtractingBreakfastOnlyBrunchDishes(
+            from: DiningService.mergeStations(lunch, brunch),
+            lunch: lunch,
+            breakfast: breakfast
+        )
+        let names = filtered.flatMap(\.items).map(\.name)
+        #expect(names.contains("Tofu-Potato Hash"))
+        #expect(names.contains("Classic Hot Dog"))
+        #expect(!names.contains("Scrambled Eggs"))
+        #expect(filtered.contains { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) })
+    }
+
+    @Test func lunchKeepsBrunchTwistedRootWhenHubLunchIsOnlyFries() {
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let fries = MenuItem(
+            id: "fries", name: "Crispy Homestyle French Fries", description: nil, calories: 112,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let hotdog = MenuItem(
+            id: "dog", name: "Classic Hot Dog", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-03",
+            period: "Lunch",
+            stations: [
+                MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+                MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+            ]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [fries]),
+            MenuStation(name: "Breakfast", items: [hash]),
+            MenuStation(name: "Brunch", items: [hash, fries]),
+            MenuStation(name: "Lunch", items: [fries]),
+            MenuStation(name: "Afternoon Snack", items: [fries]),
+            MenuStation(name: "Dinner", items: [fries]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        let twisted = trimmed.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(twisted?.items.map(\.name) == ["Tofu-Potato Hash"])
+        let extras = DiningService.hubExclusiveItems(onMenu: trimmed, hubStations: hub)
+        #expect(!extras.map(\.name).contains("Crispy Homestyle French Fries"))
+        let combined = DiningService.insertingHubExtras(extras, into: trimmed)
+        #expect(combined.stations.first?.name.contains("Twisted Root") == true)
+        #expect(combined.stations.first?.items.map(\.name) == ["Tofu-Potato Hash"])
+    }
+
+    @Test func lunchKeepsBrunchTwistedRootWhenHubLunchHasNoTR() {
+        let taco = MenuItem(
+            id: "taco", name: "Plant-Based Chorizo Breakfast Taco", description: nil, calories: 210,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let ember = MenuItem(
+            id: "ember", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-10-03",
+            period: "Lunch",
+            stations: [
+                MenuStation(name: "Ember", items: [ember], stationID: "1878"),
+                MenuStation(name: "The Twisted Root", items: [taco, hash], stationID: "1893"),
+            ]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [taco, hash]),
+            MenuStation(name: "Brunch", items: [taco, hash]),
+            MenuStation(name: "Lunch", items: [ember]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        let twisted = trimmed.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(Set(twisted?.items.map(\.name) ?? []) == ["Plant-Based Chorizo Breakfast Taco", "Tofu-Potato Hash"])
+        let combined = DiningService.insertingHubExtras([], into: trimmed)
+        #expect(combined.stations.first?.name.contains("Twisted Root") == true)
+    }
+
     @Test func mergeStationsUnionsBrunchTacosIntoLunch() {
         let taco = MenuItem(
             id: "taco", name: "Sesame Shrimp Taco", description: nil, calories: 320,

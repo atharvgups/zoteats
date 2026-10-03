@@ -910,6 +910,12 @@ public struct DiningService: Sendable {
         guard !breakfastKeys.isEmpty else { return merged }
         let lunchKeys = hubBoardNameKeys(from: lunch.flatMap(\.items))
         return merged.compactMap { station in
+            // Weekend Brunch Twisted Root is the midday plant-based board.
+            // Those dishes often also appear at Breakfast; do not erase the
+            // station from Lunch after the Brunch union (Atharv Sat Oct 3).
+            if isTwistedRoot(stationName: station.name, stationID: station.stationID) {
+                return station
+            }
             let kept = station.items.filter { item in
                 appearsOnHubBoard(item, keys: lunchKeys) || !appearsOnHubBoard(item, keys: breakfastKeys)
             }
@@ -1151,7 +1157,23 @@ public struct DiningService: Sendable {
             )
             let isTwisted = isTwistedRoot(stationName: station.name, stationID: station.stationID)
             if isTwisted, hubTagged {
-                guard !hubForStation.isEmpty else { return nil }
+                let lunchPill = MealPeriodPill.canonical(menu.period) == "Lunch"
+                // Weekend Lunch Hub often tags only all-day fries on TR,
+                // or nothing at all. That is not the midday board — keep
+                // Anteater Brunch TR (Atharv Sat Oct 3). Dinner leftovers
+                // still drop when Hub tagged other stations and not TR.
+                if hubForStation.isEmpty {
+                    return lunchPill ? station : nil
+                }
+                if lunchPill {
+                    let allDayKeys = hubBoardNameKeys(from: hubStations
+                        .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+                        .flatMap(\.items))
+                    let hubIsOnlyAllDayStaples = hubForStation.allSatisfy {
+                        appearsOnHubBoard($0, keys: allDayKeys)
+                    }
+                    if hubIsOnlyAllDayStaples { return station }
+                }
                 let keys = hubBoardNameKeys(from: hubForStation)
                 let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
                 return kept.isEmpty ? nil : station.withItems(kept)
@@ -1231,7 +1253,16 @@ public struct DiningService: Sendable {
         into menu: DiningMenu,
         stationNames: [String: String] = [:]
     ) -> DiningMenu {
-        guard !extras.isEmpty else { return menu }
+        guard !extras.isEmpty else {
+            let pinned = pinTwistedRootFirst(menu.stations)
+            guard pinned != menu.stations else { return menu }
+            return DiningMenu(
+                locationId: menu.locationId,
+                date: menu.date,
+                period: menu.period,
+                stations: pinned
+            )
+        }
         var stations = menu.stations
         var leftover: [MenuItem] = []
 

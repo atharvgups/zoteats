@@ -47,6 +47,21 @@ struct LiveAPITests {
             )
             #expect(!aeDinnerTR.contains { $0.localizedCaseInsensitiveContains("buffalo cauliflower") })
         }
+        if date == "2026-10-03" {
+            // Weekend Lunch is a thin All-Day clone. Midday TR lives on Brunch.
+            #expect(!anteateryTR.isEmpty)
+            #expect(!brandywineTR.isEmpty)
+            #expect(anteateryTR.contains { $0.localizedCaseInsensitiveContains("hash") })
+            #expect(brandywineTR.contains { $0.localizedCaseInsensitiveContains("hash") }
+                || brandywineTR.contains { $0.localizedCaseInsensitiveContains("chorizo") })
+            #expect(!anteateryTR.contains { $0.localizedCaseInsensitiveContains("fries") })
+            #expect(anteatery.stations.first.map {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            } == true)
+            #expect(brandywine.stations.first.map {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            } == true)
+        }
         if date == "2026-09-27" {
             for hall in ["anteatery", "brandywine"] {
                 let breakfast = try await service.menu(for: hall, period: "Breakfast", date: date)
