@@ -357,6 +357,94 @@ struct DiningServiceTests {
         #expect(combined.stations.first?.name.contains("Twisted Root") == true)
     }
 
+    @Test func breakfastDropsShawarmaCopiedFromBrunchKeepsEggs() {
+        let shawarma = MenuItem(
+            id: "shawarma", name: "Tofu Shawarma", description: nil, calories: 171,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let lentil = MenuItem(
+            id: "lentil", name: "Red Lentil & Quinoa Blend", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let eggs = MenuItem(
+            id: "eggs", name: "Just® Scrambled Eggs", description: nil, calories: 138,
+            servingSize: nil, allergens: ["Eggs"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let rice = MenuItem(
+            id: "rice", name: "Turmeric & Quinoa Basmati Rice", description: nil, calories: 89,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let breakfast = [
+            MenuStation(name: "The Twisted Root", items: [shawarma, lentil, eggs], stationID: "1929"),
+        ]
+        let brunch = [
+            MenuStation(name: "The Twisted Root", items: [shawarma, lentil, eggs, rice], stationID: "1929"),
+        ]
+        let filtered = DiningService.subtractingMiddayTwistedRootFromBreakfast(
+            from: breakfast,
+            midday: brunch
+        )
+        let names = filtered.flatMap(\.items).map(\.name)
+        #expect(names == ["Just® Scrambled Eggs"])
+        #expect(!names.contains("Tofu Shawarma"))
+        #expect(!names.contains("Red Lentil & Quinoa Blend"))
+
+        let saturdayBreakfast = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+        ]
+        let saturdayBrunch = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+        ]
+        let saturday = DiningService.subtractingMiddayTwistedRootFromBreakfast(
+            from: saturdayBreakfast,
+            midday: saturdayBrunch
+        )
+        #expect(saturday.flatMap(\.items).map(\.name) == ["Tofu-Potato Hash"])
+
+        let breakfastMenu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-04",
+            period: "Breakfast",
+            stations: [MenuStation(name: "The Twisted Root", items: [shawarma], stationID: "1929")]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [shawarma, eggs, rice]),
+            MenuStation(name: "Brunch", items: [shawarma, eggs, rice]),
+            MenuStation(name: "Lunch", items: [rice]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: hub)
+        #expect(extras.map(\.name).contains("Just® Scrambled Eggs"))
+        #expect(!extras.map(\.name).contains("Tofu Shawarma"))
+        #expect(!extras.map(\.name).contains("Turmeric & Quinoa Basmati Rice"))
+
+        let hotdog = MenuItem(
+            id: "dog", name: "Classic Hot Dog", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let lunchStations = [
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let brunchStations = [
+            MenuStation(name: "The Twisted Root", items: [shawarma, lentil], stationID: "1929"),
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let lunchKept = DiningService.subtractingBreakfastOnlyBrunchDishes(
+            from: DiningService.mergeStations(lunchStations, brunchStations),
+            lunch: lunchStations,
+            breakfast: breakfast
+        )
+        #expect(lunchKept.flatMap(\.items).map(\.name).contains("Tofu Shawarma"))
+    }
+
     @Test func mergeStationsUnionsBrunchTacosIntoLunch() {
         let taco = MenuItem(
             id: "taco", name: "Sesame Shrimp Taco", description: nil, calories: 320,

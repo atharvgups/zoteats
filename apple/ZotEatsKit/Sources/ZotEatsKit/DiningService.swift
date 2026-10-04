@@ -923,6 +923,65 @@ public struct DiningService: Sendable {
         }
     }
 
+    /// Eggs, hash, scramble stay on Breakfast even when Brunch copies them.
+    /// Shawarma / grain bowls that Brunch also lists are midday, not 9am.
+    public static func isBreakfastStyleTwistedRootName(_ name: String) -> Bool {
+        let n = name.lowercased()
+        let tokens = [
+            "scramble", "hash", "egg", "oatmeal", "sausage", "bacon",
+            "pancake", "waffle", "breakfast", "yogurt", "muffin", "chia",
+            "french toast",
+        ]
+        return tokens.contains { n.contains($0) }
+    }
+
+    /// Twisted Root names from Brunch / Lunch. Breakfast uses this to drop
+    /// midday entrees Anteater and Hub copy onto the 9am board.
+    public static func middayTwistedRootKeys(from groups: [[MenuStation]]) -> Set<String> {
+        let items = groups.flatMap { group in
+            group.filter { isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+                .flatMap(\.items)
+        } + groups.flatMap { group in
+            group.flatMap(\.items).filter { isTwistedRoot(stationName: "", stationID: $0.stationID) }
+        }
+        return hubBoardNameKeys(from: items)
+    }
+
+    public static func middayTwistedRootKeys(hubStations: [MenuStation]) -> Set<String> {
+        let midday = hubStations.filter { station in
+            let name = station.name.lowercased()
+            return name.contains("brunch") || (name.contains("lunch") && !name.contains("brunch"))
+        }
+        return middayTwistedRootKeys(from: [midday])
+    }
+
+    /// Keep hash/eggs on Breakfast. Drop shawarma and other Brunch Twisted
+    /// Root copies Atharv says are served at lunch (Sun Oct 4).
+    public static func subtractingMiddayTwistedRootFromBreakfast(
+        from stations: [MenuStation],
+        midday: [MenuStation]
+    ) -> [MenuStation] {
+        let middayKeys = middayTwistedRootKeys(from: [midday])
+        guard !middayKeys.isEmpty else { return stations }
+        return stations.compactMap { station in
+            guard isTwistedRoot(stationName: station.name, stationID: station.stationID) else {
+                return station
+            }
+            let kept = station.items.filter {
+                shouldKeepTwistedRootOnBreakfast($0, middayKeys: middayKeys)
+            }
+            return kept.isEmpty ? nil : station.withItems(kept)
+        }
+    }
+
+    static func shouldKeepTwistedRootOnBreakfast(
+        _ item: MenuItem,
+        middayKeys: Set<String>
+    ) -> Bool {
+        if isBreakfastStyleTwistedRootName(item.name) { return true }
+        return !appearsOnHubBoard(item, keys: middayKeys)
+    }
+
     /// Union stations from several meal periods. Same station id (or name when
     /// the id is unknown) keeps one section; items are deduped by name.
     public static func mergeStations(_ groups: [MenuStation]...) -> [MenuStation] {
@@ -1176,6 +1235,13 @@ public struct DiningService: Sendable {
                 }
                 let keys = hubBoardNameKeys(from: hubForStation)
                 let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
+                if MealPeriodPill.canonical(menu.period) == "Breakfast" {
+                    let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
+                    let breakfastKept = kept.filter {
+                        shouldKeepTwistedRootOnBreakfast($0, middayKeys: middayKeys)
+                    }
+                    return breakfastKept.isEmpty ? nil : station.withItems(breakfastKept)
+                }
                 return kept.isEmpty ? nil : station.withItems(kept)
             }
             guard !hubForStation.isEmpty else { return station }
@@ -1224,6 +1290,10 @@ public struct DiningService: Sendable {
             // tonight's Twisted Root entrees. Meal-tagged TR food (tofu) still
             // unions even when Hub also lists it on All Day.
             if onAllDay, onOtherMeal { return }
+            if twisted, MealPeriodPill.canonical(menu.period) == "Breakfast" {
+                let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
+                if !shouldKeepTwistedRootOnBreakfast(item, middayKeys: middayKeys) { return }
+            }
             if !twisted, onAllDay { return }
             if !twisted, onOtherMeal { return }
             for key in keys { seen.insert(key) }
@@ -1395,6 +1465,30 @@ public struct DiningService: Sendable {
                 breakfast: breakfastStations
             )
         }
+        if MealPeriodPill.canonical(period) == "Breakfast",
+           scraped.contains(where: {
+               $0.key.caseInsensitiveCompare("Breakfast") == .orderedSame
+           }),
+           let brunchName = available.first(where: {
+               $0.caseInsensitiveCompare("Brunch") == .orderedSame
+           }) {
+            // Only when Breakfast and Brunch both exist. A Breakfast pill
+            // that fell through to Brunch-only keeps the full midday board.
+            let brunchStations: [MenuStation]
+            if let cached = scraped.first(where: {
+                $0.key.caseInsensitiveCompare("Brunch") == .orderedSame
+            })?.value {
+                brunchStations = cached
+            } else {
+                brunchStations = try await stations(
+                    for: brunchName, in: today, stationNames: stationNames
+                )
+            }
+            mealStations = Self.subtractingMiddayTwistedRootFromBreakfast(
+                from: mealStations,
+                midday: brunchStations
+            )
+        }
 
         let periodMatched = periodNames.contains { name in
             available.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
@@ -1530,7 +1624,20 @@ public struct DiningService: Sendable {
 
         let onBoard = Self.droppingOffBoardAnteaterItems(onMenu: tagged, hubStations: hubStations)
         let extras = Self.hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
-        return Self.insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
+        let combined = Self.insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
+        guard MealPeriodPill.canonical(combined.period) == "Breakfast" else { return combined }
+        let midday = Self.hubMealStations(matchingPeriod: "Lunch", in: hubStations)
+        let trimmed = Self.subtractingMiddayTwistedRootFromBreakfast(
+            from: combined.stations,
+            midday: midday
+        )
+        guard trimmed != combined.stations else { return combined }
+        return DiningMenu(
+            locationId: combined.locationId,
+            date: combined.date,
+            period: combined.period,
+            stations: Self.pinTwistedRootFirst(trimmed)
+        )
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
