@@ -159,10 +159,31 @@ enum TagPalette {
     static let clay = Color(red: 147 / 255, green: 110 / 255, blue: 90 / 255)
     static let terracotta = Color(red: 178 / 255, green: 106 / 255, blue: 87 / 255)
 
+    /// Dark forest fill — Vegan in both appearances.
+    static let veganFill = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 22 / 255, green: 101 / 255, blue: 52 / 255, alpha: 1) // #166534
+            : UIColor(red: 20 / 255, green: 83 / 255, blue: 45 / 255, alpha: 1) // #14532D
+    })
+    static let veganLabel = Color(red: 236 / 255, green: 253 / 255, blue: 245 / 255) // #ECFDF5
+
+    /// Light mint fill — Vegetarian in both appearances.
+    static let vegetarianFill = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 134 / 255, green: 239 / 255, blue: 172 / 255, alpha: 1) // #86EFAC
+            : UIColor(red: 187 / 255, green: 247 / 255, blue: 208 / 255, alpha: 1) // #BBF7D0
+    })
+    static let vegetarianLabel = Color(red: 20 / 255, green: 83 / 255, blue: 45 / 255) // #14532D
+
+    struct ChipLook {
+        let foreground: Color
+        let background: Color
+    }
+
     static func dietColor(_ tag: String) -> Color {
         switch tag {
-        case "Vegan": sage
-        case "Vegetarian": eucalyptus
+        case "Vegan": veganFill
+        case "Vegetarian": vegetarianFill
         case "Halal": slate
         case "Kosher": plum
         case "Gluten-Free": ochre
@@ -171,6 +192,19 @@ enum TagPalette {
         case "No Dairy": terracotta
         case "Plant Forward", "Plant Powered": sage
         default: .secondary
+        }
+    }
+
+    /// Vegan / Vegetarian use solid fills so the two greens cannot be confused.
+    /// Other diet tags keep the 10% wash.
+    static func chipLook(tag: String, fallback: Color) -> ChipLook {
+        switch tag.lowercased() {
+        case "vegan":
+            ChipLook(foreground: veganLabel, background: veganFill)
+        case "vegetarian":
+            ChipLook(foreground: vegetarianLabel, background: vegetarianFill)
+        default:
+            ChipLook(foreground: fallback, background: fallback.opacity(0.10))
         }
     }
 
