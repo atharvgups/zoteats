@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -608,7 +609,36 @@ private fun DishRowCard(
             )
         }
         if (item.dietaryTags.isNotEmpty() || item.allergens.isNotEmpty()) {
-            ChipFlowRow(item.dietaryTags, item.allergens)
+            ChipScrollRow(item.dietaryTags, item.allergens, onTap = onOpen)
+        }
+    }
+}
+
+@Composable
+private fun ChipScrollRow(
+    dietaryTags: List<String>,
+    allergens: List<String>,
+    onTap: () -> Unit,
+    spacing: Dp = 5.dp,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onTap,
+            ),
+        horizontalArrangement = Arrangement.spacedBy(spacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        dietaryTags.forEach { tag ->
+            TagChip(tag, dietColor(tag))
+        }
+        allergens.forEach { allergen ->
+            TagChip(allergen, Terracotta)
         }
     }
 }

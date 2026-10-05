@@ -1505,51 +1505,56 @@ private struct DishRowCard: View {
     let onOpen: () -> Void
 
     var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.name)
-                            .font(ZotFont.body.weight(.semibold))
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: onOpen) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.name)
+                                .font(ZotFont.body.weight(.semibold))
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
+                        }
+
+                        VStack(alignment: .trailing, spacing: 10) {
+                            HStack(spacing: 8) {
+                                if let onTogglePlate {
+                                    plateButton(onTogglePlate)
+                                }
+                                favoriteButton
+                            }
+                            if let calories = item.calories {
+                                CalorieBadge(calories: calories)
+                            }
+                        }
+                    }
+
+                    if let description = item.description, !description.isEmpty {
+                        Text(description)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
-
-                        StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
-                    }
-
-                    VStack(alignment: .trailing, spacing: 10) {
-                        HStack(spacing: 8) {
-                            if let onTogglePlate {
-                                plateButton(onTogglePlate)
-                            }
-                            favoriteButton
-                        }
-                        if let calories = item.calories {
-                            CalorieBadge(calories: calories)
-                        }
                     }
                 }
-
-                if let description = item.description, !description.isEmpty {
-                    Text(description)
-                        .font(ZotFont.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
-                    chipRow
-                        .padding(.top, 2)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
+                chipRow
+                    .padding(.top, 2)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, onOpen)
         .accessibilityLabel(
             DishRowAccessibility.label(
                 dishName: item.name,
@@ -1563,7 +1568,7 @@ private struct DishRowCard: View {
     }
 
     private var chipRow: some View {
-        FlowLayout(spacing: 5) {
+        ScrollingChipRow(spacing: 5, onTap: onOpen) {
             ForEach(item.dietaryTags, id: \.self) { tag in
                 TagChip(text: tag, color: TagPalette.dietColor(tag))
             }
@@ -1571,7 +1576,6 @@ private struct DishRowCard: View {
                 TagChip(text: allergen, color: TagPalette.allergenColor)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var favoriteButton: some View {
