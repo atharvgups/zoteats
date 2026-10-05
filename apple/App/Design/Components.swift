@@ -45,10 +45,12 @@ struct TagChip: View {
     var body: some View {
         Text(text)
             .font(ZotFont.kicker)
+            .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.10), in: Capsule())
             .foregroundStyle(color)
+            .fixedSize(horizontal: true, vertical: true)
     }
 }
 
@@ -475,6 +477,49 @@ struct UpdatedAgoText: View {
             Text(UpdatedAgoCopy.phrase(from: date, now: context.date))
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+// MARK: - Wrapping chip row
+
+/// Lays chips on as many lines as they need. A chip that does not fit the
+/// rest of a line moves whole — never clipped mid-label.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? max(0, x - spacing), height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }

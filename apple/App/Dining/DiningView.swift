@@ -1506,40 +1506,42 @@ private struct DishRowCard: View {
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(item.name)
-                        .font(ZotFont.body.weight(.semibold))
-                        .multilineTextAlignment(.leading)
-
-                    StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
-
-                    if let description = item.description, !description.isEmpty {
-                        Text(description)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.name)
+                            .font(ZotFont.body.weight(.semibold))
                             .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
                     }
 
-                    if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
-                        chipRow
-                            .padding(.top, 2)
+                    VStack(alignment: .trailing, spacing: 10) {
+                        HStack(spacing: 8) {
+                            if let onTogglePlate {
+                                plateButton(onTogglePlate)
+                            }
+                            favoriteButton
+                        }
+                        if let calories = item.calories {
+                            CalorieBadge(calories: calories)
+                        }
                     }
                 }
 
-                Spacer(minLength: 8)
+                if let description = item.description, !description.isEmpty {
+                    Text(description)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
-                VStack(alignment: .trailing, spacing: 10) {
-                    HStack(spacing: 8) {
-                        if let onTogglePlate {
-                            plateButton(onTogglePlate)
-                        }
-                        favoriteButton
-                    }
-                    if let calories = item.calories {
-                        CalorieBadge(calories: calories)
-                    }
+                if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
+                    chipRow
+                        .padding(.top, 2)
                 }
             }
             .padding(.horizontal, 16)
@@ -1561,16 +1563,15 @@ private struct DishRowCard: View {
     }
 
     private var chipRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                ForEach(item.dietaryTags, id: \.self) { tag in
-                    TagChip(text: tag, color: TagPalette.dietColor(tag))
-                }
-                ForEach(item.allergens, id: \.self) { allergen in
-                    TagChip(text: allergen, color: TagPalette.allergenColor)
-                }
+        FlowLayout(spacing: 5) {
+            ForEach(item.dietaryTags, id: \.self) { tag in
+                TagChip(text: tag, color: TagPalette.dietColor(tag))
+            }
+            ForEach(item.allergens, id: \.self) { allergen in
+                TagChip(text: allergen, color: TagPalette.allergenColor)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var favoriteButton: some View {

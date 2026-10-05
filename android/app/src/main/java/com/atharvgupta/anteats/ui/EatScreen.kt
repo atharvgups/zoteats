@@ -7,6 +7,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -60,6 +63,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.atharvgupta.anteats.data.DiningLocation
@@ -553,51 +557,79 @@ private fun DishRowCard(
     onRate: (Int) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .zotCard()
             .clickable(onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .testTag("dish-${item.id}"),
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(item.name, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-            StarRating(stars = stars, size = 12.dp, onRate = onRate)
-            item.description?.takeIf { it.isNotBlank() }?.let {
-                Text(it, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(
+                Modifier.weight(1f).padding(end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(item.name, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                StarRating(stars = stars, size = 12.dp, onRate = onRate)
             }
-            if (item.dietaryTags.isNotEmpty() || item.allergens.isNotEmpty()) {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    item.dietaryTags.forEach { TagChip(it, dietColor(it)) }
-                    item.allergens.forEach { TagChip(it, Terracotta) }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(onClick = onAdd, modifier = Modifier.size(30.dp).testTag("add-${item.id}")) {
+                        Icon(
+                            if (quantity > 0) Icons.Rounded.AddCircle else Icons.Filled.Add,
+                            contentDescription = "Add to Plate",
+                            tint = if (quantity > 0) colors.onBackground else colors.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onFavorite, modifier = Modifier.size(30.dp)) {
+                        Icon(
+                            if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (favorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (favorite) FavoritePink else colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                item.calories?.let {
+                    Text("$it cal", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
                 }
             }
         }
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = onAdd, modifier = Modifier.size(30.dp).testTag("add-${item.id}")) {
-                    Icon(
-                        if (quantity > 0) Icons.Rounded.AddCircle else Icons.Filled.Add,
-                        contentDescription = "Add to Plate",
-                        tint = if (quantity > 0) colors.onBackground else colors.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onFavorite, modifier = Modifier.size(30.dp)) {
-                    Icon(
-                        if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (favorite) "Remove from favorites" else "Add to favorites",
-                        tint = if (favorite) FavoritePink else colors.onSurfaceVariant,
-                    )
-                }
-            }
-            item.calories?.let {
-                Text("$it cal", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
-            }
+        item.description?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                it,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (item.dietaryTags.isNotEmpty() || item.allergens.isNotEmpty()) {
+            ChipFlowRow(item.dietaryTags, item.allergens)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChipFlowRow(
+    dietaryTags: List<String>,
+    allergens: List<String>,
+    spacing: Dp = 5.dp,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(spacing),
+        verticalArrangement = Arrangement.spacedBy(spacing),
+    ) {
+        dietaryTags.forEach { tag ->
+            TagChip(tag, dietColor(tag), Modifier.wrapContentWidth(unbounded = true))
+        }
+        allergens.forEach { allergen ->
+            TagChip(allergen, Terracotta, Modifier.wrapContentWidth(unbounded = true))
         }
     }
 }
@@ -665,10 +697,7 @@ private fun DishDetail(dish: MenuItem, plate: PlateStore?, prefs: PreferencesSto
             Text(it, color = colors.onSurfaceVariant, fontWeight = FontWeight.Medium)
         }
         if (dish.dietaryTags.isNotEmpty() || dish.allergens.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                dish.dietaryTags.forEach { TagChip(it, dietColor(it)) }
-                dish.allergens.forEach { TagChip(it, Terracotta) }
-            }
+            ChipFlowRow(dish.dietaryTags, dish.allergens, spacing = 7.dp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(dish.calories?.toString() ?: "-", "Calories")

@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,16 +86,19 @@ fun Modifier.zotCard(): Modifier {
 }
 
 @Composable
-fun TagChip(text: String, color: Color) {
+fun TagChip(text: String, color: Color, modifier: Modifier = Modifier) {
     Text(
         text,
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(ChipRadius))
             .background(color.copy(alpha = 0.10f))
             .padding(horizontal = 7.dp, vertical = 3.dp),
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
         color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Visible,
     )
 }
 
