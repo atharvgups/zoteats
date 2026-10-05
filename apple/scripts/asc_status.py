@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -53,21 +54,46 @@ def make_token() -> str:
     )
 
 
+def _is_timeout(exc: BaseException) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+    if isinstance(exc, urllib.error.URLError):
+        reason = exc.reason
+        if isinstance(reason, TimeoutError):
+            return True
+        blob = f"{reason} {exc}".lower()
+        return "timed out" in blob or "timeout" in blob
+    return False
+
+
 def api(method: str, path: str, token: str, ok_empty: bool = False) -> dict:
-    req = urllib.request.Request(
-        f"{API}{path}",
-        method=method,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            raw = resp.read()
-            return json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")
-        if ok_empty and exc.code in {404, 403}:
-            return {}
-        die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+    url = f"{API}{path}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    attempts = 4
+    delays = (0, 2, 4, 8)
+    last_timeout: BaseException | None = None
+    for attempt, delay in enumerate(delays, start=1):
+        if delay:
+            time.sleep(delay)
+        req = urllib.request.Request(url, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                raw = resp.read()
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            if ok_empty and exc.code in {404, 403}:
+                return {}
+            die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+        except (TimeoutError, urllib.error.URLError) as exc:
+            if not _is_timeout(exc):
+                die(f"ASC {method} {path} failed: {exc}")
+            last_timeout = exc
+            print(
+                f"ASC {method} {path} timed out (attempt {attempt}/{attempts}); retrying",
+                flush=True,
+            )
+    die(f"ASC {method} {path} timed out after {attempts} attempts: {last_timeout}")
 
 
 def _days_ago(iso: str | None) -> str:
