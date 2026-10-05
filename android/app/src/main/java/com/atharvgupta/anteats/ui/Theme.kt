@@ -25,6 +25,12 @@ val BusyOrange = Color(0xFFD68C20)
 val CrowdedRed = Color(0xFFC43E4A)
 val Sage = Color(0xFF448365)
 val Eucalyptus = Color(0xFF599484)
+val VeganFillLight = Color(0xFF14532D)
+val VeganFillDark = Color(0xFF166534)
+val VeganLabel = Color(0xFFECFDF5)
+val VegetarianFillLight = Color(0xFFBBF7D0)
+val VegetarianFillDark = Color(0xFF86EFAC)
+val VegetarianLabel = Color(0xFF14532D)
 val Slate = Color(0xFF54769F)
 val Plum = Color(0xFF84689C)
 val Ochre = Color(0xFF9E7C4C)
@@ -45,14 +51,22 @@ val HeroSize = 34.sp
 val SheetHeroSize = 26.sp
 val SectionSize = 18.sp
 
-fun dietColor(tag: String): Color = when (tag.lowercase()) {
-    "vegan" -> Sage
-    "vegetarian" -> Eucalyptus
+fun dietColor(tag: String, dark: Boolean = false): Color = when (tag.lowercase()) {
+    "vegan" -> if (dark) VeganFillDark else VeganFillLight
+    "vegetarian" -> if (dark) VegetarianFillDark else VegetarianFillLight
     "halal" -> Slate
     "kosher" -> Plum
     "gluten-free", "gluten free" -> Ochre
     "organic" -> Clay
     else -> Slate
+}
+
+data class ChipLook(val foreground: Color, val background: Color)
+
+fun dietChipLook(tag: String, fallback: Color, dark: Boolean): ChipLook = when (tag.lowercase()) {
+    "vegan" -> ChipLook(VeganLabel, if (dark) VeganFillDark else VeganFillLight)
+    "vegetarian" -> ChipLook(VegetarianLabel, if (dark) VegetarianFillDark else VegetarianFillLight)
+    else -> ChipLook(fallback, fallback.copy(alpha = 0.10f))
 }
 
 @Composable
