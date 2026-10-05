@@ -1,6 +1,5 @@
 package com.atharvgupta.anteats.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -87,16 +86,15 @@ fun Modifier.zotCard(): Modifier {
 
 @Composable
 fun TagChip(text: String, color: Color) {
-    val look = dietChipLook(text, color, isSystemInDarkTheme())
     Text(
         text,
         modifier = Modifier
             .clip(RoundedCornerShape(ChipRadius))
-            .background(look.background)
+            .background(color.copy(alpha = 0.10f))
             .padding(horizontal = 7.dp, vertical = 3.dp),
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
-        color = look.foreground,
+        color = color,
     )
 }
 

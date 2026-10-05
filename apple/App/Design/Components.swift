@@ -43,13 +43,12 @@ struct TagChip: View {
     let color: Color
 
     var body: some View {
-        let look = TagPalette.chipLook(tag: text, fallback: color)
         Text(text)
             .font(ZotFont.kicker)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(look.background, in: Capsule())
-            .foregroundStyle(look.foreground)
+            .background(color.opacity(0.10), in: Capsule())
+            .foregroundStyle(color)
     }
 }
 

@@ -25,30 +25,6 @@ val BusyOrange = Color(0xFFD68C20)
 val CrowdedRed = Color(0xFFC43E4A)
 val Sage = Color(0xFF448365)
 val Eucalyptus = Color(0xFF599484)
-val VeganFillLight = Color(0xFFD8E4DA)
-val VeganFillDark = Color(0xFF35483C)
-val VeganLabelLight = Color(0xFF345A42)
-val VeganLabelDark = Color(0xFF9EBAA6)
-val VegetarianFillLight = Color(0xFFE8F0E5)
-val VegetarianFillDark = Color(0xFF3D4A3E)
-val VegetarianLabelLight = Color(0xFF4A704E)
-val VegetarianLabelDark = Color(0xFFA8BEA8)
-val PlantFillLight = Color(0xFFDCE8D6)
-val PlantFillDark = Color(0xFF384836)
-val PlantLabelLight = Color(0xFF426640)
-val PlantLabelDark = Color(0xFF9CB496)
-val HalalFillLight = Color(0xFFD9E4EE)
-val HalalFillDark = Color(0xFF354250)
-val HalalLabelLight = Color(0xFF3A5A74)
-val HalalLabelDark = Color(0xFF98ACBE)
-val KosherFillLight = Color(0xFFE6DDEA)
-val KosherFillDark = Color(0xFF43384A)
-val KosherLabelLight = Color(0xFF605070)
-val KosherLabelDark = Color(0xFFBAA6C2)
-val GlutenFillLight = Color(0xFFF0E8D4)
-val GlutenFillDark = Color(0xFF4A4336)
-val GlutenLabelLight = Color(0xFF7A6640)
-val GlutenLabelDark = Color(0xFFC4B089)
 val Slate = Color(0xFF54769F)
 val Plum = Color(0xFF84689C)
 val Ochre = Color(0xFF9E7C4C)
@@ -69,36 +45,14 @@ val HeroSize = 34.sp
 val SheetHeroSize = 26.sp
 val SectionSize = 18.sp
 
-fun dietColor(tag: String, dark: Boolean = false): Color = dietChipLook(tag, Slate, dark).foreground
-
-data class ChipLook(val foreground: Color, val background: Color)
-
-fun dietChipLook(tag: String, fallback: Color, dark: Boolean): ChipLook = when (tag.lowercase()) {
-    "vegan" -> ChipLook(
-        if (dark) VeganLabelDark else VeganLabelLight,
-        if (dark) VeganFillDark else VeganFillLight,
-    )
-    "vegetarian" -> ChipLook(
-        if (dark) VegetarianLabelDark else VegetarianLabelLight,
-        if (dark) VegetarianFillDark else VegetarianFillLight,
-    )
-    "plant forward", "plant powered" -> ChipLook(
-        if (dark) PlantLabelDark else PlantLabelLight,
-        if (dark) PlantFillDark else PlantFillLight,
-    )
-    "halal" -> ChipLook(
-        if (dark) HalalLabelDark else HalalLabelLight,
-        if (dark) HalalFillDark else HalalFillLight,
-    )
-    "kosher" -> ChipLook(
-        if (dark) KosherLabelDark else KosherLabelLight,
-        if (dark) KosherFillDark else KosherFillLight,
-    )
-    "gluten-free", "gluten free" -> ChipLook(
-        if (dark) GlutenLabelDark else GlutenLabelLight,
-        if (dark) GlutenFillDark else GlutenFillLight,
-    )
-    else -> ChipLook(fallback, fallback.copy(alpha = 0.10f))
+fun dietColor(tag: String): Color = when (tag.lowercase()) {
+    "vegan" -> Sage
+    "vegetarian" -> Eucalyptus
+    "halal" -> Slate
+    "kosher" -> Plum
+    "gluten-free", "gluten free" -> Ochre
+    "organic" -> Clay
+    else -> Slate
 }
 
 @Composable
