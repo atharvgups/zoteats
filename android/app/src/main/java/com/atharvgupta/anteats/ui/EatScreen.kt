@@ -568,12 +568,12 @@ private fun DishRowCard(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(
-                Modifier.weight(1f).padding(end = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(item.name, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
                 StarRating(stars = stars, size = 12.dp, onRate = onRate)
+                item.description?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -596,17 +596,6 @@ private fun DishRowCard(
                     Text("$it cal", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
                 }
             }
-        }
-        item.description?.takeIf { it.isNotBlank() }?.let {
-            Text(
-                it,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
         if (item.dietaryTags.isNotEmpty() || item.allergens.isNotEmpty()) {
             ChipScrollRow(item.dietaryTags, item.allergens, onTap = onOpen)

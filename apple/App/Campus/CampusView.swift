@@ -913,37 +913,34 @@ private struct CampusMenuItemRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button(action: onOpen) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.name)
-                                .font(ZotFont.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            StarRatingControl(stars: stars, size: 12) { value in
-                                prefs.setReview(
-                                    dishName: item.name,
-                                    stars: value,
-                                    note: prefs.review(for: item.name)?.note ?? ""
-                                )
-                            }
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(ZotFont.body)
+                        StarRatingControl(stars: stars, size: 12) { value in
+                            prefs.setReview(
+                                dishName: item.name,
+                                stars: value,
+                                note: prefs.review(for: item.name)?.note ?? ""
+                            )
                         }
-                        if let calories = item.calories {
-                            VStack(spacing: -1) {
-                                Text("\(calories)")
-                                    .font(ZotFont.body.weight(.semibold))
-                                    .foregroundStyle(Color.ink)
-                                Text("cal")
-                                    .font(ZotFont.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
-                            }
+                        if let description = item.description, !description.isEmpty {
+                            Text(description)
+                                .font(ZotFont.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
-                    if let description = item.description, !description.isEmpty {
-                        Text(description)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    Spacer(minLength: 8)
+                    if let calories = item.calories {
+                        VStack(spacing: -1) {
+                            Text("\(calories)")
+                                .font(ZotFont.body.weight(.semibold))
+                                .foregroundStyle(Color.ink)
+                            Text("cal")
+                                .font(ZotFont.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
