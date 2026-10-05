@@ -911,56 +911,60 @@ private struct CampusMenuItemRow: View {
     }
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(alignment: .top, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
-                        .font(ZotFont.body)
-                    StarRatingControl(stars: stars, size: 12) { value in
-                        prefs.setReview(
-                            dishName: item.name,
-                            stars: value,
-                            note: prefs.review(for: item.name)?.note ?? ""
-                        )
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: onOpen) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(ZotFont.body)
+                        StarRatingControl(stars: stars, size: 12) { value in
+                            prefs.setReview(
+                                dishName: item.name,
+                                stars: value,
+                                note: prefs.review(for: item.name)?.note ?? ""
+                            )
+                        }
+                        if let description = item.description, !description.isEmpty {
+                            Text(description)
+                                .font(ZotFont.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
-                    if let description = item.description, !description.isEmpty {
-                        Text(description)
-                            .font(ZotFont.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 5) {
-                                ForEach(item.dietaryTags, id: \.self) { tag in
-                                    TagChip(text: tag, color: TagPalette.dietColor(tag))
-                                }
-                                ForEach(item.allergens, id: \.self) { allergen in
-                                    TagChip(text: allergen, color: TagPalette.allergenColor)
-                                }
-                            }
+                    Spacer(minLength: 8)
+                    if let calories = item.calories {
+                        VStack(spacing: -1) {
+                            Text("\(calories)")
+                                .font(ZotFont.body.weight(.semibold))
+                                .foregroundStyle(Color.ink)
+                            Text("cal")
+                                .font(ZotFont.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
-                Spacer(minLength: 8)
-                if let calories = item.calories {
-                    VStack(spacing: -1) {
-                        Text("\(calories)")
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                        Text("cal")
-                            .font(ZotFont.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
+                ScrollingChipRow(spacing: 5, onTap: onOpen) {
+                    ForEach(item.dietaryTags, id: \.self) { tag in
+                        TagChip(text: tag, color: TagPalette.dietColor(tag))
+                    }
+                    ForEach(item.allergens, id: \.self) { allergen in
+                        TagChip(text: allergen, color: TagPalette.allergenColor)
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, onOpen)
         .accessibilityLabel(
             DishRowAccessibility.label(
                 dishName: item.name,

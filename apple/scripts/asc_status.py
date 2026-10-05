@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Read-only App Store Connect status for Anteats. No submit / cancel / mutate.
 
+Timeouts and optional 401s retry or skip so a hung version/build GET cannot
+fail the whole peek.
+
 Never cancel WAITING_FOR_REVIEW / IN_REVIEW, and never replace a live READY_FOR_SALE.
 
 Launch-loop peek 2026-09-15 ~12:20 PM PT — read-only. Report live store, 1.0.300 DEVELOPER_REJECTED vs any WAITING_FOR_REVIEW / IN_REVIEW, Internal newest VALID, External N-1. Do NOT cancel. Do NOT submit App Store. No new testflight tag unless a real regression.
@@ -11,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -53,21 +57,58 @@ def make_token() -> str:
     )
 
 
+def _is_timeout(exc: BaseException) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+    if isinstance(exc, urllib.error.URLError):
+        reason = exc.reason
+        if isinstance(reason, TimeoutError):
+            return True
+        blob = f"{reason} {exc}".lower()
+        return "timed out" in blob or "timeout" in blob
+    return False
+
+
 def api(method: str, path: str, token: str, ok_empty: bool = False) -> dict:
-    req = urllib.request.Request(
-        f"{API}{path}",
-        method=method,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            raw = resp.read()
-            return json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")
-        if ok_empty and exc.code in {404, 403}:
-            return {}
-        die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+    url = f"{API}{path}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    attempts = 4
+    delays = (0, 2, 4, 8)
+    timeout = 20 if ok_empty else 60
+    last_timeout: BaseException | None = None
+    for attempt, delay in enumerate(delays, start=1):
+        if delay:
+            time.sleep(delay)
+        req = urllib.request.Request(url, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            if ok_empty and exc.code in {404, 403, 401}:
+                return {}
+            if exc.code in {401, 429} and attempt < attempts:
+                token = make_token()
+                headers["Authorization"] = f"Bearer {token}"
+                print(
+                    f"ASC {method} {path} {exc.code} (attempt {attempt}/{attempts}); retrying",
+                    flush=True,
+                )
+                continue
+            die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
+        except (TimeoutError, urllib.error.URLError) as exc:
+            if not _is_timeout(exc):
+                die(f"ASC {method} {path} failed: {exc}")
+            last_timeout = exc
+            if ok_empty:
+                print(f"ASC {method} {path} timed out; skipping optional request", flush=True)
+                return {}
+            print(
+                f"ASC {method} {path} timed out (attempt {attempt}/{attempts}); retrying",
+                flush=True,
+            )
+    die(f"ASC {method} {path} timed out after {attempts} attempts: {last_timeout}")
 
 
 def _days_ago(iso: str | None) -> str:
