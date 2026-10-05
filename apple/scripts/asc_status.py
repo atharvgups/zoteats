@@ -71,24 +71,36 @@ def api(method: str, path: str, token: str, ok_empty: bool = False) -> dict:
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     attempts = 4
     delays = (0, 2, 4, 8)
+    timeout = 20 if ok_empty else 60
     last_timeout: BaseException | None = None
     for attempt, delay in enumerate(delays, start=1):
         if delay:
             time.sleep(delay)
         req = urllib.request.Request(url, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
-            if ok_empty and exc.code in {404, 403}:
+            if ok_empty and exc.code in {404, 403, 401}:
                 return {}
+            if exc.code in {401, 429} and attempt < attempts:
+                token = make_token()
+                headers["Authorization"] = f"Bearer {token}"
+                print(
+                    f"ASC {method} {path} {exc.code} (attempt {attempt}/{attempts}); retrying",
+                    flush=True,
+                )
+                continue
             die(f"ASC {method} {path} failed ({exc.code}): {detail[:800]}")
         except (TimeoutError, urllib.error.URLError) as exc:
             if not _is_timeout(exc):
                 die(f"ASC {method} {path} failed: {exc}")
             last_timeout = exc
+            if ok_empty:
+                print(f"ASC {method} {path} timed out; skipping optional request", flush=True)
+                return {}
             print(
                 f"ASC {method} {path} timed out (attempt {attempt}/{attempts}); retrying",
                 flush=True,
