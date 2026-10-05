@@ -159,50 +159,86 @@ enum TagPalette {
     static let clay = Color(red: 147 / 255, green: 110 / 255, blue: 90 / 255)
     static let terracotta = Color(red: 178 / 255, green: 106 / 255, blue: 87 / 255)
 
-    /// Dark forest fill — Vegan in both appearances.
-    static let veganFill = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 22 / 255, green: 101 / 255, blue: 52 / 255, alpha: 1) // #166534
-            : UIColor(red: 20 / 255, green: 83 / 255, blue: 45 / 255, alpha: 1) // #14532D
-    })
-    static let veganLabel = Color(red: 236 / 255, green: 253 / 255, blue: 245 / 255) // #ECFDF5
-
-    /// Light mint fill — Vegetarian in both appearances.
-    static let vegetarianFill = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 134 / 255, green: 239 / 255, blue: 172 / 255, alpha: 1) // #86EFAC
-            : UIColor(red: 187 / 255, green: 247 / 255, blue: 208 / 255, alpha: 1) // #BBF7D0
-    })
-    static let vegetarianLabel = Color(red: 20 / 255, green: 83 / 255, blue: 45 / 255) // #14532D
-
     struct ChipLook {
         let foreground: Color
         let background: Color
     }
 
-    static func dietColor(_ tag: String) -> Color {
-        switch tag {
-        case "Vegan": veganFill
-        case "Vegetarian": vegetarianFill
-        case "Halal": slate
-        case "Kosher": plum
-        case "Gluten-Free": ochre
-        case "Organic": sage
-        case "Locally Grown": clay
-        case "No Dairy": terracotta
-        case "Plant Forward", "Plant Powered": sage
-        default: .secondary
-        }
+    /// Notion-style muted pastel: soft fill, slightly darker same-hue text.
+    private static func pastel(
+        lightFill: (CGFloat, CGFloat, CGFloat),
+        darkFill: (CGFloat, CGFloat, CGFloat),
+        lightText: (CGFloat, CGFloat, CGFloat),
+        darkText: (CGFloat, CGFloat, CGFloat)
+    ) -> ChipLook {
+        ChipLook(
+            foreground: Color(uiColor: UIColor { traits in
+                let t = traits.userInterfaceStyle == .dark ? darkText : lightText
+                return UIColor(red: t.0, green: t.1, blue: t.2, alpha: 1)
+            }),
+            background: Color(uiColor: UIColor { traits in
+                let t = traits.userInterfaceStyle == .dark ? darkFill : lightFill
+                return UIColor(red: t.0, green: t.1, blue: t.2, alpha: 1)
+            })
+        )
     }
 
-    /// Vegan / Vegetarian use solid fills so the two greens cannot be confused.
-    /// Other diet tags keep the 10% wash.
+    /// Deeper muted sage — Vegan.
+    static let veganChip = pastel(
+        lightFill: (216 / 255, 228 / 255, 218 / 255), // #D8E4DA
+        darkFill: (53 / 255, 72 / 255, 60 / 255), // #35483C
+        lightText: (52 / 255, 90 / 255, 66 / 255), // #345A42
+        darkText: (158 / 255, 186 / 255, 166 / 255) // #9EBAA6
+    )
+    /// Lighter pale green — Vegetarian.
+    static let vegetarianChip = pastel(
+        lightFill: (232 / 255, 240 / 255, 229 / 255), // #E8F0E5
+        darkFill: (61 / 255, 74 / 255, 62 / 255), // #3D4A3E
+        lightText: (74 / 255, 112 / 255, 78 / 255), // #4A704E
+        darkText: (168 / 255, 190 / 255, 168 / 255) // #A8BEA8
+    )
+    /// Soft leaf green — Plant Forward.
+    static let plantChip = pastel(
+        lightFill: (220 / 255, 232 / 255, 214 / 255), // #DCE8D6
+        darkFill: (56 / 255, 72 / 255, 54 / 255), // #384836
+        lightText: (66 / 255, 102 / 255, 64 / 255), // #426640
+        darkText: (156 / 255, 180 / 255, 150 / 255) // #9CB496
+    )
+    /// Muted blue — Halal.
+    static let halalChip = pastel(
+        lightFill: (217 / 255, 228 / 255, 238 / 255), // #D9E4EE
+        darkFill: (53 / 255, 66 / 255, 80 / 255), // #354250
+        lightText: (58 / 255, 90 / 255, 116 / 255), // #3A5A74
+        darkText: (152 / 255, 172 / 255, 190 / 255) // #98ACBE
+    )
+    /// Muted purple — Kosher.
+    static let kosherChip = pastel(
+        lightFill: (230 / 255, 221 / 255, 234 / 255), // #E6DDEA
+        darkFill: (67 / 255, 56 / 255, 74 / 255), // #43384A
+        lightText: (96 / 255, 80 / 255, 112 / 255), // #605070
+        darkText: (186 / 255, 166 / 255, 194 / 255) // #BAA6C2
+    )
+    /// Muted tan / yellow — Gluten-Free.
+    static let glutenChip = pastel(
+        lightFill: (240 / 255, 232 / 255, 212 / 255), // #F0E8D4
+        darkFill: (74 / 255, 67 / 255, 54 / 255), // #4A4336
+        lightText: (122 / 255, 102 / 255, 64 / 255), // #7A6640
+        darkText: (196 / 255, 176 / 255, 137 / 255) // #C4B089
+    )
+
+    static func dietColor(_ tag: String) -> Color {
+        chipLook(tag: tag, fallback: .secondary).foreground
+    }
+
+    /// Soft Notion pastels for the diet row. Allergens keep the terracotta wash.
     static func chipLook(tag: String, fallback: Color) -> ChipLook {
         switch tag.lowercased() {
-        case "vegan":
-            ChipLook(foreground: veganLabel, background: veganFill)
-        case "vegetarian":
-            ChipLook(foreground: vegetarianLabel, background: vegetarianFill)
+        case "vegan": veganChip
+        case "vegetarian": vegetarianChip
+        case "plant forward", "plant powered": plantChip
+        case "halal": halalChip
+        case "kosher": kosherChip
+        case "gluten-free", "gluten free": glutenChip
         default:
             ChipLook(foreground: fallback, background: fallback.opacity(0.10))
         }
