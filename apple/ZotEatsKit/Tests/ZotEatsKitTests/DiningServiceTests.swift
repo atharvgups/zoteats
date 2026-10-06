@@ -1157,6 +1157,19 @@ struct DiningServiceTests {
             DiningService.pinTwistedRootFirst(stations).map(\.name)
                 == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay]
         )
+        let withEmber = [
+            MenuStation(name: "Ember", items: [dish], stationID: "1878"),
+            MenuStation(name: "Sizzle Grill", items: [dish]),
+            MenuStation(name: "The Twisted Root", items: [dish]),
+            MenuStation(name: "Home", items: [dish]),
+            MenuStation(name: CampusMenuNormalize.availableAllDay, items: [dish]),
+        ]
+        #expect(
+            DiningService.pinTwistedRootFirst(withEmber).map(\.name)
+                == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay, "Ember"]
+        )
+        #expect(DiningService.isEmber(stationName: "Menu", stationID: "1878"))
+        #expect(!DiningService.isEmber(stationName: "September Grill"))
         let unnamed = MenuStation(name: "Menu", items: [dish], stationID: "1929")
         #expect(DiningService.pinTwistedRootFirst([stations[0], unnamed]).first?.stationID == "1929")
         #expect(DiningService.displayStationName(nil, stationID: "1929") == "The Twisted Root")

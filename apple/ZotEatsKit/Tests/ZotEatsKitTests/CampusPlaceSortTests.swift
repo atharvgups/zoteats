@@ -195,4 +195,17 @@ struct CampusMenuNormalizeTests {
                 == ["The Twisted Root", "Grill", CampusMenuNormalize.availableAllDay]
         )
     }
+
+    @Test func pinsEmberAfterAvailableAllDay() {
+        let stations = CampusMenuNormalize.stations([
+            MenuStation(name: "Ember", items: [item("Burger")], stationID: "1878"),
+            MenuStation(name: "All Day", items: [item("Fruit")]),
+            MenuStation(name: "Grill", items: [item("Tacos")]),
+            MenuStation(name: "The Twisted Root", items: [item("Tofu")]),
+        ])
+        #expect(
+            stations.map(\.name)
+                == ["The Twisted Root", "Grill", CampusMenuNormalize.availableAllDay, "Ember"]
+        )
+    }
 }

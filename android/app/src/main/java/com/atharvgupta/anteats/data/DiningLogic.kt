@@ -3,6 +3,7 @@ package com.atharvgupta.anteats.data
 object DiningLogic {
     val mealSelectorPills = listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night")
     val twistedRootStationIDs = setOf("1929", "1893")
+    val emberStationIDs = setOf("1878")
     val dishBatchChunkSizes = listOf(40, 8, 1)
 
     fun isAfternoonSnack(name: String): Boolean {
@@ -101,6 +102,12 @@ object DiningLogic {
         return "twisted root" in lowered || "twistedroot" in lowered
     }
 
+    fun isEmber(stationName: String, stationID: String? = null): Boolean {
+        if (stationID != null && stationID in emberStationIDs) return true
+        val lowered = stationName.lowercase().replace(Regex("\\s+"), " ").trim()
+        return lowered == "ember" || lowered.startsWith("ember ")
+    }
+
     fun displayStationName(mapped: String?, stationID: String): String {
         val trimmed = mapped?.trim().orEmpty()
         if (isTwistedRoot(trimmed, stationID)) {
@@ -125,8 +132,9 @@ object DiningLogic {
 
     fun pinTwistedRootFirst(stations: List<MenuStation>): List<MenuStation> {
         val twisted = stations.filter { isTwistedRoot(it.name, it.stationID) }
-        val rest = stations.filter { !isTwistedRoot(it.name, it.stationID) }
-        return twisted + rest
+        val ember = stations.filter { isEmber(it.name, it.stationID) && !isTwistedRoot(it.name, it.stationID) }
+        val rest = stations.filter { !isTwistedRoot(it.name, it.stationID) && !isEmber(it.name, it.stationID) }
+        return twisted + rest + ember
     }
 
     fun mergeKey(station: MenuStation): String? {

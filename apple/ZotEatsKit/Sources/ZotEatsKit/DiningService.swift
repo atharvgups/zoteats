@@ -439,6 +439,11 @@ public struct DiningService: Sendable {
         "1893", // Brandywine
     ]
 
+    /// Brandywine Ember burgers stay the same day to day, so Eat pins this last.
+    public static let emberStationIDs: Set<String> = [
+        "1878",
+    ]
+
     /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
     public static func hallID(forTwistedRootStation stationID: String) -> String? {
         switch stationID {
@@ -462,6 +467,14 @@ public struct DiningService: Sendable {
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return lowered.contains("twisted root") || lowered.contains("twistedroot")
+    }
+
+    public static func isEmber(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, emberStationIDs.contains(stationID) { return true }
+        let lowered = stationName.lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return lowered == "ember" || lowered.hasPrefix("ember ")
     }
 
     /// Prefer the live name; fall back to the brand so a missing station map
@@ -522,17 +535,21 @@ public struct DiningService: Sendable {
         )
     }
 
-    /// Owner vegan preference: Twisted Root leads Eat and Campus food lists.
-    /// Relative order of everything else is preserved (Available all day stays last
-    /// when the caller already pinned it there).
+    /// Twisted Root leads Eat and Campus food lists. Ember (the standing
+    /// burger board) is last. Relative order of everything else is preserved.
     public static func pinTwistedRootFirst(_ stations: [MenuStation]) -> [MenuStation] {
         let twisted = stations.filter {
             isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
         }
+        let ember = stations.filter {
+            isEmber(stationName: $0.name, stationID: $0.stationID)
+                && !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
         let rest = stations.filter {
             !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+                && !isEmber(stationName: $0.name, stationID: $0.stationID)
         }
-        return twisted + rest
+        return twisted + rest + ember
     }
 
     // MARK: - Public API
@@ -1394,10 +1411,15 @@ public struct DiningService: Sendable {
         }
 
         stations = pinTwistedRootFirst(stations)
-        if let allDayIdx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }),
-           allDayIdx != stations.count - 1 {
+        if let allDayIdx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }) {
             let allDay = stations.remove(at: allDayIdx)
-            stations.append(allDay)
+            if let emberIdx = stations.firstIndex(where: {
+                isEmber(stationName: $0.name, stationID: $0.stationID)
+            }) {
+                stations.insert(allDay, at: emberIdx)
+            } else {
+                stations.append(allDay)
+            }
         }
 
         return DiningMenu(

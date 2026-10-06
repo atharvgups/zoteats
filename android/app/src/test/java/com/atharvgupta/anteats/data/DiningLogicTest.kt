@@ -87,6 +87,19 @@ class DiningLogicTest {
             listOf("The Twisted Root", "Sizzle Grill", "Home", "Available all day"),
             DiningLogic.pinTwistedRootFirst(stations).map { it.name },
         )
+        val withEmber = listOf(
+            MenuStation("Ember", listOf(dish), "1878"),
+            MenuStation("Sizzle Grill", listOf(dish)),
+            MenuStation("The Twisted Root", listOf(dish), "1929"),
+            MenuStation("Home", listOf(dish)),
+            MenuStation("Available all day", listOf(dish)),
+        )
+        assertEquals(
+            listOf("The Twisted Root", "Sizzle Grill", "Home", "Available all day", "Ember"),
+            DiningLogic.pinTwistedRootFirst(withEmber).map { it.name },
+        )
+        assertTrue(DiningLogic.isEmber("Menu", "1878"))
+        assertFalse(DiningLogic.isEmber("September Grill"))
         assertEquals("The Twisted Root", DiningLogic.displayStationName(null, "1929"))
         assertEquals("The Twisted Root", DiningLogic.displayStationName(null, "1893"))
     }
