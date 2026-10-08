@@ -1,5 +1,7 @@
 # Read-only App Store Connect status (no submit / cancel / upload).
 # Launch-loop peek 2026-09-18 ~6:09 PM PT — read-only. No App Store submit.
+# Launch-loop peek 2026-10-08 ~12:56 PM PT — read-only. Expect Internal 1.0.350
+# build 356 VALID. No submit, no cancel, no tag, no External promote.
 name: ASC Status
 
 on:
