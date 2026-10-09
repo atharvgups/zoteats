@@ -4,6 +4,8 @@
 # build 356 VALID. No submit, no cancel, no tag, no External promote.
 # Launch-loop peek 2026-10-09 Friday morning ~9:22 AM PT — read-only. No app
 # changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-09 Friday noon ~12:17 PM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
 name: ASC Status
 
 on:
