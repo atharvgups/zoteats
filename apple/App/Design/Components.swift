@@ -45,10 +45,12 @@ struct TagChip: View {
     var body: some View {
         Text(text)
             .font(ZotFont.kicker)
+            .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.10), in: Capsule())
             .foregroundStyle(color)
+            .fixedSize(horizontal: true, vertical: true)
     }
 }
 
@@ -102,6 +104,10 @@ struct PillRow<Item: Hashable>: View {
     /// When true, pills share the row evenly (no horizontal scroll) — used for
     /// Breakfast / Lunch / Dinner so they match the hall cards' full width.
     var fillsWidth = false
+    /// Eat meal chips: 15pt mark, even when the row scrolls (five pills).
+    var usesMealMark = false
+    /// Unposted meals stay tappable but dim so empty boards are obvious.
+    var isPosted: ((Item) -> Bool)? = nil
 
     var body: some View {
         Group {
@@ -115,17 +121,29 @@ struct PillRow<Item: Hashable>: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 2)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(items, id: \.self) { item in
-                            pill(item)
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: usesMealMark ? EatMealPillMark.rowSpacing : 8) {
+                            ForEach(items, id: \.self) { item in
+                                pill(item)
+                                    .id(item)
+                            }
                         }
+                        .padding(.horizontal, usesMealMark ? 16 : 20)
+                        .padding(.vertical, 2)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 2)
+                    .onAppear { scrollSelected(proxy) }
+                    .onChange(of: selection) { _, _ in
+                        withAnimation(ZotMotion.select) { scrollSelected(proxy) }
+                    }
                 }
             }
         }
+    }
+
+    private func scrollSelected(_ proxy: ScrollViewProxy) {
+        guard let selection else { return }
+        proxy.scrollTo(selection, anchor: .center)
     }
 
     @ViewBuilder
@@ -139,7 +157,7 @@ struct PillRow<Item: Hashable>: View {
         } label: {
             Text(title(item))
                 .font(
-                    fillsWidth
+                    fillsWidth || usesMealMark
                         ? .system(
                             size: EatMealPillMark.pointSize,
                             weight: isSelected ? .bold : .semibold
@@ -147,9 +165,9 @@ struct PillRow<Item: Hashable>: View {
                         : ZotFont.pill.weight(isSelected ? .semibold : .medium)
                 )
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
-                .padding(.horizontal, fillsWidth ? EatMealPillMark.horizontalPadding : 14)
-                .padding(.vertical, fillsWidth ? EatMealPillMark.verticalPadding : 9)
-                .frame(minHeight: fillsWidth ? EatMealPillMark.minHeight : 0)
+                .padding(.horizontal, fillsWidth || usesMealMark ? EatMealPillMark.horizontalPadding : 14)
+                .padding(.vertical, fillsWidth || usesMealMark ? EatMealPillMark.verticalPadding : 9)
+                .frame(minHeight: fillsWidth || usesMealMark ? EatMealPillMark.minHeight : 0)
                 .background(
                     isSelected ? Color.selectWash : Color.clear,
                     in: Capsule()
@@ -161,6 +179,7 @@ struct PillRow<Item: Hashable>: View {
                         lineWidth: 1
                     )
                 )
+                .opacity(isPosted?(item) == false ? 0.45 : 1)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -458,6 +477,71 @@ struct UpdatedAgoText: View {
             Text(UpdatedAgoCopy.phrase(from: date, now: context.date))
                 .font(ZotFont.caption)
                 .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+// MARK: - Single-line scrolling chip row
+
+/// Full-width chip strip. Overflow scrolls horizontally instead of wrapping.
+/// `onTap` keeps a parent card tappable when the user taps a chip.
+struct ScrollingChipRow<Content: View>: View {
+    var spacing: CGFloat = 5
+    var onTap: () -> Void
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: spacing) {
+                content()
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+        }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Wrapping chip row
+
+/// Lays chips on as many lines as they need. A chip that does not fit the
+/// rest of a line moves whole — never clipped mid-label.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? max(0, x - spacing), height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }
