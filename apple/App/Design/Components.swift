@@ -484,7 +484,7 @@ struct UpdatedAgoText: View {
 // MARK: - Single-line scrolling chip row
 
 /// Full-width chip strip. Overflow scrolls horizontally instead of wrapping.
-/// `onTap` keeps a parent card tappable when the user taps a chip.
+/// Tap (not a horizontal drag) opens the parent dish; scroll still works.
 struct ScrollingChipRow<Content: View>: View {
     var spacing: CGFloat = 5
     var onTap: () -> Void
@@ -495,11 +495,11 @@ struct ScrollingChipRow<Content: View>: View {
             HStack(spacing: spacing) {
                 content()
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onTap)
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture().onEnded { onTap() })
     }
 }
 

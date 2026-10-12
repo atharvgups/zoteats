@@ -912,41 +912,31 @@ private struct CampusMenuItemRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Button(action: onOpen) {
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name)
-                            .font(ZotFont.body)
-                        StarRatingControl(stars: stars, size: 12) { value in
-                            prefs.setReview(
-                                dishName: item.name,
-                                stars: value,
-                                note: prefs.review(for: item.name)?.note ?? ""
-                            )
-                        }
-                        if let description = item.description, !description.isEmpty {
-                            Text(description)
-                                .font(ZotFont.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 8)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(ZotFont.body)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .center, spacing: 8) {
+                    StarRatingControl(stars: stars, size: 12, interactive: false)
+                    Spacer(minLength: 0)
                     if let calories = item.calories {
-                        VStack(spacing: -1) {
-                            Text("\(calories)")
-                                .font(ZotFont.body.weight(.semibold))
-                                .foregroundStyle(Color.ink)
-                            Text("cal")
-                                .font(ZotFont.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("\(calories) cal")
+                            .font(ZotFont.caption.weight(.semibold))
+                            .foregroundStyle(Color.ink)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                if let description = item.description, !description.isEmpty {
+                    Text(description)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onOpen)
 
             if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
                 ScrollingChipRow(spacing: 5, onTap: onOpen) {
@@ -962,6 +952,12 @@ private struct CampusMenuItemRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .background {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onOpen)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, onOpen)
