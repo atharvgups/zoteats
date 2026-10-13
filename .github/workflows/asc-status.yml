@@ -12,6 +12,8 @@
 # changes, no tag, no External promote, no App Store submit.
 # Launch-loop peek 2026-10-12 Monday morning ~9:24 AM PT — read-only. Expect
 # Internal 1.0.351 build 357 VALID. No submit, no cancel, no tag.
+# Launch-loop peek 2026-10-13 Tuesday ~9:28 AM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
 name: ASC Status
 
 on:
