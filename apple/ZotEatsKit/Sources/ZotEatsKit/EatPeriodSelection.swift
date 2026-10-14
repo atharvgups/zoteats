@@ -16,7 +16,7 @@ public enum EatPeriodSelection {
         nowMinutes: Int,
         browsingFutureDay: Bool
     ) -> String? {
-        // Eat chips are always Breakfast / Lunch / Dinner — not only what's posted.
+        // Eat chips stay on screen even when a meal has not posted yet.
         let pills = DiningService.mealSelectorPills
         // Board-backed pills for window matching (Brunch → Breakfast, etc.).
         let boardPills = DiningService.primaryPeriods(from: availablePeriods)

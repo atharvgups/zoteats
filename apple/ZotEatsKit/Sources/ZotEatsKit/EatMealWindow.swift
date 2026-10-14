@@ -9,12 +9,20 @@ public enum EatMealWindow: Sendable {
     /// Weekday lunch ends 14:30. Weekend brunch continues later, but the
     /// Lunch pill yields to Dinner once this cut has passed.
     public static let lunchEndMinutes = 14 * 60 + 30
+    /// Anteatery Afternoon Snack is 14:30–16:30; Dinner starts 16:30.
+    public static let afternoonSnackEndMinutes = 16 * 60 + 30
+    /// Typical dinner close. Evening Snack / Late Night starts here when posted.
+    public static let dinnerEndMinutes = 20 * 60
 
-    /// In-app ticks so Eat advances at 11:00 / 14:30 even when Brunch is
+    /// In-app ticks so Eat advances at hall cuts even when Brunch is
     /// still the only live window.
-    public static let autoSelectCuts = [breakfastEndMinutes, lunchEndMinutes]
+    public static let autoSelectCuts = [
+        breakfastEndMinutes, lunchEndMinutes, afternoonSnackEndMinutes, dinnerEndMinutes,
+    ]
 
     /// Clock fallback used when the board is partial or Brunch is live.
+    /// Stays Breakfast / Lunch / Dinner so weekend Brunch still snaps Lunch
+    /// then Dinner. Posted Afternoon Snack / Late Night windows win in `autoPill`.
     public static func clockPill(nowMinutes: Int) -> String {
         if nowMinutes < breakfastEndMinutes { return "Breakfast" }
         if nowMinutes < lunchEndMinutes { return "Lunch" }
@@ -34,7 +42,11 @@ public enum EatMealWindow: Sendable {
             nowMinutes: nowMinutes
         )
         if choice.isAfterHours { return nil }
-        return expectedPrimary(timedPeriods: timedPeriods, nowMinutes: nowMinutes)
+        return expectedPrimary(
+            timedPeriods: timedPeriods,
+            availablePeriods: availablePeriods,
+            nowMinutes: nowMinutes
+        )
     }
 
     /// True when Eat should leave this pill — published window ended, or
@@ -71,6 +83,20 @@ public enum EatMealWindow: Sendable {
                     timedPeriods: timedPeriods,
                     nowMinutes: nowMinutes
                 )
+        case "Afternoon Snack":
+            return nowMinutes >= afternoonSnackEndMinutes
+                && !isServingCanonical("Afternoon Snack", timedPeriods: timedPeriods, nowMinutes: nowMinutes)
+        case "Dinner":
+            return nowMinutes >= dinnerEndMinutes
+                && !isServingTrueMeal(
+                    named: "dinner",
+                    excluding: "",
+                    timedPeriods: timedPeriods,
+                    nowMinutes: nowMinutes
+                )
+        case "Late Night":
+            return !isServingCanonical("Late Night", timedPeriods: timedPeriods, nowMinutes: nowMinutes)
+                && nowMinutes >= dinnerEndMinutes
         default:
             return false
         }
@@ -80,13 +106,31 @@ public enum EatMealWindow: Sendable {
 
     static func expectedPrimary(
         timedPeriods: [MealPeriodWindow],
+        availablePeriods: [String] = [],
         nowMinutes: Int
     ) -> String? {
         let timed = timedPeriods.filter { $0.startMinutes != nil && $0.endMinutes != nil }
         let live = timed.filter {
             nowMinutes >= $0.startMinutes! && nowMinutes < $0.endMinutes!
         }
+        let postedSnack = availablePeriods.contains { MealPeriodPill.isAfternoonSnack($0.lowercased()) }
+            || timedPeriods.contains { MealPeriodPill.isAfternoonSnack($0.name.lowercased()) }
+        let postedLate = availablePeriods.contains { MealPeriodPill.isLateNight($0.lowercased()) }
+            || timedPeriods.contains { MealPeriodPill.isLateNight($0.name.lowercased()) }
 
+        if live.contains(where: { MealPeriodPill.canonical($0.name) == "Late Night" }) {
+            return "Late Night"
+        }
+        // Snack sits between Lunch and Dinner. Check it before Dinner so a
+        // 14:30–16:30 window never snaps Dinner or Lunch.
+        if live.contains(where: { MealPeriodPill.canonical($0.name) == "Afternoon Snack" }) {
+            return "Afternoon Snack"
+        }
+        if postedSnack,
+           nowMinutes >= lunchEndMinutes,
+           nowMinutes < afternoonSnackEndMinutes {
+            return "Afternoon Snack"
+        }
         if live.contains(where: { MealPeriodPill.canonical($0.name) == "Dinner" }) {
             return "Dinner"
         }
@@ -98,6 +142,10 @@ public enum EatMealWindow: Sendable {
         }
         if live.contains(where: { $0.name.lowercased().contains("brunch") }) {
             return clockPill(nowMinutes: nowMinutes)
+        }
+
+        if postedLate, nowMinutes >= dinnerEndMinutes {
+            return "Late Night"
         }
 
         if let upcoming = timed
@@ -132,6 +180,21 @@ public enum EatMealWindow: Sendable {
 
     private static func isTrueMealName(_ name: String, named: String, excluding: String) -> Bool {
         let lower = name.lowercased()
+        if excluding.isEmpty { return lower.contains(named) }
         return lower.contains(named) && !lower.contains(excluding)
+    }
+
+    private static func isServingCanonical(
+        _ pill: String,
+        timedPeriods: [MealPeriodWindow],
+        nowMinutes: Int
+    ) -> Bool {
+        timedPeriods.contains { window in
+            guard let start = window.startMinutes, let end = window.endMinutes else {
+                return false
+            }
+            guard MealPeriodPill.canonical(window.name) == pill else { return false }
+            return nowMinutes >= start && nowMinutes < end
+        }
     }
 }
