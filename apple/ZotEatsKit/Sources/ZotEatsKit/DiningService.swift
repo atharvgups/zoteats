@@ -439,10 +439,41 @@ public struct DiningService: Sendable {
         "1893", // Brandywine
     ]
 
-    /// Brandywine Ember burgers stay the same day to day, so Eat pins this last.
+    /// Brandywine Ember burgers stay the same day to day. Eat still treats
+    /// Ember as the standing burger board, via `standingBurgerStationIDs`.
     public static let emberStationIDs: Set<String> = [
         "1878",
     ]
+
+    /// Standing burger / grill boards that rarely change: Brandywine Ember and
+    /// Anteatery Sizzle Grill. Name matching covers a future Oasis equivalent
+    /// without a one-off id. Generic "grill" is not enough (September Grill).
+    public static let standingBurgerStationIDs: Set<String> = [
+        "1878", // Brandywine Ember
+        "1935", // The Anteatery Sizzle Grill
+    ]
+
+    /// Dessert / sweets boards: Brandywine Honeycakes and Anteatery Bakery.
+    public static let dessertStationIDs: Set<String> = [
+        "1872",
+        "1938",
+    ]
+
+    /// Eat / Campus station lanes. Twisted Root first, rotating hot stations,
+    /// then sides, all-day, desserts, standing burger last.
+    public enum StationLane: Int, Comparable, Sendable {
+        case twistedRoot = 0
+        case hotEntree = 1
+        case other = 2
+        case sides = 3
+        case availableAllDay = 4
+        case dessert = 5
+        case standingBurger = 6
+
+        public static func < (lhs: Self, rhs: Self) -> Bool {
+            lhs.rawValue < rhs.rawValue
+        }
+    }
 
     /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
     public static func hallID(forTwistedRootStation stationID: String) -> String? {
@@ -461,20 +492,71 @@ public struct DiningService: Sendable {
         return owner.caseInsensitiveCompare(hallID) == .orderedSame
     }
 
-    public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
-        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
-        let lowered = stationName.lowercased()
+    public static func collapsedStationName(_ name: String) -> String {
+        name.lowercased()
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
+        let lowered = collapsedStationName(stationName)
         return lowered.contains("twisted root") || lowered.contains("twistedroot")
     }
 
     public static func isEmber(stationName: String, stationID: String? = nil) -> Bool {
         if let stationID, emberStationIDs.contains(stationID) { return true }
-        let lowered = stationName.lowercased()
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = collapsedStationName(stationName)
         return lowered == "ember" || lowered.hasPrefix("ember ")
+    }
+
+    public static func isStandingBurger(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, standingBurgerStationIDs.contains(stationID) { return true }
+        if isEmber(stationName: stationName, stationID: stationID) { return true }
+        let lowered = collapsedStationName(stationName)
+        if lowered.isEmpty { return false }
+        if lowered.contains("sizzle") { return true }
+        if lowered.contains("burger") { return true }
+        return false
+    }
+
+    public static func isDessertStation(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, dessertStationIDs.contains(stationID) { return true }
+        let lowered = collapsedStationName(stationName)
+        if lowered.isEmpty { return false }
+        let needles = [
+            "honeycake", "bakery", "dessert", "sweets", "pastry",
+            "ice cream", "icecream", "cookie", "pudding",
+        ]
+        if needles.contains(where: { lowered.contains($0) }) { return true }
+        return lowered == "sweet" || lowered.hasPrefix("sweet ") || lowered.hasSuffix(" sweet")
+    }
+
+    public static func isSidesStation(stationName: String) -> Bool {
+        let lowered = collapsedStationName(stationName)
+        let needles = [
+            "soup", "salad", "deli", "farmer", "farm stand", "farmstand",
+            "side", "vegetable", "veggie",
+        ]
+        return needles.contains(where: { lowered.contains($0) })
+    }
+
+    public static func isAvailableAllDayStation(stationName: String) -> Bool {
+        CampusMenuNormalize.isAvailableAllDay(stationName)
+            || collapsedStationName(stationName) == "all day"
+    }
+
+    public static func stationLane(name: String, stationID: String? = nil) -> StationLane {
+        if isTwistedRoot(stationName: name, stationID: stationID) { return .twistedRoot }
+        if isStandingBurger(stationName: name, stationID: stationID) { return .standingBurger }
+        if isAvailableAllDayStation(stationName: name) { return .availableAllDay }
+        if isDessertStation(stationName: name, stationID: stationID) { return .dessert }
+        if isSidesStation(stationName: name) { return .sides }
+        let lowered = collapsedStationName(name)
+        if lowered.contains("promotion") || lowered == "also served" {
+            return .other
+        }
+        return .hotEntree
     }
 
     /// Prefer the live name; fall back to the brand so a missing station map
@@ -535,21 +617,18 @@ public struct DiningService: Sendable {
         )
     }
 
-    /// Twisted Root leads Eat and Campus food lists. Ember (the standing
-    /// burger board) is last. Relative order of everything else is preserved.
+    /// Twisted Root leads Eat and Campus food lists. Rotating hot stations
+    /// come next, then sides, all-day, desserts, and the standing burger/grill
+    /// board last. Relative order inside a lane is preserved.
     public static func pinTwistedRootFirst(_ stations: [MenuStation]) -> [MenuStation] {
-        let twisted = stations.filter {
-            isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
-        }
-        let ember = stations.filter {
-            isEmber(stationName: $0.name, stationID: $0.stationID)
-                && !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
-        }
-        let rest = stations.filter {
-            !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
-                && !isEmber(stationName: $0.name, stationID: $0.stationID)
-        }
-        return twisted + rest + ember
+        stations.enumerated()
+            .sorted { lhs, rhs in
+                let left = stationLane(name: lhs.element.name, stationID: lhs.element.stationID)
+                let right = stationLane(name: rhs.element.name, stationID: rhs.element.stationID)
+                if left != right { return left < right }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 
     // MARK: - Public API
@@ -1411,16 +1490,6 @@ public struct DiningService: Sendable {
         }
 
         stations = pinTwistedRootFirst(stations)
-        if let allDayIdx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }) {
-            let allDay = stations.remove(at: allDayIdx)
-            if let emberIdx = stations.firstIndex(where: {
-                isEmber(stationName: $0.name, stationID: $0.stationID)
-            }) {
-                stations.insert(allDay, at: emberIdx)
-            } else {
-                stations.append(allDay)
-            }
-        }
 
         return DiningMenu(
             locationId: menu.locationId,
@@ -1536,7 +1605,7 @@ public struct DiningService: Sendable {
             locationId: hall,
             date: dateISO,
             period: resolved,
-            stations: mealStations
+            stations: Self.pinTwistedRootFirst(mealStations)
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).

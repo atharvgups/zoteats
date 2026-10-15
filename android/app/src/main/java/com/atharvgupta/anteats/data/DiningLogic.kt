@@ -4,7 +4,19 @@ object DiningLogic {
     val mealSelectorPills = listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night")
     val twistedRootStationIDs = setOf("1929", "1893")
     val emberStationIDs = setOf("1878")
+    val standingBurgerStationIDs = setOf("1878", "1935")
+    val dessertStationIDs = setOf("1872", "1938")
     val dishBatchChunkSizes = listOf(40, 8, 1)
+
+    enum class StationLane {
+        TWISTED_ROOT,
+        HOT_ENTREE,
+        OTHER,
+        SIDES,
+        AVAILABLE_ALL_DAY,
+        DESSERT,
+        STANDING_BURGER,
+    }
 
     fun isAfternoonSnack(name: String): Boolean {
         val lower = name.lowercase()
@@ -96,16 +108,66 @@ object DiningLogic {
         return names.filter { !it.contains("all day", ignoreCase = true) }
     }
 
+    fun collapsedStationName(name: String): String =
+        name.lowercase().replace(Regex("\\s+"), " ").trim()
+
     fun isTwistedRoot(stationName: String, stationID: String? = null): Boolean {
         if (stationID != null && stationID in twistedRootStationIDs) return true
-        val lowered = stationName.lowercase().replace(Regex("\\s+"), " ").trim()
+        val lowered = collapsedStationName(stationName)
         return "twisted root" in lowered || "twistedroot" in lowered
     }
 
     fun isEmber(stationName: String, stationID: String? = null): Boolean {
         if (stationID != null && stationID in emberStationIDs) return true
-        val lowered = stationName.lowercase().replace(Regex("\\s+"), " ").trim()
+        val lowered = collapsedStationName(stationName)
         return lowered == "ember" || lowered.startsWith("ember ")
+    }
+
+    fun isStandingBurger(stationName: String, stationID: String? = null): Boolean {
+        if (stationID != null && stationID in standingBurgerStationIDs) return true
+        if (isEmber(stationName, stationID)) return true
+        val lowered = collapsedStationName(stationName)
+        if (lowered.isEmpty()) return false
+        if ("sizzle" in lowered) return true
+        if ("burger" in lowered) return true
+        return false
+    }
+
+    fun isDessertStation(stationName: String, stationID: String? = null): Boolean {
+        if (stationID != null && stationID in dessertStationIDs) return true
+        val lowered = collapsedStationName(stationName)
+        if (lowered.isEmpty()) return false
+        val needles = listOf(
+            "honeycake", "bakery", "dessert", "sweets", "pastry",
+            "ice cream", "icecream", "cookie", "pudding",
+        )
+        if (needles.any { it in lowered }) return true
+        return lowered == "sweet" || lowered.startsWith("sweet ") || lowered.endsWith(" sweet")
+    }
+
+    fun isSidesStation(stationName: String): Boolean {
+        val lowered = collapsedStationName(stationName)
+        val needles = listOf(
+            "soup", "salad", "deli", "farmer", "farm stand", "farmstand",
+            "side", "vegetable", "veggie",
+        )
+        return needles.any { it in lowered }
+    }
+
+    fun isAvailableAllDayStation(stationName: String): Boolean {
+        val lowered = collapsedStationName(stationName)
+        return lowered == "available all day" || lowered == "all day"
+    }
+
+    fun stationLane(name: String, stationID: String? = null): StationLane {
+        if (isTwistedRoot(name, stationID)) return StationLane.TWISTED_ROOT
+        if (isStandingBurger(name, stationID)) return StationLane.STANDING_BURGER
+        if (isAvailableAllDayStation(name)) return StationLane.AVAILABLE_ALL_DAY
+        if (isDessertStation(name, stationID)) return StationLane.DESSERT
+        if (isSidesStation(name)) return StationLane.SIDES
+        val lowered = collapsedStationName(name)
+        if ("promotion" in lowered || lowered == "also served") return StationLane.OTHER
+        return StationLane.HOT_ENTREE
     }
 
     fun displayStationName(mapped: String?, stationID: String): String {
@@ -130,12 +192,10 @@ object DiningLogic {
         }
     }
 
-    fun pinTwistedRootFirst(stations: List<MenuStation>): List<MenuStation> {
-        val twisted = stations.filter { isTwistedRoot(it.name, it.stationID) }
-        val ember = stations.filter { isEmber(it.name, it.stationID) && !isTwistedRoot(it.name, it.stationID) }
-        val rest = stations.filter { !isTwistedRoot(it.name, it.stationID) && !isEmber(it.name, it.stationID) }
-        return twisted + rest + ember
-    }
+    fun pinTwistedRootFirst(stations: List<MenuStation>): List<MenuStation> =
+        stations.mapIndexed { index, station ->
+            Triple(stationLane(station.name, station.stationID), index, station)
+        }.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
 
     fun mergeKey(station: MenuStation): String? {
         val id = station.stationID?.trim().orEmpty()

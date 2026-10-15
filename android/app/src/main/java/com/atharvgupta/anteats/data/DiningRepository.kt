@@ -80,17 +80,6 @@ class DiningRepository(
             }
         }
         mealStations = DiningLogic.pinTwistedRootFirst(mealStations)
-        val allDayIdx = mealStations.indexOfFirst { it.name.equals("Available all day", true) }
-        if (allDayIdx >= 0) {
-            val allDay = mealStations[allDayIdx]
-            val without = mealStations.filterIndexed { i, _ -> i != allDayIdx }
-            val emberIdx = without.indexOfFirst { DiningLogic.isEmber(it.name, it.stationID) }
-            mealStations = if (emberIdx >= 0) {
-                without.take(emberIdx) + allDay + without.drop(emberIdx)
-            } else {
-                without + allDay
-            }
-        }
         return DiningMenu(
             locationId = hall,
             date = dateISO,

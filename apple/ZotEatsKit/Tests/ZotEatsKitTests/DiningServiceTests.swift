@@ -47,6 +47,20 @@ struct DiningServiceTests {
         #expect(items.contains { !$0.dietaryTags.isEmpty })
         // Station IDs resolve to real names, not the fallback.
         #expect(menu.stations.contains { $0.name != "Menu" })
+        #expect(
+            menu.stations.first.map {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            } == true
+        )
+        if menu.stations.contains(where: {
+            DiningService.isStandingBurger(stationName: $0.name, stationID: $0.stationID)
+        }) {
+            #expect(
+                menu.stations.last.map {
+                    DiningService.isStandingBurger(stationName: $0.name, stationID: $0.stationID)
+                } == true
+            )
+        }
 
         // Full nutrition label rides along: macros, sodium, and ingredients.
         let labeled = items.compactMap(\.nutrition)
@@ -1155,7 +1169,7 @@ struct DiningServiceTests {
         ]
         #expect(
             DiningService.pinTwistedRootFirst(stations).map(\.name)
-                == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay]
+                == ["The Twisted Root", "Home", CampusMenuNormalize.availableAllDay, "Sizzle Grill"]
         )
         let withEmber = [
             MenuStation(name: "Ember", items: [dish], stationID: "1878"),
@@ -1166,14 +1180,96 @@ struct DiningServiceTests {
         ]
         #expect(
             DiningService.pinTwistedRootFirst(withEmber).map(\.name)
-                == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay, "Ember"]
+                == ["The Twisted Root", "Home", CampusMenuNormalize.availableAllDay, "Ember", "Sizzle Grill"]
         )
         #expect(DiningService.isEmber(stationName: "Menu", stationID: "1878"))
+        #expect(DiningService.isStandingBurger(stationName: "Menu", stationID: "1935"))
+        #expect(DiningService.isStandingBurger(stationName: "Sizzle Grill"))
         #expect(!DiningService.isEmber(stationName: "September Grill"))
+        #expect(!DiningService.isStandingBurger(stationName: "September Grill"))
         let unnamed = MenuStation(name: "Menu", items: [dish], stationID: "1929")
         #expect(DiningService.pinTwistedRootFirst([stations[0], unnamed]).first?.stationID == "1929")
         #expect(DiningService.displayStationName(nil, stationID: "1929") == "The Twisted Root")
         #expect(DiningService.displayStationName("Home", stationID: "1932") == "Home")
+    }
+
+    @Test func ordersRotatingStationsBeforeDessertsAndStandingBurgers() {
+        let dish = MenuItem(
+            id: "x", name: "Tofu", description: nil, calories: 200,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
+        )
+        func station(_ name: String, id: String? = nil) -> MenuStation {
+            MenuStation(name: name, items: [dish], stationID: id)
+        }
+        let anteateryLunch = [
+            station("Fire and Ice", id: "1926"),
+            station("The Twisted Root", id: "1929"),
+            station("Sizzle Grill", id: "1935"),
+            station("Bakery", id: "1938"),
+            station("Oven", id: "1941"),
+            station("Soups", id: "1944"),
+            station("Farmer's Market", id: "1947"),
+            station("Noodle Bar", id: "1953"),
+        ]
+        #expect(
+            DiningService.pinTwistedRootFirst(anteateryLunch).map(\.name)
+                == [
+                    "The Twisted Root",
+                    "Fire and Ice",
+                    "Oven",
+                    "Noodle Bar",
+                    "Soups",
+                    "Farmer's Market",
+                    "Bakery",
+                    "Sizzle Grill",
+                ]
+        )
+        let brandywineLunch = [
+            station("Honeycakes", id: "1872"),
+            station("Ember", id: "1878"),
+            station("Grubb", id: "1881"),
+            station("Hearth", id: "1884"),
+            station("Compass", id: "1887"),
+            station("Crossroads", id: "1890"),
+            station("The Twisted Root", id: "1893"),
+            station("Soups", id: "1896"),
+            station("Saute", id: "1899"),
+        ]
+        #expect(
+            DiningService.pinTwistedRootFirst(brandywineLunch).map(\.name)
+                == [
+                    "The Twisted Root",
+                    "Grubb",
+                    "Hearth",
+                    "Compass",
+                    "Crossroads",
+                    "Saute",
+                    "Soups",
+                    "Honeycakes",
+                    "Ember",
+                ]
+        )
+        let oasis = [
+            station("Oasis Wok"),
+            station("Burger Bar"),
+            station("Sweets"),
+            station("The Twisted Root"),
+            station("The Farm Stand- Salad"),
+        ]
+        #expect(
+            DiningService.pinTwistedRootFirst(oasis).map(\.name)
+                == [
+                    "The Twisted Root",
+                    "Oasis Wok",
+                    "The Farm Stand- Salad",
+                    "Sweets",
+                    "Burger Bar",
+                ]
+        )
+        #expect(DiningService.stationLane(name: "Deli") == .sides)
+        #expect(DiningService.stationLane(name: "Bakery", stationID: "1938") == .dessert)
+        #expect(DiningService.stationLane(name: "Menu", stationID: "1878") == .standingBurger)
+        #expect(DiningService.stationLane(name: "September Grill") == .hotEntree)
     }
 
     @Test func mergeKeepsUnknownStationsWithDifferentIds() {

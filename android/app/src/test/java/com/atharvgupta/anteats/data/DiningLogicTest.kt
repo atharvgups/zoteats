@@ -84,7 +84,7 @@ class DiningLogicTest {
             MenuStation("Available all day", listOf(dish)),
         )
         assertEquals(
-            listOf("The Twisted Root", "Sizzle Grill", "Home", "Available all day"),
+            listOf("The Twisted Root", "Home", "Available all day", "Sizzle Grill"),
             DiningLogic.pinTwistedRootFirst(stations).map { it.name },
         )
         val withEmber = listOf(
@@ -95,13 +95,91 @@ class DiningLogicTest {
             MenuStation("Available all day", listOf(dish)),
         )
         assertEquals(
-            listOf("The Twisted Root", "Sizzle Grill", "Home", "Available all day", "Ember"),
+            listOf("The Twisted Root", "Home", "Available all day", "Ember", "Sizzle Grill"),
             DiningLogic.pinTwistedRootFirst(withEmber).map { it.name },
         )
         assertTrue(DiningLogic.isEmber("Menu", "1878"))
+        assertTrue(DiningLogic.isStandingBurger("Menu", "1935"))
+        assertTrue(DiningLogic.isStandingBurger("Sizzle Grill"))
         assertFalse(DiningLogic.isEmber("September Grill"))
+        assertFalse(DiningLogic.isStandingBurger("September Grill"))
         assertEquals("The Twisted Root", DiningLogic.displayStationName(null, "1929"))
         assertEquals("The Twisted Root", DiningLogic.displayStationName(null, "1893"))
+    }
+
+    @Test
+    fun ordersRotatingStationsBeforeDessertsAndStandingBurgers() {
+        val dish = MenuItem("x", "Tofu", null, 200, null, emptyList(), listOf("Vegan"))
+        fun station(name: String, id: String? = null) = MenuStation(name, listOf(dish), id)
+        val anteateryLunch = listOf(
+            station("Fire and Ice", "1926"),
+            station("The Twisted Root", "1929"),
+            station("Sizzle Grill", "1935"),
+            station("Bakery", "1938"),
+            station("Oven", "1941"),
+            station("Soups", "1944"),
+            station("Farmer's Market", "1947"),
+            station("Noodle Bar", "1953"),
+        )
+        assertEquals(
+            listOf(
+                "The Twisted Root",
+                "Fire and Ice",
+                "Oven",
+                "Noodle Bar",
+                "Soups",
+                "Farmer's Market",
+                "Bakery",
+                "Sizzle Grill",
+            ),
+            DiningLogic.pinTwistedRootFirst(anteateryLunch).map { it.name },
+        )
+        val brandywineLunch = listOf(
+            station("Honeycakes", "1872"),
+            station("Ember", "1878"),
+            station("Grubb", "1881"),
+            station("Hearth", "1884"),
+            station("Compass", "1887"),
+            station("Crossroads", "1890"),
+            station("The Twisted Root", "1893"),
+            station("Soups", "1896"),
+            station("Saute", "1899"),
+        )
+        assertEquals(
+            listOf(
+                "The Twisted Root",
+                "Grubb",
+                "Hearth",
+                "Compass",
+                "Crossroads",
+                "Saute",
+                "Soups",
+                "Honeycakes",
+                "Ember",
+            ),
+            DiningLogic.pinTwistedRootFirst(brandywineLunch).map { it.name },
+        )
+        val oasis = listOf(
+            station("Oasis Wok"),
+            station("Burger Bar"),
+            station("Sweets"),
+            station("The Twisted Root"),
+            station("The Farm Stand- Salad"),
+        )
+        assertEquals(
+            listOf(
+                "The Twisted Root",
+                "Oasis Wok",
+                "The Farm Stand- Salad",
+                "Sweets",
+                "Burger Bar",
+            ),
+            DiningLogic.pinTwistedRootFirst(oasis).map { it.name },
+        )
+        assertEquals(DiningLogic.StationLane.SIDES, DiningLogic.stationLane("Deli"))
+        assertEquals(DiningLogic.StationLane.DESSERT, DiningLogic.stationLane("Bakery", "1938"))
+        assertEquals(DiningLogic.StationLane.STANDING_BURGER, DiningLogic.stationLane("Menu", "1878"))
+        assertEquals(DiningLogic.StationLane.HOT_ENTREE, DiningLogic.stationLane("September Grill"))
     }
 
     @Test

@@ -4,8 +4,8 @@ import Foundation
 public enum CampusMenuNormalize {
     public static let availableAllDay = "Available all day"
 
-    /// Rename All Day → Available all day, dedupe items, then pin that
-    /// section after the other stations. Ember still stays last.
+    /// Rename All Day → Available all day, dedupe items, then let the shared
+    /// station ranker place that section before desserts and the burger board.
     public static func stations(_ raw: [MenuStation]) -> [MenuStation] {
         var allDayItems: [MenuItem] = []
         var allDaySeen = Set<String>()
@@ -27,11 +27,10 @@ public enum CampusMenuNormalize {
             }
         }
 
-        let pinned = DiningService.pinTwistedRootFirst(others)
-        if allDayItems.isEmpty { return pinned }
-        let ember = pinned.filter { DiningService.isEmber(stationName: $0.name, stationID: $0.stationID) }
-        let rest = pinned.filter { !DiningService.isEmber(stationName: $0.name, stationID: $0.stationID) }
-        return rest + [MenuStation(name: availableAllDay, items: allDayItems)] + ember
+        if !allDayItems.isEmpty {
+            others.append(MenuStation(name: availableAllDay, items: allDayItems))
+        }
+        return DiningService.pinTwistedRootFirst(others)
     }
 
     public static func isAvailableAllDay(_ stationName: String) -> Bool {

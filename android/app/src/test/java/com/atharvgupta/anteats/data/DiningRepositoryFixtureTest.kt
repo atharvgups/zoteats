@@ -34,6 +34,15 @@ class DiningRepositoryFixtureTest {
         assertEquals("The Twisted Root", menu.stations.first().name)
         assertTrue(menu.stations.first().items.all { it.dietaryTags.contains("Vegan") })
         assertTrue(menu.stations.any { it.name == "Available all day" })
+        val names = menu.stations.map { it.name }
+        if (names.any { DiningLogic.isStandingBurger(it) }) {
+            assertTrue(DiningLogic.isStandingBurger(names.last()))
+        }
+        val bakeryIdx = names.indexOfFirst { DiningLogic.isDessertStation(it) }
+        val burgerIdx = names.indexOfFirst { DiningLogic.isStandingBurger(it) }
+        if (bakeryIdx >= 0 && burgerIdx >= 0) {
+            assertTrue(bakeryIdx < burgerIdx)
+        }
         assertEquals(listOf("Breakfast", "Lunch"), menu.twistedRootMeals)
         assertTrue(menu.stations.flatMap { it.items }.any { it.calories != null })
     }
