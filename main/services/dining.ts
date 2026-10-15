@@ -263,12 +263,42 @@ export async function getMenu(locationId: DiningLocationId, period: string, date
 const TWISTED_ROOT_IDS = new Set(["1929", "1893"]);
 const STANDING_BURGER_IDS = new Set(["1878", "1935"]);
 const DESSERT_IDS = new Set(["1872", "1938"]);
+const PIZZA_IDS = new Set(["1941", "1884"]);
 
 function collapsedStationName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function stationLane(name: string, stationID?: string): number {
+function dishLooksLikePizza(name: string): boolean {
+  const lowered = collapsedStationName(name);
+  return lowered.includes("pizza") || lowered.includes("flatbread");
+}
+
+function isPizzaStation(name: string, stationID: string | undefined, items: MenuItem[]): boolean {
+  const lowered = collapsedStationName(name);
+  const id = stationID?.trim() ?? "";
+  if ((id && TWISTED_ROOT_IDS.has(id)) || lowered.includes("twisted root") || lowered.includes("twistedroot")) {
+    return false;
+  }
+  const isEmber = (id && id === "1878") || lowered === "ember" || lowered.startsWith("ember ");
+  if ((id && STANDING_BURGER_IDS.has(id)) || isEmber || lowered.includes("sizzle") || lowered.includes("burger")) {
+    return false;
+  }
+  if (lowered.includes("pizza") || lowered.includes("pizzeria")) return true;
+  const maybePizzaBoard =
+    (id && PIZZA_IDS.has(id)) ||
+    lowered === "oven" ||
+    lowered.startsWith("oven ") ||
+    lowered.endsWith(" oven") ||
+    lowered.includes(" oven ") ||
+    lowered === "hearth" ||
+    lowered.startsWith("hearth ") ||
+    lowered.endsWith(" hearth");
+  if (!maybePizzaBoard) return false;
+  return items.some((item) => dishLooksLikePizza(item.name));
+}
+
+function stationLane(name: string, stationID: string | undefined, items: MenuItem[]): number {
   const lowered = collapsedStationName(name);
   const id = stationID?.trim() ?? "";
   if ((id && TWISTED_ROOT_IDS.has(id)) || lowered.includes("twisted root") || lowered.includes("twistedroot")) {
@@ -281,7 +311,7 @@ function stationLane(name: string, stationID?: string): number {
     lowered.includes("sizzle") ||
     lowered.includes("burger")
   ) {
-    return 6;
+    return 7;
   }
   if (lowered === "available all day" || lowered === "all day") return 4;
   const dessertNeedles = [
@@ -304,6 +334,7 @@ function stationLane(name: string, stationID?: string): number {
   ) {
     return 5;
   }
+  if (isPizzaStation(name, stationID, items)) return 6;
   const sideNeedles = [
     "soup",
     "salad",
@@ -322,7 +353,11 @@ function stationLane(name: string, stationID?: string): number {
 
 function pinTwistedRootFirst(stations: MenuStation[], stationIDs: string[]): MenuStation[] {
   return stations
-    .map((station, index) => ({ station, index, lane: stationLane(station.name, stationIDs[index]) }))
+    .map((station, index) => ({
+      station,
+      index,
+      lane: stationLane(station.name, stationIDs[index], station.items),
+    }))
     .sort((a, b) => (a.lane === b.lane ? a.index - b.index : a.lane - b.lane))
     .map((row) => row.station);
 }

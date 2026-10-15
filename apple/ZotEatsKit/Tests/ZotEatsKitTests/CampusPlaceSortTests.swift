@@ -228,4 +228,24 @@ struct CampusMenuNormalizeTests {
                 ]
         )
     }
+
+    @Test func pinsOvenPizzaAboveSizzleGrill() {
+        let stations = CampusMenuNormalize.stations([
+            MenuStation(name: "Sizzle Grill", items: [item("Cheeseburger")], stationID: "1935"),
+            MenuStation(name: "Oven", items: [item("Pepperoni Pizza")], stationID: "1941"),
+            MenuStation(name: "Bakery", items: [item("Cookie")], stationID: "1938"),
+            MenuStation(name: "Fire and Ice", items: [item("Teriyaki")]),
+            MenuStation(name: "The Twisted Root", items: [item("Tofu")]),
+        ])
+        #expect(
+            stations.map(\.name)
+                == [
+                    "The Twisted Root",
+                    "Fire and Ice",
+                    "Bakery",
+                    "Oven",
+                    "Sizzle Grill",
+                ]
+        )
+    }
 }

@@ -1198,15 +1198,23 @@ struct DiningServiceTests {
             id: "x", name: "Tofu", description: nil, calories: 200,
             servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
         )
-        func station(_ name: String, id: String? = nil) -> MenuStation {
-            MenuStation(name: name, items: [dish], stationID: id)
+        let pizza = MenuItem(
+            id: "p", name: "Pepperoni Pizza", description: nil, calories: 300,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let flatbread = MenuItem(
+            id: "f", name: "Margherita Flatbread", description: nil, calories: 280,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        func station(_ name: String, id: String? = nil, items: [MenuItem]? = nil) -> MenuStation {
+            MenuStation(name: name, items: items ?? [dish], stationID: id)
         }
         let anteateryLunch = [
             station("Fire and Ice", id: "1926"),
             station("The Twisted Root", id: "1929"),
             station("Sizzle Grill", id: "1935"),
             station("Bakery", id: "1938"),
-            station("Oven", id: "1941"),
+            station("Oven", id: "1941", items: [pizza]),
             station("Soups", id: "1944"),
             station("Farmer's Market", id: "1947"),
             station("Noodle Bar", id: "1953"),
@@ -1216,11 +1224,11 @@ struct DiningServiceTests {
                 == [
                     "The Twisted Root",
                     "Fire and Ice",
-                    "Oven",
                     "Noodle Bar",
                     "Soups",
                     "Farmer's Market",
                     "Bakery",
+                    "Oven",
                     "Sizzle Grill",
                 ]
         )
@@ -1228,7 +1236,7 @@ struct DiningServiceTests {
             station("Honeycakes", id: "1872"),
             station("Ember", id: "1878"),
             station("Grubb", id: "1881"),
-            station("Hearth", id: "1884"),
+            station("Hearth", id: "1884", items: [pizza, flatbread]),
             station("Compass", id: "1887"),
             station("Crossroads", id: "1890"),
             station("The Twisted Root", id: "1893"),
@@ -1240,18 +1248,19 @@ struct DiningServiceTests {
                 == [
                     "The Twisted Root",
                     "Grubb",
-                    "Hearth",
                     "Compass",
                     "Crossroads",
                     "Saute",
                     "Soups",
                     "Honeycakes",
+                    "Hearth",
                     "Ember",
                 ]
         )
         let oasis = [
             station("Oasis Wok"),
             station("Burger Bar"),
+            station("Pizza"),
             station("Sweets"),
             station("The Twisted Root"),
             station("The Farm Stand- Salad"),
@@ -1263,6 +1272,7 @@ struct DiningServiceTests {
                     "Oasis Wok",
                     "The Farm Stand- Salad",
                     "Sweets",
+                    "Pizza",
                     "Burger Bar",
                 ]
         )
@@ -1270,6 +1280,14 @@ struct DiningServiceTests {
         #expect(DiningService.stationLane(name: "Bakery", stationID: "1938") == .dessert)
         #expect(DiningService.stationLane(name: "Menu", stationID: "1878") == .standingBurger)
         #expect(DiningService.stationLane(name: "September Grill") == .hotEntree)
+        #expect(
+            DiningService.stationLane(name: "Oven", stationID: "1941", items: [pizza]) == .pizza
+        )
+        #expect(
+            DiningService.stationLane(name: "Oven", stationID: "1941", items: [dish]) == .hotEntree
+        )
+        #expect(DiningService.isPizzaStation(stationName: "Pizza"))
+        #expect(!DiningService.isPizzaStation(stationName: "Oven", stationID: "1941", items: [dish]))
     }
 
     @Test func mergeKeepsUnknownStationsWithDifferentIds() {

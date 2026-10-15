@@ -6,6 +6,7 @@ object DiningLogic {
     val emberStationIDs = setOf("1878")
     val standingBurgerStationIDs = setOf("1878", "1935")
     val dessertStationIDs = setOf("1872", "1938")
+    val pizzaStationIDs = setOf("1941", "1884")
     val dishBatchChunkSizes = listOf(40, 8, 1)
 
     enum class StationLane {
@@ -15,6 +16,7 @@ object DiningLogic {
         SIDES,
         AVAILABLE_ALL_DAY,
         DESSERT,
+        PIZZA,
         STANDING_BURGER,
     }
 
@@ -159,11 +161,43 @@ object DiningLogic {
         return lowered == "available all day" || lowered == "all day"
     }
 
-    fun stationLane(name: String, stationID: String? = null): StationLane {
+    fun dishLooksLikePizza(name: String): Boolean {
+        val lowered = collapsedStationName(name)
+        return "pizza" in lowered || "flatbread" in lowered
+    }
+
+    fun isPizzaStation(
+        stationName: String,
+        stationID: String? = null,
+        items: List<MenuItem> = emptyList(),
+    ): Boolean {
+        if (isTwistedRoot(stationName, stationID)) return false
+        if (isStandingBurger(stationName, stationID)) return false
+        val lowered = collapsedStationName(stationName)
+        if ("pizza" in lowered || "pizzeria" in lowered) return true
+        val maybePizzaBoard =
+            (stationID != null && stationID in pizzaStationIDs) ||
+                lowered == "oven" ||
+                lowered.startsWith("oven ") ||
+                lowered.endsWith(" oven") ||
+                " oven " in lowered ||
+                lowered == "hearth" ||
+                lowered.startsWith("hearth ") ||
+                lowered.endsWith(" hearth")
+        if (!maybePizzaBoard) return false
+        return items.any { dishLooksLikePizza(it.name) }
+    }
+
+    fun stationLane(
+        name: String,
+        stationID: String? = null,
+        items: List<MenuItem> = emptyList(),
+    ): StationLane {
         if (isTwistedRoot(name, stationID)) return StationLane.TWISTED_ROOT
         if (isStandingBurger(name, stationID)) return StationLane.STANDING_BURGER
         if (isAvailableAllDayStation(name)) return StationLane.AVAILABLE_ALL_DAY
         if (isDessertStation(name, stationID)) return StationLane.DESSERT
+        if (isPizzaStation(name, stationID, items)) return StationLane.PIZZA
         if (isSidesStation(name)) return StationLane.SIDES
         val lowered = collapsedStationName(name)
         if ("promotion" in lowered || lowered == "also served") return StationLane.OTHER
@@ -194,7 +228,7 @@ object DiningLogic {
 
     fun pinTwistedRootFirst(stations: List<MenuStation>): List<MenuStation> =
         stations.mapIndexed { index, station ->
-            Triple(stationLane(station.name, station.stationID), index, station)
+            Triple(stationLane(station.name, station.stationID, station.items), index, station)
         }.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
 
     fun mergeKey(station: MenuStation): String? {

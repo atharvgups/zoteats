@@ -459,8 +459,16 @@ public struct DiningService: Sendable {
         "1938",
     ]
 
+    /// Pizza boards that sit directly above the burger station. "Oven" / "Hearth"
+    /// still need a pizza or flatbread dish before they count; a named Pizza
+    /// station does not.
+    public static let pizzaStationIDs: Set<String> = [
+        "1941", // The Anteatery Oven
+        "1884", // Brandywine Hearth
+    ]
+
     /// Eat / Campus station lanes. Twisted Root first, rotating hot stations,
-    /// then sides, all-day, desserts, standing burger last.
+    /// then sides, all-day, desserts, pizza, standing burger last.
     public enum StationLane: Int, Comparable, Sendable {
         case twistedRoot = 0
         case hotEntree = 1
@@ -468,7 +476,8 @@ public struct DiningService: Sendable {
         case sides = 3
         case availableAllDay = 4
         case dessert = 5
-        case standingBurger = 6
+        case pizza = 6
+        case standingBurger = 7
 
         public static func < (lhs: Self, rhs: Self) -> Bool {
             lhs.rawValue < rhs.rawValue
@@ -546,11 +555,45 @@ public struct DiningService: Sendable {
             || collapsedStationName(stationName) == "all day"
     }
 
-    public static func stationLane(name: String, stationID: String? = nil) -> StationLane {
+    public static func dishLooksLikePizza(_ name: String) -> Bool {
+        let lowered = collapsedStationName(name)
+        return lowered.contains("pizza") || lowered.contains("flatbread")
+    }
+
+    public static func isPizzaStation(
+        stationName: String,
+        stationID: String? = nil,
+        items: [MenuItem] = []
+    ) -> Bool {
+        if isTwistedRoot(stationName: stationName, stationID: stationID) { return false }
+        if isStandingBurger(stationName: stationName, stationID: stationID) { return false }
+        let lowered = collapsedStationName(stationName)
+        if lowered.contains("pizza") || lowered.contains("pizzeria") { return true }
+        let maybePizzaBoard: Bool = {
+            if let stationID, pizzaStationIDs.contains(stationID) { return true }
+            if lowered == "oven" || lowered.hasPrefix("oven ") || lowered.hasSuffix(" oven") {
+                return true
+            }
+            if lowered.contains(" oven ") { return true }
+            if lowered == "hearth" || lowered.hasPrefix("hearth ") || lowered.hasSuffix(" hearth") {
+                return true
+            }
+            return false
+        }()
+        guard maybePizzaBoard else { return false }
+        return items.contains { dishLooksLikePizza($0.name) }
+    }
+
+    public static func stationLane(
+        name: String,
+        stationID: String? = nil,
+        items: [MenuItem] = []
+    ) -> StationLane {
         if isTwistedRoot(stationName: name, stationID: stationID) { return .twistedRoot }
         if isStandingBurger(stationName: name, stationID: stationID) { return .standingBurger }
         if isAvailableAllDayStation(stationName: name) { return .availableAllDay }
         if isDessertStation(stationName: name, stationID: stationID) { return .dessert }
+        if isPizzaStation(stationName: name, stationID: stationID, items: items) { return .pizza }
         if isSidesStation(stationName: name) { return .sides }
         let lowered = collapsedStationName(name)
         if lowered.contains("promotion") || lowered == "also served" {
@@ -618,13 +661,21 @@ public struct DiningService: Sendable {
     }
 
     /// Twisted Root leads Eat and Campus food lists. Rotating hot stations
-    /// come next, then sides, all-day, desserts, and the standing burger/grill
-    /// board last. Relative order inside a lane is preserved.
+    /// come next, then sides, all-day, desserts, pizza, and the standing
+    /// burger/grill board last. Relative order inside a lane is preserved.
     public static func pinTwistedRootFirst(_ stations: [MenuStation]) -> [MenuStation] {
         stations.enumerated()
             .sorted { lhs, rhs in
-                let left = stationLane(name: lhs.element.name, stationID: lhs.element.stationID)
-                let right = stationLane(name: rhs.element.name, stationID: rhs.element.stationID)
+                let left = stationLane(
+                    name: lhs.element.name,
+                    stationID: lhs.element.stationID,
+                    items: lhs.element.items
+                )
+                let right = stationLane(
+                    name: rhs.element.name,
+                    stationID: rhs.element.stationID,
+                    items: rhs.element.items
+                )
                 if left != right { return left < right }
                 return lhs.offset < rhs.offset
             }

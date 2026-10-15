@@ -110,13 +110,16 @@ class DiningLogicTest {
     @Test
     fun ordersRotatingStationsBeforeDessertsAndStandingBurgers() {
         val dish = MenuItem("x", "Tofu", null, 200, null, emptyList(), listOf("Vegan"))
-        fun station(name: String, id: String? = null) = MenuStation(name, listOf(dish), id)
+        val pizza = MenuItem("p", "Pepperoni Pizza", null, 300, null, emptyList(), emptyList())
+        val flatbread = MenuItem("f", "Margherita Flatbread", null, 280, null, emptyList(), emptyList())
+        fun station(name: String, id: String? = null, items: List<MenuItem> = listOf(dish)) =
+            MenuStation(name, items, id)
         val anteateryLunch = listOf(
             station("Fire and Ice", "1926"),
             station("The Twisted Root", "1929"),
             station("Sizzle Grill", "1935"),
             station("Bakery", "1938"),
-            station("Oven", "1941"),
+            station("Oven", "1941", listOf(pizza)),
             station("Soups", "1944"),
             station("Farmer's Market", "1947"),
             station("Noodle Bar", "1953"),
@@ -125,11 +128,11 @@ class DiningLogicTest {
             listOf(
                 "The Twisted Root",
                 "Fire and Ice",
-                "Oven",
                 "Noodle Bar",
                 "Soups",
                 "Farmer's Market",
                 "Bakery",
+                "Oven",
                 "Sizzle Grill",
             ),
             DiningLogic.pinTwistedRootFirst(anteateryLunch).map { it.name },
@@ -138,7 +141,7 @@ class DiningLogicTest {
             station("Honeycakes", "1872"),
             station("Ember", "1878"),
             station("Grubb", "1881"),
-            station("Hearth", "1884"),
+            station("Hearth", "1884", listOf(pizza, flatbread)),
             station("Compass", "1887"),
             station("Crossroads", "1890"),
             station("The Twisted Root", "1893"),
@@ -149,12 +152,12 @@ class DiningLogicTest {
             listOf(
                 "The Twisted Root",
                 "Grubb",
-                "Hearth",
                 "Compass",
                 "Crossroads",
                 "Saute",
                 "Soups",
                 "Honeycakes",
+                "Hearth",
                 "Ember",
             ),
             DiningLogic.pinTwistedRootFirst(brandywineLunch).map { it.name },
@@ -162,6 +165,7 @@ class DiningLogicTest {
         val oasis = listOf(
             station("Oasis Wok"),
             station("Burger Bar"),
+            station("Pizza"),
             station("Sweets"),
             station("The Twisted Root"),
             station("The Farm Stand- Salad"),
@@ -172,6 +176,7 @@ class DiningLogicTest {
                 "Oasis Wok",
                 "The Farm Stand- Salad",
                 "Sweets",
+                "Pizza",
                 "Burger Bar",
             ),
             DiningLogic.pinTwistedRootFirst(oasis).map { it.name },
@@ -180,6 +185,16 @@ class DiningLogicTest {
         assertEquals(DiningLogic.StationLane.DESSERT, DiningLogic.stationLane("Bakery", "1938"))
         assertEquals(DiningLogic.StationLane.STANDING_BURGER, DiningLogic.stationLane("Menu", "1878"))
         assertEquals(DiningLogic.StationLane.HOT_ENTREE, DiningLogic.stationLane("September Grill"))
+        assertEquals(
+            DiningLogic.StationLane.PIZZA,
+            DiningLogic.stationLane("Oven", "1941", listOf(pizza)),
+        )
+        assertEquals(
+            DiningLogic.StationLane.HOT_ENTREE,
+            DiningLogic.stationLane("Oven", "1941", listOf(dish)),
+        )
+        assertTrue(DiningLogic.isPizzaStation("Pizza"))
+        assertFalse(DiningLogic.isPizzaStation("Oven", "1941", listOf(dish)))
     }
 
     @Test
