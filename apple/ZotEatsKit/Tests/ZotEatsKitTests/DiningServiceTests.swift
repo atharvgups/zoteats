@@ -76,12 +76,26 @@ struct DiningServiceTests {
         #expect(locations.allSatisfy { !$0.openNow && $0.availablePeriods.isEmpty })
     }
 
-    @Test func primaryPeriodsKeepBreakfastLunchDinnerOnly() {
+    @Test func primaryPeriodsMapSnackAndLateNightFromRealNames() {
         let available = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
         #expect(DiningService.primaryPeriods(from: available) == ["Breakfast", "Lunch", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["Brunch", "Dinner", "All Day"]) == ["Breakfast", "Dinner"])
         #expect(DiningService.primaryPeriods(from: ["All Day"]).isEmpty)
-        #expect(DiningService.mealSelectorPills == ["Breakfast", "Lunch", "Dinner"])
+        #expect(
+            DiningService.primaryPeriods(from: ["Breakfast", "Afternoon Snack", "Evening Snack"])
+                == ["Breakfast", "Afternoon Snack", "Late Night"]
+        )
+        #expect(
+            DiningService.primaryPeriods(from: ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Evening Snack"])
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
+        )
+        #expect(DiningService.primaryPeriods(from: ["Overnight"]) == ["Late Night"])
+        #expect(
+            DiningService.mealSelectorPills
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
+        )
+        #expect(DiningService.pillIsPosted("Late Night", available: ["Evening Snack"]))
+        #expect(!DiningService.pillIsPosted("Late Night", available: ["Lunch", "Dinner"]))
     }
 
     @Test func oasisComingSoonHasNoInventedMenu() {
@@ -142,6 +156,10 @@ struct DiningServiceTests {
         #expect(DiningService.resolvePeriod("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Lunch", "Dinner"]) == "Lunch")
         #expect(DiningService.resolvePeriod("Lunch", available: ["Brunch", "Dinner"]) == "Brunch")
+        #expect(DiningService.resolvePeriod("Late Night", available: ["Dinner", "Evening Snack"]) == "Evening Snack")
+        #expect(DiningService.resolvePeriod("Afternoon Snack", available: ["Lunch", "Afternoon Snack"]) == "Afternoon Snack")
+        #expect(DiningService.resolvePeriod("Late Night", available: ["Overnight"]) == "Overnight")
+        #expect(DiningService.menuPeriodNames(primary: "Late Night", available: ["Dinner", "Evening Snack"]) == ["Evening Snack"])
     }
 
     @Test func lunchMenuPeriodNamesUnionBrunch() {
@@ -217,6 +235,216 @@ struct DiningServiceTests {
         #expect(!names.contains("Eggs"))
     }
 
+    @Test func lunchKeepsBrunchTwistedRootWhenAlsoOnBreakfast() {
+        // Sat Oct 3: untimed Lunch has no TR. Brunch TR hash is also on
+        // Breakfast. Do not erase the midday plant-based station.
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let eggs = MenuItem(
+            id: "eggs", name: "Scrambled Eggs", description: nil, calories: 140,
+            servingSize: nil, allergens: ["Eggs"], dietaryTags: []
+        )
+        let hotdog = MenuItem(
+            id: "dog", name: "Classic Hot Dog", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let breakfast = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+            MenuStation(name: "Home", items: [eggs], stationID: "1932"),
+        ]
+        let lunch = [
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let brunch = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+            MenuStation(name: "Home", items: [eggs], stationID: "1932"),
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let filtered = DiningService.subtractingBreakfastOnlyBrunchDishes(
+            from: DiningService.mergeStations(lunch, brunch),
+            lunch: lunch,
+            breakfast: breakfast
+        )
+        let names = filtered.flatMap(\.items).map(\.name)
+        #expect(names.contains("Tofu-Potato Hash"))
+        #expect(names.contains("Classic Hot Dog"))
+        #expect(!names.contains("Scrambled Eggs"))
+        #expect(filtered.contains { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) })
+    }
+
+    @Test func lunchKeepsBrunchTwistedRootWhenHubLunchIsOnlyFries() {
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let fries = MenuItem(
+            id: "fries", name: "Crispy Homestyle French Fries", description: nil, calories: 112,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let hotdog = MenuItem(
+            id: "dog", name: "Classic Hot Dog", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-03",
+            period: "Lunch",
+            stations: [
+                MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+                MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+            ]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [fries]),
+            MenuStation(name: "Breakfast", items: [hash]),
+            MenuStation(name: "Brunch", items: [hash, fries]),
+            MenuStation(name: "Lunch", items: [fries]),
+            MenuStation(name: "Afternoon Snack", items: [fries]),
+            MenuStation(name: "Dinner", items: [fries]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        let twisted = trimmed.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(twisted?.items.map(\.name) == ["Tofu-Potato Hash"])
+        let extras = DiningService.hubExclusiveItems(onMenu: trimmed, hubStations: hub)
+        #expect(!extras.map(\.name).contains("Crispy Homestyle French Fries"))
+        let combined = DiningService.insertingHubExtras(extras, into: trimmed)
+        #expect(combined.stations.first?.name.contains("Twisted Root") == true)
+        #expect(combined.stations.first?.items.map(\.name) == ["Tofu-Potato Hash"])
+    }
+
+    @Test func lunchKeepsBrunchTwistedRootWhenHubLunchHasNoTR() {
+        let taco = MenuItem(
+            id: "taco", name: "Plant-Based Chorizo Breakfast Taco", description: nil, calories: 210,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1893"
+        )
+        let ember = MenuItem(
+            id: "ember", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-10-03",
+            period: "Lunch",
+            stations: [
+                MenuStation(name: "Ember", items: [ember], stationID: "1878"),
+                MenuStation(name: "The Twisted Root", items: [taco, hash], stationID: "1893"),
+            ]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [taco, hash]),
+            MenuStation(name: "Brunch", items: [taco, hash]),
+            MenuStation(name: "Lunch", items: [ember]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        let twisted = trimmed.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(Set(twisted?.items.map(\.name) ?? []) == ["Plant-Based Chorizo Breakfast Taco", "Tofu-Potato Hash"])
+        let combined = DiningService.insertingHubExtras([], into: trimmed)
+        #expect(combined.stations.first?.name.contains("Twisted Root") == true)
+    }
+
+    @Test func breakfastDropsShawarmaCopiedFromBrunchKeepsEggs() {
+        let shawarma = MenuItem(
+            id: "shawarma", name: "Tofu Shawarma", description: nil, calories: 171,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let lentil = MenuItem(
+            id: "lentil", name: "Red Lentil & Quinoa Blend", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let eggs = MenuItem(
+            id: "eggs", name: "Just® Scrambled Eggs", description: nil, calories: 138,
+            servingSize: nil, allergens: ["Eggs"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let rice = MenuItem(
+            id: "rice", name: "Turmeric & Quinoa Basmati Rice", description: nil, calories: 89,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let hash = MenuItem(
+            id: "hash", name: "Tofu-Potato Hash", description: nil, calories: 180,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let breakfast = [
+            MenuStation(name: "The Twisted Root", items: [shawarma, lentil, eggs], stationID: "1929"),
+        ]
+        let brunch = [
+            MenuStation(name: "The Twisted Root", items: [shawarma, lentil, eggs, rice], stationID: "1929"),
+        ]
+        let filtered = DiningService.subtractingMiddayTwistedRootFromBreakfast(
+            from: breakfast,
+            midday: brunch
+        )
+        let names = filtered.flatMap(\.items).map(\.name)
+        #expect(names == ["Just® Scrambled Eggs"])
+        #expect(!names.contains("Tofu Shawarma"))
+        #expect(!names.contains("Red Lentil & Quinoa Blend"))
+
+        let saturdayBreakfast = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+        ]
+        let saturdayBrunch = [
+            MenuStation(name: "The Twisted Root", items: [hash], stationID: "1929"),
+        ]
+        let saturday = DiningService.subtractingMiddayTwistedRootFromBreakfast(
+            from: saturdayBreakfast,
+            midday: saturdayBrunch
+        )
+        #expect(saturday.flatMap(\.items).map(\.name) == ["Tofu-Potato Hash"])
+
+        let breakfastMenu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-04",
+            period: "Breakfast",
+            stations: [MenuStation(name: "The Twisted Root", items: [shawarma], stationID: "1929")]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [shawarma, eggs, rice]),
+            MenuStation(name: "Brunch", items: [shawarma, eggs, rice]),
+            MenuStation(name: "Lunch", items: [rice]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: hub)
+        #expect(extras.map(\.name).contains("Just® Scrambled Eggs"))
+        #expect(!extras.map(\.name).contains("Tofu Shawarma"))
+        #expect(!extras.map(\.name).contains("Turmeric & Quinoa Basmati Rice"))
+
+        let hotdog = MenuItem(
+            id: "dog", name: "Classic Hot Dog", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let lunchStations = [
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let brunchStations = [
+            MenuStation(name: "The Twisted Root", items: [shawarma, lentil], stationID: "1929"),
+            MenuStation(name: "Sizzle Grill", items: [hotdog], stationID: "1935"),
+        ]
+        let lunchKept = DiningService.subtractingBreakfastOnlyBrunchDishes(
+            from: DiningService.mergeStations(lunchStations, brunchStations),
+            lunch: lunchStations,
+            breakfast: breakfast
+        )
+        #expect(lunchKept.flatMap(\.items).map(\.name).contains("Tofu Shawarma"))
+    }
+
     @Test func mergeStationsUnionsBrunchTacosIntoLunch() {
         let taco = MenuItem(
             id: "taco", name: "Sesame Shrimp Taco", description: nil, calories: 320,
@@ -278,6 +506,112 @@ struct DiningServiceTests {
             combined.stations.first { $0.name == "Also served" }?.items.map(\.name).sorted()
                 == ["Creamy Marsala Ravioli", "Sesame Shrimp Taco"].sorted()
         )
+    }
+
+    @Test func hubExclusiveDropsLunchSkusCopiedOntoBreakfast() {
+        let oats = MenuItem(
+            id: "oats", name: "Overnight Chia Oats", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let chicken = MenuItem(
+            id: "chicken", name: "Asian Seared Chicken", description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1932"
+        )
+        let sandwich = MenuItem(
+            id: "sub", name: "Ham & Swiss Sandwich", description: nil, calories: 410,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1950"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-03",
+            period: "Breakfast",
+            stations: [MenuStation(name: "Farmer's Market", items: [oats], stationID: "1947")]
+        )
+        let hub = [
+            MenuStation(name: "Breakfast", items: [oats, chicken, sandwich]),
+            MenuStation(name: "Lunch", items: [chicken, sandwich]),
+            MenuStation(name: "Dinner", items: [chicken]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.isEmpty)
+        #expect(!extras.map(\.name).contains("Asian Seared Chicken"))
+        #expect(!extras.map(\.name).contains("Ham & Swiss Sandwich"))
+    }
+
+    @Test func insertingHubExtrasUsesStationMapNames() {
+        let sandwich = MenuItem(
+            id: "sub", name: "Classic Italian Sub", description: nil, calories: 480,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1950"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-02",
+            period: "Lunch",
+            stations: [MenuStation(name: "Home", items: [
+                MenuItem(
+                    id: "rice", name: "Jasmine Rice", description: nil, calories: 150,
+                    servingSize: nil, allergens: [], dietaryTags: []
+                ),
+            ], stationID: "1932")]
+        )
+        let combined = DiningService.insertingHubExtras(
+            [sandwich],
+            into: menu,
+            stationNames: ["1950": "The Deli"]
+        )
+        #expect(combined.stations.contains { $0.name == "The Deli" && $0.items.map(\.name) == ["Classic Italian Sub"] })
+        #expect(!combined.stations.contains { $0.name == "Menu" })
+    }
+
+    @Test func hubExclusiveDoesNotDuplicateUCIMacOrAllDayFriesOnTwistedRoot() {
+        let mac = MenuItem(
+            id: "mac-ae", name: "Vegan Mac & Cheese UCI", description: nil, calories: 330,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let cauliflower = MenuItem(
+            id: "cauli", name: "Buffalo Cauliflower Wings", description: nil, calories: 523,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let hubMac = MenuItem(
+            id: "mac-hub", name: "Vegan Mac & Cheese", description: nil, calories: 330,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let fries = MenuItem(
+            id: "fries", name: "Crispy Homestyle French Fries", description: nil, calories: 112,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-02",
+            period: "Dinner",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [mac, cauliflower],
+                stationID: "1929"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "All Day", items: [fries]),
+            MenuStation(name: "Lunch", items: [fries]),
+            MenuStation(name: "Dinner", items: [hubMac, cauliflower, fries]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.isEmpty)
+        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        let names = combined.stations
+            .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+            .flatMap(\.items)
+            .map(\.name)
+        #expect(names == ["Vegan Mac & Cheese UCI", "Buffalo Cauliflower Wings"])
+        #expect(!names.contains("Crispy Homestyle French Fries"))
+        #expect(names.filter { $0.localizedCaseInsensitiveContains("mac") }.count == 1)
     }
 
     @Test func hubExclusiveTwistedRootTofuJoinsTheStation() {
@@ -352,8 +686,8 @@ struct DiningServiceTests {
             MenuStation(name: "Breakfast", items: [sausage]),
             MenuStation(name: "Dinner", items: [sausage]),
         ]
-        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: allDayOnly).map(\.name) == ["Seasoned Fries"])
-        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: allDayOnly).map(\.name) == ["Seasoned Fries"])
+        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: allDayOnly).isEmpty)
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: allDayOnly).isEmpty)
         #expect(!DiningService.hubBoardItems(matchingPeriod: "Dinner", hubStations: allDayOnly).map(\.name).contains("Seasoned Fries"))
 
         let tagged = [
@@ -361,8 +695,8 @@ struct DiningServiceTests {
             MenuStation(name: "Breakfast", items: [sausage, scramble]),
             MenuStation(name: "Dinner", items: [sausage, shawarma]),
         ]
-        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name) == ["Turmeric Tofu Scramble", "Seasoned Fries"])
-        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name) == ["Tofu Shawarma", "Seasoned Fries"])
+        #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name) == ["Turmeric Tofu Scramble"])
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name) == ["Tofu Shawarma"])
         #expect(!DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name).contains("Tofu Shawarma"))
         #expect(!DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name).contains("Turmeric Tofu Scramble"))
     }
@@ -823,6 +1157,19 @@ struct DiningServiceTests {
             DiningService.pinTwistedRootFirst(stations).map(\.name)
                 == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay]
         )
+        let withEmber = [
+            MenuStation(name: "Ember", items: [dish], stationID: "1878"),
+            MenuStation(name: "Sizzle Grill", items: [dish]),
+            MenuStation(name: "The Twisted Root", items: [dish]),
+            MenuStation(name: "Home", items: [dish]),
+            MenuStation(name: CampusMenuNormalize.availableAllDay, items: [dish]),
+        ]
+        #expect(
+            DiningService.pinTwistedRootFirst(withEmber).map(\.name)
+                == ["The Twisted Root", "Sizzle Grill", "Home", CampusMenuNormalize.availableAllDay, "Ember"]
+        )
+        #expect(DiningService.isEmber(stationName: "Menu", stationID: "1878"))
+        #expect(!DiningService.isEmber(stationName: "September Grill"))
         let unnamed = MenuStation(name: "Menu", items: [dish], stationID: "1929")
         #expect(DiningService.pinTwistedRootFirst([stations[0], unnamed]).first?.stationID == "1929")
         #expect(DiningService.displayStationName(nil, stationID: "1929") == "The Twisted Root")

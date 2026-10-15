@@ -9,6 +9,10 @@ struct MealPeriodPillTests {
         #expect(MealPeriodPill.canonical("Limited Dinner") == "Dinner")
         #expect(MealPeriodPill.canonical("Lunch") == "Lunch")
         #expect(MealPeriodPill.canonical("  Dinner  ") == "Dinner")
+        #expect(MealPeriodPill.canonical("Afternoon Snack") == "Afternoon Snack")
+        #expect(MealPeriodPill.canonical("Evening Snack") == "Late Night")
+        #expect(MealPeriodPill.canonical("Overnight") == "Late Night")
+        #expect(MealPeriodPill.canonical("Late Night") == "Late Night")
     }
 
     @Test func matchPrefersPrimaryInPills() {
