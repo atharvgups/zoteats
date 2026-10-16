@@ -302,17 +302,21 @@ struct DiningView: View {
             if selectedLocation?.isComingSoon == true {
                 comingSoonHallEmpty
             } else {
-                // Always show Breakfast / Lunch / Dinner — never hide unposted meals.
+                // Always show the five chronological chips — never hide unposted meals.
                 // (Breakfast-only boards used to render a giant single pill.)
                 PillRow(
                     items: DiningService.mealSelectorPills,
                     title: { $0 },
                     selection: $selectedPeriod,
-                    fillsWidth: true
+                    fillsWidth: false,
+                    usesMealMark: true,
+                    isPosted: { pill in
+                        DiningService.pillIsPosted(pill, available: boardAvailablePeriods ?? [])
+                    }
                 )
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Meal period")
-                .accessibilityHint("Peek Lunch or Dinner even before that meal is posted")
+                .accessibilityHint("Peek Lunch, Afternoon Snack, Dinner, or Late Night even before that meal is posted")
 
                 // Dates + Plate + Filters on one row — actions stay fixedSize so
                 // they never truncate to "My…" / "Fil…" while dates scroll.
@@ -801,13 +805,6 @@ struct DiningView: View {
             stars: prefs.displayStars(for: item.name),
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
             onTogglePlate: { withAnimation(.snappy(duration: 0.25)) { plate.add(item) } },
-            onRate: { stars in
-                prefs.setReview(
-                    dishName: item.name,
-                    stars: stars,
-                    note: prefs.review(for: item.name)?.note ?? ""
-                )
-            },
             onOpen: { selectedDish = item }
         )
         .accessibilityIdentifier("dish-row")
@@ -1497,18 +1494,28 @@ private struct DishRowCard: View {
     var stars: Int = 0
     let onToggleFavorite: () -> Void
     var onTogglePlate: (() -> Void)?
-    var onRate: ((Int) -> Void)?
     let onOpen: () -> Void
 
+    /// Tight + / heart cluster; title pads this so line 1 does not run under the icons.
+    private static let actionsWidth: CGFloat = 76
+
     var body: some View {
-        Button(action: onOpen) {
-            HStack(alignment: .top, spacing: 12) {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 6) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(item.name)
                         .font(ZotFont.body.weight(.semibold))
                         .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, Self.actionsWidth)
 
-                    StarRatingControl(stars: stars, size: 12, interactive: onRate != nil, onRate: onRate)
+                    HStack(alignment: .center, spacing: 8) {
+                        StarRatingControl(stars: stars, size: 12, interactive: false)
+                        Spacer(minLength: 0)
+                        if let calories = item.calories {
+                            CalorieBadge(calories: calories)
+                        }
+                    }
 
                     if let description = item.description, !description.isEmpty {
                         Text(description)
@@ -1516,34 +1523,40 @@ private struct DishRowCard: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                    }
-
-                    if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
-                        chipRow
-                            .padding(.top, 2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onOpen)
 
-                Spacer(minLength: 8)
-
-                VStack(alignment: .trailing, spacing: 10) {
-                    HStack(spacing: 8) {
-                        if let onTogglePlate {
-                            plateButton(onTogglePlate)
-                        }
-                        favoriteButton
-                    }
-                    if let calories = item.calories {
-                        CalorieBadge(calories: calories)
-                    }
+                if !item.dietaryTags.isEmpty || !item.allergens.isEmpty {
+                    chipRow
+                        .padding(.top, 2)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .background {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onOpen)
+            }
+
+            HStack(spacing: 4) {
+                if let onTogglePlate {
+                    plateButton(onTogglePlate)
+                }
+                favoriteButton
+            }
+            .padding(.trailing, 12)
+            .padding(.top, 8)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, onOpen)
         .accessibilityLabel(
             DishRowAccessibility.label(
                 dishName: item.name,
@@ -1557,14 +1570,12 @@ private struct DishRowCard: View {
     }
 
     private var chipRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                ForEach(item.dietaryTags, id: \.self) { tag in
-                    TagChip(text: tag, color: TagPalette.dietColor(tag))
-                }
-                ForEach(item.allergens, id: \.self) { allergen in
-                    TagChip(text: allergen, color: TagPalette.allergenColor)
-                }
+        ScrollingChipRow(spacing: 5, onTap: onOpen) {
+            ForEach(item.dietaryTags, id: \.self) { tag in
+                TagChip(text: tag, color: TagPalette.dietColor(tag))
+            }
+            ForEach(item.allergens, id: \.self) { allergen in
+                TagChip(text: allergen, color: TagPalette.allergenColor)
             }
         }
     }
@@ -1576,8 +1587,10 @@ private struct DishRowCard: View {
                 .foregroundStyle(isFavorite ? Color.pink : Color.secondary)
                 .symbolEffect(.bounce, value: isFavorite)
                 .contentTransition(.symbolEffect(.replace))
-                .frame(width: 30, height: 30)
+                .frame(width: 20, height: 20)
         }
+        .frame(width: 36, height: 36)
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
         .accessibilityLabel(
             isFavorite ? "Remove \(item.name) from favorites" : "Add \(item.name) to favorites"
@@ -1590,8 +1603,10 @@ private struct DishRowCard: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(isOnPlate ? Color.ink : Color.inkMuted)
                 .symbolEffect(.bounce, value: plateQuantity)
-                .frame(width: 30, height: 30)
+                .frame(width: 20, height: 20)
         }
+        .frame(width: 36, height: 36)
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
         .accessibilityLabel(
             PlateQuantityCopy.addAccessibility(dishName: item.name, quantity: plateQuantity)
@@ -1606,17 +1621,10 @@ private struct CalorieBadge: View {
     let calories: Int
 
     var body: some View {
-        VStack(spacing: -1) {
-            Text("\(calories)")
-                .font(ZotFont.body.weight(.semibold))
-                .foregroundStyle(Color.ink)
-            Text("cal")
-                .font(ZotFont.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 2)
-        .accessibilityLabel("\(calories) calories")
+        Text("\(calories) cal")
+            .font(ZotFont.caption.weight(.semibold))
+            .foregroundStyle(Color.ink)
+            .accessibilityLabel("\(calories) calories")
     }
 }
 
