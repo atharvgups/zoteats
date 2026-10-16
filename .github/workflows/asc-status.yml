@@ -21,6 +21,9 @@
 # No submit, no cancel, no tag, no External promote.
 # Launch-loop peek 2026-10-15 Thursday ~3:10 PM PT — read-only. No app
 # changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-16 Friday morning ~9:09 AM PT — read-only. Expect
+# Internal 1.0.353 VALID, live 1.0.351 READY_FOR_SALE. No submit, no cancel,
+# no tag, no External promote.
 name: ASC Status
 
 on:
