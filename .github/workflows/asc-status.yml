@@ -24,6 +24,8 @@
 # Launch-loop peek 2026-10-16 Friday morning ~9:09 AM PT — read-only. Expect
 # Internal 1.0.353 VALID, live 1.0.351 READY_FOR_SALE. No submit, no cancel,
 # no tag, no External promote.
+# Peek 2026-10-18 ~2:22 AM UTC — read-only. Expect Internal 1.0.354 build 360
+# VALID (or still processing). Live 1.0.351 READY_FOR_SALE. No External promote.
 name: ASC Status
 
 on:
