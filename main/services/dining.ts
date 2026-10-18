@@ -245,13 +245,119 @@ export async function getMenu(locationId: DiningLocationId, period: string, date
   const [dishMap, stationMap] = await Promise.all([getDishes(allIds), getStationMap()]);
 
   const stations: MenuStation[] = [];
+  const stationIDs: string[] = [];
   for (const [stationId, dishIds] of Object.entries(stationToDishes)) {
     const items = dishIds
       .map((dishId) => dishMap.get(dishId))
       .filter((dish): dish is ApiDish => Boolean(dish))
       .map(toMenuItem);
-    if (items.length > 0) stations.push({ name: stationMap.get(stationId) ?? "Menu", items });
+    if (items.length > 0) {
+      stations.push({ name: stationMap.get(stationId) ?? "Menu", items });
+      stationIDs.push(stationId);
+    }
   }
 
-  return { locationId, date: dateISO, period, stations };
+  return { locationId, date: dateISO, period, stations: pinTwistedRootFirst(stations, stationIDs) };
+}
+
+const TWISTED_ROOT_IDS = new Set(["1929", "1893"]);
+const STANDING_BURGER_IDS = new Set(["1878", "1935"]);
+const DESSERT_IDS = new Set(["1872", "1938"]);
+const PIZZA_IDS = new Set(["1941", "1884"]);
+
+function collapsedStationName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function dishLooksLikePizza(name: string): boolean {
+  const lowered = collapsedStationName(name);
+  return lowered.includes("pizza") || lowered.includes("flatbread");
+}
+
+function isPizzaStation(name: string, stationID: string | undefined, items: MenuItem[]): boolean {
+  const lowered = collapsedStationName(name);
+  const id = stationID?.trim() ?? "";
+  if ((id && TWISTED_ROOT_IDS.has(id)) || lowered.includes("twisted root") || lowered.includes("twistedroot")) {
+    return false;
+  }
+  const isEmber = (id && id === "1878") || lowered === "ember" || lowered.startsWith("ember ");
+  if ((id && STANDING_BURGER_IDS.has(id)) || isEmber || lowered.includes("sizzle") || lowered.includes("burger")) {
+    return false;
+  }
+  if (lowered.includes("pizza") || lowered.includes("pizzeria")) return true;
+  const maybePizzaBoard =
+    (id && PIZZA_IDS.has(id)) ||
+    lowered === "oven" ||
+    lowered.startsWith("oven ") ||
+    lowered.endsWith(" oven") ||
+    lowered.includes(" oven ") ||
+    lowered === "hearth" ||
+    lowered.startsWith("hearth ") ||
+    lowered.endsWith(" hearth");
+  if (!maybePizzaBoard) return false;
+  return items.some((item) => dishLooksLikePizza(item.name));
+}
+
+function stationLane(name: string, stationID: string | undefined, items: MenuItem[]): number {
+  const lowered = collapsedStationName(name);
+  const id = stationID?.trim() ?? "";
+  if ((id && TWISTED_ROOT_IDS.has(id)) || lowered.includes("twisted root") || lowered.includes("twistedroot")) {
+    return 0;
+  }
+  const isEmber = (id && id === "1878") || lowered === "ember" || lowered.startsWith("ember ");
+  if (
+    (id && STANDING_BURGER_IDS.has(id)) ||
+    isEmber ||
+    lowered.includes("sizzle") ||
+    lowered.includes("burger")
+  ) {
+    return 7;
+  }
+  if (lowered === "available all day" || lowered === "all day") return 4;
+  const dessertNeedles = [
+    "honeycake",
+    "bakery",
+    "dessert",
+    "sweets",
+    "pastry",
+    "ice cream",
+    "icecream",
+    "cookie",
+    "pudding",
+  ];
+  if (
+    (id && DESSERT_IDS.has(id)) ||
+    dessertNeedles.some((n) => lowered.includes(n)) ||
+    lowered === "sweet" ||
+    lowered.startsWith("sweet ") ||
+    lowered.endsWith(" sweet")
+  ) {
+    return 5;
+  }
+  if (isPizzaStation(name, stationID, items)) return 6;
+  const sideNeedles = [
+    "soup",
+    "salad",
+    "deli",
+    "farmer",
+    "farm stand",
+    "farmstand",
+    "side",
+    "vegetable",
+    "veggie",
+  ];
+  if (sideNeedles.some((n) => lowered.includes(n))) return 3;
+  if (lowered.includes("promotion") || lowered === "also served") return 2;
+  return 1;
+}
+
+function pinTwistedRootFirst(stations: MenuStation[], stationIDs: string[]): MenuStation[] {
+  return stations
+    .map((station, index) => ({
+      station,
+      index,
+      lane: stationLane(station.name, stationIDs[index], station.items),
+    }))
+    .sort((a, b) => (a.lane === b.lane ? a.index - b.index : a.lane - b.lane))
+    .map((row) => row.station);
 }

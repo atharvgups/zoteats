@@ -89,11 +89,11 @@ for mode in light dark; do
   xcrun simctl io booted screenshot "$OUT_DIR/campus_menu_${mode}.png"
 
   launch_tab -initialTab dining -showDishDetail
-  sleep 18
+  sleep 24
   xcrun simctl io booted screenshot "$OUT_DIR/dish_nutrition_${mode}.png"
 
   launch_tab -initialTab dining -showPlate
-  sleep 18
+  sleep 24
   xcrun simctl io booted screenshot "$OUT_DIR/plate_${mode}.png"
 done
 

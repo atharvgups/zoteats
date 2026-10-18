@@ -15,6 +15,7 @@ public enum DurableStore {
     public static let reviewerIDKey = "zoteats.reviewerID"
 
     private static let keychainService = "com.atharvgupta.zoteats.durable"
+    private static let reviewerLock = NSLock()
 
     /// Known historical names — never include a marketing version.
     public static let favoriteLegacyKeys = [
@@ -73,6 +74,8 @@ public enum DurableStore {
 
     /// Stable anonymous reviewer id — created once, never version-scoped.
     public static func reviewerID() -> String {
+        reviewerLock.lock()
+        defer { reviewerLock.unlock() }
         if let existing = loadString(key: reviewerIDKey), !existing.isEmpty {
             return existing
         }

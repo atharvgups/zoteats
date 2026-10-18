@@ -105,6 +105,25 @@ struct SharedDefaultsTodaysMenuTests {
         #expect(!result.filtersEmptiedMenu)
     }
 
+    @Test func doesNotFloatBreakfastFavoriteFromAllDay() {
+        let stations = [
+            MenuStation(name: "Grill", items: [item(name: "Teriyaki Bowl")]),
+            MenuStation(name: "Available all day", items: [
+                item(name: "Scrambled Eggs"),
+                item(name: "Seasoned Fries"),
+            ]),
+        ]
+        let result = SharedDefaults.todaysMenuDishes(
+            stations: stations,
+            dietFilters: [],
+            allergenAvoids: [],
+            favorites: ["Scrambled Eggs", "Teriyaki Bowl"]
+        )
+        #expect(result.ordered.first == "Teriyaki Bowl")
+        #expect(result.favorited == ["Teriyaki Bowl"])
+        #expect(!result.favorited.contains("Scrambled Eggs"))
+    }
+
     @Test func dedupesNamesCaseInsensitively() {
         let stations = [
             MenuStation(name: "A", items: [item(name: "Soup", tags: ["Vegan"])]),

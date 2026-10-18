@@ -4,26 +4,28 @@ import Testing
 
 @Suite("EatHallCardChrome")
 struct EatHallCardChromeTests {
-    @Test func oasisShowsOpenDateBeforeFirstService() {
+    @Test func oasisPlaceholderIsClosedNotADate() {
         let status = EatHallCardChrome.status(
             comingSoon: true,
             state: .open(period: "Lunch", closesAt: 900),
             opensTomorrowAtMinutes: nil,
             todayISO: "2026-09-21"
         )
-        #expect(status.primary == "Opens Mon Oct 5")
+        #expect(status.primary == "Closed")
         #expect(status.secondary == nil)
         #expect(status.tone == .muted)
+        #expect(!status.primary.contains("Oct"))
+        #expect(!status.primary.localizedCaseInsensitiveContains("coming soon"))
     }
 
-    @Test func oasisUsesHoursAfterFirstService() {
+    @Test func oasisPlaceholderStaysClosedAfterFirstServiceDate() {
         let status = EatHallCardChrome.status(
             comingSoon: true,
             state: .open(period: "Lunch", closesAt: 14 * 60 + 30),
             todayISO: OasisSchedule.firstServiceISO
         )
-        #expect(status.primary == "until 2:30 PM")
-        #expect(status.tone == .open)
+        #expect(status.primary == "Closed")
+        #expect(status.tone == .muted)
     }
 
     @Test func openShowsUntilClockGreen() {
