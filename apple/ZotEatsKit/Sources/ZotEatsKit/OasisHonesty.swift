@@ -109,25 +109,20 @@ public enum OasisSchedule: Sendable {
     }
 }
 
-/// Short Eat copy for The Oasis while Dining Hub has no live board.
-/// Hub (uci.mydininghub.com/en/location/the-oasis-dining-hall): lunch + dinner,
-/// no breakfast, no to-go, meal-plan members, Mon–Fri. Never a paragraph,
-/// never a fake menu or occupancy.
+/// Short Eat copy for The Oasis while Anteater API has no menu.
+/// Never invent an open date, Coming Soon, Hub hours, or a fake board.
 public enum OasisComingSoonCopy: Sendable {
-    /// Hall-card status — one meal-name slot. Derived from `OasisSchedule`.
+    /// Hall-card status while Anteater API has no Oasis menu.
     public static var cardStatus: String { cardStatus(on: UCITime.todayISO()) }
-    /// Selected empty board — one short line, not Hub policy text.
+    /// Selected empty board. No inferred date. No Coming Soon.
     public static var selectedLine: String { selectedLine(on: UCITime.todayISO()) }
 
-    public static func cardStatus(on iso: String) -> String {
-        OasisSchedule.hasOpened(on: iso) ? "Lunch & Dinner" : OasisSchedule.opensLine
+    public static func cardStatus(on _: String) -> String {
+        "Closed"
     }
 
-    public static func selectedLine(on iso: String) -> String {
-        if OasisSchedule.hasOpened(on: iso) {
-            return "Lunch & Dinner · Mon–Fri"
-        }
-        return "\(OasisSchedule.opensLine) · Lunch & Dinner"
+    public static func selectedLine(on _: String) -> String {
+        "This hall is closed until UCI posts a menu."
     }
 }
 

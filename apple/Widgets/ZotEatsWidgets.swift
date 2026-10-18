@@ -905,7 +905,7 @@ struct DiningStatusView: View {
                 ForEach(Array(visibleHalls.prefix(3)), id: \.id) { hall in
                     let raw = DiningStatusWidgetLine.tighten(hall.statusText)
                     let split = DiningStatusWidgetLine.splitMealAndClock(raw)
-                    let clock = hall.isComingSoon ? "Soon" : (split.clock ?? split.meal)
+                    let clock = hall.isComingSoon ? "Closed" : (split.clock ?? split.meal)
                     HStack(spacing: 6) {
                         Text(shortName(hall.name))
                             .font(WidgetChrome.row(14))
@@ -929,12 +929,12 @@ struct DiningStatusView: View {
         let split = DiningStatusWidgetLine.splitMealAndClock(raw)
         let subtitle: String = {
             if isCompact { return "" }
-            if hall.isComingSoon { return "Soon" }
+            if hall.isComingSoon { return "Closed" }
             if split.clock != nil { return split.meal }
             return ""
         }()
         let trailing: String = {
-            if hall.isComingSoon { return "Soon" }
+            if hall.isComingSoon { return "Closed" }
             return split.clock ?? split.meal
         }()
         return HStack(alignment: .center, spacing: 8) {

@@ -4,7 +4,8 @@ import Foundation
 public enum CampusMenuNormalize {
     public static let availableAllDay = "Available all day"
 
-    /// Rename All Day → Available all day, dedupe items, pin that section last.
+    /// Rename All Day → Available all day, dedupe items, then let the shared
+    /// station ranker place that section before desserts and the burger board.
     public static func stations(_ raw: [MenuStation]) -> [MenuStation] {
         var allDayItems: [MenuItem] = []
         var allDaySeen = Set<String>()
@@ -26,11 +27,10 @@ public enum CampusMenuNormalize {
             }
         }
 
-        let pinned = DiningService.pinTwistedRootFirst(others)
         if !allDayItems.isEmpty {
-            return pinned + [MenuStation(name: availableAllDay, items: allDayItems)]
+            others.append(MenuStation(name: availableAllDay, items: allDayItems))
         }
-        return pinned
+        return DiningService.pinTwistedRootFirst(others)
     }
 
     public static func isAvailableAllDay(_ stationName: String) -> Bool {

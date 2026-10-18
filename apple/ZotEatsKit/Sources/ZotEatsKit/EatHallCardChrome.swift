@@ -1,7 +1,7 @@
 import Foundation
 
 /// Short 3-across Eat hall status — one small hours line under the name:
-/// "until 8 PM" (open / green) / "opens 7 AM" (closed / muted) / Opens Mon Oct 5.
+/// "until 8 PM" (open / green) / "opens 7 AM" (closed / muted) / Closed.
 public enum EatHallCardTone: String, Sendable, Equatable {
     /// Serving now — green hours copy.
     case open
@@ -51,10 +51,11 @@ public enum EatHallCardChrome: Sendable {
         opensNextPeriod _: String? = nil,
         todayISO: String = UCITime.todayISO()
     ) -> EatHallCardStatus {
-        if comingSoon, !OasisSchedule.hasOpened(on: todayISO) {
+        if comingSoon {
             return EatHallCardStatus(
                 primary: OasisComingSoonCopy.cardStatus(on: todayISO),
-                tone: .muted
+                tone: .muted,
+                accessibilityLine: "Closed"
             )
         }
         switch state {
