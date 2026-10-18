@@ -26,6 +26,8 @@
 # no tag, no External promote.
 # Peek 2026-10-18 ~2:22 AM UTC — read-only. Expect Internal 1.0.354 build 360
 # VALID (or still processing). Live 1.0.351 READY_FOR_SALE. No External promote.
+# Peek 2026-10-18 ~3:43 AM UTC — read-only. Favorites Internal 1.0.357 build 363
+# uploaded. Expect 1.0.354 still WAITING_FOR_REVIEW. No submit, no External.
 name: ASC Status
 
 on:
