@@ -102,8 +102,15 @@ struct LiveAPITests {
     @Test func diningLocationsAndMenuFromLiveAPI() async throws {
         let service = DiningService()
         let locations = await service.locations()
-        #expect(locations.filter { !$0.isComingSoon }.count == 2)
-        #expect(locations.contains { $0.isComingSoon && HallDirectory.isOasis($0.id) })
+        #expect(locations.filter { !$0.isComingSoon }.count >= 2)
+        let oasis = locations.first { HallDirectory.isOasis($0.id) }
+        #expect(oasis != nil)
+        if oasis?.isComingSoon == true {
+            #expect(oasis?.comingSoonSubtitle == "Closed")
+            #expect(oasis?.availablePeriods.isEmpty == true)
+        } else {
+            #expect(oasis?.availablePeriods.isEmpty == false)
+        }
 
         if let hall = locations.first(where: { !$0.isComingSoon && !$0.availablePeriods.isEmpty }) {
             let menu = try await service.menu(for: hall.id, period: hall.availablePeriods[0])

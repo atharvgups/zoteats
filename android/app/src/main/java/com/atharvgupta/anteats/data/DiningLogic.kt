@@ -342,13 +342,13 @@ object DiningLogic {
     fun eatHalls(locations: List<DiningLocation>): List<DiningLocation> {
         val anteatery = locations.firstOrNull { it.id.equals(HallDirectory.ANTEATERY, true) }
         val brandywine = locations.firstOrNull { it.id.equals(HallDirectory.BRANDYWINE, true) }
-        val oasis = locations.firstOrNull { HallDirectory.isOasis(it.id) }
+        val oasis = locations.firstOrNull { HallDirectory.isOasis(it.id) && it.availablePeriods.isNotEmpty() }
             ?: OasisSchedule.comingSoonLocation()
         return listOfNotNull(anteatery, brandywine, oasis)
     }
 
     fun emptyMenuCopy(period: String, browsingFuture: Boolean, comingSoon: Boolean): String {
-        if (comingSoon) return "${OasisSchedule.opensLine()} · Lunch & Dinner"
+        if (comingSoon) return "This hall is closed until UCI posts a menu."
         val meal = period.trim()
         return if (browsingFuture) {
             if (meal.isEmpty()) {

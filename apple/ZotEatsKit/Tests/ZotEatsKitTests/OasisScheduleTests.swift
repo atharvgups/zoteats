@@ -13,11 +13,12 @@ struct OasisScheduleTests {
         #expect(OasisSchedule.hasOpened(on: "2026-10-06"))
     }
 
-    @Test func copyComesFromTheSameDate() {
-        #expect(OasisComingSoonCopy.cardStatus(on: "2026-09-21") == OasisSchedule.opensLine)
-        #expect(OasisComingSoonCopy.selectedLine(on: "2026-09-21") == "Opens Mon Oct 5 · Lunch & Dinner")
-        #expect(OasisComingSoonCopy.cardStatus(on: OasisSchedule.firstServiceISO) == "Lunch & Dinner")
-        #expect(OasisComingSoonCopy.selectedLine(on: OasisSchedule.firstServiceISO) == "Lunch & Dinner · Mon–Fri")
+    @Test func copyIsClosedUntilAnteaterAPIPostsAMenu() {
+        #expect(OasisComingSoonCopy.cardStatus(on: "2026-09-21") == "Closed")
+        #expect(OasisComingSoonCopy.selectedLine(on: "2026-09-21") == "This hall is closed until UCI posts a menu.")
+        #expect(OasisComingSoonCopy.cardStatus(on: OasisSchedule.firstServiceISO) == "Closed")
+        #expect(!OasisComingSoonCopy.selectedLine(on: OasisSchedule.firstServiceISO).contains("Oct"))
+        #expect(!OasisComingSoonCopy.cardStatus.contains("Coming Soon"))
     }
 
     @Test func weekdayHoursMatchHubStandard() {
@@ -49,20 +50,21 @@ struct OasisScheduleTests {
         #expect(beforeOpen?.weekday == "Monday")
     }
 
-    @Test func openPlaceholderGetsHoursAfterFirstService() {
+    @Test func placeholderStaysClosedWithoutInferredHours() {
         let mondayNoon = ISO8601DateFormatter().date(from: "2026-10-05T19:30:00Z")!
         let oasis = DiningService.oasisComingSoonLocation(dateISO: "2026-10-05", now: mondayNoon)
         #expect(oasis.isComingSoon)
+        #expect(oasis.comingSoonSubtitle == "Closed")
         #expect(oasis.availablePeriods.isEmpty)
-        #expect(oasis.openNow)
-        #expect(oasis.todayHours == "11:00 AM – 8:00 PM")
-        #expect(oasis.periods.map(\.name) == ["Lunch", "Dinner"])
+        #expect(oasis.openNow == false)
+        #expect(oasis.todayHours == nil)
+        #expect(oasis.periods.isEmpty)
         let tile = EatHallCardChrome.status(
             comingSoon: true,
             state: oasis.openState(nowMinutes: PacificTime.nowMinutes(now: mondayNoon)),
             todayISO: "2026-10-05"
         )
-        #expect(tile.primary == "until 2:30 PM")
-        #expect(tile.tone == .open)
+        #expect(tile.primary == "Closed")
+        #expect(tile.tone == .muted)
     }
 }

@@ -717,99 +717,39 @@ public struct DiningService: Sendable {
         return await withHonestOasis(ordered, dateISO: dateISO)
     }
 
-    /// Hub already lists The Oasis (Coming Soon, no active menus) while Anteater
-    /// API only has Anteatery + Brandywine. Keep Coming Soon until Anteater or
-    /// Hub posts a real board — never invent dishes, hours occupancy, or busy-%.
+    /// Keep Oasis Closed until Anteater API `/restaurants` actually lists it
+    /// with a menu. Dining Hub dates, Coming Soon, and Hub recipe boards do
+    /// not count. Never invent dishes, hours, or occupancy.
     private func withHonestOasis(
         _ ordered: [DiningLocation],
         dateISO: String
     ) async -> [DiningLocation] {
         if ordered.contains(where: {
-            HallDirectory.isOasis($0.id) && !$0.isComingSoon && !$0.availablePeriods.isEmpty
+            HallDirectory.isOasis($0.id) && !$0.availablePeriods.isEmpty
         }) {
             return ordered
         }
         var next = ordered.filter { !HallDirectory.isOasis($0.id) }
-        let hub = CampusService(http: http, cache: cache, now: now)
-        switch await hub.oasisHubListing() {
-        case .liveBoard(let urlKey):
-            let recipes = (try? await hub.menu(
-                for: urlKey,
-                placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
-                date: dateISO,
-                allowTypicalFallback: false
-            )) ?? []
-            if !recipes.isEmpty {
-                next.append(Self.oasisLocationFromHubRecipes(recipes, dateISO: dateISO, now: now()))
-                return next
-            }
-            next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
-            return next
-        case .comingSoon, .notListed:
-            next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
-            return next
-        }
+        next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
+        return next
     }
 
-    /// Hub posted SKUs — meal-period names become available periods. After
-    /// `OasisSchedule.firstServiceISO`, attach Hub weekday hours so the tile
-    /// can show until/opens like the other halls.
-    private static func oasisLocationFromHubRecipes(
-        _ recipes: [MenuStation],
-        dateISO: String,
-        now: Date
-    ) -> DiningLocation {
-        let names = recipes.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        let weekday = PacificTime.weekdayName(now: now)
-        let nowMinutes = PacificTime.nowMinutes(now: now)
-        let windows = OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
-        let next = OasisSchedule.nextService(after: dateISO)
-        return DiningLocation(
-            id: HallDirectory.oasisComingSoonID,
-            name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
-            area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
-            openNow: OasisSchedule.isOpen(on: dateISO, weekday: weekday, nowMinutes: nowMinutes),
-            todayHours: OasisSchedule.todayHours(on: dateISO, weekday: weekday),
-            availablePeriods: names,
-            periods: windows,
-            hoursApproximate: true,
-            opensTomorrowAtMinutes: next?.dayOffset == 1 ? next?.minutes : nil,
-            opensTomorrowPeriod: next?.dayOffset == 1 ? next?.period : nil,
-            opensNextAtMinutes: (next?.dayOffset ?? 0) >= 2 ? next?.minutes : nil,
-            opensNextDayOffset: (next?.dayOffset ?? 0) >= 2 ? next?.dayOffset : nil,
-            opensNextWeekday: (next?.dayOffset ?? 0) >= 2 ? next?.weekday : nil,
-            opensNextPeriod: (next?.dayOffset ?? 0) >= 2 ? next?.period : nil,
-            opensNextDateISO: (next?.dayOffset ?? 0) >= 2 ? next?.iso : nil
-        )
-    }
-
-    /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
-    /// Mon–Fri from `OasisSchedule.firstServiceISO`. No invented live board.
+    /// Placeholder tile while Anteater API has no Oasis menu. Always Closed.
+    /// No inferred open date, no Coming Soon, no Hub hours.
     public static func oasisComingSoonLocation(
-        dateISO: String = UCITime.todayISO(),
-        now: Date = Date()
+        dateISO _: String = UCITime.todayISO(),
+        now _: Date = Date()
     ) -> DiningLocation {
-        let weekday = PacificTime.weekdayName(now: now)
-        let nowMinutes = PacificTime.nowMinutes(now: now)
-        let windows = OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
-        let next = OasisSchedule.nextService(after: dateISO)
         return DiningLocation(
             id: HallDirectory.oasisComingSoonID,
             name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
             area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
-            openNow: OasisSchedule.isOpen(on: dateISO, weekday: weekday, nowMinutes: nowMinutes),
-            todayHours: OasisSchedule.todayHours(on: dateISO, weekday: weekday),
+            openNow: false,
+            todayHours: nil,
             availablePeriods: [],
-            periods: windows,
+            periods: [],
             hoursApproximate: true,
-            opensTomorrowAtMinutes: next?.dayOffset == 1 ? next?.minutes : nil,
-            opensTomorrowPeriod: next?.dayOffset == 1 ? next?.period : nil,
-            opensNextAtMinutes: (next?.dayOffset ?? 0) >= 2 ? next?.minutes : nil,
-            opensNextDayOffset: (next?.dayOffset ?? 0) >= 2 ? next?.dayOffset : nil,
-            opensNextWeekday: (next?.dayOffset ?? 0) >= 2 ? next?.weekday : nil,
-            opensNextPeriod: (next?.dayOffset ?? 0) >= 2 ? next?.period : nil,
-            opensNextDateISO: (next?.dayOffset ?? 0) >= 2 ? next?.iso : nil,
-            comingSoonSubtitle: OasisComingSoonCopy.cardStatus(on: dateISO)
+            comingSoonSubtitle: OasisComingSoonCopy.cardStatus
         )
     }
 
@@ -1560,16 +1500,6 @@ public struct DiningService: Sendable {
         forceRefresh: Bool = false
     ) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
-        if HallDirectory.isOasis(hall) {
-            if let hubMenu = await oasisHubMenu(
-                period: period,
-                dateISO: dateISO,
-                forceRefresh: forceRefresh
-            ) {
-                return hubMenu
-            }
-            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
-        }
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
         let available = (today.periods ?? [:]).values.map(\.name)
 
@@ -1661,40 +1591,6 @@ public struct DiningService: Sendable {
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
         return await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
-    }
-
-    /// Scrape Dining Hub recipes when Oasis is populated. Empty Hub / Coming Soon
-    /// / typical-menu packs all resolve to nil so Eat never invents a board.
-    private func oasisHubMenu(
-        period: String,
-        dateISO: String,
-        forceRefresh: Bool
-    ) async -> DiningMenu? {
-        let hub = CampusService(http: http, cache: cache, now: now)
-        guard case .liveBoard(let urlKey) = await hub.oasisHubListing() else {
-            return nil
-        }
-        let stations = (try? await hub.menu(
-            for: urlKey,
-            placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
-            date: dateISO,
-            forceRefresh: forceRefresh,
-            allowTypicalFallback: false
-        )) ?? []
-        guard !stations.isEmpty else { return nil }
-        let available = stations.map(\.name)
-        let resolved = Self.resolvePeriod(period, available: available)
-        let names = Self.menuPeriodNames(primary: period, available: available)
-        let matched = names.compactMap { name in
-            stations.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
-        }
-        let board = matched.isEmpty ? stations : Self.mergeStationLists([matched])
-        return DiningMenu(
-            locationId: HallDirectory.oasisComingSoonID,
-            date: dateISO,
-            period: resolved,
-            stations: board
-        )
     }
 
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.

@@ -40,12 +40,32 @@ class HallChromeTest {
     }
 
     @Test
-    fun oasisComingSoonUsesOpensLine() {
+    fun oasisPlaceholderIsClosedNotADate() {
         val hall = OasisSchedule.comingSoonLocation("2026-10-01")
         val status = HallChrome.status(hall, nowMinutes = 12 * 60, todayISO = "2026-10-01")
-        assertEquals(OasisSchedule.opensLine(), status.primary)
+        assertEquals("Closed", status.primary)
         assertEquals(HallTone.Muted, status.tone)
+        assertEquals("Closed", hall.comingSoonSubtitle)
+        assertFalse(status.primary.contains("Oct"))
+        assertFalse(status.primary.contains("Coming Soon", ignoreCase = true))
         assertFalse(status.primary.contains("\u2014") || status.primary.contains("\u2013"))
+    }
+
+    @Test
+    fun oasisFromApiWithMenuShowsUntilClock() {
+        val hall = DiningLocation(
+            id = "oasis",
+            name = "The Oasis",
+            compactName = "Oasis",
+            area = "Mesa Court",
+            openNow = true,
+            todayHours = "11:00 AM to 2:30 PM",
+            availablePeriods = listOf("Lunch"),
+            periods = listOf(MealPeriodWindow("Lunch", 11 * 60, 14 * 60 + 30)),
+        )
+        val status = HallChrome.status(hall, nowMinutes = 12 * 60, todayISO = "2026-10-16")
+        assertEquals("until 2:30 PM", status.primary)
+        assertEquals(HallTone.Open, status.tone)
     }
 }
 

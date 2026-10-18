@@ -83,7 +83,7 @@ struct DiningServiceTests {
     @Test func networkFailureDegradesToClosedLocations() async {
         let service = DiningService(http: FailingHTTP(), now: { fixtureNoon })
         let locations = await service.locations()
-        // Anteatery + Brandywine fallbacks, plus Coming Soon Oasis.
+        // Anteatery + Brandywine fallbacks, plus Closed Oasis until the API lists it.
         #expect(locations.count == 3)
         #expect(locations.filter { !$0.isComingSoon }.count == 2)
         #expect(locations.contains { $0.isComingSoon && HallDirectory.isOasis($0.id) })
@@ -119,7 +119,9 @@ struct DiningServiceTests {
         #expect(oasis.periods.isEmpty)
         #expect(oasis.openNow == false)
         #expect(oasis.todayHours == nil)
-        #expect(oasis.comingSoonSubtitle == "Opens Mon Oct 5")
+        #expect(oasis.comingSoonSubtitle == "Closed")
+        #expect(oasis.comingSoonSubtitle != "Coming Soon")
+        #expect(!(oasis.comingSoonSubtitle?.contains("Oct") == true))
         #expect(HallDirectory.campusHubKey(for: oasis.id) == "the-oasis-dining-hall")
         #expect(CampusTypicalMenus.kind(forPlaceID: "the-oasis-dining-hall", placeName: "The Oasis") == nil)
     }
@@ -142,28 +144,39 @@ struct DiningServiceTests {
         #expect(oasis?.availablePeriods.isEmpty == true)
     }
 
-    @Test func hubRecipesPromoteOasisWithoutInventingOccupancy() async throws {
+    @Test func hubRecipesDoNotPromoteOasisWithoutAnteaterAPI() async throws {
         let service = DiningService(http: OasisLiveHubHTTP(), now: { fixtureNoon })
+        let locations = await service.locations()
+        let oasis = locations.first { HallDirectory.isOasis($0.id) }
+        #expect(oasis?.isComingSoon == true)
+        #expect(oasis?.comingSoonSubtitle == "Closed")
+        #expect(oasis?.availablePeriods.isEmpty == true)
+        #expect(oasis?.openNow == false)
+        let menu = try await service.menu(for: "oasis", period: "Lunch", date: "2026-07-09")
+        #expect(menu.stations.isEmpty)
+        #expect(!menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
+    }
+
+    @Test func hubRecipesAfterOpenStayClosedWithoutAnteaterAPI() async {
+        let mondayNoon = ISO8601DateFormatter().date(from: "2026-10-05T19:30:00Z")!
+        let service = DiningService(http: OasisLiveHubHTTP(), now: { mondayNoon })
+        let oasis = await service.locations().first { HallDirectory.isOasis($0.id) }
+        #expect(oasis?.isComingSoon == true)
+        #expect(oasis?.comingSoonSubtitle == "Closed")
+        #expect(oasis?.openNow == false)
+        #expect(oasis?.todayHours == nil)
+        #expect(oasis?.availablePeriods.isEmpty == true)
+    }
+
+    @Test func anteaterAPIOasisShowsNormalHoursAndMenu() async throws {
+        let service = DiningService(http: OasisAnteaterAPIHTTP(), now: { fixtureNoon })
         let locations = await service.locations()
         let oasis = locations.first { HallDirectory.isOasis($0.id) }
         #expect(oasis?.isComingSoon == false)
         #expect(oasis?.availablePeriods.contains("Lunch") == true)
-        #expect(oasis?.openNow == false)
-        #expect(oasis?.todayHours == nil)
+        #expect(oasis?.openNow == true)
         let menu = try await service.menu(for: "oasis", period: "Lunch", date: "2026-07-09")
         #expect(menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
-        #expect(!menu.stations.contains { $0.name == CampusTypicalMenus.bannerStationName })
-    }
-
-    @Test func hubRecipesAfterOpenAttachWeekdayHours() async {
-        let mondayNoon = ISO8601DateFormatter().date(from: "2026-10-05T19:30:00Z")!
-        let service = DiningService(http: OasisLiveHubHTTP(), now: { mondayNoon })
-        let oasis = await service.locations().first { HallDirectory.isOasis($0.id) }
-        #expect(oasis?.isComingSoon == false)
-        #expect(oasis?.availablePeriods.contains("Lunch") == true)
-        #expect(oasis?.openNow == true)
-        #expect(oasis?.todayHours == "11:00 AM – 8:00 PM")
-        #expect(oasis?.periods.map(\.name) == ["Lunch", "Dinner"])
     }
 
     @Test func resolvePeriodMapsBreakfastToBrunch() {

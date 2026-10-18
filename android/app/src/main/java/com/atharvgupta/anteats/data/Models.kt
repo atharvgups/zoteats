@@ -135,6 +135,7 @@ object OasisSchedule {
         return "Opens $stamp"
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun comingSoonLocation(dateISO: String = PacificTime.todayISO()): DiningLocation =
         DiningLocation(
             id = HallDirectory.OASIS,
@@ -145,6 +146,6 @@ object OasisSchedule {
             todayHours = null,
             availablePeriods = emptyList(),
             periods = emptyList(),
-            comingSoonSubtitle = if (dateISO < firstServiceISO) opensLine() else "Coming soon",
+            comingSoonSubtitle = "Closed",
         )
 }

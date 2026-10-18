@@ -1465,7 +1465,7 @@ struct DietFilterSheet: View {
 
 // MARK: - Hall status inside 3-up cards
 
-/// Short card subtext — until / opens / Opens Mon Oct 5, green when open, muted when closed.
+/// Short card subtext: until / opens / Closed, green when open, muted when closed.
 private enum HallChromeStatus {
     static func resolve(
         for location: DiningLocation,

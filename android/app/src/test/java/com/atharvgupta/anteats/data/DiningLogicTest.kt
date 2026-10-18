@@ -251,7 +251,32 @@ class DiningLogicTest {
         )
         assertEquals(listOf("anteatery", "brandywine", "oasis"), halls.map { it.id })
         assertTrue(halls.last().isComingSoon)
+        assertEquals("Closed", halls.last().comingSoonSubtitle)
         assertEquals("Oasis", halls.last().compactName)
+    }
+
+    @Test
+    fun eatHallsKeepAnteaterApiOasisWhenItHasAMenu() {
+        val liveOasis = DiningLocation(
+            "oasis",
+            "The Oasis",
+            "Oasis",
+            "Mesa Court",
+            true,
+            "11:00 AM to 2:30 PM",
+            listOf("Lunch"),
+            listOf(MealPeriodWindow("Lunch", 11 * 60, 14 * 60 + 30)),
+        )
+        val halls = DiningLogic.eatHalls(
+            listOf(
+                DiningLocation("anteatery", "The Anteatery", "Anteatery", "Mesa Court", true, null, listOf("Lunch"), emptyList()),
+                DiningLocation("brandywine", "Brandywine", "Brandywine", "Middle Earth", false, null, listOf("Lunch"), emptyList()),
+                liveOasis,
+            ),
+        )
+        assertEquals(listOf("anteatery", "brandywine", "oasis"), halls.map { it.id })
+        assertFalse(halls.last().isComingSoon)
+        assertEquals(listOf("Lunch"), halls.last().availablePeriods)
     }
 
     @Test
@@ -259,5 +284,9 @@ class DiningLogicTest {
         val copy = DiningLogic.emptyMenuCopy("Dinner", browsingFuture = false, comingSoon = false)
         assertFalse(copy.contains("\u2014") || copy.contains("\u2013"))
         assertTrue(copy.contains("dinner"))
+        val closed = DiningLogic.emptyMenuCopy("Lunch", browsingFuture = false, comingSoon = true)
+        assertEquals("This hall is closed until UCI posts a menu.", closed)
+        assertFalse(closed.contains("Oct"))
+        assertFalse(closed.contains("Coming Soon", ignoreCase = true))
     }
 }

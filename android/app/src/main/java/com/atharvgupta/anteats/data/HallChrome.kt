@@ -9,11 +9,8 @@ object HallChrome {
         PacificTime.formatMinutes(minutes % (24 * 60)).replace(":00 ", " ")
 
     fun status(location: DiningLocation, nowMinutes: Int, todayISO: String): HallStatus {
-        if (location.isComingSoon && todayISO < OasisSchedule.firstServiceISO) {
-            return HallStatus(OasisSchedule.opensLine(), HallTone.Muted)
-        }
-        if (location.isComingSoon) {
-            return HallStatus("Lunch & Dinner", HallTone.Muted)
+        if (location.isComingSoon || (HallDirectory.isOasis(location.id) && location.periods.isEmpty())) {
+            return HallStatus("Closed", HallTone.Muted)
         }
         val timed = location.periods.filter { it.startMinutes != null && it.endMinutes != null }
         val live = timed.firstOrNull {

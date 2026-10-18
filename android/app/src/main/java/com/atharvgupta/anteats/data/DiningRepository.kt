@@ -45,14 +45,10 @@ class DiningRepository(
             }.awaitAll()
         }
         val ordered = hallIds.mapNotNull { id -> halls.firstOrNull { it.id == id } }
-            .filter { !HallDirectory.isOasis(it.id) }
         return DiningLogic.eatHalls(ordered)
     }
 
     suspend fun menu(hall: String, period: String, dateISO: String): DiningMenu {
-        if (HallDirectory.isOasis(hall)) {
-            return DiningMenu(hall, dateISO, period, emptyList())
-        }
         val today = restaurantToday(hall, dateISO)
         val available = today.values.map { it.name }
         if (available.isEmpty()) {
