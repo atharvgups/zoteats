@@ -1066,6 +1066,26 @@ def ensure_preview(token: str, localization_id: str, meta: dict) -> None:
     existing = api(
         "GET", f"/v1/appPreviewSets/{set_id}/appPreviews?limit=10", token
     ).get("data") or []
+    ready = [
+        preview
+        for preview in existing
+        if _preview_delivery(preview) in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}
+        or _preview_video(preview) in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}
+    ]
+    if ready:
+        info("Preview already on ASC and complete; skipping re-upload.")
+        return
+    processing = [
+        preview
+        for preview in existing
+        if _preview_is_processing(preview)
+    ]
+    if processing:
+        info("Preview already uploaded and still processing; waiting instead of replacing it.")
+        if _wait_preview_complete(token, processing[0]["id"], seconds=900):
+            return
+        warn("Existing preview still processing after wait; not deleting it.")
+        return
     for preview in existing:
         for attempt in range(4):
             result = api(
@@ -1139,21 +1159,48 @@ def ensure_preview(token: str, localization_id: str, meta: dict) -> None:
         ok_codes={200, 204, 409, 422},
     )
     info(f"Uploaded preview {src.name} ({len(data)} bytes) to {PREVIEW_TYPE}.")
-    deadline = time.time() + 300
+    if not _wait_preview_complete(token, preview_id, seconds=900):
+        warn("Timed out waiting for preview processing; continuing submit.")
+
+
+def _preview_attrs(preview: dict) -> dict:
+    return preview.get("attributes") or {}
+
+
+def _preview_delivery(preview: dict) -> str:
+    return str((_preview_attrs(preview).get("assetDeliveryState") or {}).get("state") or "")
+
+
+def _preview_video(preview: dict) -> str:
+    return str((_preview_attrs(preview).get("videoDeliveryState") or {}).get("state") or "")
+
+
+def _preview_is_processing(preview: dict) -> bool:
+    states = {_preview_delivery(preview), _preview_video(preview)}
+    return any(
+        state in {"PROCESSING", "WAIT_FOR_PROCESSING", "UPLOAD_COMPLETE", "AWAITING_UPLOAD"}
+        or "PROCESS" in state
+        for state in states
+        if state
+    )
+
+
+def _wait_preview_complete(token: str, preview_id: str, seconds: int = 900) -> bool:
+    deadline = time.time() + seconds
     while time.time() < deadline:
         detail = api("GET", f"/v1/appPreviews/{preview_id}", token)
         attrs = (detail.get("data") or {}).get("attributes") or {}
-        delivery = (attrs.get("assetDeliveryState") or {}).get("state")
-        video = (attrs.get("videoDeliveryState") or {}).get("state")
+        delivery = str((attrs.get("assetDeliveryState") or {}).get("state") or "")
+        video = str((attrs.get("videoDeliveryState") or {}).get("state") or "")
         info(f"Preview processing delivery={delivery} video={video}")
         if delivery == "FAILED" or video == "FAILED":
             warn(f"ASC failed to process the preview. attrs={json.dumps(attrs)[:800]}")
-            return
-        if delivery == "COMPLETE":
+            return False
+        if delivery in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}:
             info("Preview asset is COMPLETE.")
-            return
+            return True
         time.sleep(15)
-    warn("Timed out waiting for preview processing; continuing submit.")
+    return False
 
 
 
