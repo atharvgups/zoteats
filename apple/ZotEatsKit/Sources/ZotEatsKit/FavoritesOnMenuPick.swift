@@ -22,11 +22,12 @@ public enum FavoritesOnMenuPick {
     }
 
     /// Hearted dishes served on this meal's timed stations (not Available all day).
-    /// All-day is appended to every pill, so using it would keep a breakfast
-    /// favorite visible after switching to Lunch.
+    /// Weekend Lunch unions Brunch and keeps Twisted Root intact, so breakfast
+    /// hearts like Home-Style Pancakes would otherwise stay on the Lunch strip.
     public static func servedItems(
         favorites: some Collection<String>,
-        stations: [MenuStation]
+        stations: [MenuStation],
+        period: String? = nil
     ) -> [MenuItem] {
         guard !favorites.isEmpty else { return [] }
         let wanted = Set(favorites.map { $0.lowercased() })
@@ -37,10 +38,28 @@ public enum FavoritesOnMenuPick {
             for item in station.items {
                 let key = item.name.lowercased()
                 guard wanted.contains(key), seen.insert(key).inserted else { continue }
+                if isBreakfastOnlyFavorite(item.name, period: period) { continue }
                 result.append(item)
             }
         }
         return result
+    }
+
+    /// Eat section title. "today" is only honest for the Irvine calendar day.
+    public static func sectionTitle(dateISO: String, todayISO: String) -> String {
+        if dateISO == todayISO { return "Favorites today" }
+        if let weekday = EatPostedDays.weekdayName(dateISO) {
+            return "Favorites on \(weekday)"
+        }
+        return "Favorites"
+    }
+
+    /// Pancakes / scramble / hash belong on Breakfast even when Brunch TR
+    /// copies them onto the Lunch board.
+    public static func isBreakfastOnlyFavorite(_ name: String, period: String?) -> Bool {
+        guard let period, !period.isEmpty else { return false }
+        if MealPeriodPill.canonical(period) == "Breakfast" { return false }
+        return DiningService.isBreakfastStyleTwistedRootName(name)
     }
 
     /// Shared kitchen dump folded onto every meal — not the selected period.
@@ -60,7 +79,8 @@ public enum FavoritesOnMenuPick {
     ) -> [Row] {
         guard !favorites.isEmpty, limit > 0 else { return [] }
         let onBoard = Set(
-            servedItems(favorites: favorites, stations: stations).map { $0.name.lowercased() }
+            servedItems(favorites: favorites, stations: stations, period: period)
+                .map { $0.name.lowercased() }
         )
         var rows: [Row] = []
         var seen = Set<String>()

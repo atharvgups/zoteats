@@ -96,6 +96,10 @@ public enum EatPostedDays {
         formatted(isoDate, format: "EEEE, MMM d")
     }
 
+    public static func weekdayName(_ isoDate: String) -> String? {
+        formatted(isoDate, format: "EEEE")
+    }
+
     /// Inclusive Irvine ISO dates from `from` through `through`.
     public static func isoDates(from: String, through: String) -> [String] {
         var result: [String] = []

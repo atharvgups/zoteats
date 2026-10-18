@@ -176,7 +176,11 @@ fun EatScreen(
                         }
                     } else {
                         val stations = filteredStations(state.menu?.stations.orEmpty(), viewModel.prefs)
-                        val favoriteItems = DiningLogic.favoriteItemsOnBoard(stations, favorites)
+                        val favoriteItems = DiningLogic.favoriteItemsOnBoard(
+                            stations,
+                            favorites,
+                            state.selectedPeriod,
+                        )
                         if (stations.isEmpty()) {
                             item {
                                 EmptyState(
@@ -198,7 +202,12 @@ fun EatScreen(
                                         Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                                         verticalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
-                                        SectionHeader("Favorites today", favoriteItems.size, goldBar = false, icon = Icons.Filled.Favorite)
+                                        SectionHeader(
+                                            DiningLogic.favoritesSectionTitle(state.selectedDate, today),
+                                            favoriteItems.size,
+                                            goldBar = false,
+                                            icon = Icons.Filled.Favorite,
+                                        )
                                         favoriteItems.forEach { item ->
                                             DishRowCard(
                                                 item = item,

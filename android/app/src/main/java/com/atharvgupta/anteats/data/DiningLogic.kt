@@ -239,10 +239,11 @@ object DiningLogic {
     }
 
     /// Hearted dishes served on this hall + meal + date board.
-    /// Skips Available all day so a breakfast favorite does not follow Lunch.
+    /// Skips Available all day and breakfast-only Brunch copies (pancakes).
     fun favoriteItemsOnBoard(
         stations: List<MenuStation>,
         favoriteNames: Collection<String>,
+        period: String? = null,
     ): List<MenuItem> {
         if (favoriteNames.isEmpty()) return emptyList()
         val wanted = favoriteNames.map { it.lowercase() }.toHashSet()
@@ -252,10 +253,34 @@ object DiningLogic {
             if (isAvailableAllDayStation(station.name)) continue
             for (item in station.items) {
                 val key = item.name.lowercase()
-                if (key in wanted && seen.add(key)) result += item
+                if (key !in wanted || !seen.add(key)) continue
+                if (isBreakfastOnlyFavorite(item.name, period)) continue
+                result += item
             }
         }
         return result
+    }
+
+    fun isBreakfastStyleDishName(name: String): Boolean {
+        val n = name.lowercase()
+        val tokens = listOf(
+            "scramble", "hash", "egg", "oatmeal", "sausage", "bacon",
+            "pancake", "waffle", "breakfast", "yogurt", "muffin", "chia",
+            "french toast",
+        )
+        return tokens.any { it in n }
+    }
+
+    fun isBreakfastOnlyFavorite(name: String, period: String?): Boolean {
+        if (period.isNullOrBlank()) return false
+        if (canonicalPill(period) == "Breakfast") return false
+        return isBreakfastStyleDishName(name)
+    }
+
+    fun favoritesSectionTitle(dateISO: String, todayISO: String): String {
+        if (dateISO == todayISO) return "Favorites today"
+        val weekday = PacificTime.weekdayName(dateISO) ?: return "Favorites"
+        return "Favorites on $weekday"
     }
 
     /// After Lunch unions Brunch, drop dishes that are only on Breakfast.

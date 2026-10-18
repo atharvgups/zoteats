@@ -117,7 +117,8 @@ public enum SharedDefaults {
         stations: [MenuStation],
         dietFilters: Set<String>,
         allergenAvoids: Set<String>,
-        favorites: [String]
+        favorites: [String],
+        period: String? = nil
     ) -> (ordered: [String], favorited: Set<String>, filtersEmptiedMenu: Bool) {
         let hadItems = stations.contains { !$0.items.isEmpty }
         let filtered = MenuFilterMatching.filterStations(
@@ -132,7 +133,8 @@ public enum SharedDefaults {
             .filter { seen.insert($0.lowercased()).inserted }
         let mealFavorites = FavoritesOnMenuPick.servedItems(
             favorites: favorites,
-            stations: filtered
+            stations: filtered,
+            period: period
         ).map(\.name)
         let prioritized = prioritizeFavorites(dishes: names, favorites: mealFavorites)
         let filtersActive = !dietFilters.isEmpty || !allergenAvoids.isEmpty

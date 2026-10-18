@@ -62,7 +62,8 @@ public enum WidgetGlanceExtras {
             stations: menu.stations,
             dietFilters: dietFilters,
             allergenAvoids: allergenAvoids,
-            favorites: favorites
+            favorites: favorites,
+            period: menu.period
         )
         let dishes = Array(built.ordered.prefix(limit))
         guard !dishes.isEmpty else { return nil }

@@ -291,6 +291,33 @@ class DiningLogicTest {
     }
 
     @Test
+    fun lunchFavoritesSkipBrunchTwistedRootPancakes() {
+        val pancakes = MenuItem("p", "Home-Style Pancakes", null, 320, null, emptyList(), emptyList(), stationID = "1893")
+        val scramble = MenuItem("s", "Turmeric Tofu Scramble", null, 180, null, emptyList(), emptyList(), stationID = "1893")
+        val tofu = MenuItem("t", "General Tso's Tofu", null, 400, null, emptyList(), emptyList(), stationID = "1893")
+        val burger = MenuItem("b", "Cheeseburger", null, 500, null, emptyList(), emptyList(), stationID = "1878")
+        val stations = listOf(
+            MenuStation("The Twisted Root", listOf(pancakes, scramble, tofu), "1893"),
+            MenuStation("Ember", listOf(burger), "1878"),
+        )
+        val served = DiningLogic.favoriteItemsOnBoard(
+            stations,
+            listOf("Home-Style Pancakes", "General Tso's Tofu", "Cheeseburger"),
+            "Lunch",
+        )
+        assertEquals(listOf("General Tso's Tofu", "Cheeseburger"), served.map { it.name })
+        assertTrue(
+            DiningLogic.favoriteItemsOnBoard(stations, listOf("Home-Style Pancakes"), "Lunch").isEmpty(),
+        )
+        assertEquals(
+            listOf("Home-Style Pancakes"),
+            DiningLogic.favoriteItemsOnBoard(stations, listOf("Home-Style Pancakes"), "Breakfast").map { it.name },
+        )
+        assertEquals("Favorites today", DiningLogic.favoritesSectionTitle("2026-10-17", "2026-10-17"))
+        assertEquals("Favorites on Sunday", DiningLogic.favoritesSectionTitle("2026-10-18", "2026-10-17"))
+    }
+
+    @Test
     fun lunchFavoritesSkipBreakfastOnlyAllDay() {
         val eggs = MenuItem("eggs", "Scrambled Eggs", null, 140, null, emptyList(), emptyList())
         val bowl = MenuItem("bowl", "Teriyaki Bowl", null, 520, null, emptyList(), emptyList())

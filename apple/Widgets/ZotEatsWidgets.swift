@@ -1365,7 +1365,8 @@ struct TodaysMenuProvider: AppIntentTimelineProvider {
                     stations: menu.stations,
                     dietFilters: Set(SharedDefaults.dietFilters()),
                     allergenAvoids: Set(SharedDefaults.allergenAvoids()),
-                    favorites: SharedDefaults.favoriteDishNames()
+                    favorites: SharedDefaults.favoriteDishNames(),
+                    period: pill
                 )
                 dishes = built.ordered
                 favorited = built.favorited

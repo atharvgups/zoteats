@@ -726,12 +726,15 @@ struct DiningView: View {
             .foregroundStyle(.tertiary)
             .padding(.horizontal, 20)
 
-            let favorites = favoriteItems(in: stations)
+            let favorites = favoriteItems(in: stations, period: selectedPeriod ?? menu.period)
             let hits = hitItems(in: stations)
             if !favorites.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     sectionHeader(
-                        title: "Favorites today",
+                        title: FavoritesOnMenuPick.sectionTitle(
+                            dateISO: menu.date,
+                            todayISO: UCITime.todayISO()
+                        ),
                         count: favorites.count,
                         icon: "heart.fill",
                         tint: .accent
@@ -885,11 +888,12 @@ struct DiningView: View {
     }
 
     /// Favorited dishes served on this hall + meal + date board.
-    /// Skips Available all day so a breakfast heart does not follow the Lunch pill.
-    private func favoriteItems(in stations: [MenuStation]) -> [MenuItem] {
+    /// Skips Available all day and breakfast-only Brunch copies (pancakes).
+    private func favoriteItems(in stations: [MenuStation], period: String) -> [MenuItem] {
         FavoritesOnMenuPick.servedItems(
             favorites: prefs.favoriteDishNames,
-            stations: stations
+            stations: stations,
+            period: period
         )
     }
 
