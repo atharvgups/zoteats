@@ -1500,6 +1500,14 @@ public struct DiningService: Sendable {
         forceRefresh: Bool = false
     ) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
+        if HallDirectory.isOasis(hall) {
+            let listed = ((try? await restaurants()) ?? []).contains {
+                HallDirectory.isOasis($0.id)
+            }
+            if !listed {
+                return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+            }
+        }
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
         let available = (today.periods ?? [:]).values.map(\.name)
 

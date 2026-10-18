@@ -49,6 +49,13 @@ class DiningRepository(
     }
 
     suspend fun menu(hall: String, period: String, dateISO: String): DiningMenu {
+        if (HallDirectory.isOasis(hall)) {
+            val listed = runCatching { restaurants() }.getOrNull().orEmpty()
+                .any { HallDirectory.isOasis(it.first) }
+            if (!listed) {
+                return DiningMenu(hall, dateISO, period, emptyList())
+            }
+        }
         val today = restaurantToday(hall, dateISO)
         val available = today.values.map { it.name }
         if (available.isEmpty()) {
