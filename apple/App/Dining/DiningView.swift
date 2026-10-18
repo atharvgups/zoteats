@@ -1151,13 +1151,13 @@ struct DiningView: View {
             return
         }
 
+        // Wait for a loaded board. Marking applied here was racing locations
+        // snap and left plate/dish listing shots on the bare Eat tab.
         guard let pick = screenshotLiveHallPick() else { return }
         if pick.hall != selectedHall || pick.period != selectedPeriod {
             selectedHall = pick.hall
             selectedPeriod = pick.period
-            return
         }
-        didApplyScreenshotArgs = true
     }
 
     private func screenshotBoardItems() -> [MenuItem]? {
