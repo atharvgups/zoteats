@@ -23,6 +23,25 @@ struct TrackMealPlateItemsTests {
         #expect(picked.map(\.name) == ["Tofu"])
     }
 
+    @Test func skipsAllDayOnlyBreakfastFavorite() {
+        let eggs = MenuItem(
+            id: "1", name: "Scrambled Eggs", description: nil, calories: 140,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let bowl = MenuItem(
+            id: "2", name: "Teriyaki Bowl", description: nil, calories: 520,
+            servingSize: nil, allergens: [], dietaryTags: []
+        )
+        let picked = TrackMealPlateItems.favorites(
+            from: [
+                MenuStation(name: "Grill", items: [bowl]),
+                MenuStation(name: "Available all day", items: [eggs]),
+            ],
+            favoriteNames: ["Scrambled Eggs", "Teriyaki Bowl"]
+        )
+        #expect(picked.map(\.name) == ["Teriyaki Bowl"])
+    }
+
     @Test func emptyFavoritesAddNothing() {
         let item = MenuItem(
             id: "1", name: "Burger", description: nil, calories: 400,

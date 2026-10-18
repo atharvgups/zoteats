@@ -130,7 +130,11 @@ public enum SharedDefaults {
             .flatMap(\.items)
             .map(\.name)
             .filter { seen.insert($0.lowercased()).inserted }
-        let prioritized = prioritizeFavorites(dishes: names, favorites: favorites)
+        let mealFavorites = FavoritesOnMenuPick.servedItems(
+            favorites: favorites,
+            stations: filtered
+        ).map(\.name)
+        let prioritized = prioritizeFavorites(dishes: names, favorites: mealFavorites)
         let filtersActive = !dietFilters.isEmpty || !allergenAvoids.isEmpty
         let filtersEmptiedMenu = filtersActive && hadItems && names.isEmpty
         return (prioritized.ordered, prioritized.favorited, filtersEmptiedMenu)

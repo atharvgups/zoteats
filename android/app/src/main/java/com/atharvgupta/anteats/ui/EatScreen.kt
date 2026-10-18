@@ -176,7 +176,7 @@ fun EatScreen(
                         }
                     } else {
                         val stations = filteredStations(state.menu?.stations.orEmpty(), viewModel.prefs)
-                        val favoriteItems = stations.flatMap { it.items }.filter { viewModel.prefs.isFavorite(it.name) }
+                        val favoriteItems = DiningLogic.favoriteItemsOnBoard(stations, favorites)
                         if (stations.isEmpty()) {
                             item {
                                 EmptyState(

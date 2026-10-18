@@ -289,4 +289,45 @@ class DiningLogicTest {
         assertFalse(closed.contains("Oct"))
         assertFalse(closed.contains("Coming Soon", ignoreCase = true))
     }
+
+    @Test
+    fun lunchFavoritesSkipBreakfastOnlyAllDay() {
+        val eggs = MenuItem("eggs", "Scrambled Eggs", null, 140, null, emptyList(), emptyList())
+        val bowl = MenuItem("bowl", "Teriyaki Bowl", null, 520, null, emptyList(), emptyList())
+        val fries = MenuItem("fries", "Seasoned Fries", null, 280, null, emptyList(), emptyList())
+        val stations = listOf(
+            MenuStation("Grill", listOf(bowl)),
+            MenuStation("Available all day", listOf(eggs, fries)),
+        )
+        val served = DiningLogic.favoriteItemsOnBoard(
+            stations,
+            listOf("Scrambled Eggs", "Teriyaki Bowl", "Seasoned Fries"),
+        )
+        assertEquals(listOf("Teriyaki Bowl"), served.map { it.name })
+    }
+
+    @Test
+    fun lunchDropsBreakfastOnlyBrunchDishes() {
+        val eggs = MenuItem("eggs", "Judy's BBQ Eggs", null, 140, null, emptyList(), emptyList())
+        val oatmeal = MenuItem("oats", "Oatmeal", null, 150, null, emptyList(), emptyList())
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList())
+        val taco = MenuItem("taco", "Sesame Shrimp Taco", null, 320, null, emptyList(), emptyList())
+        val breakfast = listOf(MenuStation("Home", listOf(eggs, oatmeal)))
+        val lunch = listOf(MenuStation("Ember", listOf(burger)))
+        val brunch = listOf(
+            MenuStation("Home", listOf(eggs, oatmeal)),
+            MenuStation("Ember", listOf(burger)),
+            MenuStation("Crossroads", listOf(taco)),
+        )
+        val filtered = DiningLogic.subtractingBreakfastOnlyBrunchDishes(
+            from = DiningLogic.mergeStations(listOf(lunch, brunch)),
+            lunch = lunch,
+            breakfast = breakfast,
+        )
+        val names = filtered.flatMap { it.items }.map { it.name }
+        assertTrue(names.contains("Sesame Shrimp Taco"))
+        assertTrue(names.contains("Cheeseburger"))
+        assertFalse(names.contains("Judy's BBQ Eggs"))
+        assertFalse(names.contains("Oatmeal"))
+    }
 }

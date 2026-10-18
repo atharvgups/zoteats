@@ -238,6 +238,44 @@ object DiningLogic {
         return if (name.isEmpty()) null else "name:$name"
     }
 
+    /// Hearted dishes served on this hall + meal + date board.
+    /// Skips Available all day so a breakfast favorite does not follow Lunch.
+    fun favoriteItemsOnBoard(
+        stations: List<MenuStation>,
+        favoriteNames: Collection<String>,
+    ): List<MenuItem> {
+        if (favoriteNames.isEmpty()) return emptyList()
+        val wanted = favoriteNames.map { it.lowercase() }.toHashSet()
+        val seen = mutableSetOf<String>()
+        val result = mutableListOf<MenuItem>()
+        for (station in stations) {
+            if (isAvailableAllDayStation(station.name)) continue
+            for (item in station.items) {
+                val key = item.name.lowercase()
+                if (key in wanted && seen.add(key)) result += item
+            }
+        }
+        return result
+    }
+
+    /// After Lunch unions Brunch, drop dishes that are only on Breakfast.
+    fun subtractingBreakfastOnlyBrunchDishes(
+        from: List<MenuStation>,
+        lunch: List<MenuStation>,
+        breakfast: List<MenuStation>,
+    ): List<MenuStation> {
+        val breakfastKeys = breakfast.flatMap { it.items }.map { it.name.lowercase() }.toHashSet()
+        if (breakfastKeys.isEmpty()) return from
+        val lunchKeys = lunch.flatMap { it.items }.map { it.name.lowercase() }.toHashSet()
+        return from.mapNotNull { station ->
+            if (isTwistedRoot(station.name, station.stationID)) return@mapNotNull station
+            val kept = station.items.filter { item ->
+                item.name.lowercase() in lunchKeys || item.name.lowercase() !in breakfastKeys
+            }
+            if (kept.isEmpty()) null else station.withItems(kept)
+        }
+    }
+
     fun mergeStations(groups: List<List<MenuStation>>): List<MenuStation> {
         val displayName = linkedMapOf<String, String>()
         val items = mutableMapOf<String, MutableList<MenuItem>>()

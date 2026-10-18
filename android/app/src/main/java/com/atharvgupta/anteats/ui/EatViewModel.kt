@@ -92,19 +92,19 @@ class EatViewModel(
 
     fun selectHall(id: String) {
         if (id == _state.value.selectedHall) return
-        _state.update { it.copy(selectedHall = id, selectedDish = null) }
+        _state.update { it.copy(selectedHall = id, selectedDish = null, menu = null) }
         loadMenu()
     }
 
     fun selectPeriod(period: String) {
         if (period == _state.value.selectedPeriod) return
-        _state.update { it.copy(selectedPeriod = period, selectedDish = null) }
+        _state.update { it.copy(selectedPeriod = period, selectedDish = null, menu = null) }
         loadMenu()
     }
 
     fun selectDate(iso: String) {
         if (iso == _state.value.selectedDate) return
-        _state.update { it.copy(selectedDate = iso, selectedDish = null) }
+        _state.update { it.copy(selectedDate = iso, selectedDish = null, menu = null) }
         loadMenu()
     }
 

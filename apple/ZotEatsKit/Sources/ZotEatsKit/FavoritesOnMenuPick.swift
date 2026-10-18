@@ -21,7 +21,35 @@ public enum FavoritesOnMenuPick {
         }
     }
 
-    /// Hearted dishes that appear in `stations`, preserving favorite order.
+    /// Hearted dishes served on this meal's timed stations (not Available all day).
+    /// All-day is appended to every pill, so using it would keep a breakfast
+    /// favorite visible after switching to Lunch.
+    public static func servedItems(
+        favorites: some Collection<String>,
+        stations: [MenuStation]
+    ) -> [MenuItem] {
+        guard !favorites.isEmpty else { return [] }
+        let wanted = Set(favorites.map { $0.lowercased() })
+        var seen = Set<String>()
+        var result: [MenuItem] = []
+        for station in stations {
+            if isSharedAllDayStation(station.name) { continue }
+            for item in station.items {
+                let key = item.name.lowercased()
+                guard wanted.contains(key), seen.insert(key).inserted else { continue }
+                result.append(item)
+            }
+        }
+        return result
+    }
+
+    /// Shared kitchen dump folded onto every meal — not the selected period.
+    public static func isSharedAllDayStation(_ name: String) -> Bool {
+        CampusMenuNormalize.isAvailableAllDay(name)
+            || name.localizedCaseInsensitiveContains("all day")
+    }
+
+    /// Hearted dishes that appear in this meal's timed stations, preserving favorite order.
     public static func rows(
         favorites: [String],
         stations: [MenuStation],
@@ -31,12 +59,9 @@ public enum FavoritesOnMenuPick {
         limit: Int = 6
     ) -> [Row] {
         guard !favorites.isEmpty, limit > 0 else { return [] }
-        var onBoard = Set<String>()
-        for station in stations {
-            for item in station.items {
-                onBoard.insert(item.name.lowercased())
-            }
-        }
+        let onBoard = Set(
+            servedItems(favorites: favorites, stations: stations).map { $0.name.lowercased() }
+        )
         var rows: [Row] = []
         var seen = Set<String>()
         for name in favorites {

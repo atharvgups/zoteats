@@ -35,6 +35,38 @@ struct FavoritesOnMenuPickTests {
         #expect(rows.first?.period == "Lunch")
     }
 
+    @Test func lunchFavoritesSkipBreakfastOnlyAllDay() {
+        // Atharv Sat Oct 17: switching to Lunch must not keep a breakfast heart
+        // that only lives on the shared Available all day dump.
+        let stations = [
+            station("Grill", items: ["Teriyaki Bowl"]),
+            station("Available all day", items: ["Scrambled Eggs", "Seasoned Fries"]),
+        ]
+        let served = FavoritesOnMenuPick.servedItems(
+            favorites: ["Scrambled Eggs", "Teriyaki Bowl", "Seasoned Fries"],
+            stations: stations
+        )
+        #expect(served.map(\.name) == ["Teriyaki Bowl"])
+        let rows = FavoritesOnMenuPick.rows(
+            favorites: ["Scrambled Eggs", "Teriyaki Bowl", "Seasoned Fries"],
+            stations: stations,
+            period: "Lunch"
+        )
+        #expect(rows.map(\.dishName) == ["Teriyaki Bowl"])
+        #expect(rows.first?.period == "Lunch")
+    }
+
+    @Test func keepsFavoriteAlsoOnTimedStation() {
+        let served = FavoritesOnMenuPick.servedItems(
+            favorites: ["Coffee"],
+            stations: [
+                station("Home", items: ["Coffee"]),
+                station("Available all day", items: ["Coffee", "Fruit"]),
+            ]
+        )
+        #expect(served.map(\.name) == ["Coffee"])
+    }
+
     @Test func emptyFavoritesYieldsNoRows() {
         #expect(
             FavoritesOnMenuPick.rows(
@@ -72,6 +104,24 @@ struct FavoritesOnMenuPickTests {
         )
         #expect(pick?.hallID == "b")
         #expect(pick?.rows.map(\.dishName) == ["Soup", "Rice"])
+    }
+
+    @Test func bestIgnoresAllDayOnlyHeartsOnLunch() {
+        let pick = FavoritesOnMenuPick.best(
+            favorites: ["Scrambled Eggs"],
+            boards: [
+                .init(
+                    hallID: "anteatery",
+                    hallName: "The Anteatery",
+                    period: "Lunch",
+                    stations: [
+                        station("Grill", items: ["Teriyaki Bowl"]),
+                        station("Available all day", items: ["Scrambled Eggs"]),
+                    ]
+                ),
+            ]
+        )
+        #expect(pick == nil)
     }
 
     @Test func bestPicksSiblingWhenAutoHallHasNoHearts() {

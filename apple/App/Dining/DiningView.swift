@@ -884,16 +884,13 @@ struct DiningView: View {
         return DiningService.pinTwistedRootFirst(stations)
     }
 
-    /// Favorited dishes being served right now, deduplicated by name.
+    /// Favorited dishes served on this hall + meal + date board.
+    /// Skips Available all day so a breakfast heart does not follow the Lunch pill.
     private func favoriteItems(in stations: [MenuStation]) -> [MenuItem] {
-        var seen = Set<String>()
-        var result: [MenuItem] = []
-        for station in stations {
-            for item in station.items where prefs.isFavorite(item.name) && seen.insert(item.name).inserted {
-                result.append(item)
-            }
-        }
-        return result
+        FavoritesOnMenuPick.servedItems(
+            favorites: prefs.favoriteDishNames,
+            stations: stations
+        )
     }
 
     /// 4–5 star dishes on this board — glance strip, like Nom’s popular picks.

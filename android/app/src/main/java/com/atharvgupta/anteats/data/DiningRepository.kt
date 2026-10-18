@@ -64,11 +64,27 @@ class DiningRepository(
         val resolved = DiningLogic.resolvePeriod(period, available)
         val periodNames = DiningLogic.menuPeriodNames(period, available)
         val stationNames = stationMap()
+        val scraped = linkedMapOf<String, List<MenuStation>>()
         var mealStations = emptyList<MenuStation>()
         for (name in periodNames) {
-            mealStations = DiningLogic.mergeStations(
-                listOf(mealStations, stationsFor(name, today, stationNames)),
-            )
+            val more = stationsFor(name, today, stationNames)
+            scraped[name] = more
+            mealStations = DiningLogic.mergeStations(listOf(mealStations, more))
+        }
+        if (DiningLogic.canonicalPill(period) == "Lunch") {
+            val breakfastName = available.firstOrNull { it.equals("Breakfast", true) }
+            if (breakfastName != null) {
+                val breakfastStations = stationsFor(breakfastName, today, stationNames)
+                val lunchStations = scraped.entries
+                    .firstOrNull { it.key.equals("Lunch", true) }
+                    ?.value
+                    .orEmpty()
+                mealStations = DiningLogic.subtractingBreakfastOnlyBrunchDishes(
+                    from = mealStations,
+                    lunch = lunchStations,
+                    breakfast = breakfastStations,
+                )
+            }
         }
         val periodMatched = periodNames.any { name -> available.any { it.equals(name, true) } }
         val allDayName = available.firstOrNull { it.contains("all day", true) }
