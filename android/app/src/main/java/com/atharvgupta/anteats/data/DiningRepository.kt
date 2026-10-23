@@ -45,7 +45,12 @@ class DiningRepository(
             }.awaitAll()
         }
         val ordered = hallIds.mapNotNull { id -> halls.firstOrNull { it.id == id } }
-        return DiningLogic.eatHalls(ordered)
+        val hubOasis = if (ordered.none { HallDirectory.isOasis(it.id) && it.availablePeriods.isNotEmpty() }) {
+            oasisFromHub(dateISO)
+        } else {
+            null
+        }
+        return DiningLogic.eatHalls(ordered, hubOasis)
     }
 
     suspend fun menu(hall: String, period: String, dateISO: String): DiningMenu {
@@ -53,7 +58,8 @@ class DiningRepository(
             val listed = runCatching { restaurants() }.getOrNull().orEmpty()
                 .any { HallDirectory.isOasis(it.first) }
             if (!listed) {
-                return DiningMenu(hall, dateISO, period, emptyList())
+                val hub = oasisHubMenu(period, dateISO)
+                return hub ?: DiningMenu(hall, dateISO, period, emptyList())
             }
         }
         val today = restaurantToday(hall, dateISO)
@@ -321,6 +327,35 @@ class DiningRepository(
         }
         return root["data"]?.jsonArray ?: JsonArray(emptyList())
     }
+
+    private suspend fun oasisFromHub(dateISO: String): DiningLocation? {
+        val recipes = oasisHubStations(dateISO)
+        if (recipes.isEmpty()) return null
+        return OasisSchedule.locationFromHubRecipes(recipes, dateISO)
+    }
+
+    private suspend fun oasisHubMenu(period: String, dateISO: String): DiningMenu? {
+        val stations = oasisHubStations(dateISO)
+        if (stations.isEmpty()) return null
+        val available = stations.map { it.name }
+        val resolved = DiningLogic.resolvePeriod(period, available)
+        val names = DiningLogic.menuPeriodNames(period, available)
+        val matched = names.mapNotNull { name ->
+            stations.firstOrNull { it.name.equals(name, true) }
+        }
+        val board = if (matched.isEmpty()) stations else matched
+        return DiningMenu(
+            HallDirectory.OASIS,
+            dateISO,
+            resolved,
+            DiningLogic.pinTwistedRootFirst(board),
+        )
+    }
+
+    private suspend fun oasisHubStations(dateISO: String): List<MenuStation> =
+        runCatching {
+            CampusRepository().postedMenu("the-oasis-dining-hall", dateISO)
+        }.getOrNull().orEmpty()
 
     private data class ApiPeriod(
         val name: String,

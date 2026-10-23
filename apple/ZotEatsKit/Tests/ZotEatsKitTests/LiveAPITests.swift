@@ -106,7 +106,7 @@ struct LiveAPITests {
         let oasis = locations.first { HallDirectory.isOasis($0.id) }
         #expect(oasis != nil)
         if oasis?.isComingSoon == true {
-            #expect(oasis?.comingSoonSubtitle == "Closed")
+            #expect(oasis?.comingSoonSubtitle == "Menu not posted")
             #expect(oasis?.availablePeriods.isEmpty == true)
         } else {
             #expect(oasis?.availablePeriods.isEmpty == false)

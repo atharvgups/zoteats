@@ -402,16 +402,20 @@ object DiningLogic {
         return named in lower && excluding !in lower
     }
 
-    fun eatHalls(locations: List<DiningLocation>): List<DiningLocation> {
+    fun eatHalls(
+        locations: List<DiningLocation>,
+        hubOasis: DiningLocation? = null,
+    ): List<DiningLocation> {
         val anteatery = locations.firstOrNull { it.id.equals(HallDirectory.ANTEATERY, true) }
         val brandywine = locations.firstOrNull { it.id.equals(HallDirectory.BRANDYWINE, true) }
         val oasis = locations.firstOrNull { HallDirectory.isOasis(it.id) && it.availablePeriods.isNotEmpty() }
+            ?: hubOasis?.takeIf { it.availablePeriods.isNotEmpty() }
             ?: OasisSchedule.comingSoonLocation()
         return listOfNotNull(anteatery, brandywine, oasis)
     }
 
     fun emptyMenuCopy(period: String, browsingFuture: Boolean, comingSoon: Boolean): String {
-        if (comingSoon) return "This hall is closed until UCI posts a menu."
+        if (comingSoon) return OasisSchedule.selectedLine()
         val meal = period.trim()
         return if (browsingFuture) {
             if (meal.isEmpty()) {

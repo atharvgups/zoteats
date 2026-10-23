@@ -251,7 +251,7 @@ class DiningLogicTest {
         )
         assertEquals(listOf("anteatery", "brandywine", "oasis"), halls.map { it.id })
         assertTrue(halls.last().isComingSoon)
-        assertEquals("Closed", halls.last().comingSoonSubtitle)
+        assertEquals("Menu not posted", halls.last().comingSoonSubtitle)
         assertEquals("Oasis", halls.last().compactName)
     }
 
@@ -285,9 +285,10 @@ class DiningLogicTest {
         assertFalse(copy.contains("\u2014") || copy.contains("\u2013"))
         assertTrue(copy.contains("dinner"))
         val closed = DiningLogic.emptyMenuCopy("Lunch", browsingFuture = false, comingSoon = true)
-        assertEquals("This hall is closed until UCI posts a menu.", closed)
+        assertTrue(closed.contains("menu not posted") || closed.contains("UCI has not posted a menu") || closed.contains("Closed today"))
         assertFalse(closed.contains("Oct"))
         assertFalse(closed.contains("Coming Soon", ignoreCase = true))
+        assertFalse(closed.contains("\u2014") || closed.contains("\u2013"))
     }
 
     @Test

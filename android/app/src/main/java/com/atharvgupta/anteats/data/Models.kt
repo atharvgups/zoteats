@@ -127,25 +127,92 @@ object OasisSchedule {
     const val firstServiceISO = "2026-10-05"
     const val lunchStartMinutes = 11 * 60
     const val lunchEndMinutes = 14 * 60 + 30
+    const val snackStartMinutes = 14 * 60 + 30
+    const val snackEndMinutes = 16 * 60 + 30
     const val dinnerStartMinutes = 16 * 60 + 30
     const val dinnerEndMinutes = 20 * 60
+    const val unpostedCard = "Menu not posted"
+    const val openUnposted = "Open, menu not posted"
 
     fun opensLine(iso: String = firstServiceISO): String {
         val stamp = PacificTime.opensStamp(iso) ?: "Mon Oct 5"
         return "Opens $stamp"
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun comingSoonLocation(dateISO: String = PacificTime.todayISO()): DiningLocation =
-        DiningLocation(
+    fun hasOpened(iso: String): Boolean = iso >= firstServiceISO
+
+    fun isWeekday(weekday: String): Boolean = when (weekday.lowercase()) {
+        "monday", "tuesday", "wednesday", "thursday", "friday" -> true
+        else -> false
+    }
+
+    fun mealWindows(dateISO: String, weekday: String): List<MealPeriodWindow> {
+        if (!hasOpened(dateISO) || !isWeekday(weekday)) return emptyList()
+        return listOf(
+            MealPeriodWindow("Lunch", lunchStartMinutes, lunchEndMinutes),
+            MealPeriodWindow("Afternoon Snack", snackStartMinutes, snackEndMinutes),
+            MealPeriodWindow("Dinner", dinnerStartMinutes, dinnerEndMinutes),
+        )
+    }
+
+    fun todayHours(dateISO: String, weekday: String): String? {
+        if (mealWindows(dateISO, weekday).isEmpty()) return null
+        return "${PacificTime.formatMinutes(lunchStartMinutes)} – ${PacificTime.formatMinutes(dinnerEndMinutes)}"
+    }
+
+    fun isOpen(dateISO: String, weekday: String, nowMinutes: Int): Boolean =
+        mealWindows(dateISO, weekday).any { window ->
+            val start = window.startMinutes ?: return@any false
+            val end = window.endMinutes ?: return@any false
+            nowMinutes >= start && nowMinutes < end
+        }
+
+    fun selectedLine(
+        dateISO: String = PacificTime.todayISO(),
+        weekday: String = PacificTime.weekdayName(dateISO).orEmpty(),
+        nowMinutes: Int = PacificTime.nowMinutes(),
+    ): String {
+        if (isOpen(dateISO, weekday, nowMinutes)) return "Open, menu not posted."
+        if (mealWindows(dateISO, weekday).isNotEmpty()) {
+            return "UCI has not posted a menu. Hours are lunch 11 AM to 2:30 PM, snack 2:30 to 4:30 PM, and dinner 4:30 to 8 PM, Monday to Friday."
+        }
+        return "Closed today. UCI has not posted a menu."
+    }
+
+    fun comingSoonLocation(
+        dateISO: String = PacificTime.todayISO(),
+        nowMinutes: Int = PacificTime.nowMinutes(),
+    ): DiningLocation {
+        val weekday = PacificTime.weekdayName(dateISO).orEmpty()
+        val windows = mealWindows(dateISO, weekday)
+        return DiningLocation(
             id = HallDirectory.OASIS,
             name = HallDirectory.displayName(HallDirectory.OASIS),
             compactName = HallDirectory.compactName(HallDirectory.OASIS),
             area = HallDirectory.area(HallDirectory.OASIS),
-            openNow = false,
-            todayHours = null,
+            openNow = isOpen(dateISO, weekday, nowMinutes),
+            todayHours = todayHours(dateISO, weekday),
             availablePeriods = emptyList(),
-            periods = emptyList(),
-            comingSoonSubtitle = "Closed",
+            periods = windows,
+            comingSoonSubtitle = unpostedCard,
         )
+    }
+
+    fun locationFromHubRecipes(
+        recipes: List<MenuStation>,
+        dateISO: String = PacificTime.todayISO(),
+        nowMinutes: Int = PacificTime.nowMinutes(),
+    ): DiningLocation {
+        val weekday = PacificTime.weekdayName(dateISO).orEmpty()
+        return DiningLocation(
+            id = HallDirectory.OASIS,
+            name = HallDirectory.displayName(HallDirectory.OASIS),
+            compactName = HallDirectory.compactName(HallDirectory.OASIS),
+            area = HallDirectory.area(HallDirectory.OASIS),
+            openNow = isOpen(dateISO, weekday, nowMinutes),
+            todayHours = todayHours(dateISO, weekday),
+            availablePeriods = recipes.map { it.name }.filter { it.isNotBlank() },
+            periods = mealWindows(dateISO, weekday),
+        )
+    }
 }

@@ -194,7 +194,8 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let opensNextPeriod: String?
     /// Irvine ISO for `opensNext*` (deep links / See-next CTA).
     public let opensNextDateISO: String?
-    /// Non-nil for Oasis while Anteater API has no menu. Eat shows Closed.
+    /// Non-nil for Oasis while no official dishes exist. Eat shows hours and
+    /// "Menu not posted" instead of inventing a board.
     public let comingSoonSubtitle: String?
 
     public init(

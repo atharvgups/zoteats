@@ -159,6 +159,34 @@ class CampusRepository {
         }
     }
 
+    /// Official Hub SKUs for a hall/date. Empty when Coming Soon or unpublished.
+    suspend fun postedMenu(locationUrlKey: String, dateISO: String): List<MenuStation> = withContext(Dispatchers.IO) {
+        val query = """query(${'$'}c:String!,${'$'}l:String!,${'$'}d:String!){getLocationMealPeriodRecipes(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l,date:${'$'}d){locationMealPeriodRecipesData{mealPeriodSkuMap{name skus}}products{name sku}}}"""
+        val variables = """{"c":"campus","l":"$locationUrlKey","d":"$dateISO"}"""
+        val root = runCatching { graphQL(query, variables) }.getOrNull() ?: return@withContext emptyList()
+        val menu = root["data"]?.jsonObject?.get("getLocationMealPeriodRecipes")?.jsonObject
+            ?: return@withContext emptyList()
+        val products = linkedMapOf<String, MenuItem>()
+        val productRows = menu["products"] as? JsonArray ?: JsonArray(emptyList())
+        productRows.forEach { el ->
+            val obj = el.jsonObject
+            val sku = obj.string("sku") ?: return@forEach
+            val name = obj.string("name")?.trim().orEmpty()
+            if (name.isEmpty()) return@forEach
+            products[sku] = MenuItem(sku, name, null, null, null, emptyList(), emptyList())
+        }
+        val maps = menu["locationMealPeriodRecipesData"]?.jsonObject
+            ?.get("mealPeriodSkuMap") as? JsonArray ?: JsonArray(emptyList())
+        maps.mapNotNull { el ->
+            val obj = el.jsonObject
+            val period = obj.string("name")?.trim().orEmpty()
+            if (period.isEmpty()) return@mapNotNull null
+            val skus = (obj["skus"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+            val items = skus.mapNotNull { products[it] }.distinctBy { it.name.lowercase() }
+            if (items.isEmpty()) null else MenuStation(period, items)
+        }
+    }
+
     private fun graphQL(query: String, variables: String): JsonObject {
         val url = URL(
             "https://api.elevate-dxp.com/api/mesh/c087f756-cc72-4649-a36f-3a41b700c519/graphql" +

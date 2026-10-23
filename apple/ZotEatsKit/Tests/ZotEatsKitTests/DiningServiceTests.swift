@@ -119,7 +119,7 @@ struct DiningServiceTests {
         #expect(oasis.periods.isEmpty)
         #expect(oasis.openNow == false)
         #expect(oasis.todayHours == nil)
-        #expect(oasis.comingSoonSubtitle == "Closed")
+        #expect(oasis.comingSoonSubtitle == "Menu not posted")
         #expect(oasis.comingSoonSubtitle != "Coming Soon")
         #expect(!(oasis.comingSoonSubtitle?.contains("Oct") == true))
         #expect(HallDirectory.campusHubKey(for: oasis.id) == "the-oasis-dining-hall")
@@ -131,7 +131,6 @@ struct DiningServiceTests {
         let oasis = locations.first { HallDirectory.isOasis($0.id) }
         #expect(oasis?.isComingSoon == true)
         #expect(oasis?.availablePeriods.isEmpty == true)
-        #expect(oasis?.periods.isEmpty == true)
         let empty = try? await service().menu(for: "oasis", period: "Lunch", date: "2026-07-09")
         #expect(empty?.stations.isEmpty == true)
         #expect(empty?.stations.contains { $0.name == CampusTypicalMenus.bannerStationName } != true)
@@ -144,28 +143,24 @@ struct DiningServiceTests {
         #expect(oasis?.availablePeriods.isEmpty == true)
     }
 
-    @Test func hubRecipesDoNotPromoteOasisWithoutAnteaterAPI() async throws {
+    @Test func hubRecipesPromoteOasisWhenAnteaterOmitsIt() async throws {
         let service = DiningService(http: OasisLiveHubHTTP(), now: { fixtureNoon })
         let locations = await service.locations()
         let oasis = locations.first { HallDirectory.isOasis($0.id) }
-        #expect(oasis?.isComingSoon == true)
-        #expect(oasis?.comingSoonSubtitle == "Closed")
-        #expect(oasis?.availablePeriods.isEmpty == true)
-        #expect(oasis?.openNow == false)
+        #expect(oasis?.isComingSoon == false)
+        #expect(oasis?.availablePeriods.contains("Lunch") == true)
         let menu = try await service.menu(for: "oasis", period: "Lunch", date: "2026-07-09")
-        #expect(menu.stations.isEmpty)
-        #expect(!menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
+        #expect(menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
     }
 
-    @Test func hubRecipesAfterOpenStayClosedWithoutAnteaterAPI() async {
+    @Test func hubRecipesAfterOpenShowHoursAndDishes() async {
         let mondayNoon = ISO8601DateFormatter().date(from: "2026-10-05T19:30:00Z")!
         let service = DiningService(http: OasisLiveHubHTTP(), now: { mondayNoon })
         let oasis = await service.locations().first { HallDirectory.isOasis($0.id) }
-        #expect(oasis?.isComingSoon == true)
-        #expect(oasis?.comingSoonSubtitle == "Closed")
-        #expect(oasis?.openNow == false)
-        #expect(oasis?.todayHours == nil)
-        #expect(oasis?.availablePeriods.isEmpty == true)
+        #expect(oasis?.isComingSoon == false)
+        #expect(oasis?.availablePeriods.contains("Lunch") == true)
+        #expect(oasis?.openNow == true)
+        #expect(oasis?.todayHours == "11:00 AM – 8:00 PM")
     }
 
     @Test func anteaterAPIOasisShowsNormalHoursAndMenu() async throws {

@@ -25,7 +25,17 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "libcal_hours_today"
         } else if url.host?.contains("elevate-dxp.com") == true {
             let query = url.query ?? ""
-            fixture = query.contains("getLocationMealPeriodRecipes") ? "campus_menu" : "campus_locations"
+            if query.contains("getLocationMealPeriodRecipes") {
+                let oasisKey = query.contains("the-oasis") || query.contains("oasis")
+                if oasisKey {
+                    return Data(
+                        #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8
+                    )
+                }
+                fixture = "campus_menu"
+            } else {
+                fixture = "campus_locations"
+            }
         } else {
             throw UnexpectedRequest(url: url)
         }
@@ -49,7 +59,7 @@ struct FailingHTTP: HTTPFetching {
     }
 }
 
-/// Hub marked Oasis live but posted no SKUs. Eat still stays Closed.
+/// Hub marked Oasis live but posted no SKUs. Eat stays unposted.
 struct OasisEmptyLiveHubHTTP: HTTPFetching {
     func data(from url: URL) async throws -> Data {
         if url.host?.contains("elevate-dxp.com") == true {

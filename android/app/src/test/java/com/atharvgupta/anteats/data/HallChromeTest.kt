@@ -2,6 +2,7 @@ package com.atharvgupta.anteats.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HallChromeTest {
@@ -40,15 +41,27 @@ class HallChromeTest {
     }
 
     @Test
-    fun oasisPlaceholderIsClosedNotADate() {
-        val hall = OasisSchedule.comingSoonLocation("2026-10-01")
-        val status = HallChrome.status(hall, nowMinutes = 12 * 60, todayISO = "2026-10-01")
-        assertEquals("Closed", status.primary)
-        assertEquals(HallTone.Muted, status.tone)
-        assertEquals("Closed", hall.comingSoonSubtitle)
+    fun oasisPlaceholderDinnerSaysMenuNotPosted() {
+        val hall = OasisSchedule.comingSoonLocation("2026-10-22", nowMinutes = 16 * 60 + 56)
+        val status = HallChrome.status(hall, nowMinutes = 16 * 60 + 56, todayISO = "2026-10-22")
+        assertEquals("Menu not posted", status.primary)
+        assertEquals(HallTone.Open, status.tone)
+        assertEquals("Menu not posted", hall.comingSoonSubtitle)
+        assertTrue(hall.openNow)
+        assertTrue(hall.periods.map { it.name }.containsAll(listOf("Lunch", "Afternoon Snack", "Dinner")))
         assertFalse(status.primary.contains("Oct"))
         assertFalse(status.primary.contains("Coming Soon", ignoreCase = true))
         assertFalse(status.primary.contains("\u2014") || status.primary.contains("\u2013"))
+        assertEquals("Open, menu not posted.", OasisSchedule.selectedLine("2026-10-22", "Thursday", 16 * 60 + 56))
+    }
+
+    @Test
+    fun oasisPlaceholderBeforeLunchSaysOpens() {
+        val hall = OasisSchedule.comingSoonLocation("2026-10-22", nowMinutes = 10 * 60)
+        val status = HallChrome.status(hall, nowMinutes = 10 * 60, todayISO = "2026-10-22")
+        assertEquals("opens 11 AM", status.primary)
+        assertEquals(HallTone.Muted, status.tone)
+        assertFalse(hall.openNow)
     }
 
     @Test

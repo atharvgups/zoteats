@@ -577,7 +577,7 @@ private enum DiningStatusPaint {
                     id: location.id,
                     name: location.name,
                     statusText: chrome.primary,
-                    isOpen: false,
+                    isOpen: location.openNow,
                     occupancy: nil,
                     countdownEnd: nil,
                     countdownKind: nil,
@@ -905,7 +905,9 @@ struct DiningStatusView: View {
                 ForEach(Array(visibleHalls.prefix(3)), id: \.id) { hall in
                     let raw = DiningStatusWidgetLine.tighten(hall.statusText)
                     let split = DiningStatusWidgetLine.splitMealAndClock(raw)
-                    let clock = hall.isComingSoon ? "Closed" : (split.clock ?? split.meal)
+                    let clock = hall.isComingSoon
+                        ? (hall.statusText.isEmpty ? OasisComingSoonCopy.unpostedCard : hall.statusText)
+                        : (split.clock ?? split.meal)
                     HStack(spacing: 6) {
                         Text(shortName(hall.name))
                             .font(WidgetChrome.row(14))
@@ -929,12 +931,14 @@ struct DiningStatusView: View {
         let split = DiningStatusWidgetLine.splitMealAndClock(raw)
         let subtitle: String = {
             if isCompact { return "" }
-            if hall.isComingSoon { return "Closed" }
+            if hall.isComingSoon { return "" }
             if split.clock != nil { return split.meal }
             return ""
         }()
         let trailing: String = {
-            if hall.isComingSoon { return "Closed" }
+            if hall.isComingSoon {
+                return hall.statusText.isEmpty ? OasisComingSoonCopy.unpostedCard : hall.statusText
+            }
             return split.clock ?? split.meal
         }()
         return HStack(alignment: .center, spacing: 8) {

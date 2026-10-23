@@ -13,8 +13,8 @@ android {
         applicationId = "com.atharvgupta.anteats"
         minSdk = 26
         targetSdk = 35
-        versionCode = 357
-        versionName = "1.0.357"
+        versionCode = 358
+        versionName = "1.0.358"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

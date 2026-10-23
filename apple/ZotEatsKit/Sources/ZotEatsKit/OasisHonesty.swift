@@ -4,8 +4,8 @@ import Foundation
 ///
 /// Hub `the-oasis-dining-hall` specials are all-off through 2026-10-02
 /// (Summer, Welcome Week, then "9/28 - 10/2"). Standard hours are Mon–Fri
-/// Lunch 11:00–14:30 and Dinner 16:30–20:00, so the first serving day is
-/// Monday 5 October 2026 — not meal-plan start (Sept 21).
+/// Lunch 11:00–14:30, Afternoon Snack 14:30–16:30, Dinner 16:30–20:00.
+/// First serving day is Monday 5 October 2026 — not meal-plan start (Sept 21).
 public enum OasisSchedule: Sendable {
     /// Single source of truth. Format every Eat / widget line from this ISO.
     public static let firstServiceISO = "2026-10-05"
@@ -13,6 +13,9 @@ public enum OasisSchedule: Sendable {
     /// Hub standard Lunch window (Irvine minutes).
     public static let lunchStartMinutes = 11 * 60
     public static let lunchEndMinutes = 14 * 60 + 30
+    /// Hub standard Afternoon Snack window (Irvine minutes).
+    public static let snackStartMinutes = 14 * 60 + 30
+    public static let snackEndMinutes = 16 * 60 + 30
     /// Hub standard Dinner window (Irvine minutes).
     public static let dinnerStartMinutes = 16 * 60 + 30
     public static let dinnerEndMinutes = 20 * 60
@@ -42,6 +45,11 @@ public enum OasisSchedule: Sendable {
                 name: "Lunch",
                 startMinutes: lunchStartMinutes,
                 endMinutes: lunchEndMinutes
+            ),
+            MealPeriodWindow(
+                name: "Afternoon Snack",
+                startMinutes: snackStartMinutes,
+                endMinutes: snackEndMinutes
             ),
             MealPeriodWindow(
                 name: "Dinner",
@@ -109,26 +117,56 @@ public enum OasisSchedule: Sendable {
     }
 }
 
-/// Short Eat copy for The Oasis while Anteater API has no menu.
-/// Never invent an open date, Coming Soon, Hub hours, or a fake board.
+/// Short Eat copy for The Oasis while no official board has dishes.
+/// Hub hours are real. Never invent a menu.
 public enum OasisComingSoonCopy: Sendable {
-    /// Hall-card status while Anteater API has no Oasis menu.
+    public static let unpostedCard = "Menu not posted"
+    public static let openUnposted = "Open, menu not posted"
+
+    /// Hall-card status while no official Oasis dishes exist.
     public static var cardStatus: String { cardStatus(on: UCITime.todayISO()) }
-    /// Selected empty board. No inferred date. No Coming Soon.
+    /// Selected empty board.
     public static var selectedLine: String { selectedLine(on: UCITime.todayISO()) }
 
-    public static func cardStatus(on _: String) -> String {
-        "Closed"
+    public static func cardStatus(
+        on iso: String,
+        weekday: String? = nil,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> String {
+        let day = weekday ?? PacificTime.weekdayName(now: date(fromISO: iso) ?? Date())
+        if OasisSchedule.isOpen(on: iso, weekday: day, nowMinutes: nowMinutes) {
+            return unpostedCard
+        }
+        return unpostedCard
     }
 
-    public static func selectedLine(on _: String) -> String {
-        "This hall is closed until UCI posts a menu."
+    public static func selectedLine(
+        on iso: String,
+        weekday: String? = nil,
+        nowMinutes: Int = UCITime.nowMinutes()
+    ) -> String {
+        let day = weekday ?? PacificTime.weekdayName(now: date(fromISO: iso) ?? Date())
+        if OasisSchedule.isOpen(on: iso, weekday: day, nowMinutes: nowMinutes) {
+            return "Open, menu not posted."
+        }
+        if !OasisSchedule.mealWindows(on: iso, weekday: day).isEmpty {
+            return "UCI has not posted a menu. Hours are lunch 11 AM to 2:30 PM, snack 2:30 to 4:30 PM, and dinner 4:30 to 8 PM, Monday to Friday."
+        }
+        return "Closed today. UCI has not posted a menu."
+    }
+
+    private static func date(fromISO iso: String) -> Date? {
+        let parser = DateFormatter()
+        parser.timeZone = PacificTime.timeZone
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "yyyy-MM-dd"
+        return parser.date(from: iso)
     }
 }
 
 /// Dining Hub listing for The Oasis. Peek `getLocations`; only `liveBoard`
 /// means Hub marked `hasActiveMenus`. Recipes are scraped separately — a live
-/// flag with an empty SKU map still stays Coming Soon (no invented menu).
+/// flag with an empty SKU map still stays unposted (no invented menu).
 public enum OasisHubListing: Equatable, Sendable {
     case notListed
     case comingSoon
