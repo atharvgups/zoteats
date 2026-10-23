@@ -258,7 +258,7 @@ struct SettingsView: View {
             sourceRow(
                 icon: "cup.and.saucer.fill",
                 title: "Dining Hub",
-                subtitle: "Retail hours. Live café board only when Hub publishes; typical packs stay labeled, never as today. Oasis is still Coming Soon.",
+                subtitle: "Retail hours. Live café board only when Hub publishes; typical packs stay labeled, never as today. Oasis shows hours until UCI posts a menu.",
                 url: "https://uci.campusdish.com"
             )
             ZotHairline(leading: 0)

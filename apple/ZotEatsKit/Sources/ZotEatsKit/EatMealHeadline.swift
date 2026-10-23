@@ -21,6 +21,10 @@ public enum EatMealHeadline: Sendable {
             return "What’s for Lunch"
         case "Dinner":
             return "What’s for Dinner"
+        case "Afternoon Snack":
+            return "What’s for Afternoon Snack"
+        case "Late Night":
+            return "What’s for Late Night"
         default:
             return "What’s for \(EatMealWindow.clockPill(nowMinutes: nowMinutes))"
         }

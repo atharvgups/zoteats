@@ -23,9 +23,11 @@ Optional env:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import mimetypes
 import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -77,9 +79,16 @@ LIVE_OR_RELEASING_STATES = {
     "REPLACED_WITH_NEW_VERSION",
 }
 
-# iPhone 6.7" App Store slot (iPhone 15 Pro Max / similar).
+# iPhone-only listing slots (TARGETED_DEVICE_FAMILY=1). Cover-fit from the
+# simulator capture into each required App Store pixel size.
 IPHONE_67_SIZE = (1290, 2796)
 IPHONE_67_DISPLAY = "APP_IPHONE_67"
+SCREENSHOT_SLOTS: dict[str, tuple[int, int]] = {
+    "APP_IPHONE_69": (1320, 2868),
+    "APP_IPHONE_67": (1290, 2796),
+    "APP_IPHONE_65": (1242, 2688),
+}
+PREVIEW_TYPE = os.environ.get("PREVIEW_TYPE", "IPHONE_67").strip() or "IPHONE_67"
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -151,6 +160,8 @@ def api(
             return {"errors": [{"status": "409"}], "already_exists": True, "raw": detail}
         if exc.code in ok:
             return json.loads(detail) if detail else {}
+        if exc.code >= 500:
+            return {"errors": [{"status": str(exc.code)}], "server_error": True, "raw": detail}
         die(f"ASC {method} {path} failed ({exc.code}): {detail[:1200]}")
 
 
@@ -784,14 +795,13 @@ def ensure_app_info(token: str, app_id: str, meta: dict) -> None:
         info(f"Updated app info localization ({locale}).")
 
 
-def resize_screenshot(src: Path, dest: Path) -> Path:
+def resize_screenshot(src: Path, dest: Path, size: tuple[int, int] = IPHONE_67_SIZE) -> Path:
     if Image is None:
-        warn("Pillow missing — uploading screenshots at original size.")
+        warn("Pillow missing. Uploading screenshots at original size.")
         return src
     dest.parent.mkdir(parents=True, exist_ok=True)
     im = Image.open(src).convert("RGB")
-    # Cover-fit into 1290x2796 (center crop).
-    tw, th = IPHONE_67_SIZE
+    tw, th = size
     scale = max(tw / im.width, th / im.height)
     nw, nh = int(im.width * scale), int(im.height * scale)
     im = im.resize((nw, nh), Image.Resampling.LANCZOS)
@@ -808,31 +818,223 @@ def upload_bytes(url: str, data: bytes, headers: dict) -> None:
         resp.read()
 
 
+def _screenshot_sets(token: str, localization_id: str) -> list[dict]:
+    return (
+        api(
+            "GET",
+            f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets?limit=20",
+            token,
+            ok_codes={200, 404},
+        ).get("data")
+        or []
+    )
+
+
+def _ensure_screenshot_set(token: str, localization_id: str, display: str, existing: list[dict]) -> str | None:
+    for shot_set in existing:
+        if (shot_set.get("attributes") or {}).get("screenshotDisplayType") == display:
+            return shot_set["id"]
+    created = api(
+        "POST",
+        "/v1/appScreenshotSets",
+        token,
+        {
+            "data": {
+                "type": "appScreenshotSets",
+                "attributes": {"screenshotDisplayType": display},
+                "relationships": {
+                    "appStoreVersionLocalization": {
+                        "data": {
+                            "type": "appStoreVersionLocalizations",
+                            "id": localization_id,
+                        }
+                    }
+                },
+            }
+        },
+        ok_codes={200, 201, 409, 422},
+    )
+    set_id = (created.get("data") or {}).get("id")
+    if set_id:
+        return set_id
+    refreshed = _screenshot_sets(token, localization_id)
+    for shot_set in refreshed:
+        if (shot_set.get("attributes") or {}).get("screenshotDisplayType") == display:
+            return shot_set["id"]
+    warn(f"Could not create/find screenshot set {display}.")
+    return None
+
+
+def _clear_screenshot_set(token: str, set_id: str) -> None:
+    existing = api(
+        "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=20", token
+    ).get("data") or []
+    for shot in existing:
+        for attempt in range(4):
+            result = api(
+                "DELETE",
+                f"/v1/appScreenshots/{shot['id']}",
+                token,
+                ok_codes={200, 204, 404},
+            )
+            if not result.get("server_error"):
+                break
+            warn(f"ASC 5xx deleting screenshot {shot['id']}; retry {attempt + 1}")
+            time.sleep(3 + attempt * 3)
+
+
 def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
     files = meta.get("screenshot_files") or []
     if not files:
-        warn("No screenshot_files in metadata — skipping screenshot upload.")
+        warn("No screenshot_files in metadata. Skipping screenshot upload.")
         return
+
+    sources: list[tuple[str, Path]] = []
+    for rel in files[:10]:
+        src = (SCREENSHOT_ROOT / rel).resolve()
+        if src.is_file():
+            sources.append((rel, src))
+        else:
+            warn(f"Screenshot missing: {src}")
+    if not sources:
+        warn("No screenshot files on disk. Skipping screenshot upload.")
+        return
+
+    existing = _screenshot_sets(token, localization_id)
+    tmp = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "anteats-screenshots"
+    for display, size in SCREENSHOT_SLOTS.items():
+        set_id = _ensure_screenshot_set(token, localization_id, display, existing)
+        if not set_id:
+            continue
+        _clear_screenshot_set(token, set_id)
+        for index, (rel, src) in enumerate(sources):
+            prepared = resize_screenshot(src, tmp / display / f"{index:02d}.png", size)
+            data = prepared.read_bytes()
+            checksum = hashlib.md5(data).hexdigest()
+            reserve = api(
+                "POST",
+                "/v1/appScreenshots",
+                token,
+                {
+                    "data": {
+                        "type": "appScreenshots",
+                        "attributes": {
+                            "fileName": prepared.name,
+                            "fileSize": len(data),
+                        },
+                        "relationships": {
+                            "appScreenshotSet": {
+                                "data": {"type": "appScreenshotSets", "id": set_id}
+                            }
+                        },
+                    }
+                },
+            )
+            shot = reserve.get("data") or {}
+            shot_id = shot.get("id")
+            ops = (shot.get("attributes") or {}).get("uploadOperations") or []
+            if not shot_id or not ops:
+                detail = api("GET", f"/v1/appScreenshots/{shot_id}", token) if shot_id else {}
+                ops = ((detail.get("data") or {}).get("attributes") or {}).get(
+                    "uploadOperations"
+                ) or []
+            if not shot_id or not ops:
+                warn(f"No upload operations for {rel} → {display}")
+                continue
+            for op in ops:
+                offset = int(op.get("offset") or 0)
+                length = int(op.get("length") or len(data))
+                chunk = data[offset : offset + length]
+                headers = {
+                    h["name"]: h["value"]
+                    for h in (op.get("requestHeaders") or [])
+                    if h.get("name") and h.get("value") is not None
+                }
+                headers.setdefault(
+                    "Content-Type", mimetypes.guess_type(prepared.name)[0] or "image/png"
+                )
+                upload_bytes(op["url"], chunk, headers)
+            api(
+                "PATCH",
+                f"/v1/appScreenshots/{shot_id}",
+                token,
+                {
+                    "data": {
+                        "type": "appScreenshots",
+                        "id": shot_id,
+                        "attributes": {
+                            "uploaded": True,
+                            "sourceFileChecksum": checksum,
+                        },
+                    }
+                },
+                ok_codes={200, 204, 409, 422},
+            )
+            info(f"Uploaded screenshot {rel} → {display} {size[0]}x{size[1]}")
+        existing = _screenshot_sets(token, localization_id)
+
+
+def ensure_preview(token: str, localization_id: str, meta: dict) -> None:
+    rel = meta.get("preview_file") or "docs/previews/iphone67.mp4"
+    src = Path(os.environ.get("PREVIEW_FILE", "").strip() or (SCREENSHOT_ROOT / rel))
+    if not src.is_file():
+        warn(f"Preview file missing ({src}). Skipping preview upload.")
+        return
+    if "\u2014" in src.name:
+        die("Preview filename contains an em dash.")
+    data = src.read_bytes()
+    if not data:
+        warn(f"Preview file empty ({src}). Skipping preview upload.")
+        return
+    try:
+        probe = subprocess.check_output(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height:format=duration",
+                "-of",
+                "json",
+                str(src),
+            ],
+            text=True,
+        )
+        info_json = json.loads(probe)
+        duration = float((info_json.get("format") or {}).get("duration") or 0)
+        stream = (info_json.get("streams") or [{}])[0]
+        width = int(stream.get("width") or 0)
+        height = int(stream.get("height") or 0)
+        info(f"Preview {src.name} {width}x{height} {duration:.1f}s")
+        if duration and (duration < 15 or duration > 30):
+            warn(
+                f"Preview is {duration:.1f}s (Apple wants 15-30). Uploading anyway."
+            )
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError, ValueError) as exc:
+        warn(f"Could not probe preview ({exc}); uploading {src.name} as-is.")
 
     sets = api(
         "GET",
-        f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets?limit=20",
+        f"/v1/appStoreVersionLocalizations/{localization_id}/appPreviewSets?limit=20",
         token,
+        ok_codes={200, 404},
     ).get("data") or []
     set_id = None
-    for s in sets:
-        if (s.get("attributes") or {}).get("screenshotDisplayType") == IPHONE_67_DISPLAY:
-            set_id = s["id"]
+    for preview_set in sets:
+        if (preview_set.get("attributes") or {}).get("previewType") == PREVIEW_TYPE:
+            set_id = preview_set["id"]
             break
     if set_id is None:
         created = api(
             "POST",
-            "/v1/appScreenshotSets",
+            "/v1/appPreviewSets",
             token,
             {
                 "data": {
-                    "type": "appScreenshotSets",
-                    "attributes": {"screenshotDisplayType": IPHONE_67_DISPLAY},
+                    "type": "appPreviewSets",
+                    "attributes": {"previewType": PREVIEW_TYPE},
                     "relationships": {
                         "appStoreVersionLocalization": {
                             "data": {
@@ -843,96 +1045,162 @@ def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
                     },
                 }
             },
+            ok_codes={200, 201, 409, 422},
         )
-        if created.get("already_exists"):
-            sets = api(
+        set_id = (created.get("data") or {}).get("id")
+        if not set_id:
+            refreshed = api(
                 "GET",
-                f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets?limit=20",
+                f"/v1/appStoreVersionLocalizations/{localization_id}/appPreviewSets?limit=20",
                 token,
+                ok_codes={200, 404},
             ).get("data") or []
-            for s in sets:
-                if (s.get("attributes") or {}).get("screenshotDisplayType") == IPHONE_67_DISPLAY:
-                    set_id = s["id"]
+            for preview_set in refreshed:
+                if (preview_set.get("attributes") or {}).get("previewType") == PREVIEW_TYPE:
+                    set_id = preview_set["id"]
                     break
-        else:
-            set_id = (created.get("data") or {}).get("id")
     if not set_id:
-        warn("Could not create/find APP_IPHONE_67 screenshot set — upload screenshots in ASC UI.")
+        warn(f"Could not create/find preview set {PREVIEW_TYPE}. Skipping preview.")
         return
 
-    # Clear existing screenshots so we replace with the current set.
     existing = api(
-        "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=20", token
+        "GET", f"/v1/appPreviewSets/{set_id}/appPreviews?limit=10", token
     ).get("data") or []
-    for shot in existing:
-        api("DELETE", f"/v1/appScreenshots/{shot['id']}", token, ok_codes={200, 204, 404})
+    ready = [
+        preview
+        for preview in existing
+        if _preview_delivery(preview) in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}
+        or _preview_video(preview) in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}
+    ]
+    if ready:
+        info("Preview already on ASC and complete; skipping re-upload.")
+        return
+    processing = [
+        preview
+        for preview in existing
+        if _preview_is_processing(preview)
+    ]
+    if processing:
+        info("Preview already uploaded and still processing; waiting instead of replacing it.")
+        if _wait_preview_complete(token, processing[0]["id"], seconds=900):
+            return
+        warn("Existing preview still processing after wait; not deleting it.")
+        return
+    for preview in existing:
+        for attempt in range(4):
+            result = api(
+                "DELETE",
+                f"/v1/appPreviews/{preview['id']}",
+                token,
+                ok_codes={200, 204, 404},
+            )
+            if not result.get("server_error"):
+                break
+            warn(f"ASC 5xx deleting preview {preview['id']}; retry {attempt + 1}")
+            time.sleep(3 + attempt * 3)
 
-    tmp = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "anteats-screenshots"
-    for index, rel in enumerate(files[:10]):
-        src = (SCREENSHOT_ROOT / rel).resolve()
-        if not src.is_file():
-            warn(f"Screenshot missing: {src}")
-            continue
-        prepared = resize_screenshot(src, tmp / f"{index:02d}.png")
-        data = prepared.read_bytes()
-        reserve = api(
-            "POST",
-            "/v1/appScreenshots",
-            token,
-            {
-                "data": {
-                    "type": "appScreenshots",
-                    "attributes": {
-                        "fileName": prepared.name,
-                        "fileSize": len(data),
-                    },
-                    "relationships": {
-                        "appScreenshotSet": {
-                            "data": {"type": "appScreenshotSets", "id": set_id}
-                        }
-                    },
-                }
-            },
-        )
-        shot = reserve.get("data") or {}
-        shot_id = shot.get("id")
-        ops = (shot.get("attributes") or {}).get("uploadOperations") or []
-        if not shot_id or not ops:
-            # Some API versions put uploadOperations in included — try refetch.
-            detail = api("GET", f"/v1/appScreenshots/{shot_id}", token) if shot_id else {}
-            ops = ((detail.get("data") or {}).get("attributes") or {}).get("uploadOperations") or []
-        if not shot_id or not ops:
-            warn(f"No upload operations for {rel}; skip.")
-            continue
-        for op in ops:
-            offset = int(op.get("offset") or 0)
-            length = int(op.get("length") or len(data))
-            chunk = data[offset : offset + length]
-            headers = {
-                h["name"]: h["value"]
-                for h in (op.get("requestHeaders") or [])
-                if h.get("name") and h.get("value") is not None
+    checksum = hashlib.md5(data).hexdigest()
+    reserve = api(
+        "POST",
+        "/v1/appPreviews",
+        token,
+        {
+            "data": {
+                "type": "appPreviews",
+                "attributes": {
+                    "fileName": src.name,
+                    "fileSize": len(data),
+                    "mimeType": "video/mp4",
+                    "previewFrameTimeCode": "00:00:05:00",
+                },
+                "relationships": {
+                    "appPreviewSet": {
+                        "data": {"type": "appPreviewSets", "id": set_id}
+                    }
+                },
             }
-            # Default content type for PNG if ASC omitted headers.
-            headers.setdefault("Content-Type", mimetypes.guess_type(prepared.name)[0] or "image/png")
-            upload_bytes(op["url"], chunk, headers)
-        api(
-            "PATCH",
-            f"/v1/appScreenshots/{shot_id}",
-            token,
-            {
-                "data": {
-                    "type": "appScreenshots",
-                    "id": shot_id,
-                    "attributes": {
-                        "uploaded": True,
-                        "sourceFileChecksum": None,
-                    },
-                }
-            },
-            ok_codes={200, 204, 409, 422},
-        )
-        info(f"Uploaded screenshot {rel} → {IPHONE_67_DISPLAY}")
+        },
+    )
+    preview = reserve.get("data") or {}
+    preview_id = preview.get("id")
+    ops = (preview.get("attributes") or {}).get("uploadOperations") or []
+    if preview_id and not ops:
+        detail = api("GET", f"/v1/appPreviews/{preview_id}", token)
+        ops = ((detail.get("data") or {}).get("attributes") or {}).get("uploadOperations") or []
+    if not preview_id or not ops:
+        warn(f"No upload operations for preview. Raw: {json.dumps(reserve)[:800]}")
+        return
+    for op in ops:
+        offset = int(op.get("offset") or 0)
+        length = int(op.get("length") or len(data))
+        chunk = data[offset : offset + length]
+        headers = {
+            h["name"]: h["value"]
+            for h in (op.get("requestHeaders") or [])
+            if h.get("name") and h.get("value") is not None
+        }
+        headers.setdefault("Content-Type", "video/mp4")
+        upload_bytes(op["url"], chunk, headers)
+    api(
+        "PATCH",
+        f"/v1/appPreviews/{preview_id}",
+        token,
+        {
+            "data": {
+                "type": "appPreviews",
+                "id": preview_id,
+                "attributes": {
+                    "uploaded": True,
+                    "sourceFileChecksum": checksum,
+                    "previewFrameTimeCode": "00:00:05:00",
+                },
+            }
+        },
+        ok_codes={200, 204, 409, 422},
+    )
+    info(f"Uploaded preview {src.name} ({len(data)} bytes) to {PREVIEW_TYPE}.")
+    if not _wait_preview_complete(token, preview_id, seconds=900):
+        warn("Timed out waiting for preview processing; continuing submit.")
+
+
+def _preview_attrs(preview: dict) -> dict:
+    return preview.get("attributes") or {}
+
+
+def _preview_delivery(preview: dict) -> str:
+    return str((_preview_attrs(preview).get("assetDeliveryState") or {}).get("state") or "")
+
+
+def _preview_video(preview: dict) -> str:
+    return str((_preview_attrs(preview).get("videoDeliveryState") or {}).get("state") or "")
+
+
+def _preview_is_processing(preview: dict) -> bool:
+    states = {_preview_delivery(preview), _preview_video(preview)}
+    return any(
+        state in {"PROCESSING", "WAIT_FOR_PROCESSING", "UPLOAD_COMPLETE", "AWAITING_UPLOAD"}
+        or "PROCESS" in state
+        for state in states
+        if state
+    )
+
+
+def _wait_preview_complete(token: str, preview_id: str, seconds: int = 900) -> bool:
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        detail = api("GET", f"/v1/appPreviews/{preview_id}", token)
+        attrs = (detail.get("data") or {}).get("attributes") or {}
+        delivery = str((attrs.get("assetDeliveryState") or {}).get("state") or "")
+        video = str((attrs.get("videoDeliveryState") or {}).get("state") or "")
+        info(f"Preview processing delivery={delivery} video={video}")
+        if delivery == "FAILED" or video == "FAILED":
+            warn(f"ASC failed to process the preview. attrs={json.dumps(attrs)[:800]}")
+            return False
+        if delivery in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}:
+            info("Preview asset is COMPLETE.")
+            return True
+        time.sleep(15)
+    return False
 
 
 
@@ -1457,6 +1725,12 @@ def main() -> None:
     except Exception as exc:  # noqa: BLE001 — best-effort screenshots
         warn(f"Screenshot upload failed ({exc}); continue and let ASC validate.")
     wait_for_screenshot_processing(token, loc_id)
+    try:
+        ensure_preview(token, loc_id, meta)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 — best-effort preview
+        warn(f"Preview upload failed ({exc}); continue and let ASC validate.")
 
     if not SUBMIT:
         info("SUBMIT_FOR_REVIEW=false — listing prepared, not submitted.")
