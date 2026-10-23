@@ -157,7 +157,7 @@ object OasisSchedule {
 
     fun todayHours(dateISO: String, weekday: String): String? {
         if (mealWindows(dateISO, weekday).isEmpty()) return null
-        return "${PacificTime.formatMinutes(lunchStartMinutes)} – ${PacificTime.formatMinutes(dinnerEndMinutes)}"
+        return "${PacificTime.formatMinutes(lunchStartMinutes)} to ${PacificTime.formatMinutes(dinnerEndMinutes)}"
     }
 
     fun isOpen(dateISO: String, weekday: String, nowMinutes: Int): Boolean =
