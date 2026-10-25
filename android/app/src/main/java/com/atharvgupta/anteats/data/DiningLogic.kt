@@ -100,7 +100,7 @@ object DiningLogic {
         return resolvePeriod(pill, available).ifBlank { pill }
     }
 
-    /// Each pill scrapes only that period. Lunch does not union Brunch —
+    /// Each pill scrapes only that period. Lunch does not union Brunch:
     /// weekend Brunch is Breakfast plus All Day, so the union made both
     /// pills identical. Unposted Lunch stays empty instead of copying Brunch.
     fun menuPeriodNames(primary: String, available: List<String>): List<String> {
