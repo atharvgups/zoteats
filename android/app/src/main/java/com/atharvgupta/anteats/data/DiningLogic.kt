@@ -412,7 +412,11 @@ object DiningLogic {
         val clock = clockPill(nowMinutes)
         if (available.isEmpty()) return clock
         if (pillIsPosted(clock, available)) return clock
-        if (clock == "Lunch" && pillIsPosted("Breakfast", available)) return "Breakfast"
+        val hasRealBreakfast = available.any { it.equals("Breakfast", true) }
+        val hasBrunch = available.any { it.contains("brunch", true) }
+        if (clock == "Lunch" && hasBrunch && !hasRealBreakfast && pillIsPosted("Breakfast", available)) {
+            return "Breakfast"
+        }
         return clock
     }
 

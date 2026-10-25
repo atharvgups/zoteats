@@ -209,6 +209,14 @@ class DiningLogicTest {
         val brunch = listOf(MealPeriodWindow("Brunch", 11 * 60, 16 * 60 + 30))
         assertEquals("Lunch", DiningLogic.autoPill(brunch, 12 * 60))
         assertEquals("Breakfast", DiningLogic.autoPill(brunch, 12 * 60, listOf("Brunch", "Dinner")))
+        assertEquals(
+            "Lunch",
+            DiningLogic.autoPill(
+                listOf(MealPeriodWindow("Breakfast", 7 * 60 + 15, 11 * 60)),
+                11 * 60 + 40,
+                listOf("Breakfast"),
+            ),
+        )
         assertEquals("Dinner", DiningLogic.autoPill(brunch, 15 * 60))
         val weekday = listOf(
             MealPeriodWindow("Lunch", 11 * 60, 14 * 60 + 30),

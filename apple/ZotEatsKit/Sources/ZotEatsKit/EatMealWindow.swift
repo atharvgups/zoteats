@@ -163,11 +163,19 @@ public enum EatMealWindow: Sendable {
 
     /// Clock fallback that will not land on an unposted Lunch when the only
     /// midday board is Brunch (already mapped onto the Breakfast chip).
+    /// A weekday Breakfast-only board still advances to Lunch so the empty
+    /// peek is available after 11:00.
     static func postedClockPill(nowMinutes: Int, availablePeriods: [String]) -> String {
         let clock = clockPill(nowMinutes: nowMinutes)
         if availablePeriods.isEmpty { return clock }
         if DiningService.pillIsPosted(clock, available: availablePeriods) { return clock }
-        if clock == "Lunch",
+        let hasRealBreakfast = availablePeriods.contains {
+            $0.caseInsensitiveCompare("Breakfast") == .orderedSame
+        }
+        let hasBrunch = availablePeriods.contains {
+            $0.localizedCaseInsensitiveContains("brunch")
+        }
+        if clock == "Lunch", hasBrunch, !hasRealBreakfast,
            DiningService.pillIsPosted("Breakfast", available: availablePeriods) {
             return "Breakfast"
         }
