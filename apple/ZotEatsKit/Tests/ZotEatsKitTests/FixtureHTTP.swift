@@ -226,6 +226,44 @@ actor TomorrowPublishHTTP: HTTPFetching {
     }
 }
 
+/// Sunday Oct 25 shape: Breakfast ⊂ Brunch, Lunch == All Day, Dinner later.
+/// Used to prove Breakfast / Lunch / Dinner each keep that period's dishes
+/// and that a Brunch-only day does not duplicate Brunch onto Lunch.
+struct WeekendBrunchHTTP: HTTPFetching {
+    var brunchOnly: Bool = false
+
+    func data(from url: URL) async throws -> Data {
+        if url.host?.contains("elevate-dxp.com") == true {
+            return Data(#"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8)
+        }
+        let path = url.path
+        if path.hasSuffix("/restaurants") {
+            return Data(
+                #"{"ok":true,"data":[{"id":"anteatery","stations":[{"id":"1929","name":"The Twisted Root"},{"id":"1932","name":"Home"},{"id":"1935","name":"Sizzle Grill"},{"id":"1941","name":"Oven"}]}]}"#.utf8
+            )
+        }
+        if path.hasSuffix("/restaurantToday") {
+            if brunchOnly {
+                return Data(
+                    #"{"ok":true,"data":{"id":"anteatery","periods":{"brunch":{"name":"Brunch","startTime":"11:00:00","endTime":"16:30:00","stationToDishes":{"1929":["hash"],"1932":["eggs"],"1935":["burger"]}},"dinner":{"name":"Dinner","startTime":"16:30:00","endTime":"20:00:00","stationToDishes":{"1935":["burger"],"1941":["pasta"]}}}}}"#.utf8
+                )
+            }
+            return Data(
+                #"{"ok":true,"data":{"id":"anteatery","periods":{"breakfast":{"name":"Breakfast","startTime":"09:00:00","endTime":"11:00:00","stationToDishes":{"1929":["hash"],"1932":["eggs"]}},"brunch":{"name":"Brunch","startTime":"11:00:00","endTime":"16:30:00","stationToDishes":{"1929":["hash"],"1932":["eggs"],"1935":["burger"]}},"lunch":{"name":"Lunch","startTime":null,"endTime":null,"stationToDishes":{"1935":["burger"]}},"allday":{"name":"All Day","startTime":null,"endTime":null,"stationToDishes":{"1935":["burger"]}},"dinner":{"name":"Dinner","startTime":"16:30:00","endTime":"20:00:00","stationToDishes":{"1935":["burger"],"1941":["pasta"]}}}}}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dishes/batch") {
+            return Data(
+                #"{"ok":true,"data":[{"id":"hash","stationId":"1929","name":"Tofu-Potato Hash","description":null,"ingredients":null,"dietRestriction":{"isVegan":true},"nutritionInfo":{"calories":180}},{"id":"eggs","stationId":"1932","name":"Judy's BBQ Eggs","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":{"calories":140}},{"id":"burger","stationId":"1935","name":"Cheeseburger","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":{"calories":400}},{"id":"pasta","stationId":"1941","name":"Cavatappi Alfredo","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":{"calories":410}}]}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dateRange") {
+            return Data(#"{"ok":true,"data":{"earliest":"2026-10-01","latest":"2026-10-31"}}"#.utf8)
+        }
+        throw FixtureHTTP.UnexpectedRequest(url: url)
+    }
+}
+
 /// Counts Hub recipe fetches so Eat pull-to-refresh can prove it busts the menu TTL.
 actor CountingHubMenuHTTP: HTTPFetching {
     private(set) var menuHits = 0

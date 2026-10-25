@@ -69,6 +69,9 @@ class DiningRepository(
         }
         val resolved = DiningLogic.resolvePeriod(period, available)
         val periodNames = DiningLogic.menuPeriodNames(period, available)
+        if (periodNames.isEmpty()) {
+            return DiningMenu(hall, dateISO, period, emptyList())
+        }
         val stationNames = stationMap()
         val scraped = linkedMapOf<String, List<MenuStation>>()
         var mealStations = emptyList<MenuStation>()
@@ -93,8 +96,18 @@ class DiningRepository(
             }
         }
         val periodMatched = periodNames.any { name -> available.any { it.equals(name, true) } }
+        val brunchIsTimed = today.values.any { period ->
+            period.name.contains("brunch", true) &&
+                !period.startTime.isNullOrBlank() &&
+                !period.endTime.isNullOrBlank()
+        }
+        val skipAllDayOnBreakfast = brunchIsTimed && DiningLogic.canonicalPill(period) == "Breakfast"
         val allDayName = available.firstOrNull { it.contains("all day", true) }
-        if (periodMatched && !resolved.contains("all day", true) && allDayName != null) {
+        if (periodMatched &&
+            !skipAllDayOnBreakfast &&
+            !resolved.contains("all day", true) &&
+            allDayName != null
+        ) {
             val allDay = stationsFor(allDayName, today, stationNames)
             val unique = linkedMapOf<String, MenuItem>()
             for (item in allDay.flatMap { it.items }) {
@@ -340,6 +353,9 @@ class DiningRepository(
         val available = stations.map { it.name }
         val resolved = DiningLogic.resolvePeriod(period, available)
         val names = DiningLogic.menuPeriodNames(period, available)
+        if (names.isEmpty()) {
+            return DiningMenu(HallDirectory.OASIS, dateISO, period, emptyList())
+        }
         val matched = names.mapNotNull { name ->
             stations.firstOrNull { it.name.equals(name, true) }
         }

@@ -398,7 +398,7 @@ private fun MealPills(selected: String, available: List<String>, onSelect: (Stri
             val active = pill.equals(selected, true)
             val posted = DiningLogic.pillIsPosted(pill, available)
             Text(
-                pill,
+                DiningLogic.mealPillLabel(pill, available),
                 modifier = Modifier
                     .height(36.dp)
                     .clip(RoundedCornerShape(ChipRadius))

@@ -306,7 +306,12 @@ struct DiningView: View {
                 // (Breakfast-only boards used to render a giant single pill.)
                 PillRow(
                     items: DiningService.mealSelectorPills,
-                    title: { $0 },
+                    title: { pill in
+                        DiningService.mealPillLabel(
+                            pill,
+                            available: boardAvailablePeriods ?? []
+                        )
+                    },
                     selection: $selectedPeriod,
                     fillsWidth: false,
                     usesMealMark: true,

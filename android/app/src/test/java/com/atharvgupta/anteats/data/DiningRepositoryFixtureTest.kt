@@ -63,6 +63,71 @@ class DiningRepositoryFixtureTest {
     }
 
     @Test
+    fun weekendMealsKeepTheirOwnPeriodDishes() = runBlocking {
+        val weekend = """
+            {"ok":true,"data":{"id":"anteatery","periods":{
+              "breakfast":{"name":"Breakfast","startTime":"09:00:00","endTime":"11:00:00","stationToDishes":{"1929":["hash"],"1932":["eggs"]}},
+              "brunch":{"name":"Brunch","startTime":"11:00:00","endTime":"16:30:00","stationToDishes":{"1929":["hash"],"1932":["eggs"],"1935":["burger"]}},
+              "lunch":{"name":"Lunch","startTime":null,"endTime":null,"stationToDishes":{"1935":["burger"]}},
+              "allday":{"name":"All Day","startTime":null,"endTime":null,"stationToDishes":{"1935":["burger"]}},
+              "dinner":{"name":"Dinner","startTime":"16:30:00","endTime":"20:00:00","stationToDishes":{"1935":["burger"],"1941":["pasta"]}}
+            }}}
+        """.trimIndent()
+        val brunchOnly = """
+            {"ok":true,"data":{"id":"anteatery","periods":{
+              "brunch":{"name":"Brunch","startTime":"11:00:00","endTime":"16:30:00","stationToDishes":{"1929":["hash"],"1932":["eggs"],"1935":["burger"]}},
+              "dinner":{"name":"Dinner","startTime":"16:30:00","endTime":"20:00:00","stationToDishes":{"1935":["burger"],"1941":["pasta"]}}
+            }}}
+        """.trimIndent()
+        val dishes = """
+            {"ok":true,"data":[
+              {"id":"hash","stationId":"1929","name":"Tofu-Potato Hash","dietRestriction":{"isVegan":true},"nutritionInfo":{"calories":180}},
+              {"id":"eggs","stationId":"1932","name":"Judy's BBQ Eggs","nutritionInfo":{"calories":140}},
+              {"id":"burger","stationId":"1935","name":"Cheeseburger","nutritionInfo":{"calories":400}},
+              {"id":"pasta","stationId":"1941","name":"Cavatappi Alfredo","nutritionInfo":{"calories":410}}
+            ]}
+        """.trimIndent()
+        val restaurants = """
+            {"ok":true,"data":[{"id":"anteatery","stations":[
+              {"id":"1929","name":"The Twisted Root"},
+              {"id":"1932","name":"Home"},
+              {"id":"1935","name":"Sizzle Grill"},
+              {"id":"1941","name":"Oven"}
+            ]}]}
+        """.trimIndent()
+        fun repo(today: String) = DiningRepository { path ->
+            when {
+                "/restaurants" in path -> 200 to restaurants
+                "/restaurantToday" in path -> 200 to today
+                "/dishes/batch" in path -> 200 to dishes
+                "/dateRange" in path -> 200 to """{"ok":true,"data":{"earliest":"2026-10-01","latest":"2026-10-31"}}"""
+                else -> error("unexpected path $path")
+            }
+        }
+        fun timedNames(menu: DiningMenu) = menu.stations
+            .filter { !DiningLogic.isAvailableAllDayStation(it.name) }
+            .flatMap { it.items }
+            .map { it.name }
+            .toSet()
+
+        val full = repo(weekend)
+        val breakfast = full.menu("anteatery", "Breakfast", "2026-10-25")
+        val lunch = full.menu("anteatery", "Lunch", "2026-10-25")
+        val dinner = full.menu("anteatery", "Dinner", "2026-10-25")
+        assertEquals(setOf("Tofu-Potato Hash", "Judy's BBQ Eggs"), timedNames(breakfast))
+        assertEquals(setOf("Cheeseburger"), timedNames(lunch))
+        assertEquals(setOf("Cheeseburger", "Cavatappi Alfredo"), timedNames(dinner))
+        assertTrue(timedNames(breakfast) != timedNames(lunch))
+        assertTrue(breakfast.stations.none { DiningLogic.isAvailableAllDayStation(it.name) })
+
+        val onlyBrunch = repo(brunchOnly)
+        val brunchBreakfast = onlyBrunch.menu("anteatery", "Breakfast", "2026-10-31")
+        val brunchLunch = onlyBrunch.menu("anteatery", "Lunch", "2026-10-31")
+        assertEquals(setOf("Tofu-Potato Hash", "Judy's BBQ Eggs", "Cheeseburger"), timedNames(brunchBreakfast))
+        assertTrue(brunchLunch.stations.isEmpty())
+    }
+
+    @Test
     fun dateRangeComesFromFeed() = runBlocking {
         val range = fixtureRepo().publishedDateRange()
         assertEquals("2026-02-22", range?.earliest)

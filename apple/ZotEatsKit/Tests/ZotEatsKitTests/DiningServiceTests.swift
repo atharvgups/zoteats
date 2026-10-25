@@ -184,14 +184,54 @@ struct DiningServiceTests {
         #expect(DiningService.menuPeriodNames(primary: "Late Night", available: ["Dinner", "Evening Snack"]) == ["Evening Snack"])
     }
 
-    @Test func lunchMenuPeriodNamesUnionBrunch() {
+    @Test func lunchMenuPeriodNamesStayOnLunch() {
         let weekend = ["Breakfast", "Brunch", "Lunch", "Dinner", "All Day"]
-        #expect(DiningService.menuPeriodNames(primary: "Lunch", available: weekend) == ["Lunch", "Brunch"])
+        #expect(DiningService.menuPeriodNames(primary: "Lunch", available: weekend) == ["Lunch"])
         #expect(DiningService.menuPeriodNames(primary: "Breakfast", available: weekend) == ["Breakfast"])
         #expect(DiningService.menuPeriodNames(primary: "Breakfast", available: ["Brunch", "Dinner"]) == ["Brunch"])
-        #expect(DiningService.menuPeriodNames(primary: "Lunch", available: ["Brunch", "Dinner"]) == ["Brunch"])
+        #expect(DiningService.menuPeriodNames(primary: "Lunch", available: ["Brunch", "Dinner"]).isEmpty)
         #expect(DiningService.menuPeriodNames(primary: "Dinner", available: weekend) == ["Dinner"])
         #expect(!DiningService.menuPeriodNames(primary: "Lunch", available: weekend).contains("All Day"))
+        #expect(DiningService.mealPillLabel("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
+        #expect(DiningService.mealPillLabel("Lunch", available: ["Brunch", "Dinner"]) == "Lunch")
+        #expect(DiningService.mealPillLabel("Lunch", available: weekend) == "Lunch")
+    }
+
+    @Test func eachMealKeepsItsOwnWeekendPeriodDishes() async throws {
+        let service = DiningService(http: WeekendBrunchHTTP(), now: { fixtureNoon })
+        func timedNames(_ menu: DiningMenu) -> Set<String> {
+            Set(
+                menu.stations
+                    .filter { !CampusMenuNormalize.isAvailableAllDay($0.name) }
+                    .flatMap(\.items)
+                    .map(\.name)
+            )
+        }
+        let breakfast = try await service.menu(for: "anteatery", period: "Breakfast", date: "2026-10-25")
+        let lunch = try await service.menu(for: "anteatery", period: "Lunch", date: "2026-10-25")
+        let dinner = try await service.menu(for: "anteatery", period: "Dinner", date: "2026-10-25")
+        let breakfastNames = timedNames(breakfast)
+        let lunchNames = timedNames(lunch)
+        let dinnerNames = timedNames(dinner)
+        #expect(breakfastNames == ["Tofu-Potato Hash", "Judy's BBQ Eggs"])
+        #expect(lunchNames == ["Cheeseburger"])
+        #expect(dinnerNames == ["Cheeseburger", "Cavatappi Alfredo"])
+        #expect(breakfastNames != lunchNames)
+        #expect(lunchNames != dinnerNames)
+        #expect(!lunchNames.contains("Judy's BBQ Eggs"))
+        #expect(!breakfastNames.contains("Cavatappi Alfredo"))
+        #expect(!breakfast.stations.contains { CampusMenuNormalize.isAvailableAllDay($0.name) })
+
+        let brunchOnly = DiningService(http: WeekendBrunchHTTP(brunchOnly: true), now: { fixtureNoon })
+        let brunchBreakfast = try await brunchOnly.menu(
+            for: "anteatery", period: "Breakfast", date: "2026-10-31"
+        )
+        let brunchLunch = try await brunchOnly.menu(
+            for: "anteatery", period: "Lunch", date: "2026-10-31"
+        )
+        #expect(timedNames(brunchBreakfast) == ["Tofu-Potato Hash", "Judy's BBQ Eggs", "Cheeseburger"])
+        #expect(brunchLunch.stations.isEmpty)
+        #expect(DiningService.mealPillLabel("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
     }
 
     @Test func lunchDropsBreakfastOnlyBrunchDishesKeepsMiddayExtras() {
@@ -519,14 +559,14 @@ struct DiningServiceTests {
         let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
         let names = extras.map(\.name)
         #expect(names.contains("Creamy Marsala Ravioli"))
-        #expect(names.contains("Sesame Shrimp Taco"))
+        #expect(!names.contains("Sesame Shrimp Taco"))
         #expect(!names.contains("Lettuce"))
         #expect(!names.contains("Beef Totchos"))
         let combined = DiningService.insertingHubExtras(extras, into: menu)
         #expect(combined.stations.contains { $0.name == "Also served" })
         #expect(
-            combined.stations.first { $0.name == "Also served" }?.items.map(\.name).sorted()
-                == ["Creamy Marsala Ravioli", "Sesame Shrimp Taco"].sorted()
+            combined.stations.first { $0.name == "Also served" }?.items.map(\.name)
+                == ["Creamy Marsala Ravioli"]
         )
     }
 
@@ -745,9 +785,9 @@ struct DiningServiceTests {
         let breakfast = DiningService.hubMealStations(matchingPeriod: "Breakfast", in: hub)
         #expect(breakfast.map(\.name) == ["Breakfast"])
         let brunchAsBreakfast = DiningService.hubMealStations(matchingPeriod: "Brunch", in: hub)
-        #expect(brunchAsBreakfast.map(\.name) == ["Breakfast"])
+        #expect(brunchAsBreakfast.map(\.name) == ["Brunch"])
         let lunch = DiningService.hubMealStations(matchingPeriod: "Lunch", in: hub)
-        #expect(Set(lunch.map(\.name)) == ["Brunch", "Lunch"])
+        #expect(Set(lunch.map(\.name)) == ["Lunch"])
         let dinner = DiningService.hubMealStations(matchingPeriod: "Dinner", in: hub)
         #expect(dinner.map(\.name) == ["Dinner"])
 
@@ -796,7 +836,7 @@ struct DiningServiceTests {
         let lunchBoard = DiningService.hubBoardItems(matchingPeriod: "Lunch", hubStations: hub)
         let lunchNames = lunchBoard.map(\.name)
         #expect(lunchNames.contains("Sesame Shrimp Taco"))
-        #expect(lunchNames.contains("Cavatappi Alfredo"))
+        #expect(!lunchNames.contains("Cavatappi Alfredo"))
         #expect(!lunchNames.contains("Turmeric Tofu Scramble"))
         #expect(!lunchNames.contains("Judy's BBQ Eggs"))
 
@@ -806,7 +846,7 @@ struct DiningServiceTests {
         #expect(!trimmedNames.contains("Judy's BBQ Eggs"))
 
         let extras = DiningService.hubExclusiveItems(onMenu: trimmed, hubStations: hub)
-        #expect(extras.map(\.name).contains("Cavatappi Alfredo"))
+        #expect(!extras.map(\.name).contains("Cavatappi Alfredo"))
         #expect(!extras.map(\.name).contains("Turmeric Tofu Scramble"))
 
         let dinnerMenu = DiningMenu(

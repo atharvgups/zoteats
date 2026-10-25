@@ -37,9 +37,13 @@ class DiningLogicTest {
         assertEquals("Brunch", DiningLogic.resolvePeriod("Breakfast", listOf("Brunch", "Dinner")))
         assertEquals("Brunch", DiningLogic.resolvePeriod("Lunch", listOf("Brunch", "Dinner")))
         val weekend = listOf("Breakfast", "Brunch", "Lunch", "Dinner", "All Day")
-        assertEquals(listOf("Lunch", "Brunch"), DiningLogic.menuPeriodNames("Lunch", weekend))
+        assertEquals(listOf("Lunch"), DiningLogic.menuPeriodNames("Lunch", weekend))
         assertEquals(listOf("Breakfast"), DiningLogic.menuPeriodNames("Breakfast", weekend))
+        assertTrue(DiningLogic.menuPeriodNames("Lunch", listOf("Brunch", "Dinner")).isEmpty())
         assertFalse(DiningLogic.menuPeriodNames("Lunch", weekend).any { it.contains("All Day", true) })
+        assertEquals("Brunch", DiningLogic.mealPillLabel("Breakfast", listOf("Brunch", "Dinner")))
+        assertEquals("Lunch", DiningLogic.mealPillLabel("Lunch", listOf("Brunch", "Dinner")))
+        assertEquals("Lunch", DiningLogic.mealPillLabel("Lunch", weekend))
     }
 
     @Test
@@ -204,6 +208,7 @@ class DiningLogicTest {
         assertEquals("Dinner", DiningLogic.clockPill(16 * 60))
         val brunch = listOf(MealPeriodWindow("Brunch", 11 * 60, 16 * 60 + 30))
         assertEquals("Lunch", DiningLogic.autoPill(brunch, 12 * 60))
+        assertEquals("Breakfast", DiningLogic.autoPill(brunch, 12 * 60, listOf("Brunch", "Dinner")))
         assertEquals("Dinner", DiningLogic.autoPill(brunch, 15 * 60))
         val weekday = listOf(
             MealPeriodWindow("Lunch", 11 * 60, 14 * 60 + 30),

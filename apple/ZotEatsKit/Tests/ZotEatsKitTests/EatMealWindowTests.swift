@@ -121,5 +121,12 @@ struct EatMealWindowTests {
                 nowMinutes: 15 * 60 + 30
             )
         )
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: brunchOnly,
+                availablePeriods: ["Brunch", "Dinner"],
+                nowMinutes: 12 * 60
+            ) == "Breakfast"
+        )
     }
 }

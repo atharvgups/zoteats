@@ -141,7 +141,7 @@ public enum EatMealWindow: Sendable {
             return "Breakfast"
         }
         if live.contains(where: { $0.name.lowercased().contains("brunch") }) {
-            return clockPill(nowMinutes: nowMinutes)
+            return postedClockPill(nowMinutes: nowMinutes, availablePeriods: availablePeriods)
         }
 
         if postedLate, nowMinutes >= dinnerEndMinutes {
@@ -153,12 +153,25 @@ public enum EatMealWindow: Sendable {
             .min(by: { $0.startMinutes! < $1.startMinutes! })
         {
             if upcoming.name.lowercased().contains("brunch") {
-                return clockPill(nowMinutes: nowMinutes)
+                return postedClockPill(nowMinutes: nowMinutes, availablePeriods: availablePeriods)
             }
             return MealPeriodPill.canonical(upcoming.name)
         }
 
-        return clockPill(nowMinutes: nowMinutes)
+        return postedClockPill(nowMinutes: nowMinutes, availablePeriods: availablePeriods)
+    }
+
+    /// Clock fallback that will not land on an unposted Lunch when the only
+    /// midday board is Brunch (already mapped onto the Breakfast chip).
+    static func postedClockPill(nowMinutes: Int, availablePeriods: [String]) -> String {
+        let clock = clockPill(nowMinutes: nowMinutes)
+        if availablePeriods.isEmpty { return clock }
+        if DiningService.pillIsPosted(clock, available: availablePeriods) { return clock }
+        if clock == "Lunch",
+           DiningService.pillIsPosted("Breakfast", available: availablePeriods) {
+            return "Breakfast"
+        }
+        return clock
     }
 
     private static func isServingTrueMeal(

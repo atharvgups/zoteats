@@ -997,9 +997,9 @@ public struct DiningService: Sendable {
         case "breakfast":
             return match("Breakfast") ?? match("Brunch") ?? primary
         case "lunch":
-            // Weekend Lunch is often an untimed All-Day clone; Brunch is the
-            // real midday board (Crossroads tacos). Prefer Lunch when it
-            // exists, then Brunch so a Lunch-only peek isn't empty.
+            // Posted Lunch only for the board. Brunch fallback is for
+            // chrome / widgets — menuPeriodNames will not scrape Brunch
+            // onto an unposted Lunch pill (that duplicated Breakfast).
             return match("Lunch") ?? match("Brunch") ?? primary
         case "dinner":
             return match("Dinner") ?? match("Limited Dinner") ?? primary
@@ -1016,27 +1016,35 @@ public struct DiningService: Sendable {
         }
     }
 
-    /// Periods to scrape for a primary pill. Lunch unions Brunch so weekend
-    /// midday dishes (Sesame Shrimp Taco on Brunch, missing from untimed Lunch)
-    /// still show when Lunch is selected. Breakfast stays Breakfast-only when
-    /// that period exists; otherwise it falls through to Brunch.
+    /// Chip label for an Eat pill. Weekend boards that only posted Brunch
+    /// show "Brunch" on the Breakfast chip so the row is not a fake B/L pair.
+    public static func mealPillLabel(_ pill: String, available: [String]) -> String {
+        guard pillIsPosted(pill, available: available) else { return pill }
+        let resolved = resolvePeriod(pill, available: available)
+        return MealPeriodDisplay.label(live: resolved, pill: pill)
+    }
+
+    /// Periods to scrape for a primary pill. Each pill keeps that period's
+    /// dishes — Lunch does not union Brunch (weekend Brunch is Breakfast ∪
+    /// All-Day, so the union made Breakfast and Lunch identical). Unposted
+    /// Lunch stays empty instead of copying the Brunch board already on
+    /// Breakfast. Breakfast still falls through to Brunch when that is the
+    /// only morning period.
     public static func menuPeriodNames(primary: String, available: [String]) -> [String] {
-        let resolved = resolvePeriod(primary, available: available)
-        var names: [String] = []
-        func add(_ needle: String) {
-            guard let match = available.first(where: {
-                $0.caseInsensitiveCompare(needle) == .orderedSame
-            }) else { return }
-            if !names.contains(where: { $0.caseInsensitiveCompare(match) == .orderedSame }) {
-                names.append(match)
-            }
+        func match(_ needle: String) -> String? {
+            available.first { $0.caseInsensitiveCompare(needle) == .orderedSame }
         }
-        add(resolved)
         if MealPeriodPill.canonical(primary) == "Lunch" {
-            add("Lunch")
-            add("Brunch")
+            // Posted Lunch only. Do not scrape Brunch — that board belongs
+            // on the Breakfast chip when Lunch was never published.
+            guard let lunch = match("Lunch") else { return [] }
+            return lunch.localizedCaseInsensitiveContains("all day") ? [] : [lunch]
         }
-        return names.filter { !$0.localizedCaseInsensitiveContains("all day") }
+        let resolved = resolvePeriod(primary, available: available)
+        guard !resolved.localizedCaseInsensitiveContains("all day"),
+              let name = match(resolved)
+        else { return [] }
+        return [name]
     }
 
     /// Weekend Brunch is often Breakfast plus the All-Day grill. After Lunch
@@ -1177,22 +1185,32 @@ public struct DiningService: Sendable {
     }
 
     /// Hub meal-period sections that belong on this Eat pill. Match by pill
-    /// name, not list position. Lunch unions Brunch; Breakfast uses Brunch
+    /// name, not list position. Lunch stays Lunch; Breakfast uses Brunch
     /// only when Hub posted no Breakfast; Dinner never picks up brunch.
     public static func hubMealStations(
         matchingPeriod period: String,
         in hubStations: [MenuStation]
     ) -> [MenuStation] {
+        let lowerPeriod = period.lowercased()
+        if lowerPeriod.contains("brunch") {
+            return hubStations.filter { $0.name.lowercased().contains("brunch") }
+        }
         let pill = MealPeriodPill.canonical(period)
         let hasBreakfast = hubStations.contains {
             let name = $0.name.lowercased()
             return name.contains("breakfast") && !name.contains("brunch")
         }
+        let hasLunch = hubStations.contains {
+            let name = $0.name.lowercased()
+            return name.contains("lunch") && !name.contains("brunch")
+        }
         return hubStations.filter { station in
             let name = station.name.lowercased()
             switch pill {
             case "Lunch":
-                return name.contains("lunch") || name.contains("brunch")
+                // Do not pull Brunch onto Lunch — weekend Brunch is the
+                // breakfast board plus All Day, which made the pills match.
+                return hasLunch && name.contains("lunch") && !name.contains("brunch")
             case "Breakfast":
                 if hasBreakfast {
                     return name.contains("breakfast") && !name.contains("brunch")
@@ -1280,14 +1298,16 @@ public struct DiningService: Sendable {
         dietLookupKeys(for: item.name).contains { keys.contains($0) }
     }
 
-    /// Lunch unions Brunch. All Day is ignored. Breakfast / Dinner / snacks
-    /// stay separate so a Hub dump of midday SKUs onto Breakfast is not an extra.
+    /// Each timed meal is its own family. All Day is ignored. Brunch is not
+    /// Lunch — weekend Brunch copies Breakfast, and treating them as one
+    /// family leaked eggs onto the Lunch pill.
     static func hubMealFamily(for period: String) -> String? {
         let lower = period.lowercased()
         if lower.contains("all day") { return nil }
         if MealPeriodPill.isLateNight(lower) { return "late night" }
         if MealPeriodPill.isAfternoonSnack(lower) { return "afternoon snack" }
-        if lower.contains("lunch") || lower.contains("brunch") { return "lunch" }
+        if lower.contains("brunch") { return "brunch" }
+        if lower.contains("lunch") { return "lunch" }
         if lower.contains("breakfast") { return "breakfast" }
         if lower.contains("dinner") { return "dinner" }
         return nil
@@ -1580,6 +1600,11 @@ public struct DiningService: Sendable {
 
         let resolved = Self.resolvePeriod(period, available: available)
         let periodNames = Self.menuPeriodNames(primary: period, available: available)
+        // Unposted Lunch (weekend Brunch-only board) must stay empty — do
+        // not invent dishes or copy the Brunch already shown on Breakfast.
+        guard !periodNames.isEmpty else {
+            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+        }
         let stationNames = try await stationMap()
 
         var mealStations: [MenuStation] = []
@@ -1635,7 +1660,17 @@ public struct DiningService: Sendable {
         let periodMatched = periodNames.contains { name in
             available.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
         }
+        // Weekend Brunch is timed and equals Breakfast ∪ All Day. Folding
+        // All Day onto Breakfast makes the Breakfast pill match Brunch/Lunch.
+        let brunchIsTimed = (today.periods ?? [:]).values.contains { period in
+            period.name.localizedCaseInsensitiveContains("brunch")
+                && PacificTime.parseMinutes(period.startTime) != nil
+                && PacificTime.parseMinutes(period.endTime) != nil
+        }
+        let skipAllDayOnBreakfast = brunchIsTimed
+            && MealPeriodPill.canonical(period) == "Breakfast"
         if periodMatched,
+           !skipAllDayOnBreakfast,
            !resolved.localizedCaseInsensitiveContains("all day"),
            available.contains(where: { $0.localizedCaseInsensitiveContains("all day") }) {
             let allDayName = available.first { $0.localizedCaseInsensitiveContains("all day") }!
@@ -1686,6 +1721,16 @@ public struct DiningService: Sendable {
         let names = Self.menuPeriodNames(primary: period, available: available)
         let matched = names.compactMap { name in
             stations.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        }
+        // Empty names means this pill is not posted — do not dump every Hub
+        // station onto Lunch when the only morning board is Brunch.
+        guard !names.isEmpty else {
+            return DiningMenu(
+                locationId: HallDirectory.oasisComingSoonID,
+                date: dateISO,
+                period: period,
+                stations: []
+            )
         }
         let board = matched.isEmpty ? stations : Self.mergeStationLists([matched])
         return DiningMenu(

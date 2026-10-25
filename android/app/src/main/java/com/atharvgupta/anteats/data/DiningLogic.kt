@@ -95,19 +95,24 @@ object DiningLogic {
         }
     }
 
+    fun mealPillLabel(pill: String, available: List<String>): String {
+        if (!pillIsPosted(pill, available)) return pill
+        return resolvePeriod(pill, available).ifBlank { pill }
+    }
+
+    /// Each pill scrapes only that period. Lunch does not union Brunch —
+    /// weekend Brunch is Breakfast plus All Day, so the union made both
+    /// pills identical. Unposted Lunch stays empty instead of copying Brunch.
     fun menuPeriodNames(primary: String, available: List<String>): List<String> {
-        val resolved = resolvePeriod(primary, available)
-        val names = mutableListOf<String>()
-        fun add(needle: String) {
-            val match = available.firstOrNull { it.equals(needle, true) } ?: return
-            if (names.none { it.equals(match, true) }) names += match
-        }
-        add(resolved)
+        fun match(needle: String) = available.firstOrNull { it.equals(needle, true) }
         if (canonicalPill(primary) == "Lunch") {
-            add("Lunch")
-            add("Brunch")
+            val lunch = match("Lunch") ?: return emptyList()
+            return if (lunch.contains("all day", true)) emptyList() else listOf(lunch)
         }
-        return names.filter { !it.contains("all day", ignoreCase = true) }
+        val resolved = resolvePeriod(primary, available)
+        if (resolved.contains("all day", true)) return emptyList()
+        val name = match(resolved) ?: return emptyList()
+        return listOf(name)
     }
 
     fun collapsedStationName(name: String): String =
@@ -388,13 +393,27 @@ object DiningLogic {
         if (live.any { canonicalPill(it.name) == "Dinner" }) return "Dinner"
         if (live.any { trueMeal(it.name, "lunch", "brunch") }) return "Lunch"
         if (live.any { trueMeal(it.name, "breakfast", "brunch") }) return "Breakfast"
-        if (live.any { it.name.contains("brunch", true) }) return clockPill(nowMinutes)
+        if (live.any { it.name.contains("brunch", true) }) {
+            return postedClockPill(nowMinutes, available)
+        }
         if (postedLate && nowMinutes >= 20 * 60) return "Late Night"
         val upcoming = timed.filter { it.startMinutes!! > nowMinutes }.minByOrNull { it.startMinutes!! }
         if (upcoming != null) {
-            return if (upcoming.name.contains("brunch", true)) clockPill(nowMinutes) else canonicalPill(upcoming.name)
+            return if (upcoming.name.contains("brunch", true)) {
+                postedClockPill(nowMinutes, available)
+            } else {
+                canonicalPill(upcoming.name)
+            }
         }
-        return clockPill(nowMinutes)
+        return postedClockPill(nowMinutes, available)
+    }
+
+    fun postedClockPill(nowMinutes: Int, available: List<String>): String {
+        val clock = clockPill(nowMinutes)
+        if (available.isEmpty()) return clock
+        if (pillIsPosted(clock, available)) return clock
+        if (clock == "Lunch" && pillIsPosted("Breakfast", available)) return "Breakfast"
+        return clock
     }
 
     private fun trueMeal(name: String, named: String, excluding: String): Boolean {
