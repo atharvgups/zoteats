@@ -81,14 +81,15 @@ LIVE_OR_RELEASING_STATES = {
 
 # iPhone-only listing slots (TARGETED_DEVICE_FAMILY=1). Cover-fit from the
 # simulator capture into each required App Store pixel size.
+# APP_IPHONE_69 is not a valid screenshotDisplayType on this app's ASC API yet.
 IPHONE_67_SIZE = (1290, 2796)
 IPHONE_67_DISPLAY = "APP_IPHONE_67"
 SCREENSHOT_SLOTS: dict[str, tuple[int, int]] = {
-    "APP_IPHONE_69": (1320, 2868),
     "APP_IPHONE_67": (1290, 2796),
     "APP_IPHONE_65": (1242, 2688),
 }
 PREVIEW_TYPE = os.environ.get("PREVIEW_TYPE", "IPHONE_67").strip() or "IPHONE_67"
+SCREENSHOT_WAIT = int(os.environ.get("SCREENSHOT_WAIT_SECONDS", "900"))
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -883,6 +884,23 @@ def _clear_screenshot_set(token: str, set_id: str) -> None:
             time.sleep(3 + attempt * 3)
 
 
+def _screenshot_state(shot: dict) -> str:
+    return str(((shot.get("attributes") or {}).get("assetDeliveryState") or {}).get("state") or "")
+
+
+def _list_screenshots(token: str, set_id: str) -> list[dict]:
+    return (
+        api(
+            "GET",
+            f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=50"
+            "&fields[appScreenshots]=assetDeliveryState,fileName",
+            token,
+            ok_codes={200, 404},
+        ).get("data")
+        or []
+    )
+
+
 def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
     files = meta.get("screenshot_files") or []
     if not files:
@@ -905,6 +923,25 @@ def ensure_screenshots(token: str, localization_id: str, meta: dict) -> None:
     for display, size in SCREENSHOT_SLOTS.items():
         set_id = _ensure_screenshot_set(token, localization_id, display, existing)
         if not set_id:
+            continue
+        shots = _list_screenshots(token, set_id)
+        complete_n = sum(
+            1
+            for shot in shots
+            if _screenshot_state(shot) in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}
+        )
+        failed_n = sum(1 for shot in shots if _screenshot_state(shot) == "FAILED")
+        pending_n = len(shots) - complete_n - failed_n
+        if complete_n >= min(len(sources), 8) or (complete_n >= 3 and pending_n == 0):
+            info(
+                f"{display} already has {complete_n} complete screenshot(s); skipping re-upload."
+            )
+            continue
+        if shots and pending_n:
+            info(
+                f"{display}: {pending_n} screenshot(s) still processing "
+                f"({complete_n} complete). Waiting instead of replacing."
+            )
             continue
         _clear_screenshot_set(token, set_id)
         for index, (rel, src) in enumerate(sources):
@@ -1204,29 +1241,7 @@ def _wait_preview_complete(token: str, preview_id: str, seconds: int = 900) -> b
 
 
 
-def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
-    """Mark a clean age questionnaire for a campus utility with no mature content."""
-    decl = api(
-        "GET",
-        f"/v1/appStoreVersions/{version_id}/ageRatingDeclaration",
-        token,
-        ok_codes={200, 404},
-    ).get("data")
-    if not decl:
-        # Newer ASC apps hang the questionnaire off appInfo instead.
-        infos = api("GET", f"/v1/apps/{app_id}/appInfos?limit=5", token).get("data") or []
-        for info_row in infos:
-            decl = api(
-                "GET",
-                f"/v1/appInfos/{info_row['id']}/ageRatingDeclaration",
-                token,
-                ok_codes={200, 404},
-            ).get("data")
-            if decl:
-                break
-    if not decl:
-        warn("No ageRatingDeclaration found — complete Age Rating once in App Store Connect.")
-        return
+def _age_rating_content_attrs() -> dict:
     none_keys = [
         "alcoholTobaccoOrDrugUseOrReferences",
         "contests",
@@ -1242,49 +1257,127 @@ def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
         "violenceRealisticProlongedGraphicOrSadistic",
         "gunsOrOtherWeapons",
     ]
-    # Prefer modern INFREQUENT/FREQUENT enums; fall back values still accepted as NONE.
     attrs = {k: "NONE" for k in none_keys}
+    attrs.update(_age_rating_capability_attrs())
     attrs.update(
         {
             "gambling": False,
             "unrestrictedWebAccess": False,
             "lootBox": False,
-            "healthOrWellnessTopics": False,
-            "messagingAndChat": False,
-            "parentalControls": False,
-            "ageAssurance": False,
-            # ASC 2025+ capabilities — required on PATCH or review attach fails.
-            "advertising": False,
-            "userGeneratedContent": False,
         }
     )
-    result = api(
+    return attrs
+
+
+def _age_rating_capability_attrs() -> dict:
+    # ASC 4.4.1 (Sept 2026) requires socialMedia on review attach.
+    return {
+        "healthOrWellnessTopics": False,
+        "messagingAndChat": False,
+        "parentalControls": False,
+        "ageAssurance": False,
+        "advertising": False,
+        "userGeneratedContent": False,
+        "socialMedia": False,
+        "socialMediaAgeRestricted": False,
+    }
+
+
+def _patch_age_rating(token: str, decl_id: str, attrs: dict) -> dict:
+    return api(
         "PATCH",
-        f"/v1/ageRatingDeclarations/{decl['id']}",
+        f"/v1/ageRatingDeclarations/{decl_id}",
         token,
         {
             "data": {
                 "type": "ageRatingDeclarations",
-                "id": decl["id"],
+                "id": decl_id,
                 "attributes": attrs,
             }
         },
         ok_codes={200, 204, 409, 422},
     )
-    if result.get("errors") and not result.get("data"):
-        raw = str(result.get("raw") or json.dumps(result))
-        if result.get("already_exists") or "not editable" in raw.lower():
-            warn(
-                "Age rating is not editable (already set on the live 1.0.221 listing). Continuing."
-            )
+
+
+def _age_rating_patch_applied(result: dict) -> bool:
+    if result.get("data") is not None:
+        return True
+    if result.get("errors") or result.get("already_exists"):
+        return False
+    return True
+
+
+def _collect_age_rating_decls(
+    token: str, version_id: str, app_id: str
+) -> list[tuple[str, dict]]:
+    """Editable AppInfo first. Live READY_FOR_SALE declarations are often locked."""
+    found: list[tuple[str, dict]] = []
+    seen: set[str] = set()
+
+    def add(source: str, decl: dict | None) -> None:
+        if not decl or not decl.get("id") or decl["id"] in seen:
             return
+        seen.add(decl["id"])
+        found.append((source, decl))
+
+    infos = api("GET", f"/v1/apps/{app_id}/appInfos?limit=5", token).get("data") or []
+    editable: list[tuple[str, dict | None]] = []
+    other: list[tuple[str, dict | None]] = []
+    for info_row in infos:
+        state = (info_row.get("attributes") or {}).get("appStoreState")
+        decl = api(
+            "GET",
+            f"/v1/appInfos/{info_row['id']}/ageRatingDeclaration",
+            token,
+            ok_codes={200, 404},
+        ).get("data")
+        label = f"appInfo {info_row['id']} state={state}"
+        (editable if state in editable_states() else other).append((label, decl))
+    for source, decl in editable + other:
+        add(source, decl)
+
+    version_decl = api(
+        "GET",
+        f"/v1/appStoreVersions/{version_id}/ageRatingDeclaration",
+        token,
+        ok_codes={200, 404},
+    ).get("data")
+    add(f"appStoreVersion {version_id}", version_decl)
+    return found
+
+
+def ensure_age_rating(token: str, version_id: str, app_id: str) -> None:
+    """Mark a clean age questionnaire, including required socialMedia=false."""
+    decls = _collect_age_rating_decls(token, version_id, app_id)
+    if not decls:
         die(
-            "Age rating PATCH incomplete — ASC will reject App Review attach. "
-            "In App Store Connect → App Information → Age Ratings, answer all "
-            "capability questions (Advertising / UGC / Messaging = No for Anteats), "
-            f"or fix the submit script attributes. Detail: {json.dumps(result)[:2000]}"
+            "No ageRatingDeclaration found. In App Store Connect → App Information → "
+            "Age Ratings, answer Social Media = No, then re-run."
         )
-    info("Updated age rating declaration (all content descriptors NONE).")
+
+    attempts: list[tuple[str, dict]] = [
+        ("full", _age_rating_content_attrs()),
+        ("capabilities", _age_rating_capability_attrs()),
+        ("socialMedia", {"socialMedia": False}),
+        ("socialMedia+restricted", {"socialMedia": False, "socialMediaAgeRestricted": False}),
+    ]
+    last_raw = ""
+    applied = False
+    for source, decl in decls:
+        for label, attrs in attempts:
+            result = _patch_age_rating(token, decl["id"], attrs)
+            if _age_rating_patch_applied(result):
+                info(f"Updated age rating ({label}) on {source}.")
+                applied = True
+                break
+            last_raw = str(result.get("raw") or json.dumps(result))
+            info(f"Age rating PATCH {label} on {source} did not apply: {last_raw[:400]}")
+    if not applied:
+        die(
+            "Age rating PATCH could not set socialMedia. App Review attach will fail. "
+            "In App Store Connect → App Information → Age Ratings, answer Social Media = No "
+            f"(no social feed in Anteats). Detail: {last_raw[:2000]}"
+        )
 
 
 def ensure_app_privacy(token: str, app_id: str) -> None:
@@ -1403,9 +1496,12 @@ def ensure_app_privacy(token: str, app_id: str) -> None:
     info("Published App Privacy answers (Data Not Collected).")
 
 
-def wait_for_screenshot_processing(token: str, localization_id: str, timeout_s: int = 180) -> None:
-    """Avoid SCREENSHOT_UPLOADS_IN_PROGRESS on review attach."""
-    deadline = time.time() + timeout_s
+def wait_for_screenshot_processing(
+    token: str, localization_id: str, timeout_s: int | None = None
+) -> None:
+    """Avoid ASSET_IN_POST_PROCESSING on review attach."""
+    timeout = SCREENSHOT_WAIT if timeout_s is None else timeout_s
+    deadline = time.time() + timeout
     while time.time() < deadline:
         sets = api(
             "GET",
@@ -1414,26 +1510,28 @@ def wait_for_screenshot_processing(token: str, localization_id: str, timeout_s: 
             ok_codes={200, 404},
         ).get("data") or []
         pending = 0
+        complete = 0
         for shot_set in sets:
-            shots = api(
-                "GET",
-                f"/v1/appScreenshotSets/{shot_set['id']}/appScreenshots?limit=50"
-                "&fields[appScreenshots]=assetDeliveryState,fileName",
-                token,
-                ok_codes={200, 404},
-            ).get("data") or []
-            for shot in shots:
-                state = ((shot.get("attributes") or {}).get("assetDeliveryState") or {}).get(
-                    "state"
-                )
-                if state not in {"COMPLETE", "FAILED"}:
+            display = (shot_set.get("attributes") or {}).get("screenshotDisplayType")
+            if display and display not in SCREENSHOT_SLOTS:
+                continue
+            for shot in _list_screenshots(token, shot_set["id"]):
+                state = _screenshot_state(shot)
+                if state in {"COMPLETE", "COMPLETE_WITH_WARNINGS"}:
+                    complete += 1
+                elif state != "FAILED":
                     pending += 1
         if pending == 0:
-            info("Screenshot assets ready for review.")
+            if complete == 0:
+                die("No complete App Store screenshots after wait. Re-run after media uploads.")
+            info(f"Screenshot assets ready for review ({complete} complete).")
             return
         info(f"Waiting for {pending} screenshot(s) to finish processing…")
-        time.sleep(15)
-    warn("Timed out waiting for screenshot processing; continuing submit.")
+        time.sleep(20)
+    die(
+        f"Screenshots still processing after {timeout}s. Re-run submit_only once "
+        "App Store Connect shows the listing screenshots as ready."
+    )
 
 
 def cancel_in_flight_review_submissions(token: str, app_id: str) -> None:
@@ -1596,31 +1694,51 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
                 f"Detail: {json.dumps(created)[:1500]}"
             )
 
-    item = api(
-        "POST",
-        "/v1/reviewSubmissionItems",
-        token,
-        {
-            "data": {
-                "type": "reviewSubmissionItems",
-                "relationships": {
-                    "reviewSubmission": {
-                        "data": {"type": "reviewSubmissions", "id": submission_id}
+    item: dict = {}
+    for attempt in range(8):
+        item = api(
+            "POST",
+            "/v1/reviewSubmissionItems",
+            token,
+            {
+                "data": {
+                    "type": "reviewSubmissionItems",
+                    "relationships": {
+                        "reviewSubmission": {
+                            "data": {"type": "reviewSubmissions", "id": submission_id}
+                        },
+                        "appStoreVersion": {
+                            "data": {"type": "appStoreVersions", "id": version_id}
+                        },
                     },
-                    "appStoreVersion": {
-                        "data": {"type": "appStoreVersions", "id": version_id}
-                    },
-                },
-            }
-        },
-        ok_codes={200, 201, 409, 422},
-    )
-    if item.get("errors") and not item.get("data") and not item.get("already_exists"):
-        die(
-            "Could not add appStoreVersion to review submission (often incomplete "
-            "App Privacy Publish). "
-            f"Detail: {json.dumps(item)[:2500]}"
+                }
+            },
+            ok_codes={200, 201, 409, 422},
         )
+        if item.get("data"):
+            break
+        raw = str(item.get("raw") or json.dumps(item))
+        if "socialMedia" in raw:
+            die(
+                "App Review attach still missing age-rating socialMedia. "
+                "In App Store Connect → App Information → Age Ratings, answer "
+                f"Social Media = No, then re-run. Detail: {raw[:2000]}"
+            )
+        if "ASSET_IN_POST_PROCESSING" in raw:
+            info(
+                f"Screenshots still processing on attach attempt {attempt + 1}/8; waiting 30s."
+            )
+            time.sleep(30)
+            continue
+        if item.get("errors") and not item.get("data"):
+            if "ENTITY_STATE_INVALID" in raw or "ATTRIBUTE.REQUIRED" in raw:
+                die(
+                    "Could not add appStoreVersion to review submission (often incomplete "
+                    "App Privacy Publish, age rating, or screenshots). "
+                    f"Detail: {raw[:2500]}"
+                )
+            info(f"Attach 409 treated as already present: {raw[:300]}")
+        break
 
     items = api(
         "GET",
@@ -1631,9 +1749,9 @@ def submit_for_review(token: str, app_id: str, version_id: str) -> None:
     info(f"Review submission items: {len(items)}")
     if not items:
         die(
-            "Review submission has zero items after attach — ASC will reject submit. "
-            "Usually App Privacy is not Published (Data Not Collected), or screenshots "
-            "are still processing. "
+            "Review submission has zero items after attach. "
+            "Usually App Privacy is not Published, age rating socialMedia is unset, "
+            "or screenshots are still processing. "
             f"Attach attempt: {json.dumps(item)[:2000]}"
         )
 
