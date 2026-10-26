@@ -17,6 +17,8 @@ struct EatMealHeadlineTests {
         #expect(EatMealHeadline.subtitle(period: "Dinner", nowMinutes: 22 * 60) == "What’s for Dinner")
         #expect(EatMealHeadline.subtitle(period: "Afternoon Snack", nowMinutes: 15 * 60) == "What’s for Afternoon Snack")
         #expect(EatMealHeadline.subtitle(period: "Evening Snack", nowMinutes: 21 * 60) == "What’s for Late Night")
+        #expect(EatMealHeadline.subtitle(period: "Overnight", nowMinutes: 21 * 60) == "What’s for Late Night")
+        #expect(EatMealHeadline.subtitle(period: "Late Night", nowMinutes: 22 * 60) == "What’s for Late Night")
     }
 
     @Test func clockFallbackWhenNoMealSelected() {

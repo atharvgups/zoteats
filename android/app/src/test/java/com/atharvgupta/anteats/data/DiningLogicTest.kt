@@ -44,6 +44,34 @@ class DiningLogicTest {
         assertEquals("Brunch", DiningLogic.mealPillLabel("Breakfast", listOf("Brunch", "Dinner")))
         assertEquals("Lunch", DiningLogic.mealPillLabel("Lunch", listOf("Brunch", "Dinner")))
         assertEquals("Lunch", DiningLogic.mealPillLabel("Lunch", weekend))
+        assertEquals("Late Night", DiningLogic.mealPillLabel("Late Night", listOf("Overnight")))
+        assertEquals("Late Night", DiningLogic.mealPillLabel("Late Night", listOf("Evening Snack")))
+    }
+
+    @Test
+    fun lateNightPillIsWeekdaysWhenPostedOnly() {
+        val monday = "2026-10-26"
+        val saturday = "2026-10-24"
+        val sunday = "2026-10-25"
+        val weekdayBoard = listOf("Breakfast", "Lunch", "Dinner", "Overnight")
+        val weekendBoard = listOf("Breakfast", "Brunch", "Lunch", "Dinner", "Overnight")
+        assertTrue(DiningLogic.isWeekend(saturday))
+        assertTrue(DiningLogic.isWeekend(sunday))
+        assertFalse(DiningLogic.isWeekend(monday))
+        assertTrue(DiningLogic.visibleMealPills(weekdayBoard, monday).contains("Late Night"))
+        assertFalse(DiningLogic.visibleMealPills(listOf("Breakfast", "Lunch", "Dinner"), monday).contains("Late Night"))
+        assertFalse(DiningLogic.visibleMealPills(weekendBoard, saturday).contains("Late Night"))
+        assertFalse(DiningLogic.visibleMealPills(weekendBoard, sunday).contains("Late Night"))
+        assertEquals(
+            listOf("Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"),
+            DiningLogic.visibleMealPills(weekdayBoard, monday),
+        )
+        val overnight = listOf(
+            MealPeriodWindow("Dinner", 16 * 60 + 30, 20 * 60),
+            MealPeriodWindow("Overnight", 20 * 60, 23 * 60),
+        )
+        assertEquals("Late Night", DiningLogic.autoPill(overnight, 21 * 60, weekdayBoard, monday))
+        assertEquals("Dinner", DiningLogic.autoPill(overnight, 21 * 60, weekendBoard, sunday))
     }
 
     @Test

@@ -195,6 +195,41 @@ struct DiningServiceTests {
         #expect(DiningService.mealPillLabel("Breakfast", available: ["Brunch", "Dinner"]) == "Brunch")
         #expect(DiningService.mealPillLabel("Lunch", available: ["Brunch", "Dinner"]) == "Lunch")
         #expect(DiningService.mealPillLabel("Lunch", available: weekend) == "Lunch")
+        #expect(DiningService.mealPillLabel("Late Night", available: ["Overnight"]) == "Late Night")
+        #expect(DiningService.mealPillLabel("Late Night", available: ["Evening Snack"]) == "Late Night")
+    }
+
+    @Test func lateNightPillIsWeekdaysWhenPostedOnly() {
+        let monday = "2026-10-26"
+        let saturday = "2026-10-24"
+        let sunday = "2026-10-25"
+        let weekdayBoard = ["Breakfast", "Lunch", "Dinner", "Overnight"]
+        let weekendBoard = ["Breakfast", "Brunch", "Lunch", "Dinner", "Overnight"]
+        #expect(DiningService.isWeekend(dateISO: saturday))
+        #expect(DiningService.isWeekend(dateISO: sunday))
+        #expect(!DiningService.isWeekend(dateISO: monday))
+        #expect(
+            DiningService.visibleMealPills(available: weekdayBoard, dateISO: monday)
+                .contains("Late Night")
+        )
+        #expect(
+            !DiningService.visibleMealPills(
+                available: ["Breakfast", "Lunch", "Dinner"],
+                dateISO: monday
+            ).contains("Late Night")
+        )
+        #expect(
+            !DiningService.visibleMealPills(available: weekendBoard, dateISO: saturday)
+                .contains("Late Night")
+        )
+        #expect(
+            !DiningService.visibleMealPills(available: weekendBoard, dateISO: sunday)
+                .contains("Late Night")
+        )
+        #expect(
+            DiningService.visibleMealPills(available: weekdayBoard, dateISO: monday)
+                == ["Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night"]
+        )
     }
 
     @Test func eachMealKeepsItsOwnWeekendPeriodDishes() async throws {

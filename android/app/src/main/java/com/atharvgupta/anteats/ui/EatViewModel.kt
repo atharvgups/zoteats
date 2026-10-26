@@ -65,8 +65,9 @@ class EatViewModel(
                     hall?.periods.orEmpty(),
                     PacificTime.nowMinutes(),
                     hall?.availablePeriods.orEmpty(),
+                    _state.value.selectedDate,
                 )
-                    .takeIf { it in DiningLogic.mealSelectorPills }
+                    .takeIf { it in DiningLogic.visibleMealPills(hall?.availablePeriods.orEmpty(), _state.value.selectedDate) }
                     ?: DiningLogic.clockPill(PacificTime.nowMinutes())
                 _state.update {
                     it.copy(
@@ -104,7 +105,18 @@ class EatViewModel(
 
     fun selectDate(iso: String) {
         if (iso == _state.value.selectedDate) return
-        _state.update { it.copy(selectedDate = iso, selectedDish = null, menu = null) }
+        val hall = _state.value.halls.firstOrNull { it.id == _state.value.selectedHall }
+        val available = hall?.availablePeriods.orEmpty()
+        val pills = DiningLogic.visibleMealPills(available, iso)
+        val current = _state.value.selectedPeriod
+        val period = current.takeIf { it in pills }
+            ?: DiningLogic.autoPill(hall?.periods.orEmpty(), PacificTime.nowMinutes(), available, iso)
+                .takeIf { it in pills }
+            ?: pills.firstOrNull()
+            ?: DiningLogic.clockPill(PacificTime.nowMinutes())
+        _state.update {
+            it.copy(selectedDate = iso, selectedPeriod = period, selectedDish = null, menu = null)
+        }
         loadMenu()
     }
 

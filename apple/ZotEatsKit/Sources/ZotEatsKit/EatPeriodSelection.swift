@@ -14,10 +14,15 @@ public enum EatPeriodSelection {
         availablePeriods: [String],
         timedPeriods: [MealPeriodWindow],
         nowMinutes: Int,
-        browsingFutureDay: Bool
+        browsingFutureDay: Bool,
+        dateISO: String = "2026-07-09"
     ) -> String? {
         // Eat chips stay on screen even when a meal has not posted yet.
-        let pills = DiningService.mealSelectorPills
+        // Late Night is omitted on weekends and when that board did not post.
+        let pills = DiningService.visibleMealPills(
+            available: availablePeriods,
+            dateISO: dateISO
+        )
         // Board-backed pills for window matching (Brunch → Breakfast, etc.).
         let boardPills = DiningService.primaryPeriods(from: availablePeriods)
         let matchPills = boardPills.isEmpty ? pills : boardPills
@@ -58,7 +63,8 @@ public enum EatPeriodSelection {
         return EatMealWindow.autoPill(
             timedPeriods: timedPeriods,
             availablePeriods: availablePeriods,
-            nowMinutes: nowMinutes
+            nowMinutes: nowMinutes,
+            dateISO: dateISO
         )
     }
 }

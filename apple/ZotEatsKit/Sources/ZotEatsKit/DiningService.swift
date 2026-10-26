@@ -1018,10 +1018,25 @@ public struct DiningService: Sendable {
 
     /// Chip label for an Eat pill. Weekend boards that only posted Brunch
     /// show "Brunch" on the Breakfast chip so the row is not a fake B/L pair.
+    /// Overnight / Evening Snack always read as Late Night.
     public static func mealPillLabel(_ pill: String, available: [String]) -> String {
+        if MealPeriodPill.canonical(pill) == "Late Night" { return "Late Night" }
         guard pillIsPosted(pill, available: available) else { return pill }
         let resolved = resolvePeriod(pill, available: available)
         return MealPeriodDisplay.label(live: resolved, pill: pill)
+    }
+
+    public static func isWeekend(dateISO: String) -> Bool {
+        guard let weekday = EatPostedDays.weekdayName(dateISO) else { return false }
+        return weekday == "Saturday" || weekday == "Sunday"
+    }
+
+    /// Eat chips. Late Night is weekdays only, and only when that board posted.
+    public static func visibleMealPills(available: [String], dateISO: String) -> [String] {
+        mealSelectorPills.filter { pill in
+            guard MealPeriodPill.canonical(pill) == "Late Night" else { return true }
+            return !isWeekend(dateISO: dateISO) && pillIsPosted(pill, available: available)
+        }
     }
 
     /// Periods to scrape for a primary pill. Each pill keeps that period's

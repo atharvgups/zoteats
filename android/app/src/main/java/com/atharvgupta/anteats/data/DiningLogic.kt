@@ -96,9 +96,22 @@ object DiningLogic {
     }
 
     fun mealPillLabel(pill: String, available: List<String>): String {
+        if (canonicalPill(pill) == "Late Night") return "Late Night"
         if (!pillIsPosted(pill, available)) return pill
-        return resolvePeriod(pill, available).ifBlank { pill }
+        val resolved = resolvePeriod(pill, available)
+        return if (canonicalPill(resolved) == "Late Night") "Late Night" else resolved.ifBlank { pill }
     }
+
+    fun isWeekend(dateISO: String): Boolean {
+        val weekday = PacificTime.weekdayName(dateISO) ?: return false
+        return weekday == "Saturday" || weekday == "Sunday"
+    }
+
+    fun visibleMealPills(available: List<String>, dateISO: String): List<String> =
+        mealSelectorPills.filter { pill ->
+            if (canonicalPill(pill) != "Late Night") true
+            else !isWeekend(dateISO) && pillIsPosted(pill, available)
+        }
 
     /// Each pill scrapes only that period. Lunch does not union Brunch:
     /// weekend Brunch is Breakfast plus All Day, so the union made both
@@ -378,6 +391,7 @@ object DiningLogic {
         periods: List<MealPeriodWindow>,
         nowMinutes: Int,
         available: List<String> = emptyList(),
+        dateISO: String = "2026-07-09",
     ): String {
         val timed = periods.filter { it.startMinutes != null && it.endMinutes != null }
         val live = timed.filter { nowMinutes >= it.startMinutes!! && nowMinutes < it.endMinutes!! }
@@ -385,7 +399,8 @@ object DiningLogic {
             periods.any { isAfternoonSnack(it.name) }
         val postedLate = available.any { isLateNight(it) } ||
             periods.any { isLateNight(it.name) }
-        if (live.any { canonicalPill(it.name) == "Late Night" }) return "Late Night"
+        val weekend = isWeekend(dateISO)
+        if (!weekend && live.any { canonicalPill(it.name) == "Late Night" }) return "Late Night"
         if (live.any { canonicalPill(it.name) == "Afternoon Snack" }) return "Afternoon Snack"
         if (postedSnack && nowMinutes >= 14 * 60 + 30 && nowMinutes < 16 * 60 + 30) {
             return "Afternoon Snack"
@@ -396,14 +411,16 @@ object DiningLogic {
         if (live.any { it.name.contains("brunch", true) }) {
             return postedClockPill(nowMinutes, available)
         }
-        if (postedLate && nowMinutes >= 20 * 60) return "Late Night"
+        if (!weekend && postedLate && nowMinutes >= 20 * 60) return "Late Night"
         val upcoming = timed.filter { it.startMinutes!! > nowMinutes }.minByOrNull { it.startMinutes!! }
         if (upcoming != null) {
-            return if (upcoming.name.contains("brunch", true)) {
+            val next = if (upcoming.name.contains("brunch", true)) {
                 postedClockPill(nowMinutes, available)
             } else {
                 canonicalPill(upcoming.name)
             }
+            if (next == "Late Night" && weekend) return "Dinner"
+            return next
         }
         return postedClockPill(nowMinutes, available)
     }

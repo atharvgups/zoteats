@@ -138,4 +138,38 @@ struct EatMealWindowTests {
             ) == "Lunch"
         )
     }
+
+    @Test func weekendDoesNotAutoSelectLateNight() {
+        let overnight = [
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+            MealPeriodWindow(name: "Overnight", startMinutes: 20 * 60, endMinutes: 23 * 60),
+        ]
+        let available = ["Breakfast", "Dinner", "Overnight"]
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: overnight,
+                availablePeriods: available,
+                nowMinutes: 21 * 60,
+                dateISO: "2026-10-26"
+            ) == "Late Night"
+        )
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: overnight,
+                availablePeriods: available,
+                nowMinutes: 21 * 60,
+                dateISO: "2026-10-25"
+            ) == "Dinner"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Late Night",
+                availablePeriods: available,
+                timedPeriods: overnight,
+                nowMinutes: 21 * 60,
+                browsingFutureDay: true,
+                dateISO: "2026-10-24"
+            ) != "Late Night"
+        )
+    }
 }

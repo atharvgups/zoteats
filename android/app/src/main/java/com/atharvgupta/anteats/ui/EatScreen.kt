@@ -133,6 +133,7 @@ fun EatScreen(
                         MealPills(
                             selected = state.selectedPeriod,
                             available = hall?.availablePeriods.orEmpty(),
+                            dateISO = state.selectedDate,
                             onSelect = viewModel::selectPeriod,
                         )
                         DateActionRow(
@@ -380,9 +381,14 @@ private fun HallRow(
 }
 
 @Composable
-private fun MealPills(selected: String, available: List<String>, onSelect: (String) -> Unit) {
+private fun MealPills(
+    selected: String,
+    available: List<String>,
+    dateISO: String,
+    onSelect: (String) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
-    val pills = DiningLogic.mealSelectorPills
+    val pills = DiningLogic.visibleMealPills(available, dateISO)
     val listState = rememberLazyListState()
     LaunchedEffect(selected) {
         val index = pills.indexOfFirst { it.equals(selected, true) }

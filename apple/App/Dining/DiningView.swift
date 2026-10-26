@@ -302,10 +302,13 @@ struct DiningView: View {
             if selectedLocation?.isComingSoon == true {
                 comingSoonHallEmpty
             } else {
-                // Always show the five chronological chips — never hide unposted meals.
-                // (Breakfast-only boards used to render a giant single pill.)
+                // Breakfast through Dinner stay tappable even when unposted.
+                // Late Night is weekdays only, and only when that board posted.
                 PillRow(
-                    items: DiningService.mealSelectorPills,
+                    items: DiningService.visibleMealPills(
+                        available: boardAvailablePeriods ?? [],
+                        dateISO: selectedDate ?? UCITime.todayISO()
+                    ),
                     title: { pill in
                         DiningService.mealPillLabel(
                             pill,
@@ -321,7 +324,7 @@ struct DiningView: View {
                 )
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Meal period")
-                .accessibilityHint("Peek Lunch, Afternoon Snack, Dinner, or Late Night even before that meal is posted")
+                .accessibilityHint("Peek Lunch, Afternoon Snack, or Dinner even before that meal is posted")
 
                 // Dates + Plate + Filters on one row — actions stay fixedSize so
                 // they never truncate to "My…" / "Fil…" while dates scroll.
@@ -1207,7 +1210,8 @@ struct DiningView: View {
             availablePeriods: available,
             timedPeriods: timed,
             nowMinutes: UCITime.nowMinutes(),
-            browsingFutureDay: selectedDate != nil
+            browsingFutureDay: selectedDate != nil,
+            dateISO: selectedDate ?? UCITime.todayISO()
         )
     }
 

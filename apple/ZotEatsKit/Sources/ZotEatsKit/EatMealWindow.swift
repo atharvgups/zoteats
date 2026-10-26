@@ -34,7 +34,8 @@ public enum EatMealWindow: Sendable {
     public static func autoPill(
         timedPeriods: [MealPeriodWindow],
         availablePeriods: [String],
-        nowMinutes: Int
+        nowMinutes: Int,
+        dateISO: String = "2026-07-09"
     ) -> String? {
         let choice = TodaysMenuPeriodPick.choose(
             timedPeriods: timedPeriods,
@@ -42,11 +43,15 @@ public enum EatMealWindow: Sendable {
             nowMinutes: nowMinutes
         )
         if choice.isAfterHours { return nil }
-        return expectedPrimary(
+        let pill = expectedPrimary(
             timedPeriods: timedPeriods,
             availablePeriods: availablePeriods,
             nowMinutes: nowMinutes
         )
+        if pill == "Late Night", DiningService.isWeekend(dateISO: dateISO) {
+            return "Dinner"
+        }
+        return pill
     }
 
     /// True when Eat should leave this pill — published window ended, or
