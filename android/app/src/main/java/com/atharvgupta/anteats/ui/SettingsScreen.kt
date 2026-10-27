@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.LocalCafe
 import androidx.compose.material.icons.outlined.NorthEast
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Tonality
 import androidx.compose.material3.Icon
@@ -49,6 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.atharvgupta.anteats.data.AnteatsShare
 import com.atharvgupta.anteats.data.Appearance
 import com.atharvgupta.anteats.data.PreferencesStore
 
@@ -212,6 +214,30 @@ fun SettingsScreen(
                         fontSize = 20.sp,
                         color = androidx.compose.ui.graphics.Color.White,
                     )
+                }
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .zotCard()
+                    .clickable {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "Anteats")
+                            putExtra(Intent.EXTRA_TEXT, AnteatsShare.SHARE_TEXT)
+                        }
+                        context.startActivity(Intent.createChooser(send, AnteatsShare.ROW_TITLE))
+                    }
+                    .padding(14.dp)
+                    .testTag("settings-share-row"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(Icons.Outlined.Share, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(15.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(AnteatsShare.ROW_TITLE, fontWeight = FontWeight.Medium, color = colors.onBackground)
+                    Text(AnteatsShare.ROW_SUBTITLE, fontSize = 14.sp, color = colors.onSurfaceVariant)
                 }
             }
         }
