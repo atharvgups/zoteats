@@ -821,7 +821,7 @@ struct DiningView: View {
             dishID: item.id,
             dishName: item.name
         )
-        DishRowCard(
+        return DishRowCard(
             item: item,
             isFavorite: prefs.isFavorite(item.name),
             isOnPlate: plate.isOnPlate(item.name),

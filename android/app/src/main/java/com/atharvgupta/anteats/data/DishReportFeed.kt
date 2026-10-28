@@ -11,8 +11,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -131,21 +129,21 @@ class DishReportFeed(
         const val INGEST_URL = "https://api.github.com/repos/atharvgups/zoteats/dispatches"
 
         fun encode(reports: List<DishReport>): String {
-            val array = JSONArray()
-            reports.sortedByDescending { it.updatedAt }.forEach { report ->
-                array.put(
-                    JSONObject()
-                        .put("date", report.date)
-                        .put("hall", report.hall)
-                        .put("meal", report.meal)
-                        .put("dishID", report.dishID)
-                        .put("dishName", report.dishName)
-                        .put("reason", report.reason)
-                        .put("authorID", report.authorID)
-                        .put("updatedAt", report.updatedAt),
+            val rows = reports.sortedByDescending { it.updatedAt }.map { report ->
+                JsonObject(
+                    mapOf(
+                        "date" to JsonPrimitive(report.date),
+                        "hall" to JsonPrimitive(report.hall),
+                        "meal" to JsonPrimitive(report.meal),
+                        "dishID" to JsonPrimitive(report.dishID),
+                        "dishName" to JsonPrimitive(report.dishName),
+                        "reason" to JsonPrimitive(report.reason),
+                        "authorID" to JsonPrimitive(report.authorID),
+                        "updatedAt" to JsonPrimitive(report.updatedAt),
+                    ),
                 )
             }
-            return JSONObject().put("reports", array).toString()
+            return JsonObject(mapOf("reports" to JsonArray(rows))).toString()
         }
 
         fun decode(raw: String): List<DishReport> {
