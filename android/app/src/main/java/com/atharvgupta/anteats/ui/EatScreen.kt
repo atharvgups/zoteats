@@ -1,8 +1,10 @@
 package com.atharvgupta.anteats.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,6 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +74,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.atharvgupta.anteats.data.DiningLocation
 import com.atharvgupta.anteats.data.DiningLogic
+import com.atharvgupta.anteats.data.DishReport
+import com.atharvgupta.anteats.data.DishReportCopy
+import com.atharvgupta.anteats.data.DishReportLogic
+import com.atharvgupta.anteats.data.DishReportReason
 import com.atharvgupta.anteats.data.EatPostedDay
 import com.atharvgupta.anteats.data.HallChrome
 import com.atharvgupta.anteats.data.HallDirectory
@@ -215,9 +223,18 @@ fun EatScreen(
                                                 favorite = true,
                                                 quantity = viewModel.plate.quantity(item.name),
                                                 stars = viewModel.prefs.stars(item.name),
+                                                reportedMissing = DishReportLogic.isReportedMissing(
+                                                    state.dishReports,
+                                                    state.selectedDate,
+                                                    state.selectedHall,
+                                                    state.selectedPeriod,
+                                                    item.id,
+                                                    item.name,
+                                                ),
                                                 onOpen = { viewModel.openDish(item) },
                                                 onFavorite = { viewModel.prefs.toggleFavorite(item.name) },
                                                 onAdd = { viewModel.plate.add(item) },
+                                                onReport = { viewModel.submitReport(item, it) },
                                             )
                                         }
                                     }
@@ -228,7 +245,12 @@ fun EatScreen(
                                     station = station,
                                     prefs = viewModel.prefs,
                                     plate = viewModel.plate,
+                                    reports = state.dishReports,
+                                    dateISO = state.selectedDate,
+                                    hallID = state.selectedHall,
+                                    period = state.selectedPeriod,
                                     onOpen = viewModel::openDish,
+                                    onReport = { item, reason -> viewModel.submitReport(item, reason) },
                                 )
                             }
                         }
@@ -260,7 +282,25 @@ fun EatScreen(
                 dish = dish,
                 plate = if (browsingFuture) null else viewModel.plate,
                 prefs = viewModel.prefs,
+                reportedMissing = DishReportLogic.isReportedMissing(
+                    state.dishReports,
+                    state.selectedDate,
+                    state.selectedHall,
+                    state.selectedPeriod,
+                    dish.id,
+                    dish.name,
+                ),
+                myReport = DishReportLogic.lookup(
+                    state.dishReports,
+                    state.selectedDate,
+                    state.selectedHall,
+                    state.selectedPeriod,
+                    dish.id,
+                    dish.name,
+                    viewModel.prefs.reviewerID,
+                ),
                 onClose = viewModel::closeDish,
+                onReport = { viewModel.submitReport(dish, it) },
             )
         }
     }
@@ -528,7 +568,12 @@ private fun StationBlock(
     station: MenuStation,
     prefs: PreferencesStore,
     plate: PlateStore,
+    reports: List<DishReport>,
+    dateISO: String,
+    hallID: String,
+    period: String,
     onOpen: (MenuItem) -> Unit,
+    onReport: (MenuItem, String) -> Unit,
 ) {
     var expanded by remember(station.name) { mutableStateOf(!station.name.contains("all day", true)) }
     val isAllDay = station.name.contains("all day", true)
@@ -551,9 +596,18 @@ private fun StationBlock(
                     favorite = prefs.isFavorite(item.name),
                     quantity = plate.quantity(item.name),
                     stars = prefs.stars(item.name),
+                    reportedMissing = DishReportLogic.isReportedMissing(
+                        reports,
+                        dateISO,
+                        hallID,
+                        period,
+                        item.id,
+                        item.name,
+                    ),
                     onOpen = { onOpen(item) },
                     onFavorite = { prefs.toggleFavorite(item.name) },
                     onAdd = { plate.add(item) },
+                    onReport = { onReport(item, it) },
                 )
             }
         }
@@ -561,21 +615,28 @@ private fun StationBlock(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun DishRowCard(
     item: MenuItem,
     favorite: Boolean,
     quantity: Int,
     stars: Int,
+    reportedMissing: Boolean = false,
     onOpen: () -> Unit,
     onFavorite: () -> Unit,
     onAdd: () -> Unit,
+    onReport: (String) -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
+    var showReport by remember(item.id) { mutableStateOf(false) }
     Box(
         Modifier
             .fillMaxWidth()
             .zotCard()
-            .clickable(onClick = onOpen)
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClick = { showReport = true },
+            )
             .testTag("dish-${item.id}"),
     ) {
         Column(
@@ -588,6 +649,15 @@ private fun DishRowCard(
                 fontWeight = FontWeight.SemiBold,
                 color = colors.onBackground,
             )
+            if (reportedMissing) {
+                Text(
+                    DishReportCopy.missingNote,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.testTag("dish-reported-missing"),
+                )
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 StarRating(stars = stars, size = 12.dp, interactive = false)
                 Spacer(Modifier.weight(1f))
@@ -640,6 +710,46 @@ private fun DishRowCard(
             }
         }
     }
+    if (showReport) {
+        ReportProblemDialog(
+            onDismiss = { showReport = false },
+            onChoose = { reason ->
+                onReport(reason)
+                showReport = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ReportProblemDialog(
+    onDismiss: () -> Unit,
+    onChoose: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(DishReportCopy.dialogTitle) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(DishReportCopy.dialogMessage, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                DishReportReason.all.forEach { reason ->
+                    Text(
+                        DishReportReason.title(reason),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onChoose(reason) }
+                            .padding(vertical = 12.dp)
+                            .testTag("dish-report-$reason"),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(DishReportCopy.cancel) }
+        },
+    )
 }
 
 @Composable
@@ -753,11 +863,20 @@ private fun PlateBar(
 }
 
 @Composable
-private fun DishDetail(dish: MenuItem, plate: PlateStore?, prefs: PreferencesStore, onClose: () -> Unit) {
+private fun DishDetail(
+    dish: MenuItem,
+    plate: PlateStore?,
+    prefs: PreferencesStore,
+    reportedMissing: Boolean,
+    myReport: DishReport?,
+    onClose: () -> Unit,
+    onReport: (String) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val quantity = plate?.quantity(dish.name) ?: 0
     val favorite = prefs.isFavorite(dish.name)
     val stars = prefs.stars(dish.name)
+    var showReport by remember(dish.id) { mutableStateOf(false) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -829,6 +948,48 @@ private fun DishDetail(dish: MenuItem, plate: PlateStore?, prefs: PreferencesSto
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.background,
+            )
+        }
+        if (reportedMissing) {
+            Text(
+                DishReportCopy.missingNote,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.testTag("dish-reported-missing"),
+            )
+            Text(DishReportCopy.missingCaption, color = colors.onSurfaceVariant, fontWeight = FontWeight.Medium)
+        } else if (myReport != null) {
+            Text(
+                DishReportCopy.thanks,
+                color = colors.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.testTag("dish-report-thanks"),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zotCard()
+                .clickable { showReport = true }
+                .padding(14.dp)
+                .testTag("dish-report-row"),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(DishReportCopy.rowTitle, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+            Text(
+                if (myReport == null) DishReportCopy.rowSubtitle else DishReportCopy.already,
+                fontSize = 13.sp,
+                color = colors.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        if (showReport) {
+            ReportProblemDialog(
+                onDismiss = { showReport = false },
+                onChoose = { reason ->
+                    onReport(reason)
+                    showReport = false
+                },
             )
         }
     }

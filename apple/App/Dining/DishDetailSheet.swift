@@ -9,10 +9,15 @@ struct DishDetailSheet: View {
     let prefs: Preferences
     /// Nil when browsing a future day (plate building is today-only).
     var plate: PlateStore?
+    /// Eat hall / meal / day for dish-wrong reports. Nil on Campus retail.
+    var hallID: String? = nil
+    var period: String? = nil
+    var dateISO: String? = nil
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var noteDraft = ""
+    @State private var showReportOptions = false
 
     private var isFavorite: Bool {
         prefs.isFavorite(dish.name)
@@ -52,6 +57,10 @@ struct DishDetailSheet: View {
                 reviewBoard
 
                 actionRow
+
+                if canReport {
+                    reportRow
+                }
             }
             .padding(20)
             .padding(.top, 4)
@@ -74,9 +83,26 @@ struct DishDetailSheet: View {
         }
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
+        .confirmationDialog(
+            DishReportCopy.dialogTitle,
+            isPresented: $showReportOptions,
+            titleVisibility: .visible
+        ) {
+            ForEach(DishReportReason.allCases, id: \.self) { reason in
+                Button(reason.title) {
+                    Task { await submitReport(reason) }
+                }
+            }
+            Button(DishReportCopy.cancel, role: .cancel) {}
+        } message: {
+            Text(DishReportCopy.dialogMessage)
+        }
         .onAppear {
             noteDraft = prefs.review(for: dish.name)?.note ?? ""
-            Task { await prefs.loadCommunityReviews() }
+            Task {
+                await prefs.loadCommunityReviews()
+                await prefs.loadCommunityDishReports()
+            }
         }
         .onDisappear {
             if let current = prefs.review(for: dish.name), noteDraft != current.note {
@@ -261,6 +287,91 @@ struct DishDetailSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    private var canReport: Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return !hallID.isEmpty && !period.isEmpty && !dateISO.isEmpty
+    }
+
+    private var reportedMissing: Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return prefs.isReportedMissing(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name
+        )
+    }
+
+    private var myReport: DishReport? {
+        guard let hallID, let period, let dateISO else { return nil }
+        return prefs.myDishReport(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name
+        )
+    }
+
+    private var reportRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if reportedMissing {
+                Text(DishReportCopy.missingNote)
+                    .font(ZotFont.caption.weight(.semibold))
+                    .foregroundStyle(Color.inkMuted)
+                    .accessibilityIdentifier("dish-reported-missing")
+                Text(DishReportCopy.missingCaption)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+            } else if myReport != nil {
+                Text(DishReportCopy.thanks)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("dish-report-thanks")
+            }
+
+            Button {
+                showReportOptions = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "flag")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.inkMuted)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(DishReportCopy.rowTitle)
+                            .font(ZotFont.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                        Text(myReport == nil ? DishReportCopy.rowSubtitle : DishReportCopy.already)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                    }
+                    Spacer(minLength: 8)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .zotCard()
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("dish-report-row")
+            .accessibilityLabel(DishReportCopy.rowTitle)
+        }
+        .padding(.top, 4)
+    }
+
+    private func submitReport(_ reason: DishReportReason) async {
+        guard let hallID, let period, let dateISO else { return }
+        await prefs.submitDishReport(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name,
+            reason: reason
+        )
     }
 
     private var actionRow: some View {

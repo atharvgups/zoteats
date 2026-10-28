@@ -155,6 +155,7 @@ struct DiningView: View {
             syncDateSelection()
             considerAutoMealActivity()
             applyPendingDeepLinkIfNeeded()
+            Task { await prefs.loadCommunityDishReports() }
         }
         .onChange(of: scenePhase) { _, phase in
             // Overnight warm launch: drop stale Dinner once Irvine is past last meal.
@@ -169,7 +170,10 @@ struct DiningView: View {
             DishDetailSheet(
                 dish: dish,
                 prefs: prefs,
-                plate: plate
+                plate: plate,
+                hallID: selectedHall,
+                period: selectedPeriod,
+                dateISO: selectedDate ?? UCITime.todayISO()
             )
         }
         .sheet(isPresented: $showDietFilters) {
@@ -808,15 +812,37 @@ struct DiningView: View {
     }
 
     private func dishRow(_ item: MenuItem) -> some View {
+        let dateISO = selectedDate ?? UCITime.todayISO()
+        let period = selectedPeriod ?? ""
+        let missing = prefs.isReportedMissing(
+            date: dateISO,
+            hall: selectedHall,
+            meal: period,
+            dishID: item.id,
+            dishName: item.name
+        )
         DishRowCard(
             item: item,
             isFavorite: prefs.isFavorite(item.name),
             isOnPlate: plate.isOnPlate(item.name),
             plateQuantity: plate.quantity(for: item.name),
             stars: prefs.displayStars(for: item.name),
+            reportedMissing: missing,
             onToggleFavorite: { prefs.toggleFavorite(item.name) },
             onTogglePlate: { withAnimation(.snappy(duration: 0.25)) { plate.add(item) } },
-            onOpen: { selectedDish = item }
+            onOpen: { selectedDish = item },
+            onReport: { reason in
+                Task {
+                    await prefs.submitDishReport(
+                        date: dateISO,
+                        hall: selectedHall,
+                        meal: period,
+                        dishID: item.id,
+                        dishName: item.name,
+                        reason: reason
+                    )
+                }
+            }
         )
         .accessibilityIdentifier("dish-row")
     }
@@ -1502,9 +1528,11 @@ private struct DishRowCard: View {
     var isOnPlate: Bool = false
     var plateQuantity: Int = 0
     var stars: Int = 0
+    var reportedMissing: Bool = false
     let onToggleFavorite: () -> Void
     var onTogglePlate: (() -> Void)?
     let onOpen: () -> Void
+    var onReport: ((DishReportReason) -> Void)?
 
     /// Tight + / heart cluster; title pads this so line 1 does not run under the icons.
     private static let actionsWidth: CGFloat = 76
@@ -1518,6 +1546,13 @@ private struct DishRowCard: View {
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.trailing, Self.actionsWidth)
+
+                    if reportedMissing {
+                        Text(DishReportCopy.missingNote)
+                            .font(ZotFont.caption)
+                            .foregroundStyle(Color.inkMuted)
+                            .accessibilityIdentifier("dish-reported-missing")
+                    }
 
                     HStack(alignment: .center, spacing: 8) {
                         StarRatingControl(stars: stars, size: 12, interactive: false)
@@ -1567,13 +1602,21 @@ private struct DishRowCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, onOpen)
+        .contextMenu {
+            if let onReport {
+                ForEach(DishReportReason.allCases, id: \.self) { reason in
+                    Button(reason.title) { onReport(reason) }
+                }
+            }
+        }
         .accessibilityLabel(
             DishRowAccessibility.label(
                 dishName: item.name,
                 calories: item.calories,
                 dietaryTags: item.dietaryTags,
                 allergens: item.allergens,
-                stars: stars > 0 ? stars : nil
+                stars: stars > 0 ? stars : nil,
+                reportedMissing: reportedMissing
             )
         )
         .accessibilityHint("Shows dish details")

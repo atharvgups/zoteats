@@ -27,6 +27,8 @@ jobs:
     defaults:
       run:
         working-directory: android
+    env:
+      ZOTEATS_REVIEWS_TOKEN: ${{ secrets.ZOTEATS_REVIEWS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 

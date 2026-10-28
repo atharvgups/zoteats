@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.json.JSONObject
+import java.util.UUID
 
 enum class Appearance { System, Light, Dark }
 
@@ -28,8 +29,17 @@ class PreferencesStore(context: Context) {
     val appearance: StateFlow<Appearance> = _appearance.asStateFlow()
     val campusFavorites: StateFlow<Set<String>> = _campusFavorites.asStateFlow()
     val notifications: StateFlow<Boolean> = _notifications.asStateFlow()
+    val reviewerID: String = prefs.getString("reviewerID", null)?.takeIf { it.isNotBlank() }
+        ?: UUID.randomUUID().toString().also { prefs.edit().putString("reviewerID", it).apply() }
 
     val hasFilters: Boolean get() = _diets.value.isNotEmpty() || _allergens.value.isNotEmpty()
+
+    fun cachedDishReports(): List<DishReport> =
+        DishReportFeed.decode(prefs.getString("dishReports", "{\"reports\":[]}") ?: "{\"reports\":[]}")
+
+    fun saveDishReports(reports: List<DishReport>) {
+        prefs.edit().putString("dishReports", DishReportFeed.encode(reports)).apply()
+    }
 
     fun isFavorite(name: String) = _favorites.value.any { it.equals(name, true) }
     fun stars(name: String) = _reviews.value.entries.firstOrNull { it.key.equals(name, true) }?.value ?: 0

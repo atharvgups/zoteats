@@ -7,12 +7,16 @@ import com.atharvgupta.anteats.data.DiningLocation
 import com.atharvgupta.anteats.data.DiningLogic
 import com.atharvgupta.anteats.data.DiningMenu
 import com.atharvgupta.anteats.data.DiningRepository
+import com.atharvgupta.anteats.data.DishReport
+import com.atharvgupta.anteats.data.DishReportFeed
+import com.atharvgupta.anteats.data.DishReportLogic
 import com.atharvgupta.anteats.data.EatPostedDay
 import com.atharvgupta.anteats.data.EatPostedDays
 import com.atharvgupta.anteats.data.HallDirectory
 import com.atharvgupta.anteats.data.MenuItem
 import com.atharvgupta.anteats.data.PacificTime
 import com.atharvgupta.anteats.data.PlateStore
+import com.atharvgupta.anteats.BuildConfig
 import com.atharvgupta.anteats.data.PreferencesStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,19 +38,90 @@ data class EatUiState(
     val showPlate: Boolean = false,
     val showFilters: Boolean = false,
     val screenshotReady: Boolean = false,
+    val dishReports: List<DishReport> = emptyList(),
 )
 
 class EatViewModel(
     private val repository: DiningRepository = DiningRepository(),
     val plate: PlateStore,
     val prefs: PreferencesStore,
+    private val reportFeed: DishReportFeed = DishReportFeed(
+        token = BuildConfig.REVIEWS_TOKEN,
+    ),
 ) : ViewModel() {
-    private val _state = MutableStateFlow(EatUiState())
+    private val _state = MutableStateFlow(EatUiState(dishReports = prefs.cachedDishReports()))
     val state: StateFlow<EatUiState> = _state.asStateFlow()
     private var menuJob: Job? = null
 
     init {
         refresh()
+        loadReports()
+    }
+
+    fun isReportedMissing(item: MenuItem): Boolean {
+        val snapshot = _state.value
+        return DishReportLogic.isReportedMissing(
+            snapshot.dishReports,
+            snapshot.selectedDate,
+            snapshot.selectedHall,
+            snapshot.selectedPeriod,
+            item.id,
+            item.name,
+        )
+    }
+
+    fun myReport(item: MenuItem): DishReport? {
+        val snapshot = _state.value
+        return DishReportLogic.lookup(
+            snapshot.dishReports,
+            snapshot.selectedDate,
+            snapshot.selectedHall,
+            snapshot.selectedPeriod,
+            item.id,
+            item.name,
+            prefs.reviewerID,
+        )
+    }
+
+    fun submitReport(item: MenuItem, reason: String) {
+        viewModelScope.launch {
+            val snapshot = _state.value
+            val optimistic = DishReportLogic.upsert(
+                existing = snapshot.dishReports,
+                date = snapshot.selectedDate,
+                hall = snapshot.selectedHall,
+                meal = snapshot.selectedPeriod,
+                dishID = item.id,
+                dishName = item.name,
+                reason = reason,
+                authorID = prefs.reviewerID,
+                updatedAt = java.time.Instant.now().toString(),
+            )
+            _state.update { it.copy(dishReports = optimistic) }
+            prefs.saveDishReports(optimistic)
+            val next = reportFeed.submit(
+                date = snapshot.selectedDate,
+                hall = snapshot.selectedHall,
+                meal = snapshot.selectedPeriod,
+                dishID = item.id,
+                dishName = item.name,
+                reason = reason,
+                authorID = prefs.reviewerID,
+                existing = optimistic,
+            )
+            val merged = DishReportFeed.merge(optimistic, next)
+            _state.update { it.copy(dishReports = merged) }
+            prefs.saveDishReports(merged)
+        }
+    }
+
+    private fun loadReports() {
+        viewModelScope.launch {
+            val remote = runCatching { reportFeed.fetch() }.getOrDefault(emptyList())
+            val merged = DishReportFeed.merge(prefs.cachedDishReports(), remote)
+            _state.update { it.copy(dishReports = merged) }
+            prefs.saveDishReports(merged)
+        }
     }
 
     fun refresh() {

@@ -1,0 +1,36 @@
+# Merge a dish-wrong flag into apple/community-dish-reports.json.
+# Trigger: repository_dispatch type "dish-report" with client_payload
+# {date, hall, meal, dishID, dishName, reason, authorID, updatedAt}.
+name: Ingest community dish report
+
+on:
+  repository_dispatch:
+    types: [dish-report]
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    name: Merge report into community feed
+    runs-on: ubuntu-latest
+    if: github.event.client_payload.dishID != '' && github.event.client_payload.authorID != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Merge report
+        env:
+          REPORT_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: python3 apple/scripts/ingest_community_dish_report.py
+
+      - name: Commit feed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apple/community-dish-reports.json
+          if git diff --staged --quiet; then
+            echo "No community dish report changes"
+            exit 0
+          fi
+          git commit -m "chore(reports): ingest community dish flag"
+          git push
