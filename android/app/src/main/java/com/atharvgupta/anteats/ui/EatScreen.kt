@@ -39,19 +39,20 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +64,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -711,7 +714,7 @@ private fun DishRowCard(
         }
     }
     if (showReport) {
-        ReportProblemDialog(
+        ReportIssueSheet(
             onDismiss = { showReport = false },
             onChoose = { reason ->
                 onReport(reason)
@@ -721,35 +724,72 @@ private fun DishRowCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReportProblemDialog(
+private fun ReportIssueSheet(
     onDismiss: () -> Unit,
     onChoose: (String) -> Unit,
 ) {
-    AlertDialog(
+    val colors = MaterialTheme.colorScheme
+    val haptic = LocalHapticFeedback.current
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(DishReportCopy.dialogTitle) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(DishReportCopy.dialogMessage, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                DishReportReason.all.forEach { reason ->
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.background,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp)
+                .testTag("dish-report-sheet"),
+        ) {
+            Text(
+                DishReportCopy.sheetTitle,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onBackground,
+            )
+            DishReportReason.all.forEachIndexed { index, reason ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onChoose(reason)
+                        }
+                        .padding(horizontal = 20.dp, vertical = 14.dp)
+                        .testTag("dish-report-$reason"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Icon(
+                        reportReasonIcon(reason),
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
                     Text(
                         DishReportReason.title(reason),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onChoose(reason) }
-                            .padding(vertical = 12.dp)
-                            .testTag("dish-report-$reason"),
-                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onBackground,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                if (index < DishReportReason.all.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 54.dp),
+                        color = colors.outlineVariant.copy(alpha = 0.5f),
                     )
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(DishReportCopy.cancel) }
-        },
-    )
+        }
+    }
+}
+
+private fun reportReasonIcon(reason: String) = when (reason) {
+    DishReportReason.NOT_AT_HALL -> Icons.Outlined.Apartment
+    DishReportReason.NOT_SERVED -> Icons.Outlined.Restaurant
+    DishReportReason.WRONG_STATION -> Icons.Outlined.SwapHoriz
+    else -> Icons.Outlined.Flag
 }
 
 @Composable
@@ -953,38 +993,44 @@ private fun DishDetail(
         if (reportedMissing) {
             Text(
                 DishReportCopy.missingNote,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
                 color = colors.onSurfaceVariant,
                 modifier = Modifier.testTag("dish-reported-missing"),
             )
-            Text(DishReportCopy.missingCaption, color = colors.onSurfaceVariant, fontWeight = FontWeight.Medium)
-        } else if (myReport != null) {
+        }
+        if (myReport != null) {
             Text(
                 DishReportCopy.thanks,
+                fontSize = 13.sp,
                 color = colors.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.testTag("dish-report-thanks"),
             )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .zotCard()
-                .clickable { showReport = true }
-                .padding(14.dp)
-                .testTag("dish-report-row"),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(DishReportCopy.rowTitle, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-            Text(
-                if (myReport == null) DishReportCopy.rowSubtitle else DishReportCopy.already,
-                fontSize = 13.sp,
-                color = colors.onSurfaceVariant,
-                fontWeight = FontWeight.Medium,
-            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .clickable { showReport = true }
+                    .testTag("dish-report-row"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Flag,
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    DishReportCopy.rowTitle,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurfaceVariant,
+                )
+            }
         }
         if (showReport) {
-            ReportProblemDialog(
+            ReportIssueSheet(
                 onDismiss = { showReport = false },
                 onChoose = { reason ->
                     onReport(reason)

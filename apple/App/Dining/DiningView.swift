@@ -1605,7 +1605,11 @@ private struct DishRowCard: View {
         .contextMenu {
             if let onReport {
                 ForEach(DishReportReason.allCases, id: \.self) { reason in
-                    Button(reason.title) { onReport(reason) }
+                    Button {
+                        onReport(reason)
+                    } label: {
+                        Label(reason.title, systemImage: reason.systemImage)
+                    }
                 }
             }
         }

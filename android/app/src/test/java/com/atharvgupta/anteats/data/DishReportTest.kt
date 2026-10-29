@@ -163,19 +163,18 @@ class DishReportTest {
     fun copyHasNoEmDashes() {
         val copy = listOf(
             DishReportCopy.rowTitle,
-            DishReportCopy.rowSubtitle,
-            DishReportCopy.dialogTitle,
-            DishReportCopy.dialogMessage,
+            DishReportCopy.sheetTitle,
             DishReportCopy.notAtHall,
             DishReportCopy.notServed,
             DishReportCopy.wrongStation,
             DishReportCopy.thanks,
-            DishReportCopy.already,
             DishReportCopy.missingNote,
-            DishReportCopy.missingCaption,
+            DishReportCopy.cancel,
         ).joinToString("")
         assertFalse(copy.contains("\u2014"))
         assertFalse(copy.contains("\u2013"))
+        assertEquals("Thanks, noted", DishReportCopy.thanks)
+        assertEquals("Report an issue", DishReportCopy.rowTitle)
         assertEquals(2, DishReportLogic.missingThreshold)
         assertEquals("oasis", DishReportLogic.canonicalHall("the-oasis-dining-hall"))
         assertEquals("Late Night", DishReportLogic.canonicalMeal("Evening Snack"))

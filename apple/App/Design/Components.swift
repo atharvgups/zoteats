@@ -465,6 +465,12 @@ enum Haptics {
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         #endif
     }
+
+    static func light() {
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
+    }
 }
 
 // MARK: - Relative "updated X ago" text that stays fresh

@@ -29,18 +29,13 @@ object DishReportReason {
 }
 
 object DishReportCopy {
-    const val rowTitle = "Report a problem"
-    const val rowSubtitle = "Flag a listing that looks wrong"
-    const val dialogTitle = "What's wrong with this dish?"
-    const val dialogMessage =
-        "UCI's board is sometimes off. The dish stays listed until they fix the feed."
+    const val rowTitle = "Report an issue"
+    const val sheetTitle = "Report an issue"
     const val notAtHall = "Not at this hall"
     const val notServed = "Not being served"
     const val wrongStation = "Wrong station"
-    const val thanks = "Thanks. You flagged this for today."
-    const val already = "You already flagged this today."
+    const val thanks = "Thanks, noted"
     const val missingNote = "Reported missing"
-    const val missingCaption = "Students say this isn't here today."
     const val cancel = "Cancel"
 }
 

@@ -83,19 +83,11 @@ struct DishDetailSheet: View {
         }
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
-        .confirmationDialog(
-            DishReportCopy.dialogTitle,
-            isPresented: $showReportOptions,
-            titleVisibility: .visible
-        ) {
-            ForEach(DishReportReason.allCases, id: \.self) { reason in
-                Button(reason.title) {
-                    Task { await submitReport(reason) }
-                }
+        .sheet(isPresented: $showReportOptions) {
+            DishReportPickerSheet { reason in
+                showReportOptions = false
+                Task { await submitReport(reason) }
             }
-            Button(DishReportCopy.cancel, role: .cancel) {}
-        } message: {
-            Text(DishReportCopy.dialogMessage)
         }
         .onAppear {
             noteDraft = prefs.review(for: dish.name)?.note ?? ""
@@ -317,49 +309,37 @@ struct DishDetailSheet: View {
     }
 
     private var reportRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             if reportedMissing {
                 Text(DishReportCopy.missingNote)
-                    .font(ZotFont.caption.weight(.semibold))
+                    .font(ZotFont.caption.weight(.medium))
                     .foregroundStyle(Color.inkMuted)
                     .accessibilityIdentifier("dish-reported-missing")
-                Text(DishReportCopy.missingCaption)
-                    .font(ZotFont.caption)
-                    .foregroundStyle(.secondary)
-            } else if myReport != nil {
+            }
+
+            if myReport != nil {
                 Text(DishReportCopy.thanks)
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("dish-report-thanks")
-            }
-
-            Button {
-                showReportOptions = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "flag")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.inkMuted)
-                        .frame(width: 22)
-                    VStack(alignment: .leading, spacing: 2) {
+            } else {
+                Button {
+                    showReportOptions = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "flag")
+                            .font(.system(size: 12, weight: .medium))
                         Text(DishReportCopy.rowTitle)
-                            .font(ZotFont.body.weight(.semibold))
-                            .foregroundStyle(Color.ink)
-                        Text(myReport == nil ? DishReportCopy.rowSubtitle : DishReportCopy.already)
                             .font(ZotFont.caption)
-                            .foregroundStyle(Color.inkMuted)
                     }
-                    Spacer(minLength: 8)
+                    .foregroundStyle(.secondary)
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .zotCard()
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("dish-report-row")
+                .accessibilityLabel(DishReportCopy.rowTitle)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("dish-report-row")
-            .accessibilityLabel(DishReportCopy.rowTitle)
         }
-        .padding(.top, 4)
+        .padding(.top, 2)
     }
 
     private func submitReport(_ reason: DishReportReason) async {
@@ -622,6 +602,57 @@ private struct AllergenChip: View {
         .background(TagPalette.allergenColor.opacity(0.14), in: Capsule())
         .foregroundStyle(TagPalette.allergenColor)
         .accessibilityLabel("Contains \(text)")
+    }
+}
+
+// MARK: - Report picker
+
+private struct DishReportPickerSheet: View {
+    var onChoose: (DishReportReason) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(DishReportCopy.sheetTitle)
+                .font(ZotFont.body.weight(.semibold))
+                .foregroundStyle(Color.ink)
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 10)
+
+            ForEach(Array(DishReportReason.allCases.enumerated()), id: \.element) { index, reason in
+                Button {
+                    onChoose(reason)
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: reason.systemImage)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, alignment: .center)
+                        Text(reason.title)
+                            .font(ZotFont.body)
+                            .foregroundStyle(Color.ink)
+                        Spacer(minLength: 8)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("dish-report-\(reason.rawValue)")
+
+                if index < DishReportReason.allCases.count - 1 {
+                    Divider()
+                        .padding(.leading, 58)
+                }
+            }
+        }
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appCanvas()
+        .presentationDetents([.height(280)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(24)
+        .presentationBackground(Color(uiColor: .systemBackground))
     }
 }
 

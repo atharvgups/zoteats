@@ -637,7 +637,7 @@ final class Preferences {
             authorID: reviewerID
         )
         CommunityDishReportFeed.persist(communityDishReports)
-        Haptics.soft()
+        Haptics.light()
         let next = await CommunityDishReportFeed.submit(
             http: http,
             date: date,

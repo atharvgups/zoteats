@@ -177,23 +177,27 @@ struct DishReportTests {
     @Test func copyHasNoEmDashes() {
         let copy = [
             DishReportCopy.rowTitle,
-            DishReportCopy.rowSubtitle,
-            DishReportCopy.dialogTitle,
-            DishReportCopy.dialogMessage,
+            DishReportCopy.sheetTitle,
             DishReportCopy.notAtHall,
             DishReportCopy.notServed,
             DishReportCopy.wrongStation,
             DishReportCopy.thanks,
-            DishReportCopy.already,
             DishReportCopy.missingNote,
-            DishReportCopy.missingCaption,
+            DishReportCopy.cancel,
         ].joined()
         #expect(!copy.contains("\u{2014}"))
         #expect(!copy.contains("\u{2013}"))
+        #expect(DishReportCopy.thanks == "Thanks, noted")
+        #expect(DishReportCopy.rowTitle == "Report an issue")
         #expect(DishReportReason.allCases.map(\.title) == [
             DishReportCopy.notAtHall,
             DishReportCopy.notServed,
             DishReportCopy.wrongStation,
+        ])
+        #expect(DishReportReason.allCases.map(\.systemImage) == [
+            "building.2",
+            "fork.knife",
+            "arrow.left.arrow.right",
         ])
         #expect(DishReportLogic.missingThreshold == 2)
     }

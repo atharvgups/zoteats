@@ -15,6 +15,14 @@ public enum DishReportReason: String, Codable, Sendable, CaseIterable, Equatable
         case .wrongStation: return DishReportCopy.wrongStation
         }
     }
+
+    public var systemImage: String {
+        switch self {
+        case .notAtHall: return "building.2"
+        case .notServed: return "fork.knife"
+        case .wrongStation: return "arrow.left.arrow.right"
+        }
+    }
 }
 
 /// One person's flag for a dish on one hall, meal, and Irvine day.
@@ -61,18 +69,13 @@ public struct DishReport: Codable, Equatable, Sendable, Identifiable {
 }
 
 public enum DishReportCopy {
-    public static let rowTitle = "Report a problem"
-    public static let rowSubtitle = "Flag a listing that looks wrong"
-    public static let dialogTitle = "What's wrong with this dish?"
-    public static let dialogMessage =
-        "UCI's board is sometimes off. The dish stays listed until they fix the feed."
+    public static let rowTitle = "Report an issue"
+    public static let sheetTitle = "Report an issue"
     public static let notAtHall = "Not at this hall"
     public static let notServed = "Not being served"
     public static let wrongStation = "Wrong station"
-    public static let thanks = "Thanks. You flagged this for today."
-    public static let already = "You already flagged this today."
+    public static let thanks = "Thanks, noted"
     public static let missingNote = "Reported missing"
-    public static let missingCaption = "Students say this isn't here today."
     public static let cancel = "Cancel"
 }
 
