@@ -1113,9 +1113,78 @@ struct DiningServiceTests {
         #expect(DiningService.canMergeHubExtra(into: menu.stations[0], extraStationID: "1893"))
         #expect(!DiningService.stationBelongs(onHall: "brandywine", stationID: "1929"))
         #expect(DiningService.stationBelongs(onHall: "brandywine", stationID: "1893"))
+        #expect(!DiningService.stationBelongs(onHall: "anteatery", stationID: "1872"))
+        #expect(DiningService.stationBelongs(onHall: "brandywine", stationID: "1872"))
+        #expect(!DiningService.stationBelongs(onHall: "brandywine", stationID: "1941"))
+        #expect(DiningService.stationBelongs(onHall: "anteatery", stationID: "1941"))
         let combined = DiningService.insertingHubExtras([anteateryWings], into: menu)
         #expect(combined == menu)
         #expect(!combined.stations.contains { $0.stationID == "1929" })
+    }
+
+    @Test func honeycakesExtrasDoNotLandOnAnteatery() {
+        let chia = MenuItem(
+            id: "chia", name: "Coconut Chia Pudding", description: nil, calories: 180,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1872"
+        )
+        let linguine = MenuItem(
+            id: "linguine", name: "Thai Curry Plant-Based Chicken Linguine",
+            description: nil, calories: 420,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-28",
+            period: "Lunch",
+            stations: [MenuStation(
+                name: "Home",
+                items: [MenuItem(
+                    id: "pork", name: "Herb Chicken", description: nil, calories: 300,
+                    servingSize: nil, allergens: [], dietaryTags: [], stationID: "1932"
+                )],
+                stationID: "1932"
+            )]
+        )
+        let combined = DiningService.insertingHubExtras([chia, linguine], into: menu)
+        let names = combined.stations.flatMap(\.items).map(\.name)
+        #expect(!names.contains("Coconut Chia Pudding"))
+        #expect(!names.contains("Thai Curry Plant-Based Chicken Linguine"))
+        #expect(!combined.stations.contains { $0.stationID == "1872" || $0.stationID == "1893" })
+    }
+
+    @Test func hubExclusiveFillsBrandywineLunchWhenAnteaterOmitsTwistedRoot() {
+        let alfredo = MenuItem(
+            id: "alfredo", name: "Alfredo Vegetable Casserole", description: nil, calories: 310,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegetarian"], stationID: "1893"
+        )
+        let brussels = MenuItem(
+            id: "brussels", name: "Roasted Brussels Sprouts", description: nil, calories: 90,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let burger = MenuItem(
+            id: "burger", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1878"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-10-29",
+            period: "Lunch",
+            stations: [MenuStation(name: "Ember", items: [burger], stationID: "1878")]
+        )
+        let hub = [
+            MenuStation(name: "Lunch", items: [alfredo, brussels, burger]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(extras.map(\.name).contains("Alfredo Vegetable Casserole"))
+        #expect(extras.map(\.name).contains("Roasted Brussels Sprouts"))
+        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        let twisted = combined.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(twisted?.stationID == "1893")
+        #expect(twisted?.items.map(\.name).contains("Alfredo Vegetable Casserole") == true)
+        #expect(combined.stations.contains { $0.stationID == "1878" })
+        #expect(combined.stations.first?.stationID == "1893")
     }
 
     @Test func hubExclusiveDoesNotInventMissingTofu() {
@@ -1665,6 +1734,7 @@ struct HallDirectoryTests {
         #expect(HallDirectory.area(for: "oasis") == "Mesa Court")
         #expect(HallDirectory.isOasis("the-oasis-dining-hall"))
         #expect(HallDirectory.campusHubKey(for: "anteatery") == "the-anteatery")
+        #expect(HallDirectory.eatHallID(forHubKey: "the-anteatery") == "anteatery")
         #expect(HallDirectory.fallbackIDs == ["anteatery", "brandywine"])
     }
 

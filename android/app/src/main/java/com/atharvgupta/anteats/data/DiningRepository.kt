@@ -22,6 +22,10 @@ import java.nio.charset.StandardCharsets
 
 class DiningRepository(
     private val base: String = "https://anteaterapi.com/v2/rest/dining",
+    private val hubStations: suspend (locationUrlKey: String, dateISO: String) -> List<MenuStation> =
+        { key, date -> runCatching { CampusRepository().postedMenu(key, date) }.getOrDefault(emptyList()) },
+    private val menuOverrides: suspend () -> List<MenuOverride> =
+        { runCatching { MenuOverrideFeed.fetch() }.getOrDefault(MenuOverrideFeed.bundled) },
     private val get: suspend (String) -> Pair<Int, String> = { path -> httpGet(base + path) },
 ) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -59,18 +63,18 @@ class DiningRepository(
                 .any { HallDirectory.isOasis(it.first) }
             if (!listed) {
                 val hub = oasisHubMenu(period, dateISO)
-                return hub ?: DiningMenu(hall, dateISO, period, emptyList())
+                return applyOverrides(hub ?: DiningMenu(hall, dateISO, period, emptyList()))
             }
         }
         val today = restaurantToday(hall, dateISO)
         val available = today.values.map { it.name }
         if (available.isEmpty()) {
-            return DiningMenu(hall, dateISO, period, emptyList())
+            return applyOverrides(DiningMenu(hall, dateISO, period, emptyList()))
         }
         val resolved = DiningLogic.resolvePeriod(period, available)
         val periodNames = DiningLogic.menuPeriodNames(period, available)
         if (periodNames.isEmpty()) {
-            return DiningMenu(hall, dateISO, period, emptyList())
+            return applyOverrides(DiningMenu(hall, dateISO, period, emptyList()))
         }
         val stationNames = stationMap()
         val scraped = linkedMapOf<String, List<MenuStation>>()
@@ -118,7 +122,7 @@ class DiningRepository(
             }
         }
         mealStations = DiningLogic.pinTwistedRootFirst(mealStations)
-        return DiningMenu(
+        var menu = DiningMenu(
             locationId = hall,
             date = dateISO,
             period = resolved,
@@ -129,6 +133,30 @@ class DiningRepository(
                 stationNames = stationNames,
             ),
         )
+        val hubKey = HallDirectory.campusHubKey(hall)
+        val hub = if (hubKey != null) {
+            runCatching { hubStations(hubKey, dateISO) }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
+        if (hub.isNotEmpty()) {
+            val onBoard = DiningLogic.droppingOffBoardAnteaterItems(menu, hub)
+            val extras = DiningLogic.hubExclusiveItems(onBoard, hub)
+            menu = DiningLogic.insertingHubExtras(extras, onBoard, stationNames)
+            if (DiningLogic.canonicalPill(menu.period) == "Breakfast") {
+                val midday = DiningLogic.hubMealStations("Lunch", hub)
+                val trimmed = DiningLogic.subtractingMiddayTwistedRootFromBreakfast(menu.stations, midday)
+                if (trimmed != menu.stations) {
+                    menu = menu.copy(stations = DiningLogic.pinTwistedRootFirst(trimmed))
+                }
+            }
+        }
+        return applyOverrides(menu)
+    }
+
+    private suspend fun applyOverrides(menu: DiningMenu): DiningMenu {
+        val overrides = runCatching { menuOverrides() }.getOrDefault(MenuOverrideFeed.bundled)
+        return MenuOverrideFeed.applying(overrides, menu)
     }
 
     private suspend fun location(
@@ -369,9 +397,7 @@ class DiningRepository(
     }
 
     private suspend fun oasisHubStations(dateISO: String): List<MenuStation> =
-        runCatching {
-            CampusRepository().postedMenu("the-oasis-dining-hall", dateISO)
-        }.getOrNull().orEmpty()
+        runCatching { hubStations("the-oasis-dining-hall", dateISO) }.getOrNull().orEmpty()
 
     private data class ApiPeriod(
         val name: String,

@@ -1,0 +1,20 @@
+{
+  "overrides": [
+    {
+      "date": "2026-10-28",
+      "hall": "anteatery",
+      "period": "Dinner",
+      "stationID": "1929",
+      "stationName": "The Twisted Root",
+      "verified": true,
+      "note": "Atharv confirmed in person: Anteatery served Cajun Tofu and White Rice at Twisted Root for dinner. Anteater API and MyDiningHub both omitted the dish.",
+      "items": [
+        {
+          "id": "override:anteatery-dinner-1929-cajun-tofu-2026-10-28",
+          "name": "Cajun Tofu and White Rice",
+          "dietaryTags": ["Vegan", "Vegetarian"]
+        }
+      ]
+    }
+  ]
+}

@@ -23,6 +23,8 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "waitz"
         } else if url.host?.contains("libcal") == true {
             fixture = "libcal_hours_today"
+        } else if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
         } else if url.host?.contains("elevate-dxp.com") == true {
             let query = url.query ?? ""
             if query.contains("getLocationMealPeriodRecipes") {
@@ -176,6 +178,9 @@ actor PublishProbeHTTP: HTTPFetching {
         if path.hasSuffix("/dateRange") {
             return try FixtureHTTP.load("date_range")
         }
+        if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
+        }
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }
 }
@@ -222,6 +227,9 @@ actor TomorrowPublishHTTP: HTTPFetching {
         if path.hasSuffix("/dateRange") {
             return try FixtureHTTP.load("date_range")
         }
+        if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
+        }
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }
 }
@@ -259,6 +267,9 @@ struct WeekendBrunchHTTP: HTTPFetching {
         }
         if path.hasSuffix("/dateRange") {
             return Data(#"{"ok":true,"data":{"earliest":"2026-10-01","latest":"2026-10-31"}}"#.utf8)
+        }
+        if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
         }
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }

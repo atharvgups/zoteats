@@ -97,6 +97,20 @@ object HallDirectory {
         else -> false
     }
 
+    fun campusHubKey(hallID: String): String? = when (hallID.lowercase()) {
+        ANTEATERY -> "the-anteatery"
+        BRANDYWINE -> "brandywine"
+        "oasis", "the-oasis", "the-oasis-dining-hall" -> "the-oasis-dining-hall"
+        else -> null
+    }
+
+    fun eatHallID(hubKey: String): String? = when (hubKey.lowercase()) {
+        "the-anteatery" -> ANTEATERY
+        "brandywine" -> BRANDYWINE
+        "oasis", "the-oasis", "the-oasis-dining-hall" -> OASIS
+        else -> null
+    }
+
     fun displayName(id: String): String = when (id.lowercase()) {
         ANTEATERY -> "The Anteatery"
         BRANDYWINE -> "Brandywine"

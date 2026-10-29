@@ -55,6 +55,24 @@ struct LiveAPITests {
             #expect(!breakfastTR.contains { $0.localizedCaseInsensitiveContains("shawarma") })
             #expect(lunchTR.contains { $0.localizedCaseInsensitiveContains("shawarma") })
         }
+        let oct28Dinner = try await service.menu(for: "anteatery", period: "Dinner", date: "2026-10-28")
+        #expect(
+            twistedNames(oct28Dinner).contains { $0.localizedCaseInsensitiveContains("cajun tofu") }
+        )
+        if date == "2026-10-29" {
+            let brandywineLunch = try await service.menu(for: "brandywine", period: "Lunch", date: date)
+            let lunchTR = twistedNames(brandywineLunch)
+            #expect(
+                lunchTR.contains { $0.localizedCaseInsensitiveContains("alfredo") }
+                    || lunchTR.contains { $0.localizedCaseInsensitiveContains("brussels") }
+            )
+            #expect(
+                !twistedNames(anteatery).contains { $0.localizedCaseInsensitiveContains("linguine") }
+            )
+            #expect(
+                !twistedNames(anteatery).contains { $0.localizedCaseInsensitiveContains("chia") }
+            )
+        }
         if date == "2026-10-03" {
             // Weekend Lunch is a thin All-Day clone. Midday TR lives on Brunch.
             #expect(!anteateryTR.isEmpty)

@@ -6,7 +6,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DiningRepositoryFixtureTest {
-    private fun fixtureRepo(): DiningRepository = DiningRepository { path ->
+    private fun fixtureRepo(): DiningRepository = DiningRepository(
+        hubStations = { _, _ -> emptyList() },
+        menuOverrides = { emptyList() },
+    ) { path ->
         val name = when {
             "/restaurants" in path -> "restaurants.json"
             "/restaurantToday" in path -> "restaurant_today.json"
@@ -49,7 +52,10 @@ class DiningRepositoryFixtureTest {
 
     @Test
     fun unpublishedDayIsEmptyNotAnError() = runBlocking {
-        val full = DiningRepository { path ->
+        val full = DiningRepository(
+            hubStations = { _, _ -> emptyList() },
+            menuOverrides = { emptyList() },
+        ) { path ->
             when {
                 "/restaurantToday" in path -> 404 to """{"ok":false}"""
                 "/restaurants" in path -> 200 to javaClass.getResource("/fixtures/restaurants.json")!!.readText()
@@ -95,7 +101,10 @@ class DiningRepositoryFixtureTest {
               {"id":"1941","name":"Oven"}
             ]}]}
         """.trimIndent()
-        fun repo(today: String) = DiningRepository { path ->
+        fun repo(today: String) = DiningRepository(
+            hubStations = { _, _ -> emptyList() },
+            menuOverrides = { emptyList() },
+        ) { path ->
             when {
                 "/restaurants" in path -> 200 to restaurants
                 "/restaurantToday" in path -> 200 to today

@@ -7,6 +7,30 @@ object DiningLogic {
     val standingBurgerStationIDs = setOf("1878", "1935")
     val dessertStationIDs = setOf("1872", "1938")
     val pizzaStationIDs = setOf("1941", "1884")
+    val stationHallIDs = mapOf(
+        "1926" to "anteatery",
+        "1929" to "anteatery",
+        "1932" to "anteatery",
+        "1935" to "anteatery",
+        "1938" to "anteatery",
+        "1941" to "anteatery",
+        "1944" to "anteatery",
+        "1947" to "anteatery",
+        "1950" to "anteatery",
+        "1953" to "anteatery",
+        "1872" to "brandywine",
+        "1875" to "brandywine",
+        "1878" to "brandywine",
+        "1881" to "brandywine",
+        "1884" to "brandywine",
+        "1887" to "brandywine",
+        "1890" to "brandywine",
+        "1893" to "brandywine",
+        "1896" to "brandywine",
+        "1899" to "brandywine",
+        "2166" to "brandywine",
+        "275501" to "brandywine",
+    )
     val dishBatchChunkSizes = listOf(40, 8, 1)
 
     enum class StationLane {
@@ -452,6 +476,326 @@ object DiningLogic {
             ?: hubOasis?.takeIf { it.availablePeriods.isNotEmpty() }
             ?: OasisSchedule.comingSoonLocation()
         return listOfNotNull(anteatery, brandywine, oasis)
+    }
+
+    fun hallIDForStation(stationID: String): String? = stationHallIDs[stationID]
+
+    fun stationBelongs(hallID: String, stationID: String?): Boolean {
+        val owner = hallIDForStation(stationID ?: return true) ?: return true
+        return owner.equals(hallID, ignoreCase = true)
+    }
+
+    fun assignedStationID(categoryIDs: List<String>, hallID: String? = null): String? {
+        val ids = categoryIDs.flatMap { it.split(",") }.map { it.trim() }.filter { it.isNotEmpty() }
+        val known = ids.filter { it in stationHallIDs }
+        val scoped = if (hallID != null) {
+            val matching = known.filter { stationBelongs(hallID, it) }
+            matching.ifEmpty { known }
+        } else {
+            known
+        }
+        val pool = scoped.ifEmpty { ids }
+        pool.lastOrNull { it in dessertStationIDs }?.let { return it }
+        if (hallID != null) {
+            pool.lastOrNull { it in twistedRootStationIDs && stationBelongs(hallID, it) }?.let { return it }
+        } else {
+            pool.lastOrNull { it in twistedRootStationIDs }?.let { return it }
+        }
+        return pool.lastOrNull { it.length >= 4 && it.all { ch -> ch.isDigit() } }
+    }
+
+    fun dietLookupKeys(name: String): List<String> {
+        val lower = (collapseWhitespace(name) ?: name).lowercase().trim()
+        val keys = mutableListOf(lower)
+        var stripped = lower
+        if (stripped.startsWith("ae ")) {
+            stripped = stripped.drop(3).trim()
+            keys += stripped
+        }
+        for (suffix in listOf(" sandwich", " burger", " wrap")) {
+            if (stripped.endsWith(suffix)) {
+                val base = stripped.dropLast(suffix.length).trim()
+                if (base.isNotEmpty()) keys += base
+            }
+        }
+        val withoutUCI = stripped.replace(Regex("""\s+uci$"""), "")
+        if (withoutUCI != stripped) keys += withoutUCI
+        for (variant in keys.toList()) {
+            val normalized = variant.replace(Regex("[^a-z0-9]+"), "")
+            if (normalized.isNotEmpty()) keys += normalized
+        }
+        val seen = mutableSetOf<String>()
+        return keys.filter { seen.add(it) }
+    }
+
+    fun hubBoardNameKeys(items: List<MenuItem>): Set<String> =
+        items.flatMap { dietLookupKeys(it.name) }.toSet()
+
+    fun appearsOnHubBoard(item: MenuItem, keys: Set<String>): Boolean =
+        dietLookupKeys(item.name).any { it in keys }
+
+    fun hubMealFamily(period: String): String? {
+        val lower = period.lowercase()
+        if ("all day" in lower) return null
+        if (isLateNight(lower)) return "late night"
+        if (isAfternoonSnack(lower)) return "afternoon snack"
+        if ("brunch" in lower) return "brunch"
+        if ("lunch" in lower) return "lunch"
+        if ("breakfast" in lower) return "breakfast"
+        if ("dinner" in lower) return "dinner"
+        return null
+    }
+
+    fun hubMealStations(period: String, hubStations: List<MenuStation>): List<MenuStation> {
+        val lowerPeriod = period.lowercase()
+        if ("brunch" in lowerPeriod) {
+            return hubStations.filter { "brunch" in it.name.lowercase() }
+        }
+        val pill = canonicalPill(period)
+        val hasBreakfast = hubStations.any {
+            val name = it.name.lowercase()
+            "breakfast" in name && "brunch" !in name
+        }
+        val hasLunch = hubStations.any {
+            val name = it.name.lowercase()
+            "lunch" in name && "brunch" !in name
+        }
+        return hubStations.filter { station ->
+            val name = station.name.lowercase()
+            when (pill) {
+                "Lunch" -> hasLunch && "lunch" in name && "brunch" !in name
+                "Breakfast" ->
+                    if (hasBreakfast) "breakfast" in name && "brunch" !in name
+                    else "brunch" in name
+                "Dinner" -> "dinner" in name
+                else -> name.equals(period, ignoreCase = true)
+            }
+        }
+    }
+
+    fun excludingBreakfastOnlyBrunchItems(
+        items: List<MenuItem>,
+        period: String,
+        hubStations: List<MenuStation>,
+    ): List<MenuItem> {
+        if (canonicalPill(period) != "Lunch") return items
+        val breakfast = hubStations
+            .filter {
+                val name = it.name.lowercase()
+                "breakfast" in name && "brunch" !in name
+            }
+            .flatMap { it.items }
+        val breakfastKeys = hubBoardNameKeys(breakfast)
+        if (breakfastKeys.isEmpty()) return items
+        val lunch = hubStations.filter { "lunch" in it.name.lowercase() }.flatMap { it.items }
+        val lunchKeys = hubBoardNameKeys(lunch)
+        return items.filter { item ->
+            appearsOnHubBoard(item, lunchKeys) || !appearsOnHubBoard(item, breakfastKeys)
+        }
+    }
+
+    fun hubBoardItems(period: String, hubStations: List<MenuStation>): List<MenuItem> {
+        val matching = hubMealStations(period, hubStations).flatMap { it.items }
+        return excludingBreakfastOnlyBrunchItems(matching, period, hubStations)
+    }
+
+    fun appearsOnOtherHubMealFamily(
+        item: MenuItem,
+        period: String,
+        hubStations: List<MenuStation>,
+    ): Boolean {
+        val live = hubMealFamily(period) ?: return false
+        val other = hubStations
+            .filter { station ->
+                val family = hubMealFamily(station.name) ?: return@filter false
+                family != live
+            }
+            .flatMap { it.items }
+        return appearsOnHubBoard(item, hubBoardNameKeys(other))
+    }
+
+    fun hubMealHasStationTags(hallID: String, board: List<MenuItem>): Boolean =
+        board.any { item ->
+            val sid = item.stationID?.trim().orEmpty()
+            sid.isNotEmpty() && stationBelongs(hallID, sid)
+        }
+
+    fun canMergeHubExtra(station: MenuStation, extraStationID: String): Boolean {
+        val extraID = extraStationID.trim()
+        if (extraID.isEmpty()) return false
+        val existingID = station.stationID?.trim().orEmpty()
+        if (existingID.isNotEmpty() && existingID == extraID) return true
+        val stationTwisted = isTwistedRoot(station.name, station.stationID)
+        val extraTwisted = isTwistedRoot("", extraID)
+        if (!stationTwisted || !extraTwisted) return false
+        if (existingID.isEmpty()) return true
+        return existingID == extraID
+    }
+
+    fun hubItems(station: MenuStation, hallID: String, board: List<MenuItem>): List<MenuItem> =
+        board.filter { item ->
+            val sid = item.stationID?.trim().orEmpty()
+            sid.isNotEmpty() &&
+                stationBelongs(hallID, sid) &&
+                canMergeHubExtra(station, sid)
+        }
+
+    fun droppingOffBoardAnteaterItems(menu: DiningMenu, hubStations: List<MenuStation>): DiningMenu {
+        val board = hubBoardItems(menu.period, hubStations)
+        if (board.isEmpty()) return menu
+        val hubTagged = hubMealHasStationTags(menu.locationId, board)
+        val stations = menu.stations.mapNotNull { station ->
+            if (isAvailableAllDayStation(station.name)) return@mapNotNull station
+            val hubForStation = hubItems(station, menu.locationId, board)
+            val isTwisted = isTwistedRoot(station.name, station.stationID)
+            if (isTwisted && hubTagged) {
+                val lunchPill = canonicalPill(menu.period) == "Lunch"
+                if (hubForStation.isEmpty()) return@mapNotNull if (lunchPill) station else null
+                if (lunchPill) {
+                    val allDayKeys = hubBoardNameKeys(
+                        hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items },
+                    )
+                    if (hubForStation.all { appearsOnHubBoard(it, allDayKeys) }) return@mapNotNull station
+                }
+                val keys = hubBoardNameKeys(hubForStation)
+                val kept = station.items.filter { appearsOnHubBoard(it, keys) }
+                if (canonicalPill(menu.period) == "Breakfast") {
+                    val middayKeys = middayTwistedRootKeys(hubStations)
+                    val breakfastKept = kept.filter { shouldKeepTwistedRootOnBreakfast(it, middayKeys) }
+                    return@mapNotNull if (breakfastKept.isEmpty()) null else station.withItems(breakfastKept)
+                }
+                return@mapNotNull if (kept.isEmpty()) null else station.withItems(kept)
+            }
+            if (hubForStation.isEmpty()) return@mapNotNull station
+            val keys = hubBoardNameKeys(hubForStation)
+            val kept = station.items.filter { appearsOnHubBoard(it, keys) }
+            if (kept.isEmpty()) null else station.withItems(kept)
+        }
+        return menu.copy(stations = stations)
+    }
+
+    fun hubExclusiveItems(menu: DiningMenu, hubStations: List<MenuStation>): List<MenuItem> {
+        val matching = excludingBreakfastOnlyBrunchItems(
+            hubMealStations(menu.period, hubStations).flatMap { it.items },
+            menu.period,
+            hubStations,
+        )
+        val allDayItems = hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items }
+        val allDayKeys = hubBoardNameKeys(allDayItems)
+        val seen = menu.stations.flatMap { it.items }.flatMap { dietLookupKeys(it.name) }.toMutableSet()
+        val extras = mutableListOf<MenuItem>()
+        fun consider(item: MenuItem) {
+            val keys = dietLookupKeys(item.name)
+            if (keys.any { it in seen }) return
+            if (!stationBelongs(menu.locationId, item.stationID)) return
+            val twisted = isTwistedRoot("", item.stationID)
+            val onAllDay = appearsOnHubBoard(item, allDayKeys)
+            val onOtherMeal = appearsOnOtherHubMealFamily(item, menu.period, hubStations)
+            if (onAllDay && onOtherMeal) return
+            if (twisted && canonicalPill(menu.period) == "Breakfast") {
+                val middayKeys = middayTwistedRootKeys(hubStations)
+                if (!shouldKeepTwistedRootOnBreakfast(item, middayKeys)) return
+            }
+            if (!twisted && onAllDay) return
+            if (!twisted && onOtherMeal) return
+            seen += keys
+            extras += item
+        }
+        matching.forEach { consider(it) }
+        return extras
+    }
+
+    fun insertingHubExtras(
+        extras: List<MenuItem>,
+        menu: DiningMenu,
+        stationNames: Map<String, String> = emptyMap(),
+    ): DiningMenu {
+        if (extras.isEmpty()) {
+            val pinned = pinTwistedRootFirst(menu.stations)
+            return if (pinned == menu.stations) menu else menu.copy(stations = pinned)
+        }
+        val stations = menu.stations.toMutableList()
+        val leftover = mutableListOf<MenuItem>()
+
+        fun merge(index: Int, items: List<MenuItem>, stationID: String?) {
+            val station = stations[index]
+            val seen = station.items.map { it.name.lowercase() }.toMutableSet()
+            val next = station.items.toMutableList()
+            val tagged = applyStationTags(items, station.name, station.stationID ?: stationID)
+            for (item in tagged) {
+                if (seen.add(item.name.lowercase())) next += item
+            }
+            stations[index] = station.withItems(next)
+        }
+
+        fun insertBeforeAllDay(station: MenuStation) {
+            val idx = stations.indexOfFirst { isAvailableAllDayStation(it.name) }
+            if (idx >= 0) stations.add(idx, station) else stations += station
+        }
+
+        for (item in extras) {
+            val sid = item.stationID?.trim().orEmpty()
+            if (sid.isEmpty()) {
+                leftover += item
+                continue
+            }
+            if (!stationBelongs(menu.locationId, sid)) continue
+            val mergeIdx = stations.indexOfFirst { canMergeHubExtra(it, sid) }
+            if (mergeIdx >= 0) {
+                merge(mergeIdx, listOf(item), sid)
+                continue
+            }
+            val name = displayStationName(stationNames[sid], sid)
+            val namedIdx = stations.indexOfFirst {
+                it.name.equals(name, ignoreCase = true) && canMergeHubExtra(it, sid)
+            }
+            if (namedIdx >= 0) {
+                merge(namedIdx, listOf(item), sid)
+                continue
+            }
+            insertBeforeAllDay(
+                MenuStation(name, applyStationTags(listOf(item), name, sid), sid),
+            )
+        }
+        if (leftover.isNotEmpty()) {
+            insertBeforeAllDay(MenuStation("Also served", leftover))
+        }
+        return menu.copy(stations = pinTwistedRootFirst(stations))
+    }
+
+    fun middayTwistedRootKeys(groups: List<List<MenuStation>>): Set<String> {
+        val items = groups.flatMap { group ->
+            group.filter { isTwistedRoot(it.name, it.stationID) }.flatMap { it.items }
+        } + groups.flatMap { group ->
+            group.flatMap { it.items }.filter { isTwistedRoot("", it.stationID) }
+        }
+        return hubBoardNameKeys(items)
+    }
+
+    fun middayTwistedRootKeys(hubStations: List<MenuStation>): Set<String> {
+        val midday = hubStations.filter { station ->
+            val name = station.name.lowercase()
+            "brunch" in name || ("lunch" in name && "brunch" !in name)
+        }
+        return middayTwistedRootKeys(listOf(midday))
+    }
+
+    fun shouldKeepTwistedRootOnBreakfast(item: MenuItem, middayKeys: Set<String>): Boolean {
+        if (isBreakfastStyleDishName(item.name)) return true
+        return !appearsOnHubBoard(item, middayKeys)
+    }
+
+    fun subtractingMiddayTwistedRootFromBreakfast(
+        from: List<MenuStation>,
+        midday: List<MenuStation>,
+    ): List<MenuStation> {
+        val middayKeys = middayTwistedRootKeys(listOf(midday))
+        if (middayKeys.isEmpty()) return from
+        return from.mapNotNull { station ->
+            if (!isTwistedRoot(station.name, station.stationID)) return@mapNotNull station
+            val kept = station.items.filter { shouldKeepTwistedRootOnBreakfast(it, middayKeys) }
+            if (kept.isEmpty()) null else station.withItems(kept)
+        }
     }
 
     fun emptyMenuCopy(period: String, browsingFuture: Boolean, comingSoon: Boolean): String {

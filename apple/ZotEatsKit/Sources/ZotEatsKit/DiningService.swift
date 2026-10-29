@@ -484,19 +484,47 @@ public struct DiningService: Sendable {
         }
     }
 
+    /// Hub / Anteater station id → Eat hall. Used so Honeycakes 1872 never
+    /// lands on Anteatery and Oven 1941 never lands on Brandywine.
+    public static let stationHallIDs: [String: String] = [
+        "1926": "anteatery", // Fire and Ice
+        "1929": "anteatery", // The Twisted Root
+        "1932": "anteatery", // Home
+        "1935": "anteatery", // Sizzle Grill
+        "1938": "anteatery", // Bakery
+        "1941": "anteatery", // Oven
+        "1944": "anteatery", // Soups
+        "1947": "anteatery", // Farmer's Market
+        "1950": "anteatery", // Deli
+        "1953": "anteatery", // Noodle Bar
+        "1872": "brandywine", // Honeycakes
+        "1875": "brandywine", // The Farm Stand- Salad
+        "1878": "brandywine", // Ember
+        "1881": "brandywine", // Grubb
+        "1884": "brandywine", // Hearth
+        "1887": "brandywine", // Compass
+        "1890": "brandywine", // Crossroads
+        "1893": "brandywine", // The Twisted Root
+        "1896": "brandywine", // Soups
+        "1899": "brandywine", // Saute
+        "2166": "brandywine", // The Farm Stand- Deli
+        "275501": "brandywine", // Promotions
+    ]
+
     /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
     public static func hallID(forTwistedRootStation stationID: String) -> String? {
-        switch stationID {
-        case "1929": return "anteatery"
-        case "1893": return "brandywine"
-        default: return nil
-        }
+        guard twistedRootStationIDs.contains(stationID) else { return nil }
+        return hallID(forStation: stationID)
     }
 
-    /// False when a Hub extra is tagged with the other hall's Twisted Root id.
+    public static func hallID(forStation stationID: String) -> String? {
+        stationHallIDs[stationID]
+    }
+
+    /// False when a Hub extra is tagged with the other hall's station id.
     public static func stationBelongs(onHall hallID: String, stationID: String?) -> Bool {
         guard let stationID,
-              let owner = Self.hallID(forTwistedRootStation: stationID)
+              let owner = Self.hallID(forStation: stationID)
         else { return true }
         return owner.caseInsensitiveCompare(hallID) == .orderedSame
     }
@@ -1600,9 +1628,12 @@ public struct DiningService: Sendable {
                     dateISO: dateISO,
                     forceRefresh: forceRefresh
                 ) {
-                    return hubMenu
+                    return await applyingOverrides(hubMenu, forceRefresh: forceRefresh)
                 }
-                return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+                return await applyingOverrides(
+                    DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                    forceRefresh: forceRefresh
+                )
             }
         }
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
@@ -1610,15 +1641,22 @@ public struct DiningService: Sendable {
 
         // No periods published for this day yet (404 mapped to empty, or blank payload).
         guard !available.isEmpty else {
-            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+            return await applyingOverrides(
+                DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                forceRefresh: forceRefresh
+            )
         }
 
         let resolved = Self.resolvePeriod(period, available: available)
         let periodNames = Self.menuPeriodNames(primary: period, available: available)
         // Unposted Lunch (weekend Brunch-only board) must stay empty — do
         // not invent dishes or copy the Brunch already shown on Breakfast.
+        // Dated overrides may still insert a verified dish onto that pill.
         guard !periodNames.isEmpty else {
-            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+            return await applyingOverrides(
+                DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                forceRefresh: forceRefresh
+            )
         }
         let stationNames = try await stationMap()
 
@@ -1710,7 +1748,8 @@ public struct DiningService: Sendable {
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
-        return await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
+        let enriched = await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
+        return await applyingOverrides(enriched, forceRefresh: forceRefresh)
     }
 
     /// Official Hub SKUs when Anteater still omits Oasis. Empty Hub / typical
@@ -1754,6 +1793,18 @@ public struct DiningService: Sendable {
             period: resolved,
             stations: Self.pinTwistedRootFirst(board)
         )
+    }
+
+    /// Dated verified inserts from GitHub `menu-overrides.json`, with a bundled
+    /// fallback so Internal TestFlight still shows tonight's dish.
+    private func applyingOverrides(_ menu: DiningMenu, forceRefresh: Bool) async -> DiningMenu {
+        if forceRefresh {
+            await cache.invalidate("menu-overrides")
+        }
+        let overrides = await cache.remember("menu-overrides", ttl: Self.todayTTL) {
+            await MenuOverrideFeed.fetch(http: self.http)
+        }
+        return MenuOverrideFeed.applying(overrides, to: menu)
     }
 
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.
@@ -1826,19 +1877,27 @@ public struct DiningService: Sendable {
         let onBoard = Self.droppingOffBoardAnteaterItems(onMenu: tagged, hubStations: hubStations)
         let extras = Self.hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
         let combined = Self.insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
-        guard MealPeriodPill.canonical(combined.period) == "Breakfast" else { return combined }
-        let midday = Self.hubMealStations(matchingPeriod: "Lunch", in: hubStations)
-        let trimmed = Self.subtractingMiddayTwistedRootFromBreakfast(
-            from: combined.stations,
-            midday: midday
-        )
-        guard trimmed != combined.stations else { return combined }
-        return DiningMenu(
-            locationId: combined.locationId,
-            date: combined.date,
-            period: combined.period,
-            stations: Self.pinTwistedRootFirst(trimmed)
-        )
+        let reconciled: DiningMenu
+        if MealPeriodPill.canonical(combined.period) == "Breakfast" {
+            let midday = Self.hubMealStations(matchingPeriod: "Lunch", in: hubStations)
+            let trimmed = Self.subtractingMiddayTwistedRootFromBreakfast(
+                from: combined.stations,
+                midday: midday
+            )
+            if trimmed != combined.stations {
+                reconciled = DiningMenu(
+                    locationId: combined.locationId,
+                    date: combined.date,
+                    period: combined.period,
+                    stations: Self.pinTwistedRootFirst(trimmed)
+                )
+            } else {
+                reconciled = combined
+            }
+        } else {
+            reconciled = combined
+        }
+        return reconciled
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").

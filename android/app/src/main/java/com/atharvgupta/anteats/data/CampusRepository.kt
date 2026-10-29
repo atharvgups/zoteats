@@ -4,7 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -161,19 +163,19 @@ class CampusRepository {
 
     /// Official Hub SKUs for a hall/date. Empty when Coming Soon or unpublished.
     suspend fun postedMenu(locationUrlKey: String, dateISO: String): List<MenuStation> = withContext(Dispatchers.IO) {
-        val query = """query(${'$'}c:String!,${'$'}l:String!,${'$'}d:String!){getLocationMealPeriodRecipes(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l,date:${'$'}d){locationMealPeriodRecipesData{mealPeriodSkuMap{name skus}}products{name sku}}}"""
+        val query = """query(${'$'}c:String!,${'$'}l:String!,${'$'}d:String!){getLocationMealPeriodRecipes(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l,date:${'$'}d){locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}}products{name sku attributes{name value}}}}"""
         val variables = """{"c":"campus","l":"$locationUrlKey","d":"$dateISO"}"""
         val root = runCatching { graphQL(query, variables) }.getOrNull() ?: return@withContext emptyList()
         val menu = root["data"]?.jsonObject?.get("getLocationMealPeriodRecipes")?.jsonObject
             ?: return@withContext emptyList()
+        val hallID = HallDirectory.eatHallID(locationUrlKey)
         val products = linkedMapOf<String, MenuItem>()
         val productRows = menu["products"] as? JsonArray ?: JsonArray(emptyList())
         productRows.forEach { el ->
             val obj = el.jsonObject
             val sku = obj.string("sku") ?: return@forEach
-            val name = obj.string("name")?.trim().orEmpty()
-            if (name.isEmpty()) return@forEach
-            products[sku] = MenuItem(sku, name, null, null, null, emptyList(), emptyList())
+            val item = hubProduct(obj, hallID) ?: return@forEach
+            products[sku] = item
         }
         val maps = menu["locationMealPeriodRecipesData"]?.jsonObject
             ?.get("mealPeriodSkuMap") as? JsonArray ?: JsonArray(emptyList())
@@ -184,6 +186,71 @@ class CampusRepository {
             val skus = (obj["skus"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
             val items = skus.mapNotNull { products[it] }.distinctBy { it.name.lowercase() }
             if (items.isEmpty()) null else MenuStation(period, items)
+        }
+    }
+
+    private fun hubProduct(obj: JsonObject, hallID: String?): MenuItem? {
+        val sku = obj.string("sku") ?: return null
+        var name = obj.string("name")?.trim().orEmpty()
+        var description: String? = null
+        var calories: Int? = null
+        var serving: String? = null
+        var stationID: String? = null
+        val tags = mutableListOf<String>()
+        val attrs = obj["attributes"] as? JsonArray ?: JsonArray(emptyList())
+        for (el in attrs) {
+            val attr = el.jsonObject
+            val attrName = attr.string("name") ?: continue
+            val values = attrValues(attr["value"])
+            when (attrName) {
+                "marketing_name" -> {
+                    val value = values.firstOrNull().orEmpty()
+                    if (value.isNotEmpty()) name = DiningLogic.collapseWhitespace(value) ?: value
+                }
+                "marketing_description" -> description = DiningLogic.collapseWhitespace(values.firstOrNull())
+                "calories" -> calories = values.firstOrNull()?.toDoubleOrNull()?.let { Math.round(it).toInt() }
+                "serving_combined" -> {
+                    val value = values.firstOrNull().orEmpty()
+                    if (value.isNotEmpty() && value != "N/A") serving = value
+                }
+                "assigned_category_ids" -> {
+                    if (stationID == null) stationID = DiningLogic.assignedStationID(values, hallID)
+                }
+                "recipe_attributes" -> {
+                    // Keep Hub diet labels when present; Eat also overlays Twisted Root vegan.
+                    val mapped = mapOf(
+                        "96" to "Vegan",
+                        "99" to "Vegetarian",
+                        "133" to "Halal",
+                        "87" to "Kosher",
+                        "78" to "Gluten-Free",
+                    )
+                    tags += values.flatMap { it.split(",") }.mapNotNull { mapped[it.trim()] }
+                }
+            }
+        }
+        if (name.isEmpty()) return null
+        if (tags.any { it.equals("Vegan", true) } && tags.none { it.equals("Vegetarian", true) }) {
+            tags += "Vegetarian"
+        }
+        return MenuItem(
+            sku,
+            DiningLogic.collapseWhitespace(name) ?: name,
+            description,
+            calories,
+            serving,
+            emptyList(),
+            tags.distinct(),
+            stationID = stationID,
+        )
+    }
+
+    private fun attrValues(value: JsonElement?): List<String> {
+        if (value == null) return emptyList()
+        return when (value) {
+            is JsonArray -> value.mapNotNull { it.jsonPrimitive.contentOrNull }
+            is JsonPrimitive -> value.contentOrNull?.let { listOf(it) } ?: emptyList()
+            else -> emptyList()
         }
     }
 

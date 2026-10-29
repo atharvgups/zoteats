@@ -399,4 +399,93 @@ class DiningLogicTest {
         assertFalse(names.contains("Judy's BBQ Eggs"))
         assertFalse(names.contains("Oatmeal"))
     }
+
+    @Test
+    fun assignedStationIDScopesToHallAndPrefersDessertThenTwistedRoot() {
+        assertEquals(
+            "1893",
+            DiningLogic.assignedStationID(listOf("1369", "1372", "1375", "1821", "1893"), "brandywine"),
+        )
+        assertEquals(
+            "1872",
+            DiningLogic.assignedStationID(listOf("1369", "1821", "1872", "1893"), "brandywine"),
+        )
+        assertEquals(
+            "1893",
+            DiningLogic.assignedStationID(listOf("1369", "1821", "1893", "1887"), "brandywine"),
+        )
+        assertEquals(
+            "1929",
+            DiningLogic.assignedStationID(listOf("1369", "1923", "1893", "1929"), "anteatery"),
+        )
+        assertFalse(DiningLogic.stationBelongs("anteatery", "1872"))
+        assertTrue(DiningLogic.stationBelongs("brandywine", "1872"))
+        assertFalse(DiningLogic.stationBelongs("brandywine", "1941"))
+    }
+
+    @Test
+    fun honeycakesExtrasDoNotLandOnAnteatery() {
+        val chia = MenuItem("chia", "Coconut Chia Pudding", null, 180, null, emptyList(), listOf("Vegan"), stationID = "1872")
+        val linguine = MenuItem(
+            "linguine",
+            "Thai Curry Plant-Based Chicken Linguine",
+            null,
+            420,
+            null,
+            emptyList(),
+            listOf("Vegan"),
+            stationID = "1893",
+        )
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-10-28",
+            "Lunch",
+            listOf(MenuStation("Home", listOf(MenuItem("pork", "Herb Chicken", null, 300, null, emptyList(), emptyList(), stationID = "1932")), "1932")),
+        )
+        val combined = DiningLogic.insertingHubExtras(listOf(chia, linguine), menu)
+        val names = combined.stations.flatMap { it.items }.map { it.name }
+        assertFalse(names.contains("Coconut Chia Pudding"))
+        assertFalse(names.contains("Thai Curry Plant-Based Chicken Linguine"))
+    }
+
+    @Test
+    fun hubExclusiveFillsBrandywineLunchWhenAnteaterOmitsTwistedRoot() {
+        val alfredo = MenuItem("alfredo", "Alfredo Vegetable Casserole", null, 310, null, emptyList(), listOf("Vegetarian"), stationID = "1893")
+        val brussels = MenuItem("brussels", "Roasted Brussels Sprouts", null, 90, null, emptyList(), listOf("Vegan"), stationID = "1893")
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1878")
+        val menu = DiningMenu(
+            "brandywine",
+            "2026-10-29",
+            "Lunch",
+            listOf(MenuStation("Ember", listOf(burger), "1878")),
+        )
+        val hub = listOf(MenuStation("Lunch", listOf(alfredo, brussels, burger)))
+        val extras = DiningLogic.hubExclusiveItems(menu, hub)
+        assertTrue(extras.map { it.name }.contains("Alfredo Vegetable Casserole"))
+        val combined = DiningLogic.insertingHubExtras(extras, menu)
+        assertEquals("1893", combined.stations.first().stationID)
+        assertTrue(combined.stations.first().items.any { it.name.contains("Alfredo") })
+        assertTrue(combined.stations.any { it.stationID == "1878" })
+    }
+
+    @Test
+    fun bundledOverrideInsertsCajunTofuWithoutReorderingOtherStations() {
+        val home = MenuItem("pork", "Cajun Roasted Pork Loin", null, 320, null, emptyList(), emptyList(), stationID = "1932")
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1935")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-10-28",
+            "Dinner",
+            listOf(
+                MenuStation("Home", listOf(home), "1932"),
+                MenuStation("Sizzle Grill", listOf(burger), "1935"),
+            ),
+        )
+        val combined = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, menu)
+        assertEquals("1929", combined.stations.first().stationID)
+        assertEquals(listOf("Cajun Tofu and White Rice"), combined.stations.first().items.map { it.name })
+        assertEquals(listOf("1929", "1932", "1935"), combined.stations.map { it.stationID })
+        val lunch = menu.copy(period = "Lunch")
+        assertEquals(lunch, MenuOverrideFeed.applying(MenuOverrideFeed.bundled, lunch))
+    }
 }

@@ -134,21 +134,45 @@ struct CampusServiceTests {
         #expect(CampusService.allergens(fromIntoleranceIDs: ["45,57"]) == ["Milk", "Soy"])
     }
 
-    @Test func assignedStationIDPrefersTwistedRoot() {
+    @Test func assignedStationIDScopesToHallAndPrefersDessertThenTwistedRoot() {
         #expect(
             CampusService.assignedStationID(
-                fromCategoryIDs: ["1369", "1372", "1375", "1821", "1893"]
+                fromCategoryIDs: ["1369", "1372", "1375", "1821", "1893"],
+                onHall: "brandywine"
+            ) == "1893"
+        )
+        // Chia pudding: Honeycakes 1872 plus sibling Twisted Root 1893.
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1821", "1872", "1893"],
+                onHall: "brandywine"
+            ) == "1872"
+        )
+        // Hub-only TR extra listed with Compass: keep Twisted Root (lunch gap).
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1821", "1893", "1887"],
+                onHall: "brandywine"
             ) == "1893"
         )
         #expect(
             CampusService.assignedStationID(
-                fromCategoryIDs: ["1369", "1821", "1872", "1893"]
-            ) == "1893"
-        )
-        #expect(
-            CampusService.assignedStationID(
-                fromCategoryIDs: ["1369", "1372", "1375", "1821", "1881"]
+                fromCategoryIDs: ["1369", "1372", "1375", "1821", "1881"],
+                onHall: "brandywine"
             ) == "1881"
+        )
+        // Linguine tagged with the other hall's Twisted Root stays on this hall.
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1923", "1893", "1929"],
+                onHall: "anteatery"
+            ) == "1929"
+        )
+        #expect(
+            CampusService.assignedStationID(
+                fromCategoryIDs: ["1369", "1923", "1953", "1932"],
+                onHall: "anteatery"
+            ) == "1932"
         )
         #expect(CampusService.assignedStationID(fromCategoryIDs: []) == nil)
     }
