@@ -167,6 +167,7 @@ jobs:
           CANCEL_IN_FLIGHT_REVIEW: "true"
           RELEASE_PENDING_DEVELOPER_RELEASE: "true"
         run: |
+          brew install ffmpeg || true
           python3 -m venv "$RUNNER_TEMP/asc-venv"
           # shellcheck disable=SC1091
           source "$RUNNER_TEMP/asc-venv/bin/activate"
@@ -179,4 +180,5 @@ jobs:
           export REVIEW_CONTACT_EMAIL="atharvgups@gmail.com"
           export REVIEW_CONTACT_FIRST_NAME="Atharv"
           export REVIEW_CONTACT_LAST_NAME="Gupta"
+          python3 apple/scripts/check_appstore_copy.py
           python apple/scripts/submit_app_store.py

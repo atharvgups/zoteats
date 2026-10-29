@@ -87,4 +87,17 @@ struct DishRowAccessibilityTests {
             ) == "Tofu Bowl, 420 calories, 4 stars"
         )
     }
+
+    @Test("Reported missing is announced on the card")
+    func includesReportedMissing() {
+        #expect(
+            DishRowAccessibility.label(
+                dishName: "Jasmine Rice",
+                calories: 150,
+                dietaryTags: [],
+                allergens: [],
+                reportedMissing: true
+            ) == "Jasmine Rice, 150 calories, Reported missing"
+        )
+    }
 }

@@ -71,6 +71,16 @@ public struct DiningService: Sendable {
         let latest: String
     }
 
+    /// Marketing / takeover cards from `GET /events`. Title + hall + time window
+    /// only; the payload has no dishes, so Eat never invents SKUs from copy.
+    private struct APIEvent: Decodable, Sendable {
+        let title: String?
+        let restaurantId: String?
+        let description: String?
+        let start: String?
+        let end: String?
+    }
+
     /// Inclusive ISO-date window the dining feed currently publishes.
     public struct PublishedDateRange: Sendable, Equatable {
         public let earliest: String
@@ -439,29 +449,214 @@ public struct DiningService: Sendable {
         "1893", // Brandywine
     ]
 
-    /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
-    public static func hallID(forTwistedRootStation stationID: String) -> String? {
-        switch stationID {
-        case "1929": return "anteatery"
-        case "1893": return "brandywine"
-        default: return nil
+    /// Brandywine Ember burgers stay the same day to day. Eat still treats
+    /// Ember as the standing burger board, via `standingBurgerStationIDs`.
+    public static let emberStationIDs: Set<String> = [
+        "1878",
+    ]
+
+    /// Standing burger / grill boards that rarely change: Brandywine Ember and
+    /// Anteatery Sizzle Grill. Name matching covers a future Oasis equivalent
+    /// without a one-off id. Generic "grill" is not enough (September Grill).
+    public static let standingBurgerStationIDs: Set<String> = [
+        "1878", // Brandywine Ember
+        "1935", // The Anteatery Sizzle Grill
+    ]
+
+    /// Dessert / sweets boards: Brandywine Honeycakes and Anteatery Bakery.
+    public static let dessertStationIDs: Set<String> = [
+        "1872",
+        "1938",
+    ]
+
+    /// Pizza boards that sit directly above the burger station. "Oven" / "Hearth"
+    /// still need a pizza or flatbread dish before they count; a named Pizza
+    /// station does not.
+    public static let pizzaStationIDs: Set<String> = [
+        "1941", // The Anteatery Oven
+        "1884", // Brandywine Hearth
+    ]
+
+    /// Eat / Campus station lanes. Twisted Root first, rotating hot stations,
+    /// then sides, all-day, desserts, pizza, standing burger last.
+    public enum StationLane: Int, Comparable, Sendable {
+        case twistedRoot = 0
+        case hotEntree = 1
+        case other = 2
+        case sides = 3
+        case availableAllDay = 4
+        case dessert = 5
+        case pizza = 6
+        case standingBurger = 7
+
+        public static func < (lhs: Self, rhs: Self) -> Bool {
+            lhs.rawValue < rhs.rawValue
         }
     }
 
-    /// False when a Hub extra is tagged with the other hall's Twisted Root id.
+    /// Hub / Anteater station id → Eat hall. Used so Honeycakes 1872 never
+    /// lands on Anteatery and Oven 1941 never lands on Brandywine.
+    public static let stationHallIDs: [String: String] = [
+        "1926": "anteatery", // Fire and Ice
+        "1929": "anteatery", // The Twisted Root
+        "1932": "anteatery", // Home
+        "1935": "anteatery", // Sizzle Grill
+        "1938": "anteatery", // Bakery
+        "1941": "anteatery", // Oven
+        "1944": "anteatery", // Soups
+        "1947": "anteatery", // Farmer's Market
+        "1950": "anteatery", // Deli
+        "1953": "anteatery", // Noodle Bar
+        "1872": "brandywine", // Honeycakes
+        "1875": "brandywine", // The Farm Stand- Salad
+        "1878": "brandywine", // Ember
+        "1881": "brandywine", // Grubb
+        "1884": "brandywine", // Hearth
+        "1887": "brandywine", // Compass
+        "1890": "brandywine", // Crossroads
+        "1893": "brandywine", // The Twisted Root
+        "1896": "brandywine", // Soups
+        "1899": "brandywine", // Saute
+        "2166": "brandywine", // The Farm Stand- Deli
+        "275501": "brandywine", // Promotions
+    ]
+
+    /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
+    public static func hallID(forTwistedRootStation stationID: String) -> String? {
+        guard twistedRootStationIDs.contains(stationID) else { return nil }
+        return hallID(forStation: stationID)
+    }
+
+    public static func hallID(forStation stationID: String) -> String? {
+        stationHallIDs[stationID]
+    }
+
+    /// False when a Hub extra is tagged with the other hall's station id.
     public static func stationBelongs(onHall hallID: String, stationID: String?) -> Bool {
         guard let stationID,
-              let owner = Self.hallID(forTwistedRootStation: stationID)
+              let owner = Self.hallID(forStation: stationID)
         else { return true }
         return owner.caseInsensitiveCompare(hallID) == .orderedSame
     }
 
-    public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
-        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
-        let lowered = stationName.lowercased()
+    public static func collapsedStationName(_ name: String) -> String {
+        name.lowercased()
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public static func isTwistedRoot(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, twistedRootStationIDs.contains(stationID) { return true }
+        let lowered = collapsedStationName(stationName)
         return lowered.contains("twisted root") || lowered.contains("twistedroot")
+    }
+
+    /// Takeover / pop-up boards (Fable Station Takeover). Rotating middle lane,
+    /// never dessert / pizza / burger.
+    public static func isSpecialEventStation(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID {
+            let id = stationID.lowercased()
+            if id.contains("event") || id.contains("takeover") || id.hasPrefix("override:fable") {
+                return true
+            }
+        }
+        let lowered = collapsedStationName(stationName)
+        if lowered.isEmpty { return false }
+        if lowered.contains("takeover") { return true }
+        if lowered.contains("fable") { return true }
+        if lowered.contains("special event") { return true }
+        if lowered.contains("pop up") || lowered.contains("popup") { return true }
+        return false
+    }
+
+    public static func isEmber(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, emberStationIDs.contains(stationID) { return true }
+        let lowered = collapsedStationName(stationName)
+        return lowered == "ember" || lowered.hasPrefix("ember ")
+    }
+
+    public static func isStandingBurger(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, standingBurgerStationIDs.contains(stationID) { return true }
+        if isEmber(stationName: stationName, stationID: stationID) { return true }
+        let lowered = collapsedStationName(stationName)
+        if lowered.isEmpty { return false }
+        if lowered.contains("sizzle") { return true }
+        if lowered.contains("burger") { return true }
+        return false
+    }
+
+    public static func isDessertStation(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID, dessertStationIDs.contains(stationID) { return true }
+        let lowered = collapsedStationName(stationName)
+        if lowered.isEmpty { return false }
+        let needles = [
+            "honeycake", "bakery", "dessert", "sweets", "pastry",
+            "ice cream", "icecream", "cookie", "pudding",
+        ]
+        if needles.contains(where: { lowered.contains($0) }) { return true }
+        return lowered == "sweet" || lowered.hasPrefix("sweet ") || lowered.hasSuffix(" sweet")
+    }
+
+    public static func isSidesStation(stationName: String) -> Bool {
+        let lowered = collapsedStationName(stationName)
+        let needles = [
+            "soup", "salad", "deli", "farmer", "farm stand", "farmstand",
+            "side", "vegetable", "veggie",
+        ]
+        return needles.contains(where: { lowered.contains($0) })
+    }
+
+    public static func isAvailableAllDayStation(stationName: String) -> Bool {
+        CampusMenuNormalize.isAvailableAllDay(stationName)
+            || collapsedStationName(stationName) == "all day"
+    }
+
+    public static func dishLooksLikePizza(_ name: String) -> Bool {
+        let lowered = collapsedStationName(name)
+        return lowered.contains("pizza") || lowered.contains("flatbread")
+    }
+
+    public static func isPizzaStation(
+        stationName: String,
+        stationID: String? = nil,
+        items: [MenuItem] = []
+    ) -> Bool {
+        if isTwistedRoot(stationName: stationName, stationID: stationID) { return false }
+        if isStandingBurger(stationName: stationName, stationID: stationID) { return false }
+        let lowered = collapsedStationName(stationName)
+        if lowered.contains("pizza") || lowered.contains("pizzeria") { return true }
+        let maybePizzaBoard: Bool = {
+            if let stationID, pizzaStationIDs.contains(stationID) { return true }
+            if lowered == "oven" || lowered.hasPrefix("oven ") || lowered.hasSuffix(" oven") {
+                return true
+            }
+            if lowered.contains(" oven ") { return true }
+            if lowered == "hearth" || lowered.hasPrefix("hearth ") || lowered.hasSuffix(" hearth") {
+                return true
+            }
+            return false
+        }()
+        guard maybePizzaBoard else { return false }
+        return items.contains { dishLooksLikePizza($0.name) }
+    }
+
+    public static func stationLane(
+        name: String,
+        stationID: String? = nil,
+        items: [MenuItem] = []
+    ) -> StationLane {
+        if isTwistedRoot(stationName: name, stationID: stationID) { return .twistedRoot }
+        if isSpecialEventStation(stationName: name, stationID: stationID) { return .hotEntree }
+        if isStandingBurger(stationName: name, stationID: stationID) { return .standingBurger }
+        if isAvailableAllDayStation(stationName: name) { return .availableAllDay }
+        if isDessertStation(stationName: name, stationID: stationID) { return .dessert }
+        if isPizzaStation(stationName: name, stationID: stationID, items: items) { return .pizza }
+        if isSidesStation(stationName: name) { return .sides }
+        let lowered = collapsedStationName(name)
+        if lowered.contains("promotion") || lowered == "also served" {
+            return .other
+        }
+        return .hotEntree
     }
 
     /// Prefer the live name; fall back to the brand so a missing station map
@@ -522,17 +717,141 @@ public struct DiningService: Sendable {
         )
     }
 
-    /// Owner vegan preference: Twisted Root leads Eat and Campus food lists.
-    /// Relative order of everything else is preserved (Available all day stays last
-    /// when the caller already pinned it there).
+    /// Twisted Root leads Eat and Campus food lists. Rotating hot stations
+    /// come next, then sides, all-day, desserts, pizza, and the standing
+    /// burger/grill board last. Relative order inside a lane is preserved.
     public static func pinTwistedRootFirst(_ stations: [MenuStation]) -> [MenuStation] {
-        let twisted = stations.filter {
-            isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        stations.enumerated()
+            .sorted { lhs, rhs in
+                let left = stationLane(
+                    name: lhs.element.name,
+                    stationID: lhs.element.stationID,
+                    items: lhs.element.items
+                )
+                let right = stationLane(
+                    name: rhs.element.name,
+                    stationID: rhs.element.stationID,
+                    items: rhs.element.items
+                )
+                if left != right { return left < right }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
+
+    /// Marketing event from Anteater `/events` (title, hall, time; no dishes).
+    public struct DiningEvent: Equatable, Sendable {
+        public var title: String
+        public var restaurantId: String
+        public var start: Date?
+        public var end: Date?
+
+        public init(title: String, restaurantId: String, start: Date? = nil, end: Date? = nil) {
+            self.title = title
+            self.restaurantId = restaurantId
+            self.start = start
+            self.end = end
         }
-        let rest = stations.filter {
-            !isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+    }
+
+    public static func parseEventDate(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = withFraction.date(from: raw) { return date }
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        return basic.date(from: raw)
+    }
+
+    /// True when this event is for this hall, covers the Irvine date, and
+    /// overlaps the meal window. Events before 2024 (epoch placeholders) skip.
+    public static func eventOverlapsMeal(
+        _ event: DiningEvent,
+        hallID: String,
+        dateISO: String,
+        periodStartMinutes: Int?,
+        periodEndMinutes: Int?
+    ) -> Bool {
+        let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return false }
+        guard MenuOverrideFeed.hallMatches(event.restaurantId, menuHall: hallID) else {
+            return false
         }
-        return twisted + rest
+        guard let start = event.start else { return false }
+        let year = PacificTime.calendar.component(.year, from: start)
+        if year < 2024 { return false }
+        let startDay = PacificTime.todayISO(now: start)
+        let endDay = PacificTime.todayISO(now: event.end ?? start)
+        guard dateISO >= startDay, dateISO <= endDay else { return false }
+
+        let eventStartMinutes: Int = {
+            if dateISO == startDay { return PacificTime.nowMinutes(now: start) }
+            return 0
+        }()
+        let eventEndMinutes: Int = {
+            if let end = event.end {
+                if dateISO == PacificTime.todayISO(now: end) {
+                    return PacificTime.nowMinutes(now: end)
+                }
+                return 24 * 60
+            }
+            return eventStartMinutes + 3 * 60
+        }()
+        guard let periodStart = periodStartMinutes, let periodEnd = periodEndMinutes else {
+            // Untimed meal (weekend Lunch clone): keep lunch-hours events off it.
+            return false
+        }
+        return eventStartMinutes < periodEnd && eventEndMinutes > periodStart
+    }
+
+    /// Add takeover stations named from `/events`. Empty boards are dropped
+    /// after override dishes land, so marketing copy never becomes a fake SKU.
+    public static func attachingEvents(
+        _ events: [DiningEvent],
+        to menu: DiningMenu,
+        periodStartMinutes: Int?,
+        periodEndMinutes: Int?
+    ) -> DiningMenu {
+        let matching = events.filter {
+            eventOverlapsMeal(
+                $0,
+                hallID: menu.locationId,
+                dateISO: menu.date,
+                periodStartMinutes: periodStartMinutes,
+                periodEndMinutes: periodEndMinutes
+            )
+        }
+        guard !matching.isEmpty else { return menu }
+        var stations = menu.stations
+        for event in matching {
+            let name = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if stations.contains(where: { collapsedStationName($0.name) == collapsedStationName(name) }) {
+                continue
+            }
+            let sid = "event:\(menu.locationId):\(collapsedStationName(name).replacingOccurrences(of: " ", with: "-"))"
+            let insertAt = stations.firstIndex {
+                stationLane(name: $0.name, stationID: $0.stationID, items: $0.items) > .hotEntree
+            } ?? stations.endIndex
+            stations.insert(MenuStation(name: name, items: [], stationID: sid), at: insertAt)
+        }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: pinTwistedRootFirst(stations)
+        )
+    }
+
+    public static func droppingEmptyStations(_ menu: DiningMenu) -> DiningMenu {
+        let kept = menu.stations.filter { !$0.items.isEmpty }
+        guard kept != menu.stations else { return menu }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: kept
+        )
     }
 
     // MARK: - Public API
@@ -570,9 +889,9 @@ public struct DiningService: Sendable {
         return await withHonestOasis(ordered, dateISO: dateISO)
     }
 
-    /// Hub already lists The Oasis (Coming Soon, no active menus) while Anteater
-    /// API only has Anteatery + Brandywine. Keep Coming Soon until Anteater or
-    /// Hub posts a real board — never invent dishes, hours occupancy, or busy-%.
+    /// Anteater API wins when `/restaurants` lists Oasis with a menu.
+    /// Else use Hub SKUs when they exist (even if the page still says Coming
+    /// Soon). Else keep the tile with Hub weekday hours and no invented dishes.
     private func withHonestOasis(
         _ ordered: [DiningLocation],
         dateISO: String
@@ -584,29 +903,24 @@ public struct DiningService: Sendable {
         }
         var next = ordered.filter { !HallDirectory.isOasis($0.id) }
         let hub = CampusService(http: http, cache: cache, now: now)
-        switch await hub.oasisHubListing() {
-        case .liveBoard(let urlKey):
-            let recipes = (try? await hub.menu(
-                for: urlKey,
-                placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
-                date: dateISO,
-                allowTypicalFallback: false
-            )) ?? []
-            if !recipes.isEmpty {
-                next.append(Self.oasisLocationFromHubRecipes(recipes, dateISO: dateISO, now: now()))
-                return next
-            }
-            next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
-            return next
-        case .comingSoon, .notListed:
-            next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
+        let urlKey = HallDirectory.campusHubKey(for: HallDirectory.oasisComingSoonID)
+            ?? "the-oasis-dining-hall"
+        let recipes = (try? await hub.menu(
+            for: urlKey,
+            placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+            date: dateISO,
+            allowTypicalFallback: false
+        )) ?? []
+        if !recipes.isEmpty {
+            next.append(Self.oasisLocationFromHubRecipes(recipes, dateISO: dateISO, now: now()))
             return next
         }
+        next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
+        return next
     }
 
-    /// Hub posted SKUs — meal-period names become available periods. After
-    /// `OasisSchedule.firstServiceISO`, attach Hub weekday hours so the tile
-    /// can show until/opens like the other halls.
+    /// Hub posted SKUs. Meal-period names become available periods. Attach
+    /// Hub weekday hours so the tile can show until/opens like the other halls.
     private static func oasisLocationFromHubRecipes(
         _ recipes: [MenuStation],
         dateISO: String,
@@ -636,8 +950,8 @@ public struct DiningService: Sendable {
         )
     }
 
-    /// Dining Hub: lunch + dinner, no breakfast, meal-plan only, Mesa Court,
-    /// Mon–Fri from `OasisSchedule.firstServiceISO`. No invented live board.
+    /// Placeholder tile while no official Oasis dishes exist. Hub weekday
+    /// hours are real; the board stays empty.
     public static func oasisComingSoonLocation(
         dateISO: String = UCITime.todayISO(),
         now: Date = Date()
@@ -662,7 +976,7 @@ public struct DiningService: Sendable {
             opensNextWeekday: (next?.dayOffset ?? 0) >= 2 ? next?.weekday : nil,
             opensNextPeriod: (next?.dayOffset ?? 0) >= 2 ? next?.period : nil,
             opensNextDateISO: (next?.dayOffset ?? 0) >= 2 ? next?.iso : nil,
-            comingSoonSubtitle: OasisComingSoonCopy.cardStatus(on: dateISO)
+            comingSoonSubtitle: OasisComingSoonCopy.unpostedCard
         )
     }
 
@@ -806,12 +1120,16 @@ public struct DiningService: Sendable {
         return (minutes, period)
     }
 
-    /// Always-visible Eat meal chips. Breakfast / Lunch / Dinner stay on screen
-    /// even when the live board has only posted one period (Atharv 7am peek).
-    public static let mealSelectorPills = ["Breakfast", "Lunch", "Dinner"]
+    /// Always-visible Eat meal chips. Unposted meals stay tappable and show
+    /// the empty board instead of invented dishes.
+    public static let mealSelectorPills = [
+        "Breakfast", "Lunch", "Afternoon Snack", "Dinner", "Late Night",
+    ]
 
-    /// Primary meal pills present on a board. Brunch maps into Breakfast;
-    /// All Day is folded into each meal as "Available all day" (no own pill).
+    /// Primary meal pills present on a board. Chronological: Breakfast, Lunch,
+    /// Afternoon Snack, Dinner, Late Night last. Brunch maps into Breakfast;
+    /// Evening Snack / Overnight map into Late Night; All Day is folded into
+    /// each meal as "Available all day" (no own pill).
     /// Prefer `mealSelectorPills` for the Eat chip row so unposted meals stay tappable.
     public static func primaryPeriods(from available: [String]) -> [String] {
         var result: [String] = []
@@ -822,13 +1140,24 @@ public struct DiningService: Sendable {
         if available.contains(where: { $0.caseInsensitiveCompare("Lunch") == .orderedSame }) {
             result.append("Lunch")
         }
+        if available.contains(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) {
+            result.append("Afternoon Snack")
+        }
         if available.contains(where: {
             $0.caseInsensitiveCompare("Dinner") == .orderedSame
                 || $0.caseInsensitiveCompare("Limited Dinner") == .orderedSame
         }) {
             result.append("Dinner")
         }
+        if available.contains(where: { MealPeriodPill.isLateNight($0.lowercased()) }) {
+            result.append("Late Night")
+        }
         return result
+    }
+
+    /// Whether this Eat chip has a real posted period (not an invented menu).
+    public static func pillIsPosted(_ pill: String, available: [String]) -> Bool {
+        primaryPeriods(from: available).contains { $0.caseInsensitiveCompare(pill) == .orderedSame }
     }
 
     /// Resolve a primary pill to the real API period name for a hall.
@@ -840,38 +1169,69 @@ public struct DiningService: Sendable {
         case "breakfast":
             return match("Breakfast") ?? match("Brunch") ?? primary
         case "lunch":
-            // Weekend Lunch is often an untimed All-Day clone; Brunch is the
-            // real midday board (Crossroads tacos). Prefer Lunch when it
-            // exists, then Brunch so a Lunch-only peek isn't empty.
+            // Posted Lunch only for the board. Brunch fallback is for
+            // chrome / widgets — menuPeriodNames will not scrape Brunch
+            // onto an unposted Lunch pill (that duplicated Breakfast).
             return match("Lunch") ?? match("Brunch") ?? primary
         case "dinner":
             return match("Dinner") ?? match("Limited Dinner") ?? primary
+        case "afternoon snack":
+            return available.first(where: { MealPeriodPill.isAfternoonSnack($0.lowercased()) }) ?? primary
+        case "late night":
+            return match("Late Night")
+                ?? match("Evening Snack")
+                ?? match("Overnight")
+                ?? available.first(where: { MealPeriodPill.isLateNight($0.lowercased()) })
+                ?? primary
         default:
             return match(primary) ?? primary
         }
     }
 
-    /// Periods to scrape for a primary pill. Lunch unions Brunch so weekend
-    /// midday dishes (Sesame Shrimp Taco on Brunch, missing from untimed Lunch)
-    /// still show when Lunch is selected. Breakfast stays Breakfast-only when
-    /// that period exists; otherwise it falls through to Brunch.
+    /// Chip label for an Eat pill. Weekend boards that only posted Brunch
+    /// show "Brunch" on the Breakfast chip so the row is not a fake B/L pair.
+    /// Overnight / Evening Snack always read as Late Night.
+    public static func mealPillLabel(_ pill: String, available: [String]) -> String {
+        if MealPeriodPill.canonical(pill) == "Late Night" { return "Late Night" }
+        guard pillIsPosted(pill, available: available) else { return pill }
+        let resolved = resolvePeriod(pill, available: available)
+        return MealPeriodDisplay.label(live: resolved, pill: pill)
+    }
+
+    public static func isWeekend(dateISO: String) -> Bool {
+        guard let weekday = EatPostedDays.weekdayName(dateISO) else { return false }
+        return weekday == "Saturday" || weekday == "Sunday"
+    }
+
+    /// Eat chips. Late Night is weekdays only, and only when that board posted.
+    public static func visibleMealPills(available: [String], dateISO: String) -> [String] {
+        mealSelectorPills.filter { pill in
+            guard MealPeriodPill.canonical(pill) == "Late Night" else { return true }
+            return !isWeekend(dateISO: dateISO) && pillIsPosted(pill, available: available)
+        }
+    }
+
+    /// Periods to scrape for a primary pill. Each pill keeps that period's
+    /// dishes — Lunch does not union Brunch (weekend Brunch is Breakfast ∪
+    /// All-Day, so the union made Breakfast and Lunch identical). Unposted
+    /// Lunch stays empty instead of copying the Brunch board already on
+    /// Breakfast. Breakfast still falls through to Brunch when that is the
+    /// only morning period.
     public static func menuPeriodNames(primary: String, available: [String]) -> [String] {
-        let resolved = resolvePeriod(primary, available: available)
-        var names: [String] = []
-        func add(_ needle: String) {
-            guard let match = available.first(where: {
-                $0.caseInsensitiveCompare(needle) == .orderedSame
-            }) else { return }
-            if !names.contains(where: { $0.caseInsensitiveCompare(match) == .orderedSame }) {
-                names.append(match)
-            }
+        func match(_ needle: String) -> String? {
+            available.first { $0.caseInsensitiveCompare(needle) == .orderedSame }
         }
-        add(resolved)
         if MealPeriodPill.canonical(primary) == "Lunch" {
-            add("Lunch")
-            add("Brunch")
+            // Posted Lunch only. Do not scrape Brunch — that board belongs
+            // on the Breakfast chip when Lunch was never published.
+            guard let lunch = match("Lunch") else { return [] }
+            return lunch.localizedCaseInsensitiveContains("all day") ? [] : [lunch]
         }
-        return names.filter { !$0.localizedCaseInsensitiveContains("all day") }
+        let resolved = resolvePeriod(primary, available: available)
+        guard !resolved.localizedCaseInsensitiveContains("all day"),
+              let name = match(resolved)
+        else { return [] }
+        return [name]
     }
 
     /// Weekend Brunch is often Breakfast plus the All-Day grill. After Lunch
@@ -887,11 +1247,76 @@ public struct DiningService: Sendable {
         guard !breakfastKeys.isEmpty else { return merged }
         let lunchKeys = hubBoardNameKeys(from: lunch.flatMap(\.items))
         return merged.compactMap { station in
+            // Weekend Brunch Twisted Root is the midday plant-based board.
+            // Those dishes often also appear at Breakfast; do not erase the
+            // station from Lunch after the Brunch union (Atharv Sat Oct 3).
+            if isTwistedRoot(stationName: station.name, stationID: station.stationID) {
+                return station
+            }
             let kept = station.items.filter { item in
                 appearsOnHubBoard(item, keys: lunchKeys) || !appearsOnHubBoard(item, keys: breakfastKeys)
             }
             return kept.isEmpty ? nil : station.withItems(kept)
         }
+    }
+
+    /// Eggs, hash, scramble stay on Breakfast even when Brunch copies them.
+    /// Shawarma / grain bowls that Brunch also lists are midday, not 9am.
+    public static func isBreakfastStyleTwistedRootName(_ name: String) -> Bool {
+        let n = name.lowercased()
+        let tokens = [
+            "scramble", "hash", "egg", "oatmeal", "sausage", "bacon",
+            "pancake", "waffle", "breakfast", "yogurt", "muffin", "chia",
+            "french toast",
+        ]
+        return tokens.contains { n.contains($0) }
+    }
+
+    /// Twisted Root names from Brunch / Lunch. Breakfast uses this to drop
+    /// midday entrees Anteater and Hub copy onto the 9am board.
+    public static func middayTwistedRootKeys(from groups: [[MenuStation]]) -> Set<String> {
+        let items = groups.flatMap { group in
+            group.filter { isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+                .flatMap(\.items)
+        } + groups.flatMap { group in
+            group.flatMap(\.items).filter { isTwistedRoot(stationName: "", stationID: $0.stationID) }
+        }
+        return hubBoardNameKeys(from: items)
+    }
+
+    public static func middayTwistedRootKeys(hubStations: [MenuStation]) -> Set<String> {
+        let midday = hubStations.filter { station in
+            let name = station.name.lowercased()
+            return name.contains("brunch") || (name.contains("lunch") && !name.contains("brunch"))
+        }
+        return middayTwistedRootKeys(from: [midday])
+    }
+
+    /// Keep hash/eggs on Breakfast. Drop shawarma and other Brunch Twisted
+    /// Root copies Atharv says are served at lunch (Sun Oct 4).
+    public static func subtractingMiddayTwistedRootFromBreakfast(
+        from stations: [MenuStation],
+        midday: [MenuStation]
+    ) -> [MenuStation] {
+        let middayKeys = middayTwistedRootKeys(from: [midday])
+        guard !middayKeys.isEmpty else { return stations }
+        return stations.compactMap { station in
+            guard isTwistedRoot(stationName: station.name, stationID: station.stationID) else {
+                return station
+            }
+            let kept = station.items.filter {
+                shouldKeepTwistedRootOnBreakfast($0, middayKeys: middayKeys)
+            }
+            return kept.isEmpty ? nil : station.withItems(kept)
+        }
+    }
+
+    static func shouldKeepTwistedRootOnBreakfast(
+        _ item: MenuItem,
+        middayKeys: Set<String>
+    ) -> Bool {
+        if isBreakfastStyleTwistedRootName(item.name) { return true }
+        return !appearsOnHubBoard(item, keys: middayKeys)
     }
 
     /// Union stations from several meal periods. Same station id (or name when
@@ -947,22 +1372,32 @@ public struct DiningService: Sendable {
     }
 
     /// Hub meal-period sections that belong on this Eat pill. Match by pill
-    /// name, not list position. Lunch unions Brunch; Breakfast uses Brunch
+    /// name, not list position. Lunch stays Lunch; Breakfast uses Brunch
     /// only when Hub posted no Breakfast; Dinner never picks up brunch.
     public static func hubMealStations(
         matchingPeriod period: String,
         in hubStations: [MenuStation]
     ) -> [MenuStation] {
+        let lowerPeriod = period.lowercased()
+        if lowerPeriod.contains("brunch") {
+            return hubStations.filter { $0.name.lowercased().contains("brunch") }
+        }
         let pill = MealPeriodPill.canonical(period)
         let hasBreakfast = hubStations.contains {
             let name = $0.name.lowercased()
             return name.contains("breakfast") && !name.contains("brunch")
         }
+        let hasLunch = hubStations.contains {
+            let name = $0.name.lowercased()
+            return name.contains("lunch") && !name.contains("brunch")
+        }
         return hubStations.filter { station in
             let name = station.name.lowercased()
             switch pill {
             case "Lunch":
-                return name.contains("lunch") || name.contains("brunch")
+                // Do not pull Brunch onto Lunch — weekend Brunch is the
+                // breakfast board plus All Day, which made the pills match.
+                return hasLunch && name.contains("lunch") && !name.contains("brunch")
             case "Breakfast":
                 if hasBreakfast {
                     return name.contains("breakfast") && !name.contains("brunch")
@@ -1050,6 +1485,36 @@ public struct DiningService: Sendable {
         dietLookupKeys(for: item.name).contains { keys.contains($0) }
     }
 
+    /// Each timed meal is its own family. All Day is ignored. Brunch is not
+    /// Lunch — weekend Brunch copies Breakfast, and treating them as one
+    /// family leaked eggs onto the Lunch pill.
+    static func hubMealFamily(for period: String) -> String? {
+        let lower = period.lowercased()
+        if lower.contains("all day") { return nil }
+        if MealPeriodPill.isLateNight(lower) { return "late night" }
+        if MealPeriodPill.isAfternoonSnack(lower) { return "afternoon snack" }
+        if lower.contains("brunch") { return "brunch" }
+        if lower.contains("lunch") { return "lunch" }
+        if lower.contains("breakfast") { return "breakfast" }
+        if lower.contains("dinner") { return "dinner" }
+        return nil
+    }
+
+    static func appearsOnOtherHubMealFamily(
+        _ item: MenuItem,
+        period: String,
+        hubStations: [MenuStation]
+    ) -> Bool {
+        guard let live = hubMealFamily(for: period) else { return false }
+        let other = hubStations
+            .filter { station in
+                guard let family = hubMealFamily(for: station.name) else { return false }
+                return family != live
+            }
+            .flatMap(\.items)
+        return appearsOnHubBoard(item, keys: hubBoardNameKeys(from: other))
+    }
+
     /// Hub meal items whose station id belongs on this Eat hall.
     static func hubMealHasStationTags(onHall hallID: String, board: [MenuItem]) -> Bool {
         board.contains { item in
@@ -1100,9 +1565,32 @@ public struct DiningService: Sendable {
             )
             let isTwisted = isTwistedRoot(stationName: station.name, stationID: station.stationID)
             if isTwisted, hubTagged {
-                guard !hubForStation.isEmpty else { return nil }
+                let lunchPill = MealPeriodPill.canonical(menu.period) == "Lunch"
+                // Weekend Lunch Hub often tags only all-day fries on TR,
+                // or nothing at all. That is not the midday board — keep
+                // Anteater Brunch TR (Atharv Sat Oct 3). Dinner leftovers
+                // still drop when Hub tagged other stations and not TR.
+                if hubForStation.isEmpty {
+                    return lunchPill ? station : nil
+                }
+                if lunchPill {
+                    let allDayKeys = hubBoardNameKeys(from: hubStations
+                        .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+                        .flatMap(\.items))
+                    let hubIsOnlyAllDayStaples = hubForStation.allSatisfy {
+                        appearsOnHubBoard($0, keys: allDayKeys)
+                    }
+                    if hubIsOnlyAllDayStaples { return station }
+                }
                 let keys = hubBoardNameKeys(from: hubForStation)
                 let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
+                if MealPeriodPill.canonical(menu.period) == "Breakfast" {
+                    let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
+                    let breakfastKept = kept.filter {
+                        shouldKeepTwistedRootOnBreakfast($0, middayKeys: middayKeys)
+                    }
+                    return breakfastKept.isEmpty ? nil : station.withItems(breakfastKept)
+                }
                 return kept.isEmpty ? nil : station.withItems(kept)
             }
             guard !hubForStation.isEmpty else { return station }
@@ -1121,8 +1609,8 @@ public struct DiningService: Sendable {
     /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
     /// that aren't All-Day grill/salad staples and aren't already on the board.
     /// Twisted Root extras that Hub filed on this meal still union even when
-    /// Hub also lists them on All Day. All-Day-only Twisted Root (no timed
-    /// meal tag) still shows on every pill; a dish tagged to one meal does not.
+    /// Hub also lists them on All Day. All-Day fries/rice that Hub copies onto
+    /// every meal stay off the Twisted Root section (Atharv Fri board).
     public static func hubExclusiveItems(
         onMenu menu: DiningMenu,
         hubStations: [MenuStation]
@@ -1135,20 +1623,32 @@ public struct DiningService: Sendable {
         let allDayItems = hubStations
             .filter { $0.name.localizedCaseInsensitiveContains("all day") }
             .flatMap(\.items)
-        let allDayNames = Set(allDayItems.map { $0.name.lowercased() })
-        var seen = Set(menu.stations.flatMap(\.items).map { $0.name.lowercased() })
+        let allDayKeys = hubBoardNameKeys(from: allDayItems)
+        var seen = Set(menu.stations.flatMap(\.items).flatMap { dietLookupKeys(for: $0.name) })
         var extras: [MenuItem] = []
         func consider(_ item: MenuItem) {
-            let key = item.name.lowercased()
-            if seen.contains(key) { return }
+            let keys = dietLookupKeys(for: item.name)
+            if keys.contains(where: { seen.contains($0) }) { return }
             if !stationBelongs(onHall: menu.locationId, stationID: item.stationID) { return }
             let twisted = isTwistedRoot(stationName: "", stationID: item.stationID)
-            if !twisted, allDayNames.contains(key) { return }
-            seen.insert(key)
+            let onAllDay = appearsOnHubBoard(item, keys: allDayKeys)
+            let onOtherMeal = appearsOnOtherHubMealFamily(
+                item, period: menu.period, hubStations: hubStations
+            )
+            // Grill fries / rice Hub dumps on All Day plus every meal are not
+            // tonight's Twisted Root entrees. Meal-tagged TR food (tofu) still
+            // unions even when Hub also lists it on All Day.
+            if onAllDay, onOtherMeal { return }
+            if twisted, MealPeriodPill.canonical(menu.period) == "Breakfast" {
+                let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
+                if !shouldKeepTwistedRootOnBreakfast(item, middayKeys: middayKeys) { return }
+            }
+            if !twisted, onAllDay { return }
+            if !twisted, onOtherMeal { return }
+            for key in keys { seen.insert(key) }
             extras.append(item)
         }
         for item in matching { consider(item) }
-        for item in allDayOnlyTwistedRootItems(in: hubStations) { consider(item) }
         return extras
     }
 
@@ -1167,8 +1667,21 @@ public struct DiningService: Sendable {
         return existingID == extraID
     }
 
-    public static func insertingHubExtras(_ extras: [MenuItem], into menu: DiningMenu) -> DiningMenu {
-        guard !extras.isEmpty else { return menu }
+    public static func insertingHubExtras(
+        _ extras: [MenuItem],
+        into menu: DiningMenu,
+        stationNames: [String: String] = [:]
+    ) -> DiningMenu {
+        guard !extras.isEmpty else {
+            let pinned = pinTwistedRootFirst(menu.stations)
+            guard pinned != menu.stations else { return menu }
+            return DiningMenu(
+                locationId: menu.locationId,
+                date: menu.date,
+                period: menu.period,
+                stations: pinned
+            )
+        }
         var stations = menu.stations
         var leftover: [MenuItem] = []
 
@@ -1210,7 +1723,7 @@ public struct DiningService: Sendable {
                 merge(into: idx, items: [item], stationID: sid)
                 continue
             }
-            let name = displayStationName(nil, stationID: sid)
+            let name = displayStationName(stationNames[sid], stationID: sid)
             if let idx = stations.firstIndex(where: {
                 $0.name.caseInsensitiveCompare(name) == .orderedSame
                     && canMergeHubExtra(into: $0, extraStationID: sid)
@@ -1230,11 +1743,6 @@ public struct DiningService: Sendable {
         }
 
         stations = pinTwistedRootFirst(stations)
-        if let allDayIdx = stations.firstIndex(where: { CampusMenuNormalize.isAvailableAllDay($0.name) }),
-           allDayIdx != stations.count - 1 {
-            let allDay = stations.remove(at: allDayIdx)
-            stations.append(allDay)
-        }
 
         return DiningMenu(
             locationId: menu.locationId,
@@ -1255,25 +1763,45 @@ public struct DiningService: Sendable {
     ) async throws -> DiningMenu {
         let dateISO = date ?? PacificTime.todayISO(now: now())
         if HallDirectory.isOasis(hall) {
-            if let hubMenu = await oasisHubMenu(
-                period: period,
-                dateISO: dateISO,
-                forceRefresh: forceRefresh
-            ) {
-                return hubMenu
+            let listed = ((try? await restaurants()) ?? []).contains {
+                HallDirectory.isOasis($0.id)
             }
-            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+            if !listed {
+                if let hubMenu = await oasisHubMenu(
+                    period: period,
+                    dateISO: dateISO,
+                    forceRefresh: forceRefresh
+                ) {
+                    return await applyingOverrides(hubMenu, forceRefresh: forceRefresh)
+                }
+                return await applyingOverrides(
+                    DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                    forceRefresh: forceRefresh
+                )
+            }
         }
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
         let available = (today.periods ?? [:]).values.map(\.name)
 
         // No periods published for this day yet (404 mapped to empty, or blank payload).
         guard !available.isEmpty else {
-            return DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
+            return await applyingOverrides(
+                DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                forceRefresh: forceRefresh
+            )
         }
 
         let resolved = Self.resolvePeriod(period, available: available)
         let periodNames = Self.menuPeriodNames(primary: period, available: available)
+        // Unposted Lunch (weekend Brunch-only board) must stay empty — do
+        // not invent dishes or copy the Brunch already shown on Breakfast.
+        // Dated overrides may still insert a verified dish onto that pill.
+        guard !periodNames.isEmpty else {
+            return await applyingOverrides(
+                DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                forceRefresh: forceRefresh
+            )
+        }
         let stationNames = try await stationMap()
 
         var mealStations: [MenuStation] = []
@@ -1301,11 +1829,45 @@ public struct DiningService: Sendable {
                 breakfast: breakfastStations
             )
         }
+        if MealPeriodPill.canonical(period) == "Breakfast",
+           scraped.contains(where: {
+               $0.key.caseInsensitiveCompare("Breakfast") == .orderedSame
+           }),
+           let brunchName = available.first(where: {
+               $0.caseInsensitiveCompare("Brunch") == .orderedSame
+           }) {
+            // Only when Breakfast and Brunch both exist. A Breakfast pill
+            // that fell through to Brunch-only keeps the full midday board.
+            let brunchStations: [MenuStation]
+            if let cached = scraped.first(where: {
+                $0.key.caseInsensitiveCompare("Brunch") == .orderedSame
+            })?.value {
+                brunchStations = cached
+            } else {
+                brunchStations = try await stations(
+                    for: brunchName, in: today, stationNames: stationNames
+                )
+            }
+            mealStations = Self.subtractingMiddayTwistedRootFromBreakfast(
+                from: mealStations,
+                midday: brunchStations
+            )
+        }
 
         let periodMatched = periodNames.contains { name in
             available.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
         }
+        // Weekend Brunch is timed and equals Breakfast ∪ All Day. Folding
+        // All Day onto Breakfast makes the Breakfast pill match Brunch/Lunch.
+        let brunchIsTimed = (today.periods ?? [:]).values.contains { period in
+            period.name.localizedCaseInsensitiveContains("brunch")
+                && PacificTime.parseMinutes(period.startTime) != nil
+                && PacificTime.parseMinutes(period.endTime) != nil
+        }
+        let skipAllDayOnBreakfast = brunchIsTimed
+            && MealPeriodPill.canonical(period) == "Breakfast"
         if periodMatched,
+           !skipAllDayOnBreakfast,
            !resolved.localizedCaseInsensitiveContains("all day"),
            available.contains(where: { $0.localizedCaseInsensitiveContains("all day") }) {
             let allDayName = available.first { $0.localizedCaseInsensitiveContains("all day") }!
@@ -1326,24 +1888,32 @@ public struct DiningService: Sendable {
             locationId: hall,
             date: dateISO,
             period: resolved,
-            stations: mealStations
+            stations: Self.pinTwistedRootFirst(mealStations)
         )
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
-        return await enrichDietTags(built, forceRefresh: forceRefresh)
+        let enriched = await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
+        let periodMatch = (today.periods ?? [:]).values.first {
+            $0.name.caseInsensitiveCompare(resolved) == .orderedSame
+        }
+        return await applyingOverrides(
+            enriched,
+            forceRefresh: forceRefresh,
+            periodStartMinutes: PacificTime.parseMinutes(periodMatch?.startTime),
+            periodEndMinutes: PacificTime.parseMinutes(periodMatch?.endTime)
+        )
     }
 
-    /// Scrape Dining Hub recipes when Oasis is populated. Empty Hub / Coming Soon
-    /// / typical-menu packs all resolve to nil so Eat never invents a board.
+    /// Official Hub SKUs when Anteater still omits Oasis. Empty Hub / typical
+    /// packs resolve to nil so Eat never invents a board.
     private func oasisHubMenu(
         period: String,
         dateISO: String,
         forceRefresh: Bool
     ) async -> DiningMenu? {
         let hub = CampusService(http: http, cache: cache, now: now)
-        guard case .liveBoard(let urlKey) = await hub.oasisHubListing() else {
-            return nil
-        }
+        let urlKey = HallDirectory.campusHubKey(for: HallDirectory.oasisComingSoonID)
+            ?? "the-oasis-dining-hall"
         let stations = (try? await hub.menu(
             for: urlKey,
             placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
@@ -1358,17 +1928,84 @@ public struct DiningService: Sendable {
         let matched = names.compactMap { name in
             stations.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
         }
+        // Empty names means this pill is not posted — do not dump every Hub
+        // station onto Lunch when the only morning board is Brunch.
+        guard !names.isEmpty else {
+            return DiningMenu(
+                locationId: HallDirectory.oasisComingSoonID,
+                date: dateISO,
+                period: period,
+                stations: []
+            )
+        }
         let board = matched.isEmpty ? stations : Self.mergeStationLists([matched])
         return DiningMenu(
             locationId: HallDirectory.oasisComingSoonID,
             date: dateISO,
             period: resolved,
-            stations: board
+            stations: Self.pinTwistedRootFirst(board)
         )
     }
 
+    /// Dated verified inserts / corrections from GitHub `menu-overrides.json`,
+    /// plus Anteater `/events` takeover labels. Bundled fallback covers this
+    /// build if `main` lags. Empty event stations drop after dishes land.
+    private func applyingOverrides(
+        _ menu: DiningMenu,
+        forceRefresh: Bool,
+        periodStartMinutes: Int? = nil,
+        periodEndMinutes: Int? = nil
+    ) async -> DiningMenu {
+        if forceRefresh {
+            await cache.invalidate("menu-overrides")
+            await cache.invalidate("dining:events")
+        }
+        async let feedTask: MenuOverrideFeed.Feed = cache.remember("menu-overrides", ttl: Self.todayTTL) {
+            await MenuOverrideFeed.fetch(http: self.http)
+        }
+        async let eventsTask: [DiningEvent] = diningEvents(forceRefresh: forceRefresh)
+        let feed = await feedTask
+        let events = await eventsTask
+        let withEvents = Self.attachingEvents(
+            events,
+            to: menu,
+            periodStartMinutes: periodStartMinutes,
+            periodEndMinutes: periodEndMinutes
+        )
+        let applied = MenuOverrideFeed.applying(feed, to: withEvents)
+        return Self.droppingEmptyStations(applied)
+    }
+
+    private func diningEvents(forceRefresh: Bool) async -> [DiningEvent] {
+        if forceRefresh {
+            await cache.invalidate("dining:events")
+        }
+        return await cache.remember("dining:events", ttl: Self.todayTTL) {
+            do {
+                let raw = try await getData([APIEvent].self, path: "/events")
+                return raw.compactMap { row in
+                    let title = row.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let hall = row.restaurantId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    guard !title.isEmpty, !hall.isEmpty else { return nil }
+                    return DiningEvent(
+                        title: title,
+                        restaurantId: hall,
+                        start: Self.parseEventDate(row.start),
+                        end: Self.parseEventDate(row.end)
+                    )
+                }
+            } catch {
+                return []
+            }
+        }
+    }
+
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.
-    private func enrichDietTags(_ menu: DiningMenu, forceRefresh: Bool = false) async -> DiningMenu {
+    private func enrichDietTags(
+        _ menu: DiningMenu,
+        stationNames: [String: String] = [:],
+        forceRefresh: Bool = false
+    ) async -> DiningMenu {
         guard let hubKey = HallDirectory.campusHubKey(for: menu.locationId) else { return menu }
         let hubStations: [MenuStation]
         do {
@@ -1432,7 +2069,28 @@ public struct DiningService: Sendable {
 
         let onBoard = Self.droppingOffBoardAnteaterItems(onMenu: tagged, hubStations: hubStations)
         let extras = Self.hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
-        return Self.insertingHubExtras(extras, into: onBoard)
+        let combined = Self.insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
+        let reconciled: DiningMenu
+        if MealPeriodPill.canonical(combined.period) == "Breakfast" {
+            let midday = Self.hubMealStations(matchingPeriod: "Lunch", in: hubStations)
+            let trimmed = Self.subtractingMiddayTwistedRootFromBreakfast(
+                from: combined.stations,
+                midday: midday
+            )
+            if trimmed != combined.stations {
+                reconciled = DiningMenu(
+                    locationId: combined.locationId,
+                    date: combined.date,
+                    period: combined.period,
+                    stations: Self.pinTwistedRootFirst(trimmed)
+                )
+            } else {
+                reconciled = combined
+            }
+        } else {
+            reconciled = combined
+        }
+        return reconciled
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").

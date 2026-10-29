@@ -33,6 +33,7 @@ struct SettingsView: View {
                         notificationsCard
                         sourcesCard
                         aboutCard
+                        shareCard
                     }
                     .padding(.horizontal, 20)
                 }
@@ -258,7 +259,7 @@ struct SettingsView: View {
             sourceRow(
                 icon: "cup.and.saucer.fill",
                 title: "Dining Hub",
-                subtitle: "Retail hours. Live café board only when Hub publishes; typical packs stay labeled, never as today. Oasis is still Coming Soon.",
+                subtitle: "Retail hours. Live café board only when Hub publishes; typical packs stay labeled, never as today. Oasis shows hours until UCI posts a menu.",
                 url: "https://uci.campusdish.com"
             )
             ZotHairline(leading: 0)
@@ -355,6 +356,39 @@ struct SettingsView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zotCard()
+    }
+
+    // MARK: - Share
+
+    /// Last row on Settings. Native share sheet, live App Store URL.
+    private var shareCard: some View {
+        ShareLink(
+            item: AnteatsShare.appStoreURL,
+            subject: Text("Anteats"),
+            message: Text(AnteatsShare.message)
+        ) {
+            HStack(spacing: 12) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(AnteatsShare.rowTitle)
+                        .font(ZotFont.body)
+                        .foregroundStyle(.primary)
+                    Text(AnteatsShare.rowSubtitle)
+                        .font(ZotFont.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+            }
+            .comfortableRowHit()
+            .padding(14)
+        }
+        .buttonStyle(.plain)
+        .zotCard()
+        .accessibilityLabel("Share Anteats. Opens the share sheet.")
+        .accessibilityIdentifier("settings-share-row")
     }
 
     private static var versionString: String {

@@ -12,6 +12,54 @@ struct EatMealWindowTests {
         #expect(EatMealWindow.clockPill(nowMinutes: 14 * 60 + 29) == "Lunch")
         #expect(EatMealWindow.clockPill(nowMinutes: 14 * 60 + 30) == "Dinner")
         #expect(EatMealWindow.clockPill(nowMinutes: 15 * 60 + 30) == "Dinner")
+        #expect(EatMealWindow.afternoonSnackEndMinutes == 16 * 60 + 30)
+        #expect(EatMealWindow.dinnerEndMinutes == 20 * 60)
+        #expect(EatMealWindow.autoSelectCuts.contains(EatMealWindow.afternoonSnackEndMinutes))
+        #expect(EatMealWindow.autoSelectCuts.contains(EatMealWindow.dinnerEndMinutes))
+    }
+
+    @Test func liveAfternoonSnackAndEveningSnackWinOverClock() {
+        let weekday = [
+            MealPeriodWindow(name: "Breakfast", startMinutes: 7 * 60 + 15, endMinutes: 11 * 60),
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60 + 30),
+            MealPeriodWindow(name: "Afternoon Snack", startMinutes: 14 * 60 + 30, endMinutes: 16 * 60 + 30),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+            MealPeriodWindow(name: "Evening Snack", startMinutes: 20 * 60, endMinutes: 23 * 60),
+        ]
+        let available = weekday.map(\.name)
+        #expect(
+            EatMealWindow.autoPill(timedPeriods: weekday, availablePeriods: available, nowMinutes: 15 * 60)
+                == "Afternoon Snack"
+        )
+        #expect(
+            EatMealWindow.autoPill(timedPeriods: weekday, availablePeriods: available, nowMinutes: 18 * 60)
+                == "Dinner"
+        )
+        #expect(
+            EatMealWindow.autoPill(timedPeriods: weekday, availablePeriods: available, nowMinutes: 21 * 60)
+                == "Late Night"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Dinner",
+                availablePeriods: available,
+                timedPeriods: weekday,
+                nowMinutes: 21 * 60,
+                browsingFutureDay: false
+            ) == "Late Night"
+        )
+        let untimedSnack = [
+            MealPeriodWindow(name: "Lunch", startMinutes: 11 * 60, endMinutes: 14 * 60 + 30),
+            MealPeriodWindow(name: "Afternoon Snack", startMinutes: nil, endMinutes: nil),
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+        ]
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: untimedSnack,
+                availablePeriods: ["Lunch", "Afternoon Snack", "Dinner"],
+                nowMinutes: 15 * 60
+            ) == "Afternoon Snack"
+        )
     }
 
     @Test func sundayBrunchBoardFollowsBldCuts() {
@@ -72,6 +120,56 @@ struct EatMealWindowTests {
                 pills: pills,
                 nowMinutes: 15 * 60 + 30
             )
+        )
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: brunchOnly,
+                availablePeriods: ["Brunch", "Dinner"],
+                nowMinutes: 12 * 60
+            ) == "Breakfast"
+        )
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: [
+                    MealPeriodWindow(name: "Breakfast", startMinutes: 435, endMinutes: 630),
+                ],
+                availablePeriods: ["Breakfast"],
+                nowMinutes: 700
+            ) == "Lunch"
+        )
+    }
+
+    @Test func weekendDoesNotAutoSelectLateNight() {
+        let overnight = [
+            MealPeriodWindow(name: "Dinner", startMinutes: 16 * 60 + 30, endMinutes: 20 * 60),
+            MealPeriodWindow(name: "Overnight", startMinutes: 20 * 60, endMinutes: 23 * 60),
+        ]
+        let available = ["Breakfast", "Dinner", "Overnight"]
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: overnight,
+                availablePeriods: available,
+                nowMinutes: 21 * 60,
+                dateISO: "2026-10-26"
+            ) == "Late Night"
+        )
+        #expect(
+            EatMealWindow.autoPill(
+                timedPeriods: overnight,
+                availablePeriods: available,
+                nowMinutes: 21 * 60,
+                dateISO: "2026-10-25"
+            ) == "Dinner"
+        )
+        #expect(
+            EatPeriodSelection.snap(
+                current: "Late Night",
+                availablePeriods: available,
+                timedPeriods: overnight,
+                nowMinutes: 21 * 60,
+                browsingFutureDay: true,
+                dateISO: "2026-10-24"
+            ) != "Late Night"
         )
     }
 }

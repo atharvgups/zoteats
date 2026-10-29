@@ -4,26 +4,29 @@ import Testing
 
 @Suite("EatHallCardChrome")
 struct EatHallCardChromeTests {
-    @Test func oasisShowsOpenDateBeforeFirstService() {
+    @Test func oasisPlaceholderOpenSaysMenuNotPosted() {
         let status = EatHallCardChrome.status(
             comingSoon: true,
-            state: .open(period: "Lunch", closesAt: 900),
+            state: .open(period: "Dinner", closesAt: 20 * 60),
             opensTomorrowAtMinutes: nil,
-            todayISO: "2026-09-21"
+            todayISO: "2026-10-22"
         )
-        #expect(status.primary == "Opens Mon Oct 5")
+        #expect(status.primary == "Menu not posted")
         #expect(status.secondary == nil)
-        #expect(status.tone == .muted)
+        #expect(status.tone == .open)
+        #expect(status.accessibilityLine == "Open, menu not posted")
+        #expect(!status.primary.contains("Oct"))
+        #expect(!status.primary.localizedCaseInsensitiveContains("coming soon"))
     }
 
-    @Test func oasisUsesHoursAfterFirstService() {
+    @Test func oasisPlaceholderBeforeLunchSaysOpens() {
         let status = EatHallCardChrome.status(
             comingSoon: true,
-            state: .open(period: "Lunch", closesAt: 14 * 60 + 30),
+            state: .openingLater(period: "Lunch", opensAt: 11 * 60),
             todayISO: OasisSchedule.firstServiceISO
         )
-        #expect(status.primary == "until 2:30 PM")
-        #expect(status.tone == .open)
+        #expect(status.primary == "opens 11 AM")
+        #expect(status.tone == .muted)
     }
 
     @Test func openShowsUntilClockGreen() {

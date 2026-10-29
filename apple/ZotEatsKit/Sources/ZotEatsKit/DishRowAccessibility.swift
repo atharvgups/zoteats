@@ -8,7 +8,8 @@ public enum DishRowAccessibility {
         calories: Int?,
         dietaryTags: [String],
         allergens: [String],
-        stars: Int? = nil
+        stars: Int? = nil,
+        reportedMissing: Bool = false
     ) -> String {
         let name = dishName.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = [name.isEmpty ? "Dish" : name]
@@ -33,6 +34,10 @@ public enum DishRowAccessibility {
 
         if let stars, stars > 0 {
             parts.append(MealReviewAccessibility.starsLabel(stars))
+        }
+
+        if reportedMissing {
+            parts.append(DishReportCopy.missingNote)
         }
 
         return parts.joined(separator: ", ")

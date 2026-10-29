@@ -428,6 +428,9 @@ final class Preferences {
     /// Community (other people) reviews fetched for dish sheets.
     var communityReviews: [MealReview] = []
 
+    /// Shared dish-wrong flags for the selected hall, meal, and day.
+    var communityDishReports: [DishReport] = []
+
     init() {
         reviewerID = DurableStore.reviewerID()
         favoriteDishNames = Set(SharedDefaults.favoriteDishNames())
@@ -444,6 +447,7 @@ final class Preferences {
         allergenAvoids = Set(SharedDefaults.allergenAvoids())
         mealReviews = SharedDefaults.mealReviews()
         communityReviews = CommunityReviewFeed.cachedReviews()
+        communityDishReports = CommunityDishReportFeed.cachedReports()
         // Init assignments skip didSet — persist under stable keys so a
         // marketing-version bump cannot drop hearts.
         SharedDefaults.setDietFilters(Array(dietFilters).sorted())
@@ -569,6 +573,120 @@ final class Preferences {
         if next != communityReviews {
             communityReviews = next
         }
+    }
+
+    func isReportedMissing(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String
+    ) -> Bool {
+        DishReportLogic.isReportedMissing(
+            in: communityDishReports,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName
+        )
+    }
+
+    func myDishReport(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String
+    ) -> DishReport? {
+        DishReportLogic.lookup(
+            communityDishReports,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName,
+            authorID: reviewerID
+        )
+    }
+
+    func loadCommunityDishReports(http: any HTTPFetching = HTTPClient()) async {
+        let next = await CommunityDishReportFeed.fetch(http: http)
+        if next != communityDishReports {
+            communityDishReports = next
+        }
+    }
+
+    func submitDishReport(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        reason: DishReportReason,
+        http: any HTTPFetching = HTTPClient()
+    ) async {
+        communityDishReports = DishReportLogic.upsert(
+            existing: communityDishReports,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName,
+            reason: reason,
+            authorID: reviewerID
+        )
+        CommunityDishReportFeed.persist(communityDishReports)
+        Haptics.light()
+        let next = await CommunityDishReportFeed.submit(
+            http: http,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName,
+            reason: reason,
+            authorID: reviewerID
+        )
+        if next != communityDishReports {
+            communityDishReports = next
+        }
+    }
+
+    func submitDishFeedback(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        text: String,
+        http: any HTTPFetching = HTTPClient()
+    ) async {
+        DishFeedbackLogic.markNoted(
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName
+        )
+        Haptics.light()
+        let clipped = DishFeedbackLogic.clipped(text)
+        let history = DishFeedbackLogic.loadHistory()
+        let now = Date()
+        guard !clipped.isEmpty else { return }
+        guard DishFeedbackLogic.canSend(history: history, now: now) else { return }
+        DishFeedbackLogic.saveHistory(DishFeedbackLogic.recordedHistory(history, now: now))
+        _ = await CommunityDishReportFeed.submitFeedback(
+            http: http,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName,
+            text: clipped,
+            authorID: reviewerID,
+            now: now
+        )
     }
 
     private func schedulePublish(dishName: String, delay: Duration) {

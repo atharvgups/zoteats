@@ -8,11 +8,11 @@ are shared so other Anteats users can read them.
 
 ## What we collect
 
-Anonymous dish ratings and optional short written reviews.
+Anonymous dish ratings, optional short written reviews, and optional flags when a listing looks wrong.
 
 - No accounts or sign-in. The app has no login of any kind.
 - No analytics, no crash reporting SDKs, no advertising, no tracking of any kind.
-- Ratings use a random on-device id, not your name, email, or Apple ID.
+- Ratings and dish flags use a random on-device id, not your name, email, or Apple ID.
 
 ## What stays on your device
 
@@ -32,6 +32,12 @@ the shared community feed (`apple/community-reviews.json` on GitHub, the same
 store the app already reads). Other people using Anteats can see the aggregate
 and the written notes. You can clear your rating in the dish sheet.
 
+When you flag a dish as not at this hall, not being served, or on the wrong
+station, Anteats publishes that flag to `apple/community-dish-reports.json` on
+the same GitHub backend, keyed by date, hall, meal, and dish id. Enough flags
+on the same listing can show a Reported missing note. The dish stays on the
+board. Flags never invent or move dishes.
+
 ## Network requests
 
 The app fetches public campus data over standard HTTPS with no account
@@ -41,7 +47,7 @@ identifiers or personal data attached. Sources:
 - `api.elevate-dxp.com` — UCI Dining Hub campus food hours and retail menus
 - `waitz.io` — public live occupancy for UCI libraries (and related facilities)
 - `uci.libcal.com` — official Langson + Science library building hours
-- GitHub (`raw.githubusercontent.com`) — community dish ratings and reviews
+- GitHub (`raw.githubusercontent.com`) — community dish ratings, reviews, and listing flags
 
 Like any web request, the operators of those services may see your IP address as
 part of serving the request; Anteats sends nothing else. We do not operate those

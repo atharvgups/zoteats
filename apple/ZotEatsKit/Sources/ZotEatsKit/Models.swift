@@ -61,6 +61,18 @@ public enum HallDirectory {
         }
     }
 
+    /// Dining-hub `url_key` → Anteater / Eat hall id.
+    public static func eatHallID(forHubKey key: String) -> String? {
+        switch key.lowercased() {
+        case "the-anteatery": return "anteatery"
+        case "brandywine": return "brandywine"
+        case "oasis", "the-oasis", "the-oasis-dining-hall":
+            return oasisComingSoonID
+        default:
+            return nil
+        }
+    }
+
     /// True when this id is Oasis (live or Coming Soon placeholder).
     public static func isOasis(_ id: String) -> Bool {
         switch id.lowercased() {
@@ -194,8 +206,8 @@ public struct DiningLocation: Codable, Sendable, Identifiable, Equatable {
     public let opensNextPeriod: String?
     /// Irvine ISO for `opensNext*` (deep links / See-next CTA).
     public let opensNextDateISO: String?
-    /// Non-nil for halls Hub lists before menus exist (e.g. The Oasis).
-    /// Never invent a live board for these — Eat shows the Opens-date line.
+    /// Non-nil for Oasis while no official dishes exist. Eat shows hours and
+    /// "Menu not posted" instead of inventing a board.
     public let comingSoonSubtitle: String?
 
     public init(

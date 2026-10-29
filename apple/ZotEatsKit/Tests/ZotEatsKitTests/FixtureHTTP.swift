@@ -19,13 +19,27 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "dishes_batch"
         } else if path.hasSuffix("/dateRange") {
             fixture = "date_range"
+        } else if path.hasSuffix("/events") {
+            return Data(#"{"ok":true,"data":[]}"#.utf8)
         } else if url.host == "waitz.io" {
             fixture = "waitz"
         } else if url.host?.contains("libcal") == true {
             fixture = "libcal_hours_today"
+        } else if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
         } else if url.host?.contains("elevate-dxp.com") == true {
             let query = url.query ?? ""
-            fixture = query.contains("getLocationMealPeriodRecipes") ? "campus_menu" : "campus_locations"
+            if query.contains("getLocationMealPeriodRecipes") {
+                let oasisKey = query.contains("the-oasis") || query.contains("oasis")
+                if oasisKey {
+                    return Data(
+                        #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8
+                    )
+                }
+                fixture = "campus_menu"
+            } else {
+                fixture = "campus_locations"
+            }
         } else {
             throw UnexpectedRequest(url: url)
         }
@@ -49,7 +63,7 @@ struct FailingHTTP: HTTPFetching {
     }
 }
 
-/// Hub marked Oasis live but posted no SKUs — still Coming Soon, no typical pack.
+/// Hub marked Oasis live but posted no SKUs. Eat stays unposted.
 struct OasisEmptyLiveHubHTTP: HTTPFetching {
     func data(from url: URL) async throws -> Data {
         if url.host?.contains("elevate-dxp.com") == true {
@@ -84,6 +98,39 @@ struct OasisLiveHubHTTP: HTTPFetching {
                 {"data":{"getLocations":[{"commerceAttributes":{"url_key":"the-oasis-dining-hall","hasActiveMenus":true},"aemAttributes":{"name":"The Oasis"}}]}}
                 """.utf8
             )
+        }
+        return try await FixtureHTTP().data(from: url)
+    }
+}
+
+/// Anteater `/restaurants` lists Oasis with a real Lunch board.
+struct OasisAnteaterAPIHTTP: HTTPFetching {
+    func data(from url: URL) async throws -> Data {
+        let path = url.path
+        if path.hasSuffix("/restaurants") {
+            return Data(
+                #"{"ok":true,"data":[{"id":"anteatery","stations":[]},{"id":"brandywine","stations":[]},{"id":"oasis","stations":[{"id":"1","name":"Grill"}]}]}"#.utf8
+            )
+        }
+        if path.hasSuffix("/restaurantToday") {
+            let hall = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "id" })?
+                .value ?? ""
+            if hall == "oasis" {
+                return Data(
+                    #"{"ok":true,"data":{"id":"oasis","periods":{"lunch":{"name":"Lunch","startTime":"11:00:00","endTime":"14:30:00","stationToDishes":{"1":["oasis-rice"]}}}}}"#.utf8
+                )
+            }
+            return Data(#"{"ok":true,"data":{"id":"\#(hall)","periods":{}}}"#.utf8)
+        }
+        if path.hasSuffix("/dishes/batch") {
+            return Data(
+                #"{"ok":true,"data":[{"id":"oasis-rice","stationId":"1","name":"Rice Bowl","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":null}]}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dateRange") {
+            return try FixtureHTTP.load("date_range")
         }
         return try await FixtureHTTP().data(from: url)
     }
@@ -133,6 +180,9 @@ actor PublishProbeHTTP: HTTPFetching {
         if path.hasSuffix("/dateRange") {
             return try FixtureHTTP.load("date_range")
         }
+        if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
+        }
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }
 }
@@ -178,6 +228,50 @@ actor TomorrowPublishHTTP: HTTPFetching {
         }
         if path.hasSuffix("/dateRange") {
             return try FixtureHTTP.load("date_range")
+        }
+        if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
+        }
+        throw FixtureHTTP.UnexpectedRequest(url: url)
+    }
+}
+
+/// Sunday Oct 25 shape: Breakfast ⊂ Brunch, Lunch == All Day, Dinner later.
+/// Used to prove Breakfast / Lunch / Dinner each keep that period's dishes
+/// and that a Brunch-only day does not duplicate Brunch onto Lunch.
+struct WeekendBrunchHTTP: HTTPFetching {
+    var brunchOnly: Bool = false
+
+    func data(from url: URL) async throws -> Data {
+        if url.host?.contains("elevate-dxp.com") == true {
+            return Data(#"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8)
+        }
+        let path = url.path
+        if path.hasSuffix("/restaurants") {
+            return Data(
+                #"{"ok":true,"data":[{"id":"anteatery","stations":[{"id":"1929","name":"The Twisted Root"},{"id":"1932","name":"Home"},{"id":"1935","name":"Sizzle Grill"},{"id":"1941","name":"Oven"}]}]}"#.utf8
+            )
+        }
+        if path.hasSuffix("/restaurantToday") {
+            if brunchOnly {
+                return Data(
+                    #"{"ok":true,"data":{"id":"anteatery","periods":{"brunch":{"name":"Brunch","startTime":"11:00:00","endTime":"16:30:00","stationToDishes":{"1929":["hash"],"1932":["eggs"],"1935":["burger"]}},"dinner":{"name":"Dinner","startTime":"16:30:00","endTime":"20:00:00","stationToDishes":{"1935":["burger"],"1941":["pasta"]}}}}}"#.utf8
+                )
+            }
+            return Data(
+                #"{"ok":true,"data":{"id":"anteatery","periods":{"breakfast":{"name":"Breakfast","startTime":"09:00:00","endTime":"11:00:00","stationToDishes":{"1929":["hash"],"1932":["eggs"]}},"brunch":{"name":"Brunch","startTime":"11:00:00","endTime":"16:30:00","stationToDishes":{"1929":["hash"],"1932":["eggs"],"1935":["burger"]}},"lunch":{"name":"Lunch","startTime":null,"endTime":null,"stationToDishes":{"1935":["burger"]}},"allday":{"name":"All Day","startTime":null,"endTime":null,"stationToDishes":{"1935":["burger"]}},"dinner":{"name":"Dinner","startTime":"16:30:00","endTime":"20:00:00","stationToDishes":{"1935":["burger"],"1941":["pasta"]}}}}}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dishes/batch") {
+            return Data(
+                #"{"ok":true,"data":[{"id":"hash","stationId":"1929","name":"Tofu-Potato Hash","description":null,"ingredients":null,"dietRestriction":{"isVegan":true},"nutritionInfo":{"calories":180}},{"id":"eggs","stationId":"1932","name":"Judy's BBQ Eggs","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":{"calories":140}},{"id":"burger","stationId":"1935","name":"Cheeseburger","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":{"calories":400}},{"id":"pasta","stationId":"1941","name":"Cavatappi Alfredo","description":null,"ingredients":null,"dietRestriction":null,"nutritionInfo":{"calories":410}}]}"#.utf8
+            )
+        }
+        if path.hasSuffix("/dateRange") {
+            return Data(#"{"ok":true,"data":{"earliest":"2026-10-01","latest":"2026-10-31"}}"#.utf8)
+        }
+        if url.host?.contains("githubusercontent.com") == true {
+            return Data(#"{"overrides":[]}"#.utf8)
         }
         throw FixtureHTTP.UnexpectedRequest(url: url)
     }

@@ -1,0 +1,55 @@
+{
+  "overrides": [
+    {
+      "date": "2026-10-28",
+      "hall": "anteatery",
+      "period": "Dinner",
+      "stationID": "1929",
+      "stationName": "The Twisted Root",
+      "kind": "insert",
+      "verified": true,
+      "note": "Atharv confirmed in person: Anteatery served Cajun Tofu and White Rice at Twisted Root for dinner. Anteater API and MyDiningHub both omitted the dish.",
+      "items": [
+        {
+          "id": "override:anteatery-dinner-1929-cajun-tofu-2026-10-28",
+          "name": "Cajun Tofu and White Rice",
+          "dietaryTags": ["Vegan", "Vegetarian"]
+        }
+      ]
+    },
+    {
+      "date": "2026-10-29",
+      "hall": "anteatery",
+      "period": "Lunch",
+      "stationID": "override:fable-takeover-2026-10-29",
+      "stationName": "Fable Station Takeover",
+      "kind": "special",
+      "verified": true,
+      "note": "Atharv photographed the Fable Station Takeover board at Anteatery lunch. Anteater /events lists the takeover (11:00 AM to 2:30 PM) with no dishes. Hub has a different Chipotle Mushrooms Taco on Noodle Bar, not this board.",
+      "items": [
+        {
+          "id": "override:anteatery-lunch-fable-chipotle-mushroom-soft-tacos-2026-10-29",
+          "name": "Chipotle Mushroom Soft Tacos",
+          "description": "Sauteed chipotle mushrooms, fire-roasted salsa and warm flour tortilla",
+          "calories": 180,
+          "dietaryTags": ["Vegan", "Vegetarian", "Plant Forward"]
+        }
+      ]
+    }
+  ],
+  "corrections": [
+    {
+      "date": "2026-10-29",
+      "hall": "anteatery",
+      "period": "Lunch",
+      "matchName": "Thai Red Curry Bowl",
+      "stationID": "1926",
+      "stationName": "Fire and Ice",
+      "verified": true,
+      "note": "Atharv confirmed in person at Anteatery lunch: the Fire and Ice Thai Red Curry Bowl contains shrimp. UCI tagged it Vegan, Vegetarian, and Plant Forward with no shellfish allergen.",
+      "removeDietaryTags": ["Vegan", "Vegetarian", "Plant Forward", "Plant Powered"],
+      "addAllergens": ["Shellfish"],
+      "description": "Thai red curry with shrimp, sweet potatoes and green beans served with jasmine rice topped with cilantro"
+    }
+  ]
+}

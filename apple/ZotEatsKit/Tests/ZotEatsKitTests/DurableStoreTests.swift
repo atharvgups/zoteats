@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
-@Suite("DurableStore — version-proof favorites")
+@Suite("DurableStore — version-proof favorites", .serialized)
 struct DurableStoreTests {
     @Test func emptySuiteDoesNotHideStandardFavorites() {
         let testKey = "zoteats.test.fav.emptySuite"

@@ -9,10 +9,16 @@ struct DishDetailSheet: View {
     let prefs: Preferences
     /// Nil when browsing a future day (plate building is today-only).
     var plate: PlateStore?
+    /// Eat hall / meal / day for dish-wrong reports. Nil on Campus retail.
+    var hallID: String? = nil
+    var period: String? = nil
+    var dateISO: String? = nil
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var noteDraft = ""
+    @State private var showReportOptions = false
+    @State private var notedLocally = false
 
     private var isFavorite: Bool {
         prefs.isFavorite(dish.name)
@@ -52,6 +58,10 @@ struct DishDetailSheet: View {
                 reviewBoard
 
                 actionRow
+
+                if canReport {
+                    reportRow
+                }
             }
             .padding(20)
             .padding(.top, 4)
@@ -74,9 +84,26 @@ struct DishDetailSheet: View {
         }
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showReportOptions) {
+            DishReportPickerSheet(
+                onChoose: { reason in
+                    showReportOptions = false
+                    Task { await submitReport(reason) }
+                },
+                onSendOther: { text in
+                    showReportOptions = false
+                    notedLocally = true
+                    Task { await submitOther(text) }
+                }
+            )
+        }
         .onAppear {
             noteDraft = prefs.review(for: dish.name)?.note ?? ""
-            Task { await prefs.loadCommunityReviews() }
+            notedLocally = hasNotedFeedback
+            Task {
+                await prefs.loadCommunityReviews()
+                await prefs.loadCommunityDishReports()
+            }
         }
         .onDisappear {
             if let current = prefs.review(for: dish.name), noteDraft != current.note {
@@ -261,6 +288,103 @@ struct DishDetailSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    private var canReport: Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return !hallID.isEmpty && !period.isEmpty && !dateISO.isEmpty
+    }
+
+    private var reportedMissing: Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return prefs.isReportedMissing(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name
+        )
+    }
+
+    private var myReport: DishReport? {
+        guard let hallID, let period, let dateISO else { return nil }
+        return prefs.myDishReport(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name
+        )
+    }
+
+    private var reportRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if reportedMissing {
+                Text(DishReportCopy.missingNote)
+                    .font(ZotFont.caption.weight(.medium))
+                    .foregroundStyle(Color.inkMuted)
+                    .accessibilityIdentifier("dish-reported-missing")
+            }
+
+            if myReport != nil || notedLocally || hasNotedFeedback {
+                Text(DishReportCopy.thanks)
+                    .font(ZotFont.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("dish-report-thanks")
+            } else {
+                Button {
+                    showReportOptions = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "flag")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(DishReportCopy.rowTitle)
+                            .font(ZotFont.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("dish-report-row")
+                .accessibilityLabel(DishReportCopy.rowTitle)
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private var hasNotedFeedback: Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return DishFeedbackLogic.wasNoted(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name
+        )
+    }
+
+    private func submitReport(_ reason: DishReportReason) async {
+        guard reason.countsTowardMissing else { return }
+        guard let hallID, let period, let dateISO else { return }
+        await prefs.submitDishReport(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name,
+            reason: reason
+        )
+    }
+
+    private func submitOther(_ text: String) async {
+        guard let hallID, let period, let dateISO else { return }
+        await prefs.submitDishFeedback(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name,
+            text: text
+        )
     }
 
     private var actionRow: some View {
@@ -514,44 +638,102 @@ private struct AllergenChip: View {
     }
 }
 
-// MARK: - Simple wrapping flow layout for chips
+// MARK: - Report picker
 
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
+private struct DishReportPickerSheet: View {
+    var onChoose: (DishReportReason) -> Void
+    var onSendOther: (String) -> Void
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > maxWidth {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-        return CGSize(width: proposal.width ?? max(0, x - spacing), height: y + rowHeight)
+    @State private var writingOther = false
+    @State private var otherText = ""
+    @FocusState private var otherFocused: Bool
+
+    private var canSendOther: Bool {
+        !DishFeedbackLogic.clipped(otherText).isEmpty
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX
-        var y = bounds.minY
-        var rowHeight: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + size.width > bounds.maxX {
-                x = bounds.minX
-                y += rowHeight + spacing
-                rowHeight = 0
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(DishReportCopy.sheetTitle)
+                .font(ZotFont.body.weight(.semibold))
+                .foregroundStyle(Color.ink)
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 10)
+
+            ForEach(Array(DishReportReason.allCases.enumerated()), id: \.element) { index, reason in
+                Button {
+                    if reason == .other {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            writingOther.toggle()
+                        }
+                        otherFocused = writingOther
+                    } else {
+                        onChoose(reason)
+                    }
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: reason.systemImage)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, alignment: .center)
+                        Text(reason.title)
+                            .font(ZotFont.body)
+                            .foregroundStyle(Color.ink)
+                        Spacer(minLength: 8)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("dish-report-\(reason.rawValue)")
+
+                if index < DishReportReason.allCases.count - 1 {
+                    Divider()
+                        .padding(.leading, 58)
+                }
             }
-            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
+
+            if writingOther {
+                VStack(alignment: .trailing, spacing: 10) {
+                    TextField(DishReportCopy.otherPlaceholder, text: $otherText, axis: .vertical)
+                        .font(ZotFont.body)
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(3...6)
+                        .textFieldStyle(.plain)
+                        .focused($otherFocused)
+                        .padding(12)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .onChange(of: otherText) { _, newValue in
+                            if newValue.count > DishFeedbackLogic.maxCharacters {
+                                otherText = String(newValue.prefix(DishFeedbackLogic.maxCharacters))
+                            }
+                        }
+                        .accessibilityIdentifier("dish-report-other-text")
+
+                    Button(DishReportCopy.send) {
+                        let clipped = DishFeedbackLogic.clipped(otherText)
+                        guard !clipped.isEmpty else { return }
+                        onSendOther(clipped)
+                    }
+                    .font(ZotFont.body.weight(.semibold))
+                    .foregroundStyle(canSendOther ? Color.ink : Color.secondary.opacity(0.45))
+                    .disabled(!canSendOther)
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("dish-report-other-send")
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            }
         }
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appCanvas()
+        .presentationDetents([.height(writingOther ? 470 : 348)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(24)
+        .presentationBackground(Color(uiColor: .systemBackground))
     }
 }
 

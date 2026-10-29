@@ -1,5 +1,35 @@
 # Read-only App Store Connect status (no submit / cancel / upload).
 # Launch-loop peek 2026-09-18 ~6:09 PM PT — read-only. No App Store submit.
+# Launch-loop peek 2026-10-08 ~12:56 PM PT — read-only. Expect Internal 1.0.350
+# build 356 VALID. No submit, no cancel, no tag, no External promote.
+# Launch-loop peek 2026-10-09 Friday morning ~9:22 AM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-09 Friday noon ~12:17 PM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-09 Friday ~3:14 PM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-09 Friday evening ~6:07 PM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-12 Monday morning ~9:24 AM PT — read-only. Expect
+# Internal 1.0.351 build 357 VALID. No submit, no cancel, no tag.
+# Launch-loop peek 2026-10-13 Tuesday ~9:28 AM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-14 Wednesday morning — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-15 Thursday morning — read-only. Expect Internal
+# 1.0.353 VALID, live 1.0.337 READY_FOR_SALE, 1.0.351 WAITING_FOR_REVIEW.
+# No submit, no cancel, no tag, no External promote.
+# Launch-loop peek 2026-10-15 Thursday ~3:10 PM PT — read-only. No app
+# changes, no tag, no External promote, no App Store submit.
+# Launch-loop peek 2026-10-16 Friday morning ~9:09 AM PT — read-only. Expect
+# Internal 1.0.353 VALID, live 1.0.351 READY_FOR_SALE. No submit, no cancel,
+# no tag, no External promote.
+# Peek 2026-10-18 ~2:22 AM UTC — read-only. Expect Internal 1.0.354 build 360
+# VALID (or still processing). Live 1.0.351 READY_FOR_SALE. No External promote.
+# Peek 2026-10-18 ~3:43 AM UTC — read-only. Favorites Internal 1.0.357 build 363
+# uploaded. Expect 1.0.354 still WAITING_FOR_REVIEW. No submit, no External.
+# Peek 2026-10-23 ~12:52 AM UTC — read-only. Oasis Internal 1.0.358 uploaded.
+# Live 1.0.354 READY_FOR_SALE. Do not submit 358. No External.
 name: ASC Status
 
 on:

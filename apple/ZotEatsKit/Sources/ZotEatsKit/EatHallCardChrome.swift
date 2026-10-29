@@ -1,7 +1,7 @@
 import Foundation
 
 /// Short 3-across Eat hall status — one small hours line under the name:
-/// "until 8 PM" (open / green) / "opens 7 AM" (closed / muted) / Opens Mon Oct 5.
+/// "until 8 PM" (open / green) / "opens 7 AM" (closed / muted) / Closed.
 public enum EatHallCardTone: String, Sendable, Equatable {
     /// Serving now — green hours copy.
     case open
@@ -51,11 +51,44 @@ public enum EatHallCardChrome: Sendable {
         opensNextPeriod _: String? = nil,
         todayISO: String = UCITime.todayISO()
     ) -> EatHallCardStatus {
-        if comingSoon, !OasisSchedule.hasOpened(on: todayISO) {
-            return EatHallCardStatus(
-                primary: OasisComingSoonCopy.cardStatus(on: todayISO),
-                tone: .muted
-            )
+        if comingSoon {
+            switch state {
+            case .open:
+                return EatHallCardStatus(
+                    primary: OasisComingSoonCopy.unpostedCard,
+                    tone: .open,
+                    accessibilityLine: OasisComingSoonCopy.openUnposted
+                )
+            case .openingLater(_, let opensAt):
+                return closedOpens(compactClock(minutes: opensAt))
+            case .awaitingMoreMeals:
+                return EatHallCardStatus(primary: "More later", tone: .muted)
+            case .closedForToday:
+                if let open = opensTomorrowAtMinutes {
+                    return closedOpens(compactClock(minutes: open))
+                }
+                if let open = opensNextAtMinutes,
+                   let weekday = opensNextWeekday?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !weekday.isEmpty {
+                    let short = weekday.count <= 3 ? weekday : String(weekday.prefix(3))
+                    let clock = compactClock(minutes: open)
+                    return EatHallCardStatus(
+                        primary: "opens \(short) \(clock)",
+                        tone: .muted,
+                        accessibilityLine: "Closed, opens \(short) \(clock)"
+                    )
+                }
+                return EatHallCardStatus(
+                    primary: OasisComingSoonCopy.unpostedCard,
+                    tone: .muted,
+                    accessibilityLine: "Closed, menu not posted"
+                )
+            case .unknown:
+                return EatHallCardStatus(
+                    primary: OasisComingSoonCopy.unpostedCard,
+                    tone: .muted
+                )
+            }
         }
         switch state {
         case .open(_, let closesAt):

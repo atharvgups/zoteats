@@ -1,0 +1,29 @@
+# Forward an Other dish note to the feedback webhook.
+# Trigger: repository_dispatch type "dish-feedback" with client_payload
+# {date, hall, meal, dishID, dishName, text, authorID, updatedAt}.
+#
+# Config (repo Settings -> Secrets and variables -> Actions):
+#   Variable or secret  ANTEATS_FEEDBACK_WEBHOOK_URL
+#   Secret              ANTEATS_FEEDBACK_WEBHOOK_KEY
+# The key is sent as the Authorization header. If the URL is missing the
+# job succeeds without posting so the app can still show Thanks, noted.
+name: Forward dish feedback
+
+on:
+  repository_dispatch:
+    types: [dish-feedback]
+
+jobs:
+  forward:
+    name: POST Other note to webhook
+    runs-on: ubuntu-latest
+    if: github.event.client_payload.text != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: POST webhook
+        env:
+          FEEDBACK_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          ANTEATS_FEEDBACK_WEBHOOK_URL: ${{ vars.ANTEATS_FEEDBACK_WEBHOOK_URL || secrets.ANTEATS_FEEDBACK_WEBHOOK_URL }}
+          ANTEATS_FEEDBACK_WEBHOOK_KEY: ${{ secrets.ANTEATS_FEEDBACK_WEBHOOK_KEY }}
+        run: python3 apple/scripts/forward_dish_feedback.py

@@ -312,8 +312,9 @@ public struct CampusService: Sendable {
             let live: [MenuStation]
             if let menu = data.getLocationMealPeriodRecipes {
                 var products: [String: MenuItem] = [:]
+                let hallID = HallDirectory.eatHallID(forHubKey: placeID)
                 for raw in menu.products ?? [] {
-                    guard let sku = raw.sku, let item = Self.menuItem(from: raw) else { continue }
+                    guard let sku = raw.sku, let item = Self.menuItem(from: raw, hallID: hallID) else { continue }
                     products[sku] = item
                 }
 
@@ -590,7 +591,7 @@ public struct CampusService: Sendable {
         return result
     }
 
-    private static func menuItem(from raw: RawProduct) -> MenuItem? {
+    private static func menuItem(from raw: RawProduct, hallID: String? = nil) -> MenuItem? {
         guard let sku = raw.sku else { return nil }
         var name = raw.name ?? ""
         var description: String?
@@ -627,7 +628,7 @@ public struct CampusService: Sendable {
                     .compactMap { dietaryTagIDs[$0.trimmingCharacters(in: .whitespaces)] }
             case "assigned_category_ids":
                 if stationID == nil {
-                    stationID = assignedStationID(fromCategoryIDs: attribute.values)
+                    stationID = assignedStationID(fromCategoryIDs: attribute.values, onHall: hallID)
                 }
             default:
                 break
@@ -658,16 +659,42 @@ public struct CampusService: Sendable {
         )
     }
 
-    /// Hub `assigned_category_ids` end with the dining station. Prefer Twisted
-    /// Root when present so a plant-based extra isn't filed under a sibling id.
-    static func assignedStationID(fromCategoryIDs values: [String]) -> String? {
+    /// Hub `assigned_category_ids` is a category path that often lists sibling
+    /// stations. Scope to this hall first so Brandywine linguine (1893) never
+    /// tags an Anteatery recipe. Dessert ids beat Twisted Root (chia pudding
+    /// on Honeycakes). Twisted Root still beats Compass/Home siblings so a
+    /// Hub-only TR dish fills the lunch gap when Anteater omitted the station.
+    static func assignedStationID(
+        fromCategoryIDs values: [String],
+        onHall hallID: String? = nil
+    ) -> String? {
         let ids = values.flatMap { $0.components(separatedBy: ",") }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        if let twisted = ids.first(where: { DiningService.twistedRootStationIDs.contains($0) }) {
+        let known = ids.filter { DiningService.stationHallIDs[$0] != nil }
+        let scoped: [String]
+        if let hallID {
+            let matching = known.filter { DiningService.stationBelongs(onHall: hallID, stationID: $0) }
+            scoped = matching.isEmpty ? known : matching
+        } else {
+            scoped = known
+        }
+        let pool = scoped.isEmpty ? ids : scoped
+        if let dessert = pool.last(where: { DiningService.dessertStationIDs.contains($0) }) {
+            return dessert
+        }
+        if let hallID,
+           let twisted = pool.last(where: {
+               DiningService.twistedRootStationIDs.contains($0)
+                   && DiningService.stationBelongs(onHall: hallID, stationID: $0)
+           }) {
             return twisted
         }
-        return ids.last { id in
+        if hallID == nil,
+           let twisted = pool.last(where: { DiningService.twistedRootStationIDs.contains($0) }) {
+            return twisted
+        }
+        return pool.last { id in
             id.count >= 4 && id.allSatisfy(\.isNumber)
         }
     }

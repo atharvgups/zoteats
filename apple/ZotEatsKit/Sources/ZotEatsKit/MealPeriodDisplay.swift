@@ -5,7 +5,12 @@ import Foundation
 public enum MealPeriodDisplay {
     public static func label(live: String, pill: String = "") -> String {
         let liveTrim = live.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pillTrim = pill.trimmingCharacters(in: .whitespacesAndNewlines)
+        if MealPeriodPill.isLateNight(liveTrim.lowercased())
+            || MealPeriodPill.isLateNight(pillTrim.lowercased()) {
+            return "Late Night"
+        }
         if !liveTrim.isEmpty { return liveTrim }
-        return pill.trimmingCharacters(in: .whitespacesAndNewlines)
+        return pillTrim
     }
 }
