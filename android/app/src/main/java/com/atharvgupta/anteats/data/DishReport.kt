@@ -18,14 +18,19 @@ object DishReportReason {
     const val NOT_AT_HALL = "notAtHall"
     const val NOT_SERVED = "notServed"
     const val WRONG_STATION = "wrongStation"
-    val all = listOf(NOT_AT_HALL, NOT_SERVED, WRONG_STATION)
+    const val OTHER = "other"
+    val listing = listOf(NOT_AT_HALL, NOT_SERVED, WRONG_STATION)
+    val all = listing + OTHER
 
     fun title(reason: String): String = when (reason) {
         NOT_AT_HALL -> DishReportCopy.notAtHall
         NOT_SERVED -> DishReportCopy.notServed
         WRONG_STATION -> DishReportCopy.wrongStation
+        OTHER -> DishReportCopy.other
         else -> DishReportCopy.rowTitle
     }
+
+    fun countsTowardMissing(reason: String): Boolean = reason in listing
 }
 
 object DishReportCopy {
@@ -34,6 +39,9 @@ object DishReportCopy {
     const val notAtHall = "Not at this hall"
     const val notServed = "Not being served"
     const val wrongStation = "Wrong station"
+    const val other = "Other"
+    const val otherPlaceholder = "What looks off?"
+    const val send = "Send"
     const val thanks = "Thanks, noted"
     const val missingNote = "Reported missing"
     const val cancel = "Cancel"
@@ -107,6 +115,7 @@ object DishReportLogic {
         dishID: String,
         dishName: String = "",
     ): Int = reports(reports, date, hall, meal, dishID, dishName)
+        .filter { DishReportReason.countsTowardMissing(it.reason) }
         .map { it.authorID }
         .filter { it.isNotBlank() }
         .toSet()
@@ -157,7 +166,7 @@ object DishReportLogic {
         )
         if (report.date.isEmpty() || report.hall.isEmpty() || report.meal.isEmpty() ||
             report.dishID.isEmpty() || report.authorID.isEmpty() ||
-            report.reason !in DishReportReason.all
+            report.reason !in DishReportReason.listing
         ) {
             return existing
         }
@@ -166,4 +175,29 @@ object DishReportLogic {
     }
 
     fun leavingMenuUnchanged(menu: DiningMenu): DiningMenu = menu
+}
+
+object DishFeedbackLogic {
+    const val maxCharacters = 500
+    const val minIntervalMs = 30_000L
+    const val maxPerIrvineDay = 5
+    private val irvine = java.time.ZoneId.of("America/Los_Angeles")
+
+    fun clipped(text: String): String = text.trim().take(maxCharacters)
+
+    fun dayStamp(epochMs: Long): String =
+        java.time.Instant.ofEpochMilli(epochMs).atZone(irvine).toLocalDate().toString()
+
+    fun canSend(historyMs: List<Long>, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val last = historyMs.maxOrNull()
+        if (last != null && nowMs - last < minIntervalMs) return false
+        val today = dayStamp(nowMs)
+        val todayCount = historyMs.count { dayStamp(it) == today }
+        return todayCount < maxPerIrvineDay
+    }
+
+    fun recordedHistory(historyMs: List<Long>, nowMs: Long = System.currentTimeMillis()): List<Long> {
+        val cutoff = nowMs - 3L * 24 * 60 * 60 * 1000
+        return (historyMs.filter { it >= cutoff } + nowMs).sorted()
+    }
 }

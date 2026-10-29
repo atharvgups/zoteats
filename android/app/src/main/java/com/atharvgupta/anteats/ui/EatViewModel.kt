@@ -7,6 +7,7 @@ import com.atharvgupta.anteats.data.DiningLocation
 import com.atharvgupta.anteats.data.DiningLogic
 import com.atharvgupta.anteats.data.DiningMenu
 import com.atharvgupta.anteats.data.DiningRepository
+import com.atharvgupta.anteats.data.DishFeedbackLogic
 import com.atharvgupta.anteats.data.DishReport
 import com.atharvgupta.anteats.data.DishReportFeed
 import com.atharvgupta.anteats.data.DishReportLogic
@@ -112,6 +113,36 @@ class EatViewModel(
             val merged = DishReportFeed.merge(optimistic, next)
             _state.update { it.copy(dishReports = merged) }
             prefs.saveDishReports(merged)
+        }
+    }
+
+    fun submitFeedback(item: MenuItem, text: String) {
+        viewModelScope.launch {
+            val snapshot = _state.value
+            prefs.markFeedbackNoted(
+                DishReportLogic.listingKey(
+                    snapshot.selectedDate,
+                    snapshot.selectedHall,
+                    snapshot.selectedPeriod,
+                    item.id,
+                    item.name,
+                ),
+            )
+            val clipped = DishFeedbackLogic.clipped(text)
+            if (clipped.isEmpty()) return@launch
+            val now = System.currentTimeMillis()
+            val history = prefs.feedbackHistoryMs()
+            if (!DishFeedbackLogic.canSend(history, now)) return@launch
+            prefs.saveFeedbackHistoryMs(DishFeedbackLogic.recordedHistory(history, now))
+            reportFeed.submitFeedback(
+                date = snapshot.selectedDate,
+                hall = snapshot.selectedHall,
+                meal = snapshot.selectedPeriod,
+                dishID = item.id,
+                dishName = item.name,
+                text = clipped,
+                authorID = prefs.reviewerID,
+            )
         }
     }
 

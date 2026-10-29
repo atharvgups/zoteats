@@ -181,6 +181,9 @@ struct DishReportTests {
             DishReportCopy.notAtHall,
             DishReportCopy.notServed,
             DishReportCopy.wrongStation,
+            DishReportCopy.other,
+            DishReportCopy.otherPlaceholder,
+            DishReportCopy.send,
             DishReportCopy.thanks,
             DishReportCopy.missingNote,
             DishReportCopy.cancel,
@@ -189,17 +192,92 @@ struct DishReportTests {
         #expect(!copy.contains("\u{2013}"))
         #expect(DishReportCopy.thanks == "Thanks, noted")
         #expect(DishReportCopy.rowTitle == "Report an issue")
+        #expect(DishReportCopy.other == "Other")
+        #expect(DishReportCopy.send == "Send")
+        #expect(DishReportReason.listingCases.map(\.title) == [
+            DishReportCopy.notAtHall,
+            DishReportCopy.notServed,
+            DishReportCopy.wrongStation,
+        ])
         #expect(DishReportReason.allCases.map(\.title) == [
             DishReportCopy.notAtHall,
             DishReportCopy.notServed,
             DishReportCopy.wrongStation,
+            DishReportCopy.other,
         ])
         #expect(DishReportReason.allCases.map(\.systemImage) == [
             "building.2",
             "fork.knife",
             "arrow.left.arrow.right",
+            "text.bubble",
         ])
         #expect(DishReportLogic.missingThreshold == 2)
+    }
+
+    @Test func otherDoesNotCountTowardReportedMissing() {
+        var reports: [DishReport] = []
+        reports = DishReportLogic.upsert(
+            existing: reports,
+            date: "2026-10-29",
+            hall: "anteatery",
+            meal: "Lunch",
+            dishID: "rice",
+            dishName: "Jasmine Rice",
+            reason: .other,
+            authorID: "one"
+        )
+        reports = DishReportLogic.upsert(
+            existing: reports,
+            date: "2026-10-29",
+            hall: "anteatery",
+            meal: "Lunch",
+            dishID: "rice",
+            dishName: "Jasmine Rice",
+            reason: .other,
+            authorID: "two"
+        )
+        #expect(reports.isEmpty)
+        #expect(
+            !DishReportLogic.isReportedMissing(
+                in: [
+                    DishReport(
+                        date: "2026-10-29",
+                        hall: "anteatery",
+                        meal: "Lunch",
+                        dishID: "rice",
+                        dishName: "Jasmine Rice",
+                        reason: .other,
+                        authorID: "one"
+                    ),
+                    DishReport(
+                        date: "2026-10-29",
+                        hall: "anteatery",
+                        meal: "Lunch",
+                        dishID: "rice",
+                        dishName: "Jasmine Rice",
+                        reason: .other,
+                        authorID: "two"
+                    ),
+                ],
+                date: "2026-10-29",
+                hall: "anteatery",
+                meal: "Lunch",
+                dishID: "rice"
+            )
+        )
+    }
+
+    @Test func feedbackClipsAndRateLimitsPerDevice() {
+        #expect(DishFeedbackLogic.clipped("  hello  ") == "hello")
+        #expect(DishFeedbackLogic.clipped(String(repeating: "a", count: 520)).count == 500)
+        let now = Date(timeIntervalSince1970: 1_767_200_000)
+        #expect(DishFeedbackLogic.canSend(history: [], now: now))
+        #expect(!DishFeedbackLogic.canSend(history: [now], now: now.addingTimeInterval(10)))
+        #expect(DishFeedbackLogic.canSend(history: [now], now: now.addingTimeInterval(31)))
+        let sameDay = (0..<5).map { now.addingTimeInterval(TimeInterval($0) * 60) }
+        #expect(!DishFeedbackLogic.canSend(history: sameDay, now: now.addingTimeInterval(10 * 60)))
+        #expect(!DishReportCopy.otherPlaceholder.contains("\u{2014}"))
+        #expect(!DishReportCopy.other.contains("\u{2013}"))
     }
 
     @Test func oasisAndHubHallAliasesShareAKey() {

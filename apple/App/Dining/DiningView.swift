@@ -1604,7 +1604,7 @@ private struct DishRowCard: View {
         .accessibilityAction(.default, onOpen)
         .contextMenu {
             if let onReport {
-                ForEach(DishReportReason.allCases, id: \.self) { reason in
+                ForEach(DishReportReason.listingCases, id: \.self) { reason in
                     Button {
                         onReport(reason)
                     } label: {

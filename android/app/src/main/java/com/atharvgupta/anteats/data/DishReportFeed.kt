@@ -121,6 +121,40 @@ class DishReportFeed(
         return result.first in 200..299
     }
 
+    suspend fun submitFeedback(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        text: String,
+        authorID: String,
+        updatedAt: String = Instant.now().toString(),
+    ): Boolean {
+        val clipped = DishFeedbackLogic.clipped(text)
+        if (clipped.isEmpty()) return false
+        val authToken = token.trim()
+        if (authToken.isEmpty()) return false
+        val body = buildJsonObject {
+            put("event_type", JsonPrimitive("dish-feedback"))
+            put(
+                "client_payload",
+                buildJsonObject {
+                    put("date", JsonPrimitive(date))
+                    put("hall", JsonPrimitive(hall))
+                    put("meal", JsonPrimitive(meal))
+                    put("dishID", JsonPrimitive(dishID))
+                    put("dishName", JsonPrimitive(dishName))
+                    put("text", JsonPrimitive(clipped))
+                    put("authorID", JsonPrimitive(authorID))
+                    put("updatedAt", JsonPrimitive(updatedAt))
+                },
+            )
+        }.toString()
+        val result = send("POST", INGEST_URL, githubHeaders(authToken) + ("Content-Type" to "application/json"), body)
+        return result.first in 200..299
+    }
+
     companion object {
         const val FEED_URL =
             "https://raw.githubusercontent.com/atharvgups/zoteats/main/apple/community-dish-reports.json"

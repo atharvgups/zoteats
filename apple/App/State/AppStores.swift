@@ -653,6 +653,42 @@ final class Preferences {
         }
     }
 
+    func submitDishFeedback(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        text: String,
+        http: any HTTPFetching = HTTPClient()
+    ) async {
+        DishFeedbackLogic.markNoted(
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName
+        )
+        Haptics.light()
+        let clipped = DishFeedbackLogic.clipped(text)
+        let history = DishFeedbackLogic.loadHistory()
+        let now = Date()
+        guard !clipped.isEmpty else { return }
+        guard DishFeedbackLogic.canSend(history: history, now: now) else { return }
+        DishFeedbackLogic.saveHistory(DishFeedbackLogic.recordedHistory(history, now: now))
+        _ = await CommunityDishReportFeed.submitFeedback(
+            http: http,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName,
+            text: clipped,
+            authorID: reviewerID,
+            now: now
+        )
+    }
+
     private func schedulePublish(dishName: String, delay: Duration) {
         publishTask?.cancel()
         publishTask = Task { [weak self] in

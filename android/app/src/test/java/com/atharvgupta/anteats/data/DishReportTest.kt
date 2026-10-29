@@ -1,5 +1,6 @@
 package com.atharvgupta.anteats.data
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -167,6 +168,9 @@ class DishReportTest {
             DishReportCopy.notAtHall,
             DishReportCopy.notServed,
             DishReportCopy.wrongStation,
+            DishReportCopy.other,
+            DishReportCopy.otherPlaceholder,
+            DishReportCopy.send,
             DishReportCopy.thanks,
             DishReportCopy.missingNote,
             DishReportCopy.cancel,
@@ -175,7 +179,17 @@ class DishReportTest {
         assertFalse(copy.contains("\u2013"))
         assertEquals("Thanks, noted", DishReportCopy.thanks)
         assertEquals("Report an issue", DishReportCopy.rowTitle)
+        assertEquals("Other", DishReportCopy.other)
         assertEquals(2, DishReportLogic.missingThreshold)
+        assertEquals(
+            listOf(
+                DishReportReason.NOT_AT_HALL,
+                DishReportReason.NOT_SERVED,
+                DishReportReason.WRONG_STATION,
+                DishReportReason.OTHER,
+            ),
+            DishReportReason.all,
+        )
         assertEquals("oasis", DishReportLogic.canonicalHall("the-oasis-dining-hall"))
         assertEquals("Late Night", DishReportLogic.canonicalMeal("Evening Snack"))
     }
@@ -197,5 +211,94 @@ class DishReportTest {
         assertEquals(1, decoded.size)
         assertEquals("rice", decoded[0].dishID)
         assertEquals("a", decoded[0].authorID)
+    }
+
+    @Test
+    fun otherDoesNotCountTowardReportedMissing() {
+        val ignored = DishReportLogic.upsert(
+            existing = emptyList(),
+            date = "2026-10-29",
+            hall = "anteatery",
+            meal = "Lunch",
+            dishID = "rice",
+            dishName = "Jasmine Rice",
+            reason = DishReportReason.OTHER,
+            authorID = "one",
+            updatedAt = "1",
+        )
+        assertTrue(ignored.isEmpty())
+        val stuffed = listOf(
+            DishReport(
+                date = "2026-10-29",
+                hall = "anteatery",
+                meal = "Lunch",
+                dishID = "rice",
+                dishName = "Jasmine Rice",
+                reason = DishReportReason.OTHER,
+                authorID = "one",
+                updatedAt = "1",
+            ),
+            DishReport(
+                date = "2026-10-29",
+                hall = "anteatery",
+                meal = "Lunch",
+                dishID = "rice",
+                dishName = "Jasmine Rice",
+                reason = DishReportReason.OTHER,
+                authorID = "two",
+                updatedAt = "2",
+            ),
+        )
+        assertFalse(
+            DishReportLogic.isReportedMissing(stuffed, "2026-10-29", "anteatery", "Lunch", "rice"),
+        )
+    }
+
+    @Test
+    fun feedbackClipsAndRateLimitsPerDevice() {
+        assertEquals("hello", DishFeedbackLogic.clipped("  hello  "))
+        assertEquals(500, DishFeedbackLogic.clipped("a".repeat(520)).length)
+        val now = 1_767_200_000_000L
+        assertTrue(DishFeedbackLogic.canSend(emptyList(), now))
+        assertFalse(DishFeedbackLogic.canSend(listOf(now), now + 10_000))
+        assertTrue(DishFeedbackLogic.canSend(listOf(now), now + 31_000))
+        val sameDay = (0 until 5).map { now + it * 60_000 }
+        assertFalse(DishFeedbackLogic.canSend(sameDay, now + 10 * 60_000))
+    }
+
+    @Test
+    fun submitFeedbackDispatchesOtherNote() = runBlocking {
+        var posted = ""
+        val feed = DishReportFeed(
+            token = "test-token",
+            get = { _, _ -> 404 to "" },
+            send = { _, _, _, body ->
+                posted = body.orEmpty()
+                204 to ""
+            },
+        )
+        val ok = feed.submitFeedback(
+            date = "2026-10-29",
+            hall = "anteatery",
+            meal = "Lunch",
+            dishID = "rice",
+            dishName = "Jasmine Rice",
+            text = "  Sauce is cold  ",
+            authorID = "me",
+        )
+        assertTrue(ok)
+        assertTrue(posted.contains("\"event_type\":\"dish-feedback\""))
+        assertTrue(posted.contains("Sauce is cold"))
+        assertTrue(posted.contains("Jasmine Rice"))
+        val skipped = DishReportFeed(token = "").submitFeedback(
+            date = "2026-10-29",
+            hall = "anteatery",
+            meal = "Lunch",
+            dishID = "rice",
+            dishName = "Jasmine Rice",
+            text = "Nope",
+            authorID = "me",
+        )
+        assertFalse(skipped)
     }
 }

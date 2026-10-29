@@ -7,12 +7,17 @@ public enum DishReportReason: String, Codable, Sendable, CaseIterable, Equatable
     case notAtHall
     case notServed
     case wrongStation
+    case other
+
+    /// Reasons that can raise the public "Reported missing" note.
+    public static let listingCases: [DishReportReason] = [.notAtHall, .notServed, .wrongStation]
 
     public var title: String {
         switch self {
         case .notAtHall: return DishReportCopy.notAtHall
         case .notServed: return DishReportCopy.notServed
         case .wrongStation: return DishReportCopy.wrongStation
+        case .other: return DishReportCopy.other
         }
     }
 
@@ -21,7 +26,12 @@ public enum DishReportReason: String, Codable, Sendable, CaseIterable, Equatable
         case .notAtHall: return "building.2"
         case .notServed: return "fork.knife"
         case .wrongStation: return "arrow.left.arrow.right"
+        case .other: return "text.bubble"
         }
+    }
+
+    public var countsTowardMissing: Bool {
+        Self.listingCases.contains(self)
     }
 }
 
@@ -74,6 +84,9 @@ public enum DishReportCopy {
     public static let notAtHall = "Not at this hall"
     public static let notServed = "Not being served"
     public static let wrongStation = "Wrong station"
+    public static let other = "Other"
+    public static let otherPlaceholder = "What looks off?"
+    public static let send = "Send"
     public static let thanks = "Thanks, noted"
     public static let missingNote = "Reported missing"
     public static let cancel = "Cancel"
@@ -173,7 +186,9 @@ public enum DishReportLogic {
                 meal: meal,
                 dishID: dishID,
                 dishName: dishName
-            ).map(\.authorID)
+            )
+            .filter(\.reason.countsTowardMissing)
+            .map(\.authorID)
         ).filter { !$0.isEmpty }.count
     }
 
@@ -239,7 +254,7 @@ public enum DishReportLogic {
             updatedAt: now
         )
         guard !report.date.isEmpty, !report.hall.isEmpty, !report.meal.isEmpty,
-              !report.dishID.isEmpty, !report.authorID.isEmpty
+              !report.dishID.isEmpty, !report.authorID.isEmpty, report.reason.countsTowardMissing
         else { return existing }
         var next = existing.filter { $0.id != report.id }
         next.append(report)
@@ -249,5 +264,95 @@ public enum DishReportLogic {
     /// Reports never rewrite the board. Callers keep this as the Eat menu.
     public static func leavingMenuUnchanged(_ menu: DiningMenu) -> DiningMenu {
         menu
+    }
+}
+
+/// Free-text "Other" notes. The webhook URL and key stay on the reports
+/// ingest server; the app only forwards clipped text plus listing fields.
+public enum DishFeedbackLogic {
+    public static let maxCharacters = 500
+    public static let minInterval: TimeInterval = 30
+    public static let maxPerIrvineDay = 5
+    public static let notedKey = "zoteats.dishFeedbackNoted"
+    public static let historyKey = "zoteats.dishFeedbackSentAt"
+
+    public static var irvineTimeZone: TimeZone {
+        TimeZone(identifier: "America/Los_Angeles") ?? .current
+    }
+
+    public static func clipped(_ text: String) -> String {
+        String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxCharacters))
+    }
+
+    public static func dayStamp(_ date: Date, timeZone: TimeZone = irvineTimeZone) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    public static func canSend(
+        history: [Date],
+        now: Date = Date(),
+        timeZone: TimeZone = irvineTimeZone
+    ) -> Bool {
+        if let last = history.max(), now.timeIntervalSince(last) < minInterval {
+            return false
+        }
+        let today = dayStamp(now, timeZone: timeZone)
+        let todayCount = history.filter { dayStamp($0, timeZone: timeZone) == today }.count
+        return todayCount < maxPerIrvineDay
+    }
+
+    public static func recordedHistory(_ history: [Date], now: Date = Date()) -> [Date] {
+        let cutoff = now.addingTimeInterval(-3 * 24 * 60 * 60)
+        return (history.filter { $0 >= cutoff } + [now]).sorted()
+    }
+
+    public static func loadHistory(defaults: UserDefaults = SharedDefaults.suite) -> [Date] {
+        (defaults.array(forKey: historyKey) as? [Double])?.map { Date(timeIntervalSince1970: $0) } ?? []
+    }
+
+    public static func saveHistory(_ history: [Date], defaults: UserDefaults = SharedDefaults.suite) {
+        defaults.set(history.map(\.timeIntervalSince1970), forKey: historyKey)
+    }
+
+    public static func wasNoted(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        defaults: UserDefaults = SharedDefaults.suite
+    ) -> Bool {
+        let key = DishReportLogic.listingKey(
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName
+        )
+        return (defaults.stringArray(forKey: notedKey) ?? []).contains(key)
+    }
+
+    public static func markNoted(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        defaults: UserDefaults = SharedDefaults.suite
+    ) {
+        let key = DishReportLogic.listingKey(
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName
+        )
+        guard !key.isEmpty else { return }
+        var noted = Set(defaults.stringArray(forKey: notedKey) ?? [])
+        noted.insert(key)
+        defaults.set(Array(noted), forKey: notedKey)
     }
 }

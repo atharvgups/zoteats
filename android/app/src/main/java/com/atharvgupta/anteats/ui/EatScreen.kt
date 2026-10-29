@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
@@ -53,6 +55,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -77,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.atharvgupta.anteats.data.DiningLocation
 import com.atharvgupta.anteats.data.DiningLogic
+import com.atharvgupta.anteats.data.DishFeedbackLogic
 import com.atharvgupta.anteats.data.DishReport
 import com.atharvgupta.anteats.data.DishReportCopy
 import com.atharvgupta.anteats.data.DishReportLogic
@@ -238,6 +245,7 @@ fun EatScreen(
                                                 onFavorite = { viewModel.prefs.toggleFavorite(item.name) },
                                                 onAdd = { viewModel.plate.add(item) },
                                                 onReport = { viewModel.submitReport(item, it) },
+                                                onFeedback = { viewModel.submitFeedback(item, it) },
                                             )
                                         }
                                     }
@@ -254,6 +262,7 @@ fun EatScreen(
                                     period = state.selectedPeriod,
                                     onOpen = viewModel::openDish,
                                     onReport = { item, reason -> viewModel.submitReport(item, reason) },
+                                    onFeedback = { item, text -> viewModel.submitFeedback(item, text) },
                                 )
                             }
                         }
@@ -304,6 +313,16 @@ fun EatScreen(
                 ),
                 onClose = viewModel::closeDish,
                 onReport = { viewModel.submitReport(dish, it) },
+                onFeedback = { viewModel.submitFeedback(dish, it) },
+                noted = viewModel.prefs.wasFeedbackNoted(
+                    DishReportLogic.listingKey(
+                        state.selectedDate,
+                        state.selectedHall,
+                        state.selectedPeriod,
+                        dish.id,
+                        dish.name,
+                    ),
+                ),
             )
         }
     }
@@ -577,6 +596,7 @@ private fun StationBlock(
     period: String,
     onOpen: (MenuItem) -> Unit,
     onReport: (MenuItem, String) -> Unit,
+    onFeedback: (MenuItem, String) -> Unit,
 ) {
     var expanded by remember(station.name) { mutableStateOf(!station.name.contains("all day", true)) }
     val isAllDay = station.name.contains("all day", true)
@@ -611,6 +631,7 @@ private fun StationBlock(
                     onFavorite = { prefs.toggleFavorite(item.name) },
                     onAdd = { plate.add(item) },
                     onReport = { onReport(item, it) },
+                    onFeedback = { onFeedback(item, it) },
                 )
             }
         }
@@ -629,6 +650,7 @@ private fun DishRowCard(
     onFavorite: () -> Unit,
     onAdd: () -> Unit,
     onReport: (String) -> Unit = {},
+    onFeedback: (String) -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
     var showReport by remember(item.id) { mutableStateOf(false) }
@@ -720,6 +742,10 @@ private fun DishRowCard(
                 onReport(reason)
                 showReport = false
             },
+            onSendOther = { text ->
+                onFeedback(text)
+                showReport = false
+            },
         )
     }
 }
@@ -729,9 +755,13 @@ private fun DishRowCard(
 private fun ReportIssueSheet(
     onDismiss: () -> Unit,
     onChoose: (String) -> Unit,
+    onSendOther: (String) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
+    var writingOther by remember { mutableStateOf(false) }
+    var otherText by remember { mutableStateOf("") }
+    val canSend = DishFeedbackLogic.clipped(otherText).isNotEmpty()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -740,6 +770,7 @@ private fun ReportIssueSheet(
         Column(
             Modifier
                 .fillMaxWidth()
+                .imePadding()
                 .padding(bottom = 24.dp)
                 .testTag("dish-report-sheet"),
         ) {
@@ -754,8 +785,12 @@ private fun ReportIssueSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onChoose(reason)
+                            if (reason == DishReportReason.OTHER) {
+                                writingOther = !writingOther
+                            } else {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onChoose(reason)
+                            }
                         }
                         .padding(horizontal = 20.dp, vertical = 14.dp)
                         .testTag("dish-report-$reason"),
@@ -781,6 +816,48 @@ private fun ReportIssueSheet(
                     )
                 }
             }
+            if (writingOther) {
+                TextField(
+                    value = otherText,
+                    onValueChange = { otherText = it.take(DishFeedbackLogic.maxCharacters) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 8.dp)
+                        .testTag("dish-report-other-text"),
+                    placeholder = {
+                        Text(DishReportCopy.otherPlaceholder, color = colors.onSurfaceVariant)
+                    },
+                    minLines = 3,
+                    maxLines = 6,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = colors.surfaceVariant.copy(alpha = 0.45f),
+                        unfocusedContainerColor = colors.surfaceVariant.copy(alpha = 0.45f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                )
+                TextButton(
+                    onClick = {
+                        val clipped = DishFeedbackLogic.clipped(otherText)
+                        if (clipped.isEmpty()) return@TextButton
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSendOther(clipped)
+                    },
+                    enabled = canSend,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(end = 8.dp)
+                        .testTag("dish-report-other-send"),
+                ) {
+                    Text(
+                        DishReportCopy.send,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (canSend) colors.onBackground else colors.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
@@ -789,6 +866,7 @@ private fun reportReasonIcon(reason: String) = when (reason) {
     DishReportReason.NOT_AT_HALL -> Icons.Outlined.Apartment
     DishReportReason.NOT_SERVED -> Icons.Outlined.Restaurant
     DishReportReason.WRONG_STATION -> Icons.Outlined.SwapHoriz
+    DishReportReason.OTHER -> Icons.Outlined.ChatBubbleOutline
     else -> Icons.Outlined.Flag
 }
 
@@ -911,12 +989,15 @@ private fun DishDetail(
     myReport: DishReport?,
     onClose: () -> Unit,
     onReport: (String) -> Unit,
+    onFeedback: (String) -> Unit,
+    noted: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val quantity = plate?.quantity(dish.name) ?: 0
     val favorite = prefs.isFavorite(dish.name)
     val stars = prefs.stars(dish.name)
     var showReport by remember(dish.id) { mutableStateOf(false) }
+    var notedLocally by remember(dish.id) { mutableStateOf(noted) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -999,7 +1080,7 @@ private fun DishDetail(
                 modifier = Modifier.testTag("dish-reported-missing"),
             )
         }
-        if (myReport != null) {
+        if (myReport != null || notedLocally) {
             Text(
                 DishReportCopy.thanks,
                 fontSize = 13.sp,
@@ -1034,6 +1115,11 @@ private fun DishDetail(
                 onDismiss = { showReport = false },
                 onChoose = { reason ->
                     onReport(reason)
+                    showReport = false
+                },
+                onSendOther = { text ->
+                    notedLocally = true
+                    onFeedback(text)
                     showReport = false
                 },
             )

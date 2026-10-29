@@ -78,4 +78,50 @@ struct CommunityDishReportFeedTests {
             )
         )
     }
+
+    @Test func submitFeedbackDispatchesOtherNote() async {
+        let http = ReviewingHTTP()
+        let sent = await CommunityDishReportFeed.submitFeedback(
+            http: http,
+            date: "2026-10-29",
+            hall: "anteatery",
+            meal: "Lunch",
+            dishID: "rice",
+            dishName: "Jasmine Rice",
+            text: "  Sauce is cold  ",
+            authorID: "me",
+            writeToken: "test-token"
+        )
+        #expect(sent)
+        struct Envelope: Decodable {
+            var event_type: String
+            var client_payload: Payload
+            struct Payload: Decodable {
+                var date: String
+                var hall: String
+                var meal: String
+                var dishName: String
+                var text: String
+            }
+        }
+        let envelope = try? JSONDecoder().decode(Envelope.self, from: await http.payload())
+        #expect(envelope?.event_type == "dish-feedback")
+        #expect(envelope?.client_payload.text == "Sauce is cold")
+        #expect(envelope?.client_payload.dishName == "Jasmine Rice")
+        #expect(envelope?.client_payload.hall == "anteatery")
+        #expect(envelope?.client_payload.meal == "Lunch")
+        #expect(envelope?.client_payload.date == "2026-10-29")
+        let skipped = await CommunityDishReportFeed.submitFeedback(
+            http: http,
+            date: "2026-10-29",
+            hall: "anteatery",
+            meal: "Lunch",
+            dishID: "rice",
+            dishName: "Jasmine Rice",
+            text: "Nope",
+            authorID: "me",
+            writeToken: ""
+        )
+        #expect(!skipped)
+    }
 }

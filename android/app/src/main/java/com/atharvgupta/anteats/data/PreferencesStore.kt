@@ -41,6 +41,26 @@ class PreferencesStore(context: Context) {
         prefs.edit().putString("dishReports", DishReportFeed.encode(reports)).apply()
     }
 
+    fun feedbackHistoryMs(): List<Long> =
+        prefs.getString("dishFeedbackSentAt", "")
+            .orEmpty()
+            .split(",")
+            .mapNotNull { it.trim().toLongOrNull() }
+
+    fun saveFeedbackHistoryMs(times: List<Long>) {
+        prefs.edit().putString("dishFeedbackSentAt", times.joinToString(",")).apply()
+    }
+
+    fun wasFeedbackNoted(listingKey: String): Boolean =
+        listingKey.isNotBlank() && listingKey in (prefs.getStringSet("dishFeedbackNoted", emptySet()) ?: emptySet())
+
+    fun markFeedbackNoted(listingKey: String) {
+        if (listingKey.isBlank()) return
+        val next = (prefs.getStringSet("dishFeedbackNoted", emptySet()) ?: emptySet()).toMutableSet()
+        next.add(listingKey)
+        prefs.edit().putStringSet("dishFeedbackNoted", next).apply()
+    }
+
     fun isFavorite(name: String) = _favorites.value.any { it.equals(name, true) }
     fun stars(name: String) = _reviews.value.entries.firstOrNull { it.key.equals(name, true) }?.value ?: 0
 

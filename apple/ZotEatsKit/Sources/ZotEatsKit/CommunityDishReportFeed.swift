@@ -135,6 +135,37 @@ public enum CommunityDishReportFeed {
         return merged
     }
 
+    /// Forwards an Other note to the reports ingest workflow. The webhook
+    /// URL and key never leave GitHub Actions config.
+    @discardableResult
+    public static func submitFeedback(
+        http: any HTTPFetching,
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        text: String,
+        authorID: String,
+        now: Date = Date(),
+        writeToken: String = CommunityReviewFeed.writeToken
+    ) async -> Bool {
+        let clipped = DishFeedbackLogic.clipped(text)
+        guard !clipped.isEmpty else { return false }
+        return await dispatchGitHubFeedback(
+            http: http,
+            date: date,
+            hall: hall,
+            meal: meal,
+            dishID: dishID,
+            dishName: dishName,
+            text: clipped,
+            authorID: authorID,
+            updatedAt: now,
+            writeToken: writeToken
+        )
+    }
+
     private static func load(http: any HTTPFetching, url: URL) async -> [DishReport]? {
         do {
             let data = try await http.data(from: url)
@@ -227,6 +258,54 @@ public enum CommunityDishReportFeed {
         }
     }
 
+    private static func dispatchGitHubFeedback(
+        http: any HTTPFetching,
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        text: String,
+        authorID: String,
+        updatedAt: Date,
+        writeToken: String
+    ) async -> Bool {
+        let token = writeToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { return false }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let envelope = FeedbackEnvelope(
+            event_type: "dish-feedback",
+            client_payload: FeedbackPayload(
+                date: date,
+                hall: hall,
+                meal: meal,
+                dishID: dishID,
+                dishName: dishName,
+                text: text,
+                authorID: authorID,
+                updatedAt: iso.string(from: updatedAt)
+            )
+        )
+        guard let body = try? JSONEncoder().encode(envelope) else { return false }
+        do {
+            _ = try await http.send(
+                method: "POST",
+                url: ingestURL,
+                headers: [
+                    "Accept": "application/vnd.github+json",
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer \(token)",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                ],
+                body: body
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private struct GitHubContentsMeta: Decodable, Sendable {
         var sha: String?
     }
@@ -262,6 +341,22 @@ public enum CommunityDishReportFeed {
         var dishID: String
         var dishName: String
         var reason: String
+        var authorID: String
+        var updatedAt: String
+    }
+
+    private struct FeedbackEnvelope: Encodable, Sendable {
+        var event_type: String
+        var client_payload: FeedbackPayload
+    }
+
+    private struct FeedbackPayload: Encodable, Sendable {
+        var date: String
+        var hall: String
+        var meal: String
+        var dishID: String
+        var dishName: String
+        var text: String
         var authorID: String
         var updatedAt: String
     }

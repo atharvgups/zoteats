@@ -18,6 +18,7 @@ struct DishDetailSheet: View {
 
     @State private var noteDraft = ""
     @State private var showReportOptions = false
+    @State private var notedLocally = false
 
     private var isFavorite: Bool {
         prefs.isFavorite(dish.name)
@@ -84,13 +85,21 @@ struct DishDetailSheet: View {
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showReportOptions) {
-            DishReportPickerSheet { reason in
-                showReportOptions = false
-                Task { await submitReport(reason) }
-            }
+            DishReportPickerSheet(
+                onChoose: { reason in
+                    showReportOptions = false
+                    Task { await submitReport(reason) }
+                },
+                onSendOther: { text in
+                    showReportOptions = false
+                    notedLocally = true
+                    Task { await submitOther(text) }
+                }
+            )
         }
         .onAppear {
             noteDraft = prefs.review(for: dish.name)?.note ?? ""
+            notedLocally = hasNotedFeedback
             Task {
                 await prefs.loadCommunityReviews()
                 await prefs.loadCommunityDishReports()
@@ -317,7 +326,7 @@ struct DishDetailSheet: View {
                     .accessibilityIdentifier("dish-reported-missing")
             }
 
-            if myReport != nil {
+            if myReport != nil || notedLocally || hasNotedFeedback {
                 Text(DishReportCopy.thanks)
                     .font(ZotFont.caption)
                     .foregroundStyle(.secondary)
@@ -342,7 +351,19 @@ struct DishDetailSheet: View {
         .padding(.top, 2)
     }
 
+    private var hasNotedFeedback: Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return DishFeedbackLogic.wasNoted(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name
+        )
+    }
+
     private func submitReport(_ reason: DishReportReason) async {
+        guard reason.countsTowardMissing else { return }
         guard let hallID, let period, let dateISO else { return }
         await prefs.submitDishReport(
             date: dateISO,
@@ -351,6 +372,18 @@ struct DishDetailSheet: View {
             dishID: dish.id,
             dishName: dish.name,
             reason: reason
+        )
+    }
+
+    private func submitOther(_ text: String) async {
+        guard let hallID, let period, let dateISO else { return }
+        await prefs.submitDishFeedback(
+            date: dateISO,
+            hall: hallID,
+            meal: period,
+            dishID: dish.id,
+            dishName: dish.name,
+            text: text
         )
     }
 
@@ -609,6 +642,15 @@ private struct AllergenChip: View {
 
 private struct DishReportPickerSheet: View {
     var onChoose: (DishReportReason) -> Void
+    var onSendOther: (String) -> Void
+
+    @State private var writingOther = false
+    @State private var otherText = ""
+    @FocusState private var otherFocused: Bool
+
+    private var canSendOther: Bool {
+        !DishFeedbackLogic.clipped(otherText).isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -621,7 +663,14 @@ private struct DishReportPickerSheet: View {
 
             ForEach(Array(DishReportReason.allCases.enumerated()), id: \.element) { index, reason in
                 Button {
-                    onChoose(reason)
+                    if reason == .other {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            writingOther.toggle()
+                        }
+                        otherFocused = writingOther
+                    } else {
+                        onChoose(reason)
+                    }
                 } label: {
                     HStack(spacing: 14) {
                         Image(systemName: reason.systemImage)
@@ -645,11 +694,43 @@ private struct DishReportPickerSheet: View {
                         .padding(.leading, 58)
                 }
             }
+
+            if writingOther {
+                VStack(alignment: .trailing, spacing: 10) {
+                    TextField(DishReportCopy.otherPlaceholder, text: $otherText, axis: .vertical)
+                        .font(ZotFont.body)
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(3...6)
+                        .textFieldStyle(.plain)
+                        .focused($otherFocused)
+                        .padding(12)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .onChange(of: otherText) { _, newValue in
+                            if newValue.count > DishFeedbackLogic.maxCharacters {
+                                otherText = String(newValue.prefix(DishFeedbackLogic.maxCharacters))
+                            }
+                        }
+                        .accessibilityIdentifier("dish-report-other-text")
+
+                    Button(DishReportCopy.send) {
+                        let clipped = DishFeedbackLogic.clipped(otherText)
+                        guard !clipped.isEmpty else { return }
+                        onSendOther(clipped)
+                    }
+                    .font(ZotFont.body.weight(.semibold))
+                    .foregroundStyle(canSendOther ? Color.ink : Color.secondary.opacity(0.45))
+                    .disabled(!canSendOther)
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("dish-report-other-send")
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            }
         }
         .padding(.bottom, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .appCanvas()
-        .presentationDetents([.height(280)])
+        .presentationDetents([.height(writingOther ? 470 : 348)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(24)
         .presentationBackground(Color(uiColor: .systemBackground))
