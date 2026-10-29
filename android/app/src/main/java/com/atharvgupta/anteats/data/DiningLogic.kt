@@ -763,7 +763,7 @@ object DiningLogic {
         return menu.copy(stations = pinTwistedRootFirst(stations))
     }
 
-    fun middayTwistedRootKeys(groups: List<List<MenuStation>>): Set<String> {
+    fun middayTwistedRootKeysFromGroups(groups: List<List<MenuStation>>): Set<String> {
         val items = groups.flatMap { group ->
             group.filter { isTwistedRoot(it.name, it.stationID) }.flatMap { it.items }
         } + groups.flatMap { group ->
@@ -777,7 +777,7 @@ object DiningLogic {
             val name = station.name.lowercase()
             "brunch" in name || ("lunch" in name && "brunch" !in name)
         }
-        return middayTwistedRootKeys(listOf(midday))
+        return middayTwistedRootKeysFromGroups(listOf(midday))
     }
 
     fun shouldKeepTwistedRootOnBreakfast(item: MenuItem, middayKeys: Set<String>): Boolean {
@@ -789,7 +789,7 @@ object DiningLogic {
         from: List<MenuStation>,
         midday: List<MenuStation>,
     ): List<MenuStation> {
-        val middayKeys = middayTwistedRootKeys(listOf(midday))
+        val middayKeys = middayTwistedRootKeysFromGroups(listOf(midday))
         if (middayKeys.isEmpty()) return from
         return from.mapNotNull { station ->
             if (!isTwistedRoot(station.name, station.stationID)) return@mapNotNull station
