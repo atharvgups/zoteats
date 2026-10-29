@@ -72,6 +72,20 @@ struct LiveAPITests {
             #expect(
                 !twistedNames(anteatery).contains { $0.localizedCaseInsensitiveContains("chia") }
             )
+            #expect(anteatery.stations.contains { $0.name == "Fable Station Takeover" })
+            let tacos = anteatery.stations
+                .first { $0.name == "Fable Station Takeover" }?
+                .items.first { $0.name.localizedCaseInsensitiveContains("chipotle mushroom") }
+            #expect(tacos?.calories == 180)
+            if let curry = anteatery.stations.flatMap(\.items).first(where: {
+                $0.name.localizedCaseInsensitiveContains("thai red curry")
+            }) {
+                #expect(!curry.dietaryTags.contains(where: {
+                    $0.localizedCaseInsensitiveCompare("Vegan") == .orderedSame
+                }))
+                #expect(curry.allergens.contains("Shellfish"))
+                #expect(curry.description?.localizedCaseInsensitiveContains("shrimp") == true)
+            }
         }
         if date == "2026-10-03" {
             // Weekend Lunch is a thin All-Day clone. Midday TR lives on Brunch.

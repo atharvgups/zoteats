@@ -1440,6 +1440,60 @@ struct DiningServiceTests {
         )
         #expect(DiningService.isPizzaStation(stationName: "Pizza"))
         #expect(!DiningService.isPizzaStation(stationName: "Oven", stationID: "1941", items: [dish]))
+        #expect(DiningService.stationLane(name: "Fable Station Takeover") == .hotEntree)
+        #expect(DiningService.isSpecialEventStation(stationName: "Fable Station Takeover"))
+    }
+
+    @Test func fableEventMatchesAnteateryLunchWindowOnly() {
+        let start = DiningService.parseEventDate("2026-10-29T18:00:00.000Z")
+        let end = DiningService.parseEventDate("2026-10-29T21:30:00.000Z")
+        let event = DiningService.DiningEvent(
+            title: "Fable Station Takeover",
+            restaurantId: "anteatery",
+            start: start,
+            end: end
+        )
+        #expect(
+            DiningService.eventOverlapsMeal(
+                event,
+                hallID: "anteatery",
+                dateISO: "2026-10-29",
+                periodStartMinutes: 11 * 60,
+                periodEndMinutes: 14 * 60 + 30
+            )
+        )
+        #expect(
+            !DiningService.eventOverlapsMeal(
+                event,
+                hallID: "anteatery",
+                dateISO: "2026-10-29",
+                periodStartMinutes: 7 * 60 + 15,
+                periodEndMinutes: 11 * 60
+            )
+        )
+        #expect(
+            !DiningService.eventOverlapsMeal(
+                event,
+                hallID: "brandywine",
+                dateISO: "2026-10-29",
+                periodStartMinutes: 11 * 60,
+                periodEndMinutes: 14 * 60 + 30
+            )
+        )
+        let empty = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-29",
+            period: "Lunch",
+            stations: []
+        )
+        let attached = DiningService.attachingEvents(
+            [event],
+            to: empty,
+            periodStartMinutes: 11 * 60,
+            periodEndMinutes: 14 * 60 + 30
+        )
+        #expect(attached.stations.map(\.name) == ["Fable Station Takeover"])
+        #expect(DiningService.droppingEmptyStations(attached).stations.isEmpty)
     }
 
     @Test func mergeKeepsUnknownStationsWithDifferentIds() {

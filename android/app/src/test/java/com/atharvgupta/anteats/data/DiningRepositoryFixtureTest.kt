@@ -8,17 +8,20 @@ import org.junit.Test
 class DiningRepositoryFixtureTest {
     private fun fixtureRepo(): DiningRepository = DiningRepository(
         hubStations = { _, _ -> emptyList() },
-        menuOverrides = { emptyList() },
+        menuOverrides = { MenuOverridePayload() },
     ) { path ->
-        val name = when {
-            "/restaurants" in path -> "restaurants.json"
-            "/restaurantToday" in path -> "restaurant_today.json"
-            "/dishes/batch" in path -> "dishes_batch.json"
-            "/dateRange" in path -> "date_range.json"
-            else -> error("unexpected path $path")
+        if ("/events" in path) {
+            200 to """{"ok":true,"data":[]}"""
+        } else {
+            val name = when {
+                "/restaurants" in path -> "restaurants.json"
+                "/restaurantToday" in path -> "restaurant_today.json"
+                "/dishes/batch" in path -> "dishes_batch.json"
+                "/dateRange" in path -> "date_range.json"
+                else -> error("unexpected path $path")
+            }
+            200 to checkNotNull(javaClass.getResource("/fixtures/$name")).readText()
         }
-        val body = checkNotNull(javaClass.getResource("/fixtures/$name")).readText()
-        200 to body
     }
 
     @Test
@@ -54,7 +57,7 @@ class DiningRepositoryFixtureTest {
     fun unpublishedDayIsEmptyNotAnError() = runBlocking {
         val full = DiningRepository(
             hubStations = { _, _ -> emptyList() },
-            menuOverrides = { emptyList() },
+            menuOverrides = { MenuOverridePayload() },
         ) { path ->
             when {
                 "/restaurantToday" in path -> 404 to """{"ok":false}"""
@@ -103,13 +106,14 @@ class DiningRepositoryFixtureTest {
         """.trimIndent()
         fun repo(today: String) = DiningRepository(
             hubStations = { _, _ -> emptyList() },
-            menuOverrides = { emptyList() },
+            menuOverrides = { MenuOverridePayload() },
         ) { path ->
             when {
                 "/restaurants" in path -> 200 to restaurants
                 "/restaurantToday" in path -> 200 to today
                 "/dishes/batch" in path -> 200 to dishes
                 "/dateRange" in path -> 200 to """{"ok":true,"data":{"earliest":"2026-10-01","latest":"2026-10-31"}}"""
+                "/events" in path -> 200 to """{"ok":true,"data":[]}"""
                 else -> error("unexpected path $path")
             }
         }

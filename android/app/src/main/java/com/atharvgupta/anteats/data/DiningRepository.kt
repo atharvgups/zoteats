@@ -24,7 +24,7 @@ class DiningRepository(
     private val base: String = "https://anteaterapi.com/v2/rest/dining",
     private val hubStations: suspend (locationUrlKey: String, dateISO: String) -> List<MenuStation> =
         { key, date -> runCatching { CampusRepository().postedMenu(key, date) }.getOrDefault(emptyList()) },
-    private val menuOverrides: suspend () -> List<MenuOverride> =
+    private val menuOverrides: suspend () -> MenuOverridePayload =
         { runCatching { MenuOverrideFeed.fetch() }.getOrDefault(MenuOverrideFeed.bundled) },
     private val get: suspend (String) -> Pair<Int, String> = { path -> httpGet(base + path) },
 ) {
@@ -151,12 +151,44 @@ class DiningRepository(
                 }
             }
         }
-        return applyOverrides(menu)
+        val period = today.values.firstOrNull { it.name.equals(resolved, true) }
+        return applyOverrides(
+            menu,
+            periodStartMinutes = PacificTime.parseMinutes(period?.startTime),
+            periodEndMinutes = PacificTime.parseMinutes(period?.endTime),
+        )
     }
 
-    private suspend fun applyOverrides(menu: DiningMenu): DiningMenu {
-        val overrides = runCatching { menuOverrides() }.getOrDefault(MenuOverrideFeed.bundled)
-        return MenuOverrideFeed.applying(overrides, menu)
+    private suspend fun applyOverrides(
+        menu: DiningMenu,
+        periodStartMinutes: Int? = null,
+        periodEndMinutes: Int? = null,
+    ): DiningMenu {
+        val feed = runCatching { menuOverrides() }.getOrDefault(MenuOverrideFeed.bundled)
+        val events = runCatching { events() }.getOrDefault(emptyList())
+        val withEvents = DiningLogic.attachingEvents(
+            events,
+            menu,
+            periodStartMinutes,
+            periodEndMinutes,
+        )
+        return DiningLogic.droppingEmptyStations(MenuOverrideFeed.applying(feed, withEvents))
+    }
+
+    private suspend fun events(): List<DiningEvent> {
+        val rows = envelopeArray(get("/events").second)
+        return rows.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val title = obj.string("title")?.trim().orEmpty()
+            val hall = obj.string("restaurantId")?.trim().orEmpty()
+            if (title.isEmpty() || hall.isEmpty()) return@mapNotNull null
+            DiningEvent(
+                title = title,
+                restaurantId = hall,
+                start = DiningLogic.parseEventInstant(obj.string("start")),
+                end = DiningLogic.parseEventInstant(obj.string("end")),
+            )
+        }
     }
 
     private suspend fun location(

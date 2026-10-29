@@ -19,6 +19,8 @@ struct FixtureHTTP: HTTPFetching {
             fixture = "dishes_batch"
         } else if path.hasSuffix("/dateRange") {
             fixture = "date_range"
+        } else if path.hasSuffix("/events") {
+            return Data(#"{"ok":true,"data":[]}"#.utf8)
         } else if url.host == "waitz.io" {
             fixture = "waitz"
         } else if url.host?.contains("libcal") == true {

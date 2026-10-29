@@ -66,6 +66,13 @@ data class DiningMenu(
     val twistedRootMeals: List<String> = emptyList(),
 )
 
+data class DiningEvent(
+    val title: String,
+    val restaurantId: String,
+    val start: java.time.ZonedDateTime? = null,
+    val end: java.time.ZonedDateTime? = null,
+)
+
 data class PublishedDateRange(
     val earliest: String,
     val latest: String,

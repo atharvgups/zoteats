@@ -802,7 +802,14 @@ struct DiningView: View {
                                 .transition(.opacity)
                         }
                     } else {
-                        sectionHeader(title: station.name, count: station.items.count)
+                        sectionHeader(
+                            title: station.name,
+                            count: station.items.count,
+                            compact: DiningService.isSpecialEventStation(
+                                stationName: station.name,
+                                stationID: station.stationID
+                            )
+                        )
                         groupedDishes(station.items)
                     }
                 }
@@ -861,7 +868,8 @@ struct DiningView: View {
         count: Int,
         icon: String? = nil,
         tint: Color = Color.accent,
-        chevron: String? = nil
+        chevron: String? = nil,
+        compact: Bool = false
     ) -> some View {
         HStack(spacing: 8) {
             if let icon {
@@ -871,10 +879,10 @@ struct DiningView: View {
             } else {
                 RoundedRectangle(cornerRadius: 1, style: .continuous)
                     .fill(tint)
-                    .frame(width: 3, height: 14)
+                    .frame(width: 3, height: compact ? 11 : 14)
             }
             Text(title)
-                .font(ZotFont.sectionTitle)
+                .font(compact ? Font.system(size: 15, weight: .semibold) : ZotFont.sectionTitle)
                 .foregroundStyle(Color.ink)
             Spacer(minLength: 8)
             Text("\(count)")

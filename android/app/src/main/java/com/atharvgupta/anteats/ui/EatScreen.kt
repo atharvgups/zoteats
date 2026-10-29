@@ -610,7 +610,11 @@ private fun StationBlock(
                 .then(if (isAllDay) Modifier.clickable { expanded = !expanded } else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SectionHeader(station.name, station.items.size)
+            SectionHeader(
+                station.name,
+                station.items.size,
+                compact = DiningLogic.isSpecialEventStation(station.name, station.stationID),
+            )
         }
         if (expanded) {
             station.items.forEach { item ->

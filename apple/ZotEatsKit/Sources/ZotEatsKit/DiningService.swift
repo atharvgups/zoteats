@@ -71,6 +71,16 @@ public struct DiningService: Sendable {
         let latest: String
     }
 
+    /// Marketing / takeover cards from `GET /events`. Title + hall + time window
+    /// only; the payload has no dishes, so Eat never invents SKUs from copy.
+    private struct APIEvent: Decodable, Sendable {
+        let title: String?
+        let restaurantId: String?
+        let description: String?
+        let start: String?
+        let end: String?
+    }
+
     /// Inclusive ISO-date window the dining feed currently publishes.
     public struct PublishedDateRange: Sendable, Equatable {
         public let earliest: String
@@ -541,6 +551,24 @@ public struct DiningService: Sendable {
         return lowered.contains("twisted root") || lowered.contains("twistedroot")
     }
 
+    /// Takeover / pop-up boards (Fable Station Takeover). Rotating middle lane,
+    /// never dessert / pizza / burger.
+    public static func isSpecialEventStation(stationName: String, stationID: String? = nil) -> Bool {
+        if let stationID {
+            let id = stationID.lowercased()
+            if id.contains("event") || id.contains("takeover") || id.hasPrefix("override:fable") {
+                return true
+            }
+        }
+        let lowered = collapsedStationName(stationName)
+        if lowered.isEmpty { return false }
+        if lowered.contains("takeover") { return true }
+        if lowered.contains("fable") { return true }
+        if lowered.contains("special event") { return true }
+        if lowered.contains("pop up") || lowered.contains("popup") { return true }
+        return false
+    }
+
     public static func isEmber(stationName: String, stationID: String? = nil) -> Bool {
         if let stationID, emberStationIDs.contains(stationID) { return true }
         let lowered = collapsedStationName(stationName)
@@ -618,6 +646,7 @@ public struct DiningService: Sendable {
         items: [MenuItem] = []
     ) -> StationLane {
         if isTwistedRoot(stationName: name, stationID: stationID) { return .twistedRoot }
+        if isSpecialEventStation(stationName: name, stationID: stationID) { return .hotEntree }
         if isStandingBurger(stationName: name, stationID: stationID) { return .standingBurger }
         if isAvailableAllDayStation(stationName: name) { return .availableAllDay }
         if isDessertStation(stationName: name, stationID: stationID) { return .dessert }
@@ -708,6 +737,121 @@ public struct DiningService: Sendable {
                 return lhs.offset < rhs.offset
             }
             .map(\.element)
+    }
+
+    /// Marketing event from Anteater `/events` (title, hall, time; no dishes).
+    public struct DiningEvent: Equatable, Sendable {
+        public var title: String
+        public var restaurantId: String
+        public var start: Date?
+        public var end: Date?
+
+        public init(title: String, restaurantId: String, start: Date? = nil, end: Date? = nil) {
+            self.title = title
+            self.restaurantId = restaurantId
+            self.start = start
+            self.end = end
+        }
+    }
+
+    public static func parseEventDate(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = withFraction.date(from: raw) { return date }
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        return basic.date(from: raw)
+    }
+
+    /// True when this event is for this hall, covers the Irvine date, and
+    /// overlaps the meal window. Events before 2024 (epoch placeholders) skip.
+    public static func eventOverlapsMeal(
+        _ event: DiningEvent,
+        hallID: String,
+        dateISO: String,
+        periodStartMinutes: Int?,
+        periodEndMinutes: Int?
+    ) -> Bool {
+        let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return false }
+        guard MenuOverrideFeed.hallMatches(event.restaurantId, menuHall: hallID) else {
+            return false
+        }
+        guard let start = event.start else { return false }
+        let year = PacificTime.calendar.component(.year, from: start)
+        if year < 2024 { return false }
+        let startDay = PacificTime.todayISO(now: start)
+        let endDay = PacificTime.todayISO(now: event.end ?? start)
+        guard dateISO >= startDay, dateISO <= endDay else { return false }
+
+        let eventStartMinutes: Int = {
+            if dateISO == startDay { return PacificTime.nowMinutes(now: start) }
+            return 0
+        }()
+        let eventEndMinutes: Int = {
+            if let end = event.end {
+                if dateISO == PacificTime.todayISO(now: end) {
+                    return PacificTime.nowMinutes(now: end)
+                }
+                return 24 * 60
+            }
+            return eventStartMinutes + 3 * 60
+        }()
+        guard let periodStart = periodStartMinutes, let periodEnd = periodEndMinutes else {
+            // Untimed meal (weekend Lunch clone): keep lunch-hours events off it.
+            return false
+        }
+        return eventStartMinutes < periodEnd && eventEndMinutes > periodStart
+    }
+
+    /// Add takeover stations named from `/events`. Empty boards are dropped
+    /// after override dishes land, so marketing copy never becomes a fake SKU.
+    public static func attachingEvents(
+        _ events: [DiningEvent],
+        to menu: DiningMenu,
+        periodStartMinutes: Int?,
+        periodEndMinutes: Int?
+    ) -> DiningMenu {
+        let matching = events.filter {
+            eventOverlapsMeal(
+                $0,
+                hallID: menu.locationId,
+                dateISO: menu.date,
+                periodStartMinutes: periodStartMinutes,
+                periodEndMinutes: periodEndMinutes
+            )
+        }
+        guard !matching.isEmpty else { return menu }
+        var stations = menu.stations
+        for event in matching {
+            let name = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if stations.contains(where: { collapsedStationName($0.name) == collapsedStationName(name) }) {
+                continue
+            }
+            let sid = "event:\(menu.locationId):\(collapsedStationName(name).replacingOccurrences(of: " ", with: "-"))"
+            let insertAt = stations.firstIndex {
+                stationLane(name: $0.name, stationID: $0.stationID, items: $0.items) > .hotEntree
+            } ?? stations.endIndex
+            stations.insert(MenuStation(name: name, items: [], stationID: sid), at: insertAt)
+        }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: pinTwistedRootFirst(stations)
+        )
+    }
+
+    public static func droppingEmptyStations(_ menu: DiningMenu) -> DiningMenu {
+        let kept = menu.stations.filter { !$0.items.isEmpty }
+        guard kept != menu.stations else { return menu }
+        return DiningMenu(
+            locationId: menu.locationId,
+            date: menu.date,
+            period: menu.period,
+            stations: kept
+        )
     }
 
     // MARK: - Public API
@@ -1749,7 +1893,15 @@ public struct DiningService: Sendable {
         // Anteater API often leaves every is* flag false; the dining hub carries
         // much richer recipe_attributes. Merge by dish name (soft-fail).
         let enriched = await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
-        return await applyingOverrides(enriched, forceRefresh: forceRefresh)
+        let periodMatch = (today.periods ?? [:]).values.first {
+            $0.name.caseInsensitiveCompare(resolved) == .orderedSame
+        }
+        return await applyingOverrides(
+            enriched,
+            forceRefresh: forceRefresh,
+            periodStartMinutes: PacificTime.parseMinutes(periodMatch?.startTime),
+            periodEndMinutes: PacificTime.parseMinutes(periodMatch?.endTime)
+        )
     }
 
     /// Official Hub SKUs when Anteater still omits Oasis. Empty Hub / typical
@@ -1795,16 +1947,57 @@ public struct DiningService: Sendable {
         )
     }
 
-    /// Dated verified inserts from GitHub `menu-overrides.json`, with a bundled
-    /// fallback so Internal TestFlight still shows tonight's dish.
-    private func applyingOverrides(_ menu: DiningMenu, forceRefresh: Bool) async -> DiningMenu {
+    /// Dated verified inserts / corrections from GitHub `menu-overrides.json`,
+    /// plus Anteater `/events` takeover labels. Bundled fallback covers this
+    /// build if `main` lags. Empty event stations drop after dishes land.
+    private func applyingOverrides(
+        _ menu: DiningMenu,
+        forceRefresh: Bool,
+        periodStartMinutes: Int? = nil,
+        periodEndMinutes: Int? = nil
+    ) async -> DiningMenu {
         if forceRefresh {
             await cache.invalidate("menu-overrides")
+            await cache.invalidate("dining:events")
         }
-        let overrides = await cache.remember("menu-overrides", ttl: Self.todayTTL) {
+        async let feedTask: MenuOverrideFeed.Feed = cache.remember("menu-overrides", ttl: Self.todayTTL) {
             await MenuOverrideFeed.fetch(http: self.http)
         }
-        return MenuOverrideFeed.applying(overrides, to: menu)
+        async let eventsTask: [DiningEvent] = diningEvents(forceRefresh: forceRefresh)
+        let feed = await feedTask
+        let events = await eventsTask
+        let withEvents = Self.attachingEvents(
+            events,
+            to: menu,
+            periodStartMinutes: periodStartMinutes,
+            periodEndMinutes: periodEndMinutes
+        )
+        let applied = MenuOverrideFeed.applying(feed, to: withEvents)
+        return Self.droppingEmptyStations(applied)
+    }
+
+    private func diningEvents(forceRefresh: Bool) async -> [DiningEvent] {
+        if forceRefresh {
+            await cache.invalidate("dining:events")
+        }
+        return await cache.remember("dining:events", ttl: Self.todayTTL) {
+            do {
+                let raw = try await getData([APIEvent].self, path: "/events")
+                return raw.compactMap { row in
+                    let title = row.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let hall = row.restaurantId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    guard !title.isEmpty, !hall.isEmpty else { return nil }
+                    return DiningEvent(
+                        title: title,
+                        restaurantId: hall,
+                        start: Self.parseEventDate(row.start),
+                        end: Self.parseEventDate(row.end)
+                    )
+                }
+            } catch {
+                return []
+            }
+        }
     }
 
     /// Overlay dining-hub dietary tags / allergens onto Anteater menu items.

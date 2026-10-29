@@ -210,7 +210,13 @@ fun SkeletonCard(height: Dp = 92.dp) {
 }
 
 @Composable
-fun SectionHeader(title: String, count: Int? = null, goldBar: Boolean = true, icon: ImageVector? = null) {
+fun SectionHeader(
+    title: String,
+    count: Int? = null,
+    goldBar: Boolean = true,
+    icon: ImageVector? = null,
+    compact: Boolean = false,
+) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth(),
@@ -223,12 +229,18 @@ fun SectionHeader(title: String, count: Int? = null, goldBar: Boolean = true, ic
             Box(
                 Modifier
                     .width(3.dp)
-                    .height(14.dp)
+                    .height(if (compact) 11.dp else 14.dp)
                     .clip(RoundedCornerShape(1.dp))
                     .background(accentGold()),
             )
         }
-        Text(title, fontSize = SectionSize, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.weight(1f))
+        Text(
+            title,
+            fontSize = if (compact) 15.sp else SectionSize,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onBackground,
+            modifier = Modifier.weight(1f),
+        )
         if (count != null) {
             Text("$count", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
         }

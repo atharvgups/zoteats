@@ -488,4 +488,85 @@ class DiningLogicTest {
         val lunch = menu.copy(period = "Lunch")
         assertEquals(lunch, MenuOverrideFeed.applying(MenuOverrideFeed.bundled, lunch))
     }
+
+    @Test
+    fun correctionStripsVeganTagsAndAddsShellfishOnThaiRedCurry() {
+        val curry = MenuItem(
+            "curry",
+            "Thai Red Curry Bowl",
+            "Thai red curry with sweet potatoes and green beans served with jasmine rice topped with cilantro",
+            553,
+            null,
+            emptyList(),
+            listOf("Vegan", "Vegetarian", "Plant Forward", "Gluten-Free"),
+            stationID = "1926",
+        )
+        val home = MenuItem("pork", "Cajun Roasted Pork Loin", null, 320, null, emptyList(), emptyList(), stationID = "1932")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-10-29",
+            "Lunch",
+            listOf(
+                MenuStation("Fire and Ice", listOf(curry), "1926"),
+                MenuStation("Home", listOf(home), "1932"),
+            ),
+        )
+        val combined = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, menu)
+        val fire = combined.stations.first { it.stationID == "1926" }.items.first()
+        assertEquals("Thai Red Curry Bowl", fire.name)
+        assertEquals(listOf("Gluten-Free"), fire.dietaryTags)
+        assertEquals(listOf("Shellfish"), fire.allergens)
+        assertTrue(fire.description.orEmpty().contains("shrimp", true))
+        assertTrue(combined.stations.any { it.name == "Home" })
+    }
+
+    @Test
+    fun fableTakeoverLandsInTheMiddleLaneWithVerifiedTacos() {
+        val twisted = MenuItem("tofu", "Indian-Spiced Tofu Saute", null, 200, null, emptyList(), listOf("Vegan"), stationID = "1929")
+        val home = MenuItem("pork", "Cajun Roasted Pork Loin", null, 320, null, emptyList(), emptyList(), stationID = "1932")
+        val cake = MenuItem("cake", "Cookie Crumb Cupcake", null, 280, null, emptyList(), listOf("Vegetarian"), stationID = "1938")
+        val pizza = MenuItem("pizza", "Pepperoni Pizza", null, 400, null, emptyList(), emptyList(), stationID = "1941")
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1935")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-10-29",
+            "Lunch",
+            listOf(
+                MenuStation("The Twisted Root", listOf(twisted), "1929"),
+                MenuStation("Home", listOf(home), "1932"),
+                MenuStation("Bakery", listOf(cake), "1938"),
+                MenuStation("Oven", listOf(pizza), "1941"),
+                MenuStation("Sizzle Grill", listOf(burger), "1935"),
+            ),
+        )
+        val combined = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, menu)
+        val names = combined.stations.map { it.name }
+        assertEquals("The Twisted Root", names.first())
+        assertEquals("Sizzle Grill", names.last())
+        val fableIdx = names.indexOf("Fable Station Takeover")
+        assertTrue(fableIdx > 0)
+        assertTrue(fableIdx < names.indexOf("Bakery"))
+        assertTrue(fableIdx < names.indexOf("Oven"))
+        val tacos = combined.stations.first { it.name == "Fable Station Takeover" }.items.first()
+        assertEquals("Chipotle Mushroom Soft Tacos", tacos.name)
+        assertEquals(180, tacos.calories)
+        assertEquals("Sauteed chipotle mushrooms, fire-roasted salsa and warm flour tortilla", tacos.description)
+        assertEquals(listOf("Vegan", "Vegetarian", "Plant Forward"), tacos.dietaryTags)
+        assertEquals(DiningLogic.StationLane.HOT_ENTREE, DiningLogic.stationLane("Fable Station Takeover"))
+        assertTrue(DiningLogic.isSpecialEventStation("Fable Station Takeover"))
+    }
+
+    @Test
+    fun fableEventMatchesAnteateryLunchWindowOnly() {
+        val start = DiningLogic.parseEventInstant("2026-10-29T18:00:00.000Z")
+        val end = DiningLogic.parseEventInstant("2026-10-29T21:30:00.000Z")
+        val event = DiningEvent("Fable Station Takeover", "anteatery", start, end)
+        assertTrue(DiningLogic.eventOverlapsMeal(event, "anteatery", "2026-10-29", 11 * 60, 14 * 60 + 30))
+        assertFalse(DiningLogic.eventOverlapsMeal(event, "anteatery", "2026-10-29", 7 * 60 + 15, 11 * 60))
+        assertFalse(DiningLogic.eventOverlapsMeal(event, "brandywine", "2026-10-29", 11 * 60, 14 * 60 + 30))
+        val empty = DiningMenu("anteatery", "2026-10-29", "Lunch", emptyList())
+        val attached = DiningLogic.attachingEvents(listOf(event), empty, 11 * 60, 14 * 60 + 30)
+        assertEquals(listOf("Fable Station Takeover"), attached.stations.map { it.name })
+        assertTrue(DiningLogic.droppingEmptyStations(attached).stations.isEmpty())
+    }
 }

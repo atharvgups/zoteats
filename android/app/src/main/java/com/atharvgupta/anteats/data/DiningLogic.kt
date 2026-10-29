@@ -161,6 +161,20 @@ object DiningLogic {
         return "twisted root" in lowered || "twistedroot" in lowered
     }
 
+    fun isSpecialEventStation(stationName: String, stationID: String? = null): Boolean {
+        if (stationID != null) {
+            val id = stationID.lowercase()
+            if ("event" in id || "takeover" in id || id.startsWith("override:fable")) return true
+        }
+        val lowered = collapsedStationName(stationName)
+        if (lowered.isEmpty()) return false
+        if ("takeover" in lowered) return true
+        if ("fable" in lowered) return true
+        if ("special event" in lowered) return true
+        if ("pop up" in lowered || "popup" in lowered) return true
+        return false
+    }
+
     fun isEmber(stationName: String, stationID: String? = null): Boolean {
         if (stationID != null && stationID in emberStationIDs) return true
         val lowered = collapsedStationName(stationName)
@@ -236,6 +250,7 @@ object DiningLogic {
         items: List<MenuItem> = emptyList(),
     ): StationLane {
         if (isTwistedRoot(name, stationID)) return StationLane.TWISTED_ROOT
+        if (isSpecialEventStation(name, stationID)) return StationLane.HOT_ENTREE
         if (isStandingBurger(name, stationID)) return StationLane.STANDING_BURGER
         if (isAvailableAllDayStation(name)) return StationLane.AVAILABLE_ALL_DAY
         if (isDessertStation(name, stationID)) return StationLane.DESSERT
@@ -796,6 +811,67 @@ object DiningLogic {
             val kept = station.items.filter { shouldKeepTwistedRootOnBreakfast(it, middayKeys) }
             if (kept.isEmpty()) null else station.withItems(kept)
         }
+    }
+
+    fun parseEventInstant(raw: String?): java.time.ZonedDateTime? {
+        if (raw.isNullOrBlank()) return null
+        return runCatching {
+            java.time.Instant.parse(raw).atZone(PacificTime.zone)
+        }.getOrNull()
+    }
+
+    fun eventOverlapsMeal(
+        event: DiningEvent,
+        hallID: String,
+        dateISO: String,
+        periodStartMinutes: Int?,
+        periodEndMinutes: Int?,
+    ): Boolean {
+        val title = event.title.trim()
+        if (title.isEmpty()) return false
+        if (!MenuOverrideFeed.hallMatches(event.restaurantId, hallID)) return false
+        val start = event.start ?: return false
+        if (start.year < 2024) return false
+        val startDay = start.toLocalDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val endDay = (event.end ?: start).toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        if (dateISO < startDay || dateISO > endDay) return false
+        val eventStartMinutes = if (dateISO == startDay) start.hour * 60 + start.minute else 0
+        val eventEndMinutes = event.end?.let { end ->
+            val endIso = end.toLocalDate().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            if (dateISO == endIso) end.hour * 60 + end.minute else 24 * 60
+        } ?: (eventStartMinutes + 3 * 60)
+        val periodStart = periodStartMinutes ?: return false
+        val periodEnd = periodEndMinutes ?: return false
+        return eventStartMinutes < periodEnd && eventEndMinutes > periodStart
+    }
+
+    fun attachingEvents(
+        events: List<DiningEvent>,
+        menu: DiningMenu,
+        periodStartMinutes: Int?,
+        periodEndMinutes: Int?,
+    ): DiningMenu {
+        val matching = events.filter {
+            eventOverlapsMeal(it, menu.locationId, menu.date, periodStartMinutes, periodEndMinutes)
+        }
+        if (matching.isEmpty()) return menu
+        val stations = menu.stations.toMutableList()
+        for (event in matching) {
+            val name = event.title.trim()
+            if (stations.any { collapsedStationName(it.name) == collapsedStationName(name) }) continue
+            val sid = "event:${menu.locationId}:${collapsedStationName(name).replace(" ", "-")}"
+            val insertAt = stations.indexOfFirst {
+                stationLane(it.name, it.stationID, it.items) > StationLane.HOT_ENTREE
+            }.let { if (it < 0) stations.size else it }
+            stations.add(insertAt, MenuStation(name, emptyList(), sid))
+        }
+        return menu.copy(stations = pinTwistedRootFirst(stations))
+    }
+
+    fun droppingEmptyStations(menu: DiningMenu): DiningMenu {
+        val kept = menu.stations.filter { it.items.isNotEmpty() }
+        return if (kept == menu.stations) menu else menu.copy(stations = kept)
     }
 
     fun emptyMenuCopy(period: String, browsingFuture: Boolean, comingSoon: Boolean): String {
