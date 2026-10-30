@@ -469,6 +469,47 @@ class DiningLogicTest {
     }
 
     @Test
+    fun hubExclusiveDoesNotOpenUnpostedNoodleBarAtLunch() {
+        val home = MenuItem("pork", "Herb Chicken", null, 300, null, emptyList(), emptyList(), stationID = "1932")
+        val casserole = MenuItem(
+            "casserole",
+            "Alfredo Pesto Casserole",
+            null,
+            99,
+            "1/3 cup",
+            listOf("Wheat", "Soy"),
+            listOf("Vegan", "Vegetarian"),
+            stationID = "1953",
+        )
+        val sauce = MenuItem("sauce", "Alfredo Sauce", null, 56, null, listOf("Milk"), emptyList(), stationID = "1953")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-10-30",
+            "Lunch",
+            listOf(MenuStation("Home", listOf(home), "1932")),
+        )
+        val hub = listOf(
+            MenuStation("Lunch", listOf(casserole)),
+            MenuStation("Dinner", listOf(sauce)),
+        )
+        val extras = DiningLogic.hubExclusiveItems(menu, hub)
+        assertFalse(extras.map { it.name }.contains("Alfredo Pesto Casserole"))
+        val combined = DiningLogic.insertingHubExtras(extras + casserole, menu)
+        assertFalse(combined.stations.any { it.stationID == "1953" })
+        assertFalse(combined.stations.flatMap { it.items }.any { it.name == "Alfredo Pesto Casserole" })
+        assertTrue(
+            DiningLogic.favoriteItemsOnBoard(
+                combined.stations,
+                listOf("Alfredo Pesto Casserole"),
+                "Lunch",
+            ).isEmpty(),
+        )
+        assertFalse(DiningLogic.canOpenHubStation("1953", menu))
+        assertTrue(DiningLogic.canOpenHubStation("1929", menu))
+        assertTrue(DiningLogic.canOpenHubStation("1932", menu))
+    }
+
+    @Test
     fun bundledOverrideInsertsCajunTofuWithoutReorderingOtherStations() {
         val home = MenuItem("pork", "Cajun Roasted Pork Loin", null, 320, null, emptyList(), emptyList(), stationID = "1932")
         val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1935")

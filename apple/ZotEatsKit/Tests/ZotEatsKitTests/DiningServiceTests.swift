@@ -638,10 +638,10 @@ struct DiningServiceTests {
     }
 
     @Test func insertingHubExtrasUsesStationMapNames() {
-        let sandwich = MenuItem(
-            id: "sub", name: "Classic Italian Sub", description: nil, calories: 480,
-            servingSize: nil, allergens: [], dietaryTags: [],
-            stationID: "1950"
+        let tofu = MenuItem(
+            id: "tofu", name: "Cajun Tofu and White Rice", description: nil, calories: 280,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
         )
         let menu = DiningMenu(
             locationId: "anteatery",
@@ -655,12 +655,62 @@ struct DiningServiceTests {
             ], stationID: "1932")]
         )
         let combined = DiningService.insertingHubExtras(
-            [sandwich],
+            [tofu],
             into: menu,
-            stationNames: ["1950": "The Deli"]
+            stationNames: ["1929": "The Twisted Root"]
         )
-        #expect(combined.stations.contains { $0.name == "The Deli" && $0.items.map(\.name) == ["Classic Italian Sub"] })
+        #expect(combined.stations.contains { $0.name == "The Twisted Root" && $0.items.map(\.name) == ["Cajun Tofu and White Rice"] })
         #expect(!combined.stations.contains { $0.name == "Menu" })
+    }
+
+    @Test func hubExclusiveDoesNotOpenUnpostedNoodleBarAtLunch() {
+        // Atharv Fri Oct 30: Favorites today listed Alfredo Pesto Casserole
+        // at Anteatery lunch. Hub tagged it Lunch + Noodle Bar 1953. Anteater
+        // lunch did not post 1953 (dinner only).
+        let home = MenuItem(
+            id: "pork", name: "Herb Chicken", description: nil, calories: 300,
+            servingSize: nil, allergens: [], dietaryTags: [],
+            stationID: "1932"
+        )
+        let casserole = MenuItem(
+            id: "casserole",
+            name: "Alfredo Pesto Casserole",
+            description: nil,
+            calories: 99,
+            servingSize: "1/3 cup",
+            allergens: ["Wheat", "Soy"],
+            dietaryTags: ["Vegan", "Vegetarian"],
+            stationID: "1953"
+        )
+        let sauce = MenuItem(
+            id: "sauce", name: "Alfredo Sauce", description: nil, calories: 56,
+            servingSize: nil, allergens: ["Milk"], dietaryTags: [],
+            stationID: "1953"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-10-30",
+            period: "Lunch",
+            stations: [MenuStation(name: "Home", items: [home], stationID: "1932")]
+        )
+        let hub = [
+            MenuStation(name: "Lunch", items: [casserole]),
+            MenuStation(name: "Dinner", items: [sauce]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(!extras.map(\.name).contains("Alfredo Pesto Casserole"))
+        let combined = DiningService.insertingHubExtras(extras + [casserole], into: menu)
+        #expect(!combined.stations.contains { $0.stationID == "1953" })
+        #expect(!combined.stations.flatMap(\.items).contains { $0.name == "Alfredo Pesto Casserole" })
+        let favorites = FavoritesOnMenuPick.servedItems(
+            favorites: ["Alfredo Pesto Casserole"],
+            stations: combined.stations,
+            period: "Lunch"
+        )
+        #expect(favorites.isEmpty)
+        #expect(!DiningService.canOpenHubStation(stationID: "1953", on: menu))
+        #expect(DiningService.canOpenHubStation(stationID: "1929", on: menu))
+        #expect(DiningService.canOpenHubStation(stationID: "1932", on: menu))
     }
 
     @Test func hubExclusiveDoesNotDuplicateUCIMacOrAllDayFriesOnTwistedRoot() {
