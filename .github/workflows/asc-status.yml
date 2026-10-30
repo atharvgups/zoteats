@@ -30,6 +30,8 @@
 # uploaded. Expect 1.0.354 still WAITING_FOR_REVIEW. No submit, no External.
 # Peek 2026-10-23 ~12:52 AM UTC — read-only. Oasis Internal 1.0.358 uploaded.
 # Live 1.0.354 READY_FOR_SALE. Do not submit 358. No External.
+# Peek 2026-10-30 ~20:25 UTC. Expect Internal 1.0.369 build 375 VALID.
+# Then App Store submit of 1.0.369. Check whether 1.0.361 is still WAITING.
 name: ASC Status
 
 on:
