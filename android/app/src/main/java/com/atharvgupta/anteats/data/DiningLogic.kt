@@ -635,6 +635,13 @@ object DiningLogic {
             sid.isNotEmpty() && stationBelongs(hallID, sid)
         }
 
+    fun canOpenHubStation(stationID: String?, menu: DiningMenu): Boolean {
+        val sid = stationID?.trim().orEmpty()
+        if (sid.isEmpty()) return true
+        if (menu.stations.any { canMergeHubExtra(it, sid) }) return true
+        return isTwistedRoot("", sid)
+    }
+
     fun canMergeHubExtra(station: MenuStation, extraStationID: String): Boolean {
         val extraID = extraStationID.trim()
         if (extraID.isEmpty()) return false
@@ -713,6 +720,7 @@ object DiningLogic {
             }
             if (!twisted && onAllDay) return
             if (!twisted && onOtherMeal) return
+            if (!canOpenHubStation(item.stationID, menu)) return
             seen += keys
             extras += item
         }
@@ -768,6 +776,7 @@ object DiningLogic {
                 merge(namedIdx, listOf(item), sid)
                 continue
             }
+            if (!isTwistedRoot("", sid)) continue
             insertBeforeAllDay(
                 MenuStation(name, applyStationTags(listOf(item), name, sid), sid),
             )

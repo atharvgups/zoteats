@@ -1645,11 +1645,26 @@ public struct DiningService: Sendable {
             }
             if !twisted, onAllDay { return }
             if !twisted, onOtherMeal { return }
+            // Hub meal tags often copy a dinner station onto Lunch. Only
+            // fill stations Anteater already posted, plus missing Twisted Root.
+            if !canOpenHubStation(stationID: item.stationID, on: menu) { return }
             for key in keys { seen.insert(key) }
             extras.append(item)
         }
         for item in matching { consider(item) }
         return extras
+    }
+
+    /// Hub may join a station Anteater already posted, and may recreate
+    /// Twisted Root when Anteater omitted the whole section. It must not
+    /// open Noodle Bar / Deli / Fire and Ice on a meal Anteater left off.
+    public static func canOpenHubStation(stationID: String?, on menu: DiningMenu) -> Bool {
+        let sid = stationID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if sid.isEmpty { return true }
+        if menu.stations.contains(where: { canMergeHubExtra(into: $0, extraStationID: sid) }) {
+            return true
+        }
+        return isTwistedRoot(stationName: "", stationID: sid)
     }
 
     /// Same station id always merges. Twisted Root extras may join a brand
@@ -1731,6 +1746,7 @@ public struct DiningService: Sendable {
                 merge(into: idx, items: [item], stationID: sid)
                 continue
             }
+            guard isTwistedRoot(stationName: "", stationID: sid) else { continue }
             insertBeforeAllDay(MenuStation(
                 name: name,
                 items: applyStationTags([item], station: name, stationID: sid),
