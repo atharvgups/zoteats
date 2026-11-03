@@ -1013,6 +1013,95 @@ struct DiningServiceTests {
         #expect(!combined.stations.contains { $0.name == "Also served" })
     }
 
+    @Test func hubGrillStapleDetectsPlainRiceNotEntrees() {
+        #expect(DiningService.isHubGrillStaple("Basmati Rice"))
+        #expect(DiningService.isHubGrillStaple("Jasmine Rice"))
+        #expect(DiningService.isHubGrillStaple("Cilantro Lime Rice"))
+        #expect(DiningService.isHubGrillStaple("Crispy Homestyle French Fries"))
+        #expect(!DiningService.isHubGrillStaple("Cajun Tofu and White Rice"))
+        #expect(!DiningService.isHubGrillStaple("Eggplant Parmesan"))
+        #expect(!DiningService.isHubGrillStaple("Spicy Vegetable Gumbo"))
+        #expect(!DiningService.isHubGrillStaple("Jackfruit Curry"))
+    }
+
+    @Test func dinnerKeepsAnteaterTwistedRootWhenHubOnlyTaggedRice() {
+        // 2026-11-02 live miss: Anteater dinner TR is Eggplant Parmesan /
+        // Spicy Vegetable Gumbo. Hub omitted those entrees and tagged
+        // rice (also on Home / Crossroads) as Twisted Root. 1.0.369 kept
+        // only the rice.
+        let eggplant = MenuItem(
+            id: "1923_101628_M35168_1_1114",
+            name: "Eggplant Parmesan",
+            description: "Seasoned breaded eggplant slices covered in tomato sauce, plant-based mozzarella and almond-based parmesan",
+            calories: nil,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan", "Vegetarian"],
+            stationID: "1929"
+        )
+        let rice = MenuItem(
+            id: "rice",
+            name: "Basmati Rice",
+            description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let penne = MenuItem(
+            id: "home-penne", name: "Buttery Penne", description: nil, calories: 110,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegetarian"],
+            stationID: "1932"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-02",
+            period: "Dinner",
+            stations: [
+                MenuStation(name: "The Twisted Root", items: [eggplant], stationID: "1929"),
+                MenuStation(name: "Home", items: [penne], stationID: "1932"),
+            ]
+        )
+        let hub = [
+            MenuStation(name: "Dinner", items: [rice, penne]),
+            MenuStation(name: "All Day", items: [rice]),
+        ]
+        let trimmed = DiningService.droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hub)
+        let twisted = trimmed.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(twisted?.items.map(\.name) == ["Eggplant Parmesan"])
+        let extras = DiningService.hubExclusiveItems(onMenu: trimmed, hubStations: hub)
+        #expect(!extras.map(\.name).contains("Basmati Rice"))
+        let combined = DiningService.insertingHubExtras(extras, into: trimmed)
+        let names = combined.stations
+            .first { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }?
+            .items.map(\.name) ?? []
+        #expect(names == ["Eggplant Parmesan"])
+    }
+
+    @Test func hubExclusiveDoesNotInventRiceOnlyTwistedRoot() {
+        let burger = MenuItem(
+            id: "burger", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1878"
+        )
+        let rice = MenuItem(
+            id: "rice", name: "Jasmine Rice", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-11-03",
+            period: "Dinner",
+            stations: [MenuStation(name: "Ember", items: [burger], stationID: "1878")]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [rice, burger])]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(!extras.map(\.name).contains("Jasmine Rice"))
+        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        #expect(
+            !combined.stations.contains {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            }
+        )
+    }
+
     @Test func hubBoardKeepsAnteateryTwistedRootWhenHubAgrees() {
         let buffalo = MenuItem(
             id: "1923_101628_M34960_1_17232",

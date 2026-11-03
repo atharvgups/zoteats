@@ -510,6 +510,73 @@ class DiningLogicTest {
     }
 
     @Test
+    fun hubGrillStapleDetectsPlainRiceNotEntrees() {
+        assertTrue(DiningLogic.isHubGrillStaple("Basmati Rice"))
+        assertTrue(DiningLogic.isHubGrillStaple("Jasmine Rice"))
+        assertTrue(DiningLogic.isHubGrillStaple("Cilantro Lime Rice"))
+        assertTrue(DiningLogic.isHubGrillStaple("Crispy Homestyle French Fries"))
+        assertFalse(DiningLogic.isHubGrillStaple("Cajun Tofu and White Rice"))
+        assertFalse(DiningLogic.isHubGrillStaple("Eggplant Parmesan"))
+        assertFalse(DiningLogic.isHubGrillStaple("Spicy Vegetable Gumbo"))
+        assertFalse(DiningLogic.isHubGrillStaple("Jackfruit Curry"))
+    }
+
+    @Test
+    fun dinnerKeepsAnteaterTwistedRootWhenHubOnlyTaggedRice() {
+        val eggplant = MenuItem(
+            "1923_101628_M35168_1_1114",
+            "Eggplant Parmesan",
+            "Seasoned breaded eggplant slices covered in tomato sauce, plant-based mozzarella and almond-based parmesan",
+            null,
+            null,
+            emptyList(),
+            listOf("Vegan", "Vegetarian"),
+            stationID = "1929",
+        )
+        val rice = MenuItem("rice", "Basmati Rice", null, 160, null, emptyList(), listOf("Vegan"), stationID = "1929")
+        val penne = MenuItem("home-penne", "Buttery Penne", null, 110, null, emptyList(), listOf("Vegetarian"), stationID = "1932")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-11-02",
+            "Dinner",
+            listOf(
+                MenuStation("The Twisted Root", listOf(eggplant), "1929"),
+                MenuStation("Home", listOf(penne), "1932"),
+            ),
+        )
+        val hub = listOf(
+            MenuStation("Dinner", listOf(rice, penne)),
+            MenuStation("All Day", listOf(rice)),
+        )
+        val trimmed = DiningLogic.droppingOffBoardAnteaterItems(menu, hub)
+        val twisted = trimmed.stations.first { DiningLogic.isTwistedRoot(it.name, it.stationID) }
+        assertEquals(listOf("Eggplant Parmesan"), twisted.items.map { it.name })
+        val extras = DiningLogic.hubExclusiveItems(trimmed, hub)
+        assertFalse(extras.map { it.name }.contains("Basmati Rice"))
+        val combined = DiningLogic.insertingHubExtras(extras, trimmed)
+        assertEquals(
+            listOf("Eggplant Parmesan"),
+            combined.stations.first { DiningLogic.isTwistedRoot(it.name, it.stationID) }.items.map { it.name },
+        )
+    }
+
+    @Test
+    fun hubExclusiveDoesNotInventRiceOnlyTwistedRoot() {
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1878")
+        val rice = MenuItem("rice", "Jasmine Rice", null, 160, null, emptyList(), listOf("Vegan"), stationID = "1893")
+        val menu = DiningMenu(
+            "brandywine",
+            "2026-11-03",
+            "Dinner",
+            listOf(MenuStation("Ember", listOf(burger), "1878")),
+        )
+        val extras = DiningLogic.hubExclusiveItems(menu, listOf(MenuStation("Dinner", listOf(rice, burger))))
+        assertFalse(extras.map { it.name }.contains("Jasmine Rice"))
+        val combined = DiningLogic.insertingHubExtras(extras, menu)
+        assertFalse(combined.stations.any { DiningLogic.isTwistedRoot(it.name, it.stationID) })
+    }
+
+    @Test
     fun bundledOverrideInsertsCajunTofuWithoutReorderingOtherStations() {
         val home = MenuItem("pork", "Cajun Roasted Pork Loin", null, 320, null, emptyList(), emptyList(), stationID = "1932")
         val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1935")

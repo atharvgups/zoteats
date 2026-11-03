@@ -59,6 +59,20 @@ struct LiveAPITests {
         #expect(
             twistedNames(oct28Dinner).contains { $0.localizedCaseInsensitiveContains("cajun tofu") }
         )
+        let nov2Anteatery = try await service.menu(for: "anteatery", period: "Dinner", date: "2026-11-02")
+        let nov2Brandywine = try await service.menu(for: "brandywine", period: "Dinner", date: "2026-11-02")
+        #expect(
+            twistedNames(nov2Anteatery).contains { $0.localizedCaseInsensitiveContains("eggplant") }
+        )
+        #expect(
+            !twistedNames(nov2Anteatery).contains { $0.localizedCaseInsensitiveContains("basmati") }
+        )
+        #expect(
+            twistedNames(nov2Brandywine).contains { $0.localizedCaseInsensitiveContains("gumbo") }
+        )
+        #expect(
+            !twistedNames(nov2Brandywine).contains { $0.localizedCaseInsensitiveContains("jasmine") }
+        )
         if date == "2026-10-30" {
             #expect(
                 !anteatery.stations.flatMap(\.items).contains {

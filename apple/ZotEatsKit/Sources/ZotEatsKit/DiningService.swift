@@ -1485,6 +1485,23 @@ public struct DiningService: Sendable {
         dietLookupKeys(for: item.name).contains { keys.contains($0) }
     }
 
+    /// Hub copies fries and plain rice onto Twisted Root through sibling
+    /// category ids (Basmati Rice also tagged Fire and Ice / Home, Jasmine
+    /// Rice also tagged Crossroads). Those are sides, not the plant-based
+    /// entree. "Cajun Tofu and White Rice" stays an entree.
+    public static func isHubGrillStaple(_ name: String) -> Bool {
+        let lower = collapsedStationName(name)
+        if lower.contains("fries") { return true }
+        let words = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        guard words.last == "rice" else { return false }
+        let entreeHints: Set<String> = [
+            "and", "bowl", "burrito", "chicken", "curry", "eggplant", "fried",
+            "gumbo", "jackfruit", "noodle", "pasta", "pork", "shrimp", "stew",
+            "stir", "taco", "tofu", "with", "wrap",
+        ]
+        return !words.contains { entreeHints.contains($0) }
+    }
+
     /// Each timed meal is its own family. All Day is ignored. Brunch is not
     /// Lunch — weekend Brunch copies Breakfast, and treating them as one
     /// family leaked eggs onto the Lunch pill.
@@ -1573,15 +1590,15 @@ public struct DiningService: Sendable {
                 if hubForStation.isEmpty {
                     return lunchPill ? station : nil
                 }
-                if lunchPill {
-                    let allDayKeys = hubBoardNameKeys(from: hubStations
-                        .filter { $0.name.localizedCaseInsensitiveContains("all day") }
-                        .flatMap(\.items))
-                    let hubIsOnlyAllDayStaples = hubForStation.allSatisfy {
-                        appearsOnHubBoard($0, keys: allDayKeys)
-                    }
-                    if hubIsOnlyAllDayStaples { return station }
+                let allDayKeys = hubBoardNameKeys(from: hubStations
+                    .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+                    .flatMap(\.items))
+                // Hub dinner often files only rice/fries on TR via sibling
+                // tags. That is not the entree board (Atharv Mon Nov 2).
+                let hubIsOnlyStaples = hubForStation.allSatisfy {
+                    appearsOnHubBoard($0, keys: allDayKeys) || isHubGrillStaple($0.name)
                 }
+                if hubIsOnlyStaples { return station }
                 let keys = hubBoardNameKeys(from: hubForStation)
                 let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
                 if MealPeriodPill.canonical(menu.period) == "Breakfast" {
@@ -1637,8 +1654,10 @@ public struct DiningService: Sendable {
             )
             // Grill fries / rice Hub dumps on All Day plus every meal are not
             // tonight's Twisted Root entrees. Meal-tagged TR food (tofu) still
-            // unions even when Hub also lists it on All Day.
+            // unions even when Hub also lists it on All Day. Plain rice Hub
+            // files only on dinner still is not a TR entree.
             if onAllDay, onOtherMeal { return }
+            if twisted, isHubGrillStaple(item.name) { return }
             if twisted, MealPeriodPill.canonical(menu.period) == "Breakfast" {
                 let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
                 if !shouldKeepTwistedRootOnBreakfast(item, middayKeys: middayKeys) { return }

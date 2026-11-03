@@ -549,6 +549,19 @@ object DiningLogic {
     fun appearsOnHubBoard(item: MenuItem, keys: Set<String>): Boolean =
         dietLookupKeys(item.name).any { it in keys }
 
+    fun isHubGrillStaple(name: String): Boolean {
+        val lower = collapsedStationName(name)
+        if ("fries" in lower) return true
+        val words = Regex("[^a-z0-9]+").split(lower).filter { it.isNotEmpty() }
+        if (words.lastOrNull() != "rice") return false
+        val entreeHints = setOf(
+            "and", "bowl", "burrito", "chicken", "curry", "eggplant", "fried",
+            "gumbo", "jackfruit", "noodle", "pasta", "pork", "shrimp", "stew",
+            "stir", "taco", "tofu", "with", "wrap",
+        )
+        return words.none { it in entreeHints }
+    }
+
     fun hubMealFamily(period: String): String? {
         val lower = period.lowercase()
         if ("all day" in lower) return null
@@ -673,12 +686,13 @@ object DiningLogic {
             if (isTwisted && hubTagged) {
                 val lunchPill = canonicalPill(menu.period) == "Lunch"
                 if (hubForStation.isEmpty()) return@mapNotNull if (lunchPill) station else null
-                if (lunchPill) {
-                    val allDayKeys = hubBoardNameKeys(
-                        hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items },
-                    )
-                    if (hubForStation.all { appearsOnHubBoard(it, allDayKeys) }) return@mapNotNull station
+                val allDayKeys = hubBoardNameKeys(
+                    hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items },
+                )
+                val hubIsOnlyStaples = hubForStation.all {
+                    appearsOnHubBoard(it, allDayKeys) || isHubGrillStaple(it.name)
                 }
+                if (hubIsOnlyStaples) return@mapNotNull station
                 val keys = hubBoardNameKeys(hubForStation)
                 val kept = station.items.filter { appearsOnHubBoard(it, keys) }
                 if (canonicalPill(menu.period) == "Breakfast") {
@@ -714,6 +728,7 @@ object DiningLogic {
             val onAllDay = appearsOnHubBoard(item, allDayKeys)
             val onOtherMeal = appearsOnOtherHubMealFamily(item, menu.period, hubStations)
             if (onAllDay && onOtherMeal) return
+            if (twisted && isHubGrillStaple(item.name)) return
             if (twisted && canonicalPill(menu.period) == "Breakfast") {
                 val middayKeys = middayTwistedRootKeys(hubStations)
                 if (!shouldKeepTwistedRootOnBreakfast(item, middayKeys)) return

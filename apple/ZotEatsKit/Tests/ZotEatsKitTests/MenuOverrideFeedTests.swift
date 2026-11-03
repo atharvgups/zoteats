@@ -61,6 +61,40 @@ struct MenuOverrideFeedTests {
         #expect(MenuOverrideFeed.applying(MenuOverrideFeed.bundled, to: tomorrow) == tomorrow)
     }
 
+    @Test func nov2OverrideRestoresEggplantOntoRiceOnlyTwistedRoot() {
+        let rice = MenuItem(
+            id: "rice", name: "Basmati Rice", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let dinner = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-02",
+            period: "Dinner",
+            stations: [MenuStation(name: "The Twisted Root", items: [rice], stationID: "1929")]
+        )
+        let joined = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, to: dinner)
+        #expect(
+            joined.stations.first?.items.map(\.name) == ["Basmati Rice", "Eggplant Parmesan"]
+        )
+        let gumboBoard = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-11-02",
+            period: "Dinner",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [MenuItem(
+                    id: "jasmine", name: "Jasmine Rice", description: nil, calories: 160,
+                    servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+                )],
+                stationID: "1893"
+            )]
+        )
+        #expect(
+            MenuOverrideFeed.applying(MenuOverrideFeed.bundled, to: gumboBoard)
+                .stations.first?.items.map(\.name) == ["Jasmine Rice", "Spicy Vegetable Gumbo"]
+        )
+    }
+
     @Test func decodeMatchesBundledCajunTofu() {
         let json = Data(
             """

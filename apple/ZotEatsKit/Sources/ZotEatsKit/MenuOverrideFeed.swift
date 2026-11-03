@@ -237,6 +237,42 @@ public enum MenuOverrideFeed {
                     ),
                 ]
             ),
+            Override(
+                date: "2026-11-02",
+                hall: "anteatery",
+                period: "Dinner",
+                stationID: "1929",
+                stationName: "The Twisted Root",
+                kind: "insert",
+                verified: true,
+                note: "Anteater dinner posted Eggplant Parmesan on Twisted Root. Hub omitted it and tagged Basmati Rice as 1929.",
+                items: [
+                    Item(
+                        id: "1923_101628_M35168_1_1114",
+                        name: "Eggplant Parmesan",
+                        description: "Seasoned breaded eggplant slices covered in tomato sauce, plant-based mozzarella and almond-based parmesan",
+                        dietaryTags: ["Vegan", "Vegetarian"]
+                    ),
+                ]
+            ),
+            Override(
+                date: "2026-11-02",
+                hall: "brandywine",
+                period: "Dinner",
+                stationID: "1893",
+                stationName: "The Twisted Root",
+                kind: "insert",
+                verified: true,
+                note: "Anteater dinner posted Spicy Vegetable Gumbo on Twisted Root. Hub omitted it and tagged Jasmine Rice as 1893.",
+                items: [
+                    Item(
+                        id: "1821_122168_M3223_1_42445",
+                        name: "Spicy Vegetable Gumbo",
+                        description: "Roasted eggplant with okra, zucchini, mushrooms and bell pepper in a spicy tomato stew",
+                        dietaryTags: ["Vegan", "Vegetarian"]
+                    ),
+                ]
+            ),
         ],
         corrections: [
             Correction(
