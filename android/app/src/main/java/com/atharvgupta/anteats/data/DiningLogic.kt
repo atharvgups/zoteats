@@ -549,17 +549,32 @@ object DiningLogic {
     fun appearsOnHubBoard(item: MenuItem, keys: Set<String>): Boolean =
         dietLookupKeys(item.name).any { it in keys }
 
-    fun isHubGrillStaple(name: String): Boolean {
+    fun isHubGrillStaple(name: String): Boolean = isStationStaple(name)
+
+    fun isStationStaple(name: String): Boolean {
         val lower = collapsedStationName(name)
+        if (lower.isEmpty()) return false
         if ("fries" in lower) return true
         val words = Regex("[^a-z0-9]+").split(lower).filter { it.isNotEmpty() }
-        if (words.lastOrNull() != "rice") return false
+        val last = words.lastOrNull() ?: return false
         val entreeHints = setOf(
-            "and", "bowl", "burrito", "chicken", "curry", "eggplant", "fried",
-            "gumbo", "jackfruit", "noodle", "pasta", "pork", "shrimp", "stew",
-            "stir", "taco", "tofu", "with", "wrap",
+            "and", "bowl", "burrito", "cauliflower", "chicken", "curry",
+            "eggplant", "fried", "gumbo", "hash", "jackfruit", "lentil",
+            "noodle", "pasta", "pork", "sandwich", "shrimp", "stew", "stir",
+            "taco", "tofu", "with", "wrap",
         )
-        return words.none { it in entreeHints }
+        if (words.any { it in entreeHints }) return false
+        val stapleLast = setOf(
+            "bread", "bun", "buns", "condiment", "dressing", "gravy",
+            "ketchup", "mayo", "mayonnaise", "mustard", "relish", "rice",
+            "roll", "rolls", "sauce", "vinaigrette",
+        )
+        return last in stapleLast
+    }
+
+    fun isStationEntree(name: String): Boolean {
+        val trimmed = name.trim()
+        return trimmed.isNotEmpty() && !isStationStaple(trimmed)
     }
 
     fun hubMealFamily(period: String): String? {
@@ -675,39 +690,11 @@ object DiningLogic {
                 canMergeHubExtra(station, sid)
         }
 
+    @Suppress("UNUSED_PARAMETER")
     fun droppingOffBoardAnteaterItems(menu: DiningMenu, hubStations: List<MenuStation>): DiningMenu {
-        val board = hubBoardItems(menu.period, hubStations)
-        if (board.isEmpty()) return menu
-        val hubTagged = hubMealHasStationTags(menu.locationId, board)
-        val stations = menu.stations.mapNotNull { station ->
-            if (isAvailableAllDayStation(station.name)) return@mapNotNull station
-            val hubForStation = hubItems(station, menu.locationId, board)
-            val isTwisted = isTwistedRoot(station.name, station.stationID)
-            if (isTwisted && hubTagged) {
-                val lunchPill = canonicalPill(menu.period) == "Lunch"
-                if (hubForStation.isEmpty()) return@mapNotNull if (lunchPill) station else null
-                val allDayKeys = hubBoardNameKeys(
-                    hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items },
-                )
-                val hubIsOnlyStaples = hubForStation.all {
-                    appearsOnHubBoard(it, allDayKeys) || isHubGrillStaple(it.name)
-                }
-                if (hubIsOnlyStaples) return@mapNotNull station
-                val keys = hubBoardNameKeys(hubForStation)
-                val kept = station.items.filter { appearsOnHubBoard(it, keys) }
-                if (canonicalPill(menu.period) == "Breakfast") {
-                    val middayKeys = middayTwistedRootKeys(hubStations)
-                    val breakfastKept = kept.filter { shouldKeepTwistedRootOnBreakfast(it, middayKeys) }
-                    return@mapNotNull if (breakfastKept.isEmpty()) null else station.withItems(breakfastKept)
-                }
-                return@mapNotNull if (kept.isEmpty()) null else station.withItems(kept)
-            }
-            if (hubForStation.isEmpty()) return@mapNotNull station
-            val keys = hubBoardNameKeys(hubForStation)
-            val kept = station.items.filter { appearsOnHubBoard(it, keys) }
-            if (kept.isEmpty()) null else station.withItems(kept)
-        }
-        return menu.copy(stations = stations)
+        // Hub may only ADD dishes. Anteater entrees stay even when Hub tagged
+        // another station or only tagged rice/fries (Atharv Nov 2 rice-only).
+        return menu
     }
 
     fun hubExclusiveItems(menu: DiningMenu, hubStations: List<MenuStation>): List<MenuItem> {
@@ -800,6 +787,194 @@ object DiningLogic {
             insertBeforeAllDay(MenuStation("Also served", leftover))
         }
         return menu.copy(stations = pinTwistedRootFirst(stations))
+    }
+
+    fun mergeHubOntoAnteater(
+        menu: DiningMenu,
+        hubStations: List<MenuStation>,
+        stationNames: Map<String, String> = emptyMap(),
+    ): DiningMenu {
+        if (hubStations.isEmpty()) return menu
+        val onBoard = droppingOffBoardAnteaterItems(menu, hubStations)
+        val extras = hubExclusiveItems(onBoard, hubStations)
+        var reconciled = reconcilingStaplesOnlyStations(
+            anteater = menu,
+            hubStations = hubStations,
+            merged = insertingHubExtras(extras, onBoard, stationNames),
+        )
+        if (canonicalPill(reconciled.period) == "Breakfast") {
+            val midday = hubMealStations("Lunch", hubStations)
+            val trimmed = subtractingMiddayTwistedRootFromBreakfast(reconciled.stations, midday)
+            if (trimmed != reconciled.stations) {
+                reconciled = reconciled.copy(stations = pinTwistedRootFirst(trimmed))
+            }
+        }
+        return reconciled
+    }
+
+    fun unionMenuItems(primary: List<MenuItem>, extra: List<MenuItem>): List<MenuItem> {
+        val seen = primary.flatMap { dietLookupKeys(it.name) }.toMutableSet()
+        val result = primary.toMutableList()
+        for (item in extra) {
+            val keys = dietLookupKeys(item.name)
+            if (keys.any { it in seen }) continue
+            seen += keys
+            result += item
+        }
+        return result
+    }
+
+    fun matchingStation(stations: List<MenuStation>, like: MenuStation): MenuStation? {
+        val sid = like.stationID?.trim().orEmpty()
+        if (sid.isNotEmpty()) {
+            stations.firstOrNull { canMergeHubExtra(it, sid) }?.let { return it }
+        }
+        val name = collapsedStationName(like.name)
+        if (name.isEmpty()) return null
+        return stations.firstOrNull { collapsedStationName(it.name) == name }
+    }
+
+    fun sourceEntrees(
+        station: MenuStation,
+        anteater: DiningMenu,
+        hubStations: List<MenuStation>,
+    ): Pair<List<MenuItem>, List<MenuItem>> {
+        val anteaterEntrees = matchingStation(anteater.stations, station)
+            ?.items
+            ?.filter { isStationEntree(it.name) }
+            .orEmpty()
+        val board = hubBoardItems(anteater.period, hubStations)
+        var hubEntrees = hubItems(station, anteater.locationId, board).filter { isStationEntree(it.name) }
+        if (isTwistedRoot(station.name, station.stationID) && canonicalPill(anteater.period) == "Breakfast") {
+            val middayKeys = middayTwistedRootKeys(hubStations)
+            hubEntrees = hubEntrees.filter { shouldKeepTwistedRootOnBreakfast(it, middayKeys) }
+        }
+        return anteaterEntrees to hubEntrees
+    }
+
+    fun reconcilingStaplesOnlyStations(
+        anteater: DiningMenu,
+        hubStations: List<MenuStation>,
+        merged: DiningMenu,
+    ): DiningMenu {
+        var stations = merged.stations.toMutableList()
+        var changed = false
+
+        fun restore(station: MenuStation, sources: List<MenuItem>): MenuStation {
+            val entrees = unionMenuItems(
+                sources.filter { isStationEntree(it.name) },
+                station.items.filter { isStationEntree(it.name) },
+            )
+            val rest = station.items.filter { item ->
+                !appearsOnHubBoard(item, hubBoardNameKeys(entrees))
+            }
+            return station.withItems(entrees + rest)
+        }
+
+        stations = stations.map { station ->
+            if (isAvailableAllDayStation(station.name)) return@map station
+            val sources = sourceEntrees(station, anteater, hubStations)
+            val union = unionMenuItems(sources.first, sources.second)
+            val mergedEntrees = station.items.filter { isStationEntree(it.name) }
+            val missingAnteater = sources.first.filter {
+                !appearsOnHubBoard(it, hubBoardNameKeys(station.items))
+            }
+            if (missingAnteater.isNotEmpty() || (mergedEntrees.isEmpty() && union.isNotEmpty())) {
+                changed = true
+                restore(station, union)
+            } else {
+                station
+            }
+        }.toMutableList()
+
+        for (original in anteater.stations) {
+            if (isAvailableAllDayStation(original.name)) continue
+            val entrees = original.items.filter { isStationEntree(it.name) }
+            if (entrees.isEmpty()) continue
+            if (matchingStation(stations, original) != null) continue
+            changed = true
+            val sources = sourceEntrees(original, anteater, hubStations)
+            val union = unionMenuItems(sources.first, sources.second)
+            stations += original.withItems(unionMenuItems(union, original.items))
+        }
+
+        val board = hubBoardItems(anteater.period, hubStations)
+        val seenHub = mutableSetOf<String>()
+        for (item in board) {
+            val sid = item.stationID?.trim().orEmpty()
+            if (sid.isEmpty() || !seenHub.add(sid)) continue
+            if (!stationBelongs(anteater.locationId, sid)) continue
+            if (!isStationEntree(item.name)) continue
+            val probe = MenuStation(displayStationName(null, sid), emptyList(), sid)
+            if (matchingStation(stations, probe) != null) continue
+            if (matchingStation(anteater.stations, probe) != null) continue
+            val sources = sourceEntrees(probe, anteater, hubStations)
+            val union = unionMenuItems(sources.first, sources.second)
+            if (union.isEmpty() || !canOpenHubStation(sid, merged)) continue
+            changed = true
+            stations += probe.withItems(union)
+        }
+
+        if (!changed) return merged
+        return merged.copy(stations = pinTwistedRootFirst(stations))
+    }
+
+    fun auditMergedMenu(
+        anteater: DiningMenu,
+        hubStations: List<MenuStation>,
+        merged: DiningMenu,
+    ): List<MenuMergeIssue> {
+        val issues = mutableListOf<MenuMergeIssue>()
+        for (original in anteater.stations) {
+            if (isAvailableAllDayStation(original.name)) continue
+            val live = matchingStation(merged.stations, original)
+            for (item in original.items) {
+                if (!isStationEntree(item.name)) continue
+                val present = live?.let { appearsOnHubBoard(item, hubBoardNameKeys(it.items)) } == true
+                if (!present) {
+                    issues += MenuMergeIssue(
+                        anteater.locationId,
+                        anteater.date,
+                        anteater.period,
+                        original.name,
+                        original.stationID,
+                        MenuMergeIssue.Kind.LOST_ANTEATER_ENTREE,
+                        item.name,
+                    )
+                }
+            }
+        }
+        val checked = mutableSetOf<String>()
+        fun consider(station: MenuStation) {
+            if (isAvailableAllDayStation(station.name)) return
+            val key = (station.stationID ?: "") + "|" + collapsedStationName(station.name)
+            if (!checked.add(key)) return
+            val live = matchingStation(merged.stations, station) ?: station
+            val liveEntrees = live.items.filter { isStationEntree(it.name) }
+            val sources = sourceEntrees(station, anteater, hubStations)
+            val union = unionMenuItems(sources.first, sources.second)
+            if (liveEntrees.isEmpty() && union.isNotEmpty()) {
+                issues += MenuMergeIssue(
+                    anteater.locationId,
+                    anteater.date,
+                    anteater.period,
+                    live.name,
+                    live.stationID ?: station.stationID,
+                    MenuMergeIssue.Kind.STAPLES_ONLY_DESPITE_ENTREES,
+                    union.first().name,
+                )
+            }
+        }
+        anteater.stations.forEach { consider(it) }
+        val board = hubBoardItems(anteater.period, hubStations)
+        val seen = mutableSetOf<String>()
+        for (item in board) {
+            val sid = item.stationID?.trim().orEmpty()
+            if (sid.isEmpty() || !seen.add(sid)) continue
+            if (!stationBelongs(anteater.locationId, sid)) continue
+            consider(MenuStation(displayStationName(null, sid), emptyList(), sid))
+        }
+        return issues
     }
 
     fun middayTwistedRootKeysFromGroups(groups: List<List<MenuStation>>): Set<String> {

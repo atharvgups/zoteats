@@ -66,6 +66,25 @@ data class DiningMenu(
     val twistedRootMeals: List<String> = emptyList(),
 )
 
+data class MenuMergeIssue(
+    val hallID: String,
+    val date: String,
+    val period: String,
+    val stationName: String,
+    val stationID: String?,
+    val kind: Kind,
+    val dishName: String,
+) {
+    enum class Kind { LOST_ANTEATER_ENTREE, STAPLES_ONLY_DESPITE_ENTREES }
+
+    override fun toString(): String = when (kind) {
+        Kind.LOST_ANTEATER_ENTREE ->
+            "$hallID $date $period $stationName lost Anteater entree $dishName"
+        Kind.STAPLES_ONLY_DESPITE_ENTREES ->
+            "$hallID $date $period $stationName is staples-only while a source still has $dishName"
+    }
+}
+
 data class DiningEvent(
     val title: String,
     val restaurantId: String,
