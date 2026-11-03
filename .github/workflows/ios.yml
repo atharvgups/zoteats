@@ -31,8 +31,10 @@ jobs:
         with:
           swift-version: "6.0"
 
-      # Fixtures only — live-API tests are gated behind ZOTEATS_LIVE_TESTS=1 and are
-      # intentionally not run in CI to keep it deterministic.
+      # Fixtures only, including Twisted Root merge guardrails (Nov 2 rice-only,
+      # Brandywine lunch gap, hall-scoping, chia). Live MenuMergeMonitor tests
+      # are gated behind ZOTEATS_LIVE_TESTS=1 and run on the scheduled
+      # menu-merge-monitor workflow.
       - name: Run package tests
         run: swift test --package-path apple/ZotEatsKit
 

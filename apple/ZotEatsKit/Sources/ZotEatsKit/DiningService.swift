@@ -1490,16 +1490,37 @@ public struct DiningService: Sendable {
     /// Rice also tagged Crossroads). Those are sides, not the plant-based
     /// entree. "Cajun Tofu and White Rice" stays an entree.
     public static func isHubGrillStaple(_ name: String) -> Bool {
+        isStationStaple(name)
+    }
+
+    /// Rice, fries, bread, sauces, and condiments never count as a station's
+    /// entree and never displace one. Names with entree hints ("Cajun Tofu
+    /// and White Rice", "Tofu in Peanut Sauce") stay entrees.
+    public static func isStationStaple(_ name: String) -> Bool {
         let lower = collapsedStationName(name)
+        if lower.isEmpty { return false }
         if lower.contains("fries") { return true }
         let words = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
-        guard words.last == "rice" else { return false }
+        guard let last = words.last else { return false }
         let entreeHints: Set<String> = [
-            "and", "bowl", "burrito", "chicken", "curry", "eggplant", "fried",
-            "gumbo", "jackfruit", "noodle", "pasta", "pork", "shrimp", "stew",
-            "stir", "taco", "tofu", "with", "wrap",
+            "and", "bowl", "burrito", "cauliflower", "chicken", "curry",
+            "eggplant", "fried", "gumbo", "hash", "jackfruit", "lentil",
+            "noodle", "pasta", "pork", "sandwich", "shrimp", "stew", "stir",
+            "taco", "tofu", "with", "wrap",
         ]
-        return !words.contains { entreeHints.contains($0) }
+        if words.contains(where: { entreeHints.contains($0) }) { return false }
+        let stapleLast: Set<String> = [
+            "bread", "bun", "buns", "condiment", "dressing", "gravy",
+            "ketchup", "mayo", "mayonnaise", "mustard", "relish", "rice",
+            "roll", "rolls", "sauce", "vinaigrette",
+        ]
+        return stapleLast.contains(last)
+    }
+
+    public static func isStationEntree(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return !isStationStaple(trimmed)
     }
 
     /// Each timed meal is its own family. All Day is ignored. Brunch is not
@@ -1557,70 +1578,14 @@ public struct DiningService: Sendable {
         }
     }
 
-    /// Anteater `restaurantToday` sometimes copies another hall's recipe, or
-    /// leaves a leftover on Twisted Root after the kitchen moved on. When Hub
-    /// published this meal with station tags, Twisted Root is Hub-only: keep
-    /// only dishes Hub filed on that hall's station, and drop the section if
-    /// Hub didn't list one. Other stations still reconcile when Hub tagged
-    /// them. A generic Hub payload (no station ids) or an empty meal leaves
-    /// the Anteater board untouched. Available-all-day stays Anteater.
+    /// Hub may only ADD dishes. Anteater entrees stay even when Hub tagged
+    /// another station, tagged only rice/fries, or omitted Twisted Root
+    /// (Atharv Nov 2 rice-only: never drop Eggplant Parmesan / Gumbo).
     public static func droppingOffBoardAnteaterItems(
         onMenu menu: DiningMenu,
-        hubStations: [MenuStation]
+        hubStations _: [MenuStation]
     ) -> DiningMenu {
-        let board = hubBoardItems(matchingPeriod: menu.period, hubStations: hubStations)
-        guard !board.isEmpty else { return menu }
-        let hubTagged = hubMealHasStationTags(onHall: menu.locationId, board: board)
-        let stations = menu.stations.compactMap { station -> MenuStation? in
-            if CampusMenuNormalize.isAvailableAllDay(station.name) {
-                return station
-            }
-            let hubForStation = hubItems(
-                matching: station,
-                onHall: menu.locationId,
-                from: board
-            )
-            let isTwisted = isTwistedRoot(stationName: station.name, stationID: station.stationID)
-            if isTwisted, hubTagged {
-                let lunchPill = MealPeriodPill.canonical(menu.period) == "Lunch"
-                // Weekend Lunch Hub often tags only all-day fries on TR,
-                // or nothing at all. That is not the midday board — keep
-                // Anteater Brunch TR (Atharv Sat Oct 3). Dinner leftovers
-                // still drop when Hub tagged other stations and not TR.
-                if hubForStation.isEmpty {
-                    return lunchPill ? station : nil
-                }
-                let allDayKeys = hubBoardNameKeys(from: hubStations
-                    .filter { $0.name.localizedCaseInsensitiveContains("all day") }
-                    .flatMap(\.items))
-                // Hub dinner often files only rice/fries on TR via sibling
-                // tags. That is not the entree board (Atharv Mon Nov 2).
-                let hubIsOnlyStaples = hubForStation.allSatisfy {
-                    appearsOnHubBoard($0, keys: allDayKeys) || isHubGrillStaple($0.name)
-                }
-                if hubIsOnlyStaples { return station }
-                let keys = hubBoardNameKeys(from: hubForStation)
-                let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
-                if MealPeriodPill.canonical(menu.period) == "Breakfast" {
-                    let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
-                    let breakfastKept = kept.filter {
-                        shouldKeepTwistedRootOnBreakfast($0, middayKeys: middayKeys)
-                    }
-                    return breakfastKept.isEmpty ? nil : station.withItems(breakfastKept)
-                }
-                return kept.isEmpty ? nil : station.withItems(kept)
-            }
-            guard !hubForStation.isEmpty else { return station }
-            let keys = hubBoardNameKeys(from: hubForStation)
-            let kept = station.items.filter { appearsOnHubBoard($0, keys: keys) }
-            return kept.isEmpty ? nil : station.withItems(kept)
-        }
-        return DiningMenu(
-            locationId: menu.locationId,
-            date: menu.date,
-            period: menu.period,
-            stations: stations
-        )
+        return menu
     }
 
     /// Hub dishes on this meal that Anteater dropped — Lunch/Brunch extras
@@ -1787,42 +1752,249 @@ public struct DiningService: Sendable {
         )
     }
 
-    /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
-    /// All Day stations fold into the bottom as "Available all day".
-    /// Unpublished days (API 404) return an empty menu — never throw.
-    public func menu(
-        for hall: String,
-        period: String,
-        date: String? = nil,
-        forceRefresh: Bool = false
-    ) async throws -> DiningMenu {
-        let dateISO = date ?? PacificTime.todayISO(now: now())
-        if HallDirectory.isOasis(hall) {
-            let listed = ((try? await restaurants()) ?? []).contains {
-                HallDirectory.isOasis($0.id)
-            }
-            if !listed {
-                if let hubMenu = await oasisHubMenu(
-                    period: period,
-                    dateISO: dateISO,
-                    forceRefresh: forceRefresh
-                ) {
-                    return await applyingOverrides(hubMenu, forceRefresh: forceRefresh)
-                }
-                return await applyingOverrides(
-                    DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
-                    forceRefresh: forceRefresh
+    /// Hub overlay: add Hub dishes, never drop Anteater entrees, then restore
+    /// entrees if a station would render only staples/sides.
+    public static func mergeHubOntoAnteater(
+        _ menu: DiningMenu,
+        hubStations: [MenuStation],
+        stationNames: [String: String] = [:]
+    ) -> DiningMenu {
+        guard !hubStations.isEmpty else { return menu }
+        let onBoard = droppingOffBoardAnteaterItems(onMenu: menu, hubStations: hubStations)
+        let extras = hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
+        let combined = insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
+        var reconciled = reconcilingStaplesOnlyStations(
+            anteater: menu,
+            hubStations: hubStations,
+            merged: combined
+        )
+        if MealPeriodPill.canonical(reconciled.period) == "Breakfast" {
+            let midday = hubMealStations(matchingPeriod: "Lunch", in: hubStations)
+            let trimmed = subtractingMiddayTwistedRootFromBreakfast(
+                from: reconciled.stations,
+                midday: midday
+            )
+            if trimmed != reconciled.stations {
+                reconciled = DiningMenu(
+                    locationId: reconciled.locationId,
+                    date: reconciled.date,
+                    period: reconciled.period,
+                    stations: pinTwistedRootFirst(trimmed)
                 )
             }
         }
+        return reconciled
+    }
+
+    static func unionMenuItems(_ primary: [MenuItem], _ extra: [MenuItem]) -> [MenuItem] {
+        var seen = Set(primary.flatMap { dietLookupKeys(for: $0.name) })
+        var result = primary
+        for item in extra {
+            let keys = dietLookupKeys(for: item.name)
+            if keys.contains(where: { seen.contains($0) }) { continue }
+            for key in keys { seen.insert(key) }
+            result.append(item)
+        }
+        return result
+    }
+
+    static func matchingStation(in stations: [MenuStation], like station: MenuStation) -> MenuStation? {
+        let sid = station.stationID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !sid.isEmpty {
+            if let hit = stations.first(where: { canMergeHubExtra(into: $0, extraStationID: sid) }) {
+                return hit
+            }
+        }
+        let name = collapsedStationName(station.name)
+        guard !name.isEmpty else { return nil }
+        return stations.first { collapsedStationName($0.name) == name }
+    }
+
+    static func sourceEntrees(
+        for station: MenuStation,
+        anteater: DiningMenu,
+        hubStations: [MenuStation]
+    ) -> (anteater: [MenuItem], hub: [MenuItem]) {
+        let anteaterItems = matchingStation(in: anteater.stations, like: station)?.items ?? []
+        let anteaterEntrees = anteaterItems.filter { isStationEntree($0.name) }
+        let board = hubBoardItems(matchingPeriod: anteater.period, hubStations: hubStations)
+        var hubEntrees = hubItems(
+            matching: station,
+            onHall: anteater.locationId,
+            from: board
+        ).filter { isStationEntree($0.name) }
+        if isTwistedRoot(stationName: station.name, stationID: station.stationID),
+           MealPeriodPill.canonical(anteater.period) == "Breakfast" {
+            let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
+            hubEntrees = hubEntrees.filter {
+                shouldKeepTwistedRootOnBreakfast($0, middayKeys: middayKeys)
+            }
+        }
+        return (anteaterEntrees, hubEntrees)
+    }
+
+    /// If a station would render only staples/sides while either source listed
+    /// a real entree for that hall/meal/date, restore the union of those
+    /// entrees. Never invents dishes that were not in a source.
+    public static func reconcilingStaplesOnlyStations(
+        anteater: DiningMenu,
+        hubStations: [MenuStation],
+        merged: DiningMenu
+    ) -> DiningMenu {
+        var stations = merged.stations
+        var changed = false
+
+        func restore(_ station: MenuStation, sources: [MenuItem]) -> MenuStation {
+            let entrees = unionMenuItems(
+                sources.filter { isStationEntree($0.name) },
+                station.items.filter { isStationEntree($0.name) }
+            )
+            let rest = station.items.filter { item in
+                !appearsOnHubBoard(item, keys: hubBoardNameKeys(from: entrees))
+            }
+            return station.withItems(entrees + rest)
+        }
+
+        stations = stations.map { station in
+            if CampusMenuNormalize.isAvailableAllDay(station.name) { return station }
+            let sources = sourceEntrees(for: station, anteater: anteater, hubStations: hubStations)
+            let union = unionMenuItems(sources.anteater, sources.hub)
+            let mergedEntrees = station.items.filter { isStationEntree($0.name) }
+            let missingAnteater = sources.anteater.filter {
+                !appearsOnHubBoard($0, keys: hubBoardNameKeys(from: station.items))
+            }
+            if !missingAnteater.isEmpty || (mergedEntrees.isEmpty && !union.isEmpty) {
+                changed = true
+                return restore(station, sources: union)
+            }
+            return station
+        }
+
+        for original in anteater.stations {
+            if CampusMenuNormalize.isAvailableAllDay(original.name) { continue }
+            let entrees = original.items.filter { isStationEntree($0.name) }
+            guard !entrees.isEmpty else { continue }
+            if matchingStation(in: stations, like: original) != nil { continue }
+            changed = true
+            let sources = sourceEntrees(for: original, anteater: anteater, hubStations: hubStations)
+            let union = unionMenuItems(sources.anteater, sources.hub)
+            stations.append(original.withItems(unionMenuItems(union, original.items)))
+        }
+
+        let board = hubBoardItems(matchingPeriod: anteater.period, hubStations: hubStations)
+        var seenHub = Set<String>()
+        for item in board {
+            let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !sid.isEmpty, seenHub.insert(sid).inserted else { continue }
+            guard stationBelongs(onHall: anteater.locationId, stationID: sid) else { continue }
+            guard isStationEntree(item.name) else { continue }
+            let probe = MenuStation(
+                name: displayStationName(nil, stationID: sid),
+                items: [],
+                stationID: sid
+            )
+            if matchingStation(in: stations, like: probe) != nil { continue }
+            if matchingStation(in: anteater.stations, like: probe) != nil { continue }
+            let sources = sourceEntrees(for: probe, anteater: anteater, hubStations: hubStations)
+            let union = unionMenuItems(sources.anteater, sources.hub)
+            guard !union.isEmpty, canOpenHubStation(stationID: sid, on: merged) else { continue }
+            changed = true
+            stations.append(probe.withItems(union))
+        }
+
+        guard changed else { return merged }
+        return DiningMenu(
+            locationId: merged.locationId,
+            date: merged.date,
+            period: merged.period,
+            stations: pinTwistedRootFirst(stations)
+        )
+    }
+
+    public static func auditMergedMenu(
+        anteater: DiningMenu,
+        hubStations: [MenuStation],
+        merged: DiningMenu
+    ) -> [MenuMergeIssue] {
+        var issues: [MenuMergeIssue] = []
+        for original in anteater.stations {
+            if CampusMenuNormalize.isAvailableAllDay(original.name) { continue }
+            let live = matchingStation(in: merged.stations, like: original)
+            for item in original.items where isStationEntree(item.name) {
+                let present = live.map {
+                    appearsOnHubBoard(item, keys: hubBoardNameKeys(from: $0.items))
+                } ?? false
+                if !present {
+                    issues.append(MenuMergeIssue(
+                        hallID: anteater.locationId,
+                        date: anteater.date,
+                        period: anteater.period,
+                        stationName: original.name,
+                        stationID: original.stationID,
+                        kind: .lostAnteaterEntree,
+                        dishName: item.name
+                    ))
+                }
+            }
+        }
+        var checked = Set<String>()
+        func consider(_ station: MenuStation) {
+            if CampusMenuNormalize.isAvailableAllDay(station.name) { return }
+            let key = (station.stationID ?? "") + "|" + collapsedStationName(station.name)
+            if !checked.insert(key).inserted { return }
+            let live = matchingStation(in: merged.stations, like: station) ?? station
+            let liveEntrees = live.items.filter { isStationEntree($0.name) }
+            let sources = sourceEntrees(for: station, anteater: anteater, hubStations: hubStations)
+            let union = unionMenuItems(sources.anteater, sources.hub)
+            if liveEntrees.isEmpty, let sample = union.first {
+                issues.append(MenuMergeIssue(
+                    hallID: anteater.locationId,
+                    date: anteater.date,
+                    period: anteater.period,
+                    stationName: live.name,
+                    stationID: live.stationID ?? station.stationID,
+                    kind: .staplesOnlyDespiteEntrees,
+                    dishName: sample.name
+                ))
+            }
+        }
+        for station in anteater.stations { consider(station) }
+        let board = hubBoardItems(matchingPeriod: anteater.period, hubStations: hubStations)
+        var seen = Set<String>()
+        for item in board {
+            let sid = item.stationID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !sid.isEmpty, seen.insert(sid).inserted else { continue }
+            guard stationBelongs(onHall: anteater.locationId, stationID: sid) else { continue }
+            consider(MenuStation(
+                name: displayStationName(nil, stationID: sid),
+                items: [],
+                stationID: sid
+            ))
+        }
+        return issues
+    }
+
+    private struct ScrapedAnteaterMenu {
+        let menu: DiningMenu
+        let stationNames: [String: String]
+        let periodStartMinutes: Int?
+        let periodEndMinutes: Int?
+    }
+
+    /// Anteater `restaurantToday` board only. No Hub merge, no overrides.
+    private func scrapeAnteaterMenu(
+        for hall: String,
+        period: String,
+        date: String?,
+        forceRefresh: Bool
+    ) async throws -> ScrapedAnteaterMenu {
+        let dateISO = date ?? PacificTime.todayISO(now: now())
+        let empty = DiningMenu(locationId: hall, date: dateISO, period: period, stations: [])
         let today = try await today(for: hall, dateISO: dateISO, forceRefresh: forceRefresh)
         let available = (today.periods ?? [:]).values.map(\.name)
-
-        // No periods published for this day yet (404 mapped to empty, or blank payload).
         guard !available.isEmpty else {
-            return await applyingOverrides(
-                DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
-                forceRefresh: forceRefresh
+            return ScrapedAnteaterMenu(
+                menu: empty, stationNames: [:], periodStartMinutes: nil, periodEndMinutes: nil
             )
         }
 
@@ -1830,11 +2002,12 @@ public struct DiningService: Sendable {
         let periodNames = Self.menuPeriodNames(primary: period, available: available)
         // Unposted Lunch (weekend Brunch-only board) must stay empty — do
         // not invent dishes or copy the Brunch already shown on Breakfast.
-        // Dated overrides may still insert a verified dish onto that pill.
         guard !periodNames.isEmpty else {
-            return await applyingOverrides(
-                DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
-                forceRefresh: forceRefresh
+            return ScrapedAnteaterMenu(
+                menu: DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                stationNames: [:],
+                periodStartMinutes: nil,
+                periodEndMinutes: nil
             )
         }
         let stationNames = try await stationMap()
@@ -1871,8 +2044,6 @@ public struct DiningService: Sendable {
            let brunchName = available.first(where: {
                $0.caseInsensitiveCompare("Brunch") == .orderedSame
            }) {
-            // Only when Breakfast and Brunch both exist. A Breakfast pill
-            // that fell through to Brunch-only keeps the full midday board.
             let brunchStations: [MenuStation]
             if let cached = scraped.first(where: {
                 $0.key.caseInsensitiveCompare("Brunch") == .orderedSame
@@ -1892,8 +2063,6 @@ public struct DiningService: Sendable {
         let periodMatched = periodNames.contains { name in
             available.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
         }
-        // Weekend Brunch is timed and equals Breakfast ∪ All Day. Folding
-        // All Day onto Breakfast makes the Breakfast pill match Brunch/Lunch.
         let brunchIsTimed = (today.periods ?? [:]).values.contains { period in
             period.name.localizedCaseInsensitiveContains("brunch")
                 && PacificTime.parseMinutes(period.startTime) != nil
@@ -1919,23 +2088,66 @@ public struct DiningService: Sendable {
             }
         }
 
-        let built = DiningMenu(
-            locationId: hall,
-            date: dateISO,
-            period: resolved,
-            stations: Self.pinTwistedRootFirst(mealStations)
-        )
-        // Anteater API often leaves every is* flag false; the dining hub carries
-        // much richer recipe_attributes. Merge by dish name (soft-fail).
-        let enriched = await enrichDietTags(built, stationNames: stationNames, forceRefresh: forceRefresh)
         let periodMatch = (today.periods ?? [:]).values.first {
             $0.name.caseInsensitiveCompare(resolved) == .orderedSame
         }
+        return ScrapedAnteaterMenu(
+            menu: DiningMenu(
+                locationId: hall,
+                date: dateISO,
+                period: resolved,
+                stations: Self.pinTwistedRootFirst(mealStations)
+            ),
+            stationNames: stationNames,
+            periodStartMinutes: PacificTime.parseMinutes(periodMatch?.startTime),
+            periodEndMinutes: PacificTime.parseMinutes(periodMatch?.endTime)
+        )
+    }
+
+    /// Full menu for a hall + meal period, grouped by station with nutrition/diet flags.
+    /// All Day stations fold into the bottom as "Available all day".
+    /// Unpublished days (API 404) return an empty menu — never throw.
+    public func menu(
+        for hall: String,
+        period: String,
+        date: String? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> DiningMenu {
+        let dateISO = date ?? PacificTime.todayISO(now: now())
+        if HallDirectory.isOasis(hall) {
+            let listed = ((try? await restaurants()) ?? []).contains {
+                HallDirectory.isOasis($0.id)
+            }
+            if !listed {
+                if let hubMenu = await oasisHubMenu(
+                    period: period,
+                    dateISO: dateISO,
+                    forceRefresh: forceRefresh
+                ) {
+                    return await applyingOverrides(hubMenu, forceRefresh: forceRefresh)
+                }
+                return await applyingOverrides(
+                    DiningMenu(locationId: hall, date: dateISO, period: period, stations: []),
+                    forceRefresh: forceRefresh
+                )
+            }
+        }
+        let scraped = try await scrapeAnteaterMenu(
+            for: hall,
+            period: period,
+            date: dateISO,
+            forceRefresh: forceRefresh
+        )
+        let enriched = await enrichDietTags(
+            scraped.menu,
+            stationNames: scraped.stationNames,
+            forceRefresh: forceRefresh
+        )
         return await applyingOverrides(
             enriched,
             forceRefresh: forceRefresh,
-            periodStartMinutes: PacificTime.parseMinutes(periodMatch?.startTime),
-            periodEndMinutes: PacificTime.parseMinutes(periodMatch?.endTime)
+            periodStartMinutes: scraped.periodStartMinutes,
+            periodEndMinutes: scraped.periodEndMinutes
         )
     }
 
@@ -2041,19 +2253,11 @@ public struct DiningService: Sendable {
         stationNames: [String: String] = [:],
         forceRefresh: Bool = false
     ) async -> DiningMenu {
-        guard let hubKey = HallDirectory.campusHubKey(for: menu.locationId) else { return menu }
-        let hubStations: [MenuStation]
-        do {
-            hubStations = try await CampusService(http: http, cache: cache, now: now)
-                .menu(
-                    for: hubKey,
-                    date: menu.date,
-                    forceRefresh: forceRefresh,
-                    allowTypicalFallback: false
-                )
-        } catch {
-            return menu
-        }
+        let hubStations = await self.hubStations(
+            forHall: menu.locationId,
+            date: menu.date,
+            forceRefresh: forceRefresh
+        )
         guard !hubStations.isEmpty else { return menu }
 
         var tagsByKey: [String: [String]] = [:]
@@ -2102,30 +2306,39 @@ public struct DiningService: Sendable {
             )
         }
 
-        let onBoard = Self.droppingOffBoardAnteaterItems(onMenu: tagged, hubStations: hubStations)
-        let extras = Self.hubExclusiveItems(onMenu: onBoard, hubStations: hubStations)
-        let combined = Self.insertingHubExtras(extras, into: onBoard, stationNames: stationNames)
-        let reconciled: DiningMenu
-        if MealPeriodPill.canonical(combined.period) == "Breakfast" {
-            let midday = Self.hubMealStations(matchingPeriod: "Lunch", in: hubStations)
-            let trimmed = Self.subtractingMiddayTwistedRootFromBreakfast(
-                from: combined.stations,
-                midday: midday
-            )
-            if trimmed != combined.stations {
-                reconciled = DiningMenu(
-                    locationId: combined.locationId,
-                    date: combined.date,
-                    period: combined.period,
-                    stations: Self.pinTwistedRootFirst(trimmed)
-                )
-            } else {
-                reconciled = combined
-            }
-        } else {
-            reconciled = combined
-        }
-        return reconciled
+        return Self.mergeHubOntoAnteater(tagged, hubStations: hubStations, stationNames: stationNames)
+    }
+
+    /// Live Hub meal stations for a hall/date. Empty on miss so merge stays Anteater.
+    public func hubStations(
+        forHall hallID: String,
+        date: String,
+        forceRefresh: Bool = false
+    ) async -> [MenuStation] {
+        guard let hubKey = HallDirectory.campusHubKey(for: hallID) else { return [] }
+        return (try? await CampusService(http: http, cache: cache, now: now)
+            .menu(
+                for: hubKey,
+                date: date,
+                forceRefresh: forceRefresh,
+                allowTypicalFallback: false
+            )) ?? []
+    }
+
+    /// Anteater `restaurantToday` board with no Hub merge and no overrides.
+    /// Used by the merge monitor so a remote insert cannot hide a drop.
+    public func anteaterBoard(
+        for hall: String,
+        period: String,
+        date: String? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> DiningMenu {
+        try await scrapeAnteaterMenu(
+            for: hall,
+            period: period,
+            date: date,
+            forceRefresh: forceRefresh
+        ).menu
     }
 
     /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").

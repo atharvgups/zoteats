@@ -524,6 +524,50 @@ public struct DiningMenu: Codable, Sendable, Equatable {
     }
 }
 
+/// A merge-guardrail failure: Hub dropped an Anteater entree, or a station
+/// rendered only rice/fries/bread/sauces while a source still had an entree.
+public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
+    public enum Kind: String, Equatable, Sendable {
+        case lostAnteaterEntree
+        case staplesOnlyDespiteEntrees
+    }
+
+    public let hallID: String
+    public let date: String
+    public let period: String
+    public let stationName: String
+    public let stationID: String?
+    public let kind: Kind
+    public let dishName: String
+
+    public init(
+        hallID: String,
+        date: String,
+        period: String,
+        stationName: String,
+        stationID: String?,
+        kind: Kind,
+        dishName: String
+    ) {
+        self.hallID = hallID
+        self.date = date
+        self.period = period
+        self.stationName = stationName
+        self.stationID = stationID
+        self.kind = kind
+        self.dishName = dishName
+    }
+
+    public var description: String {
+        switch kind {
+        case .lostAnteaterEntree:
+            return "\(hallID) \(date) \(period) \(stationName) lost Anteater entree \(dishName)"
+        case .staplesOnlyDespiteEntrees:
+            return "\(hallID) \(date) \(period) \(stationName) is staples-only while a source still has \(dishName)"
+        }
+    }
+}
+
 /// Timed campus hours window (Irvine minutes since midnight).
 public struct CampusHoursWindow: Codable, Sendable, Equatable {
     public let startMinutes: Int

@@ -1,0 +1,38 @@
+# Live merge guardrail: run the app's Hub+Anteater merge against today's
+# public sources. Fails if any station (Twisted Root or otherwise) is
+# rice/fries/bread/sauce-only while a source still has an entree, or if an
+# Anteater entree was dropped. A failure on main is the existing CI-failure
+# alert path (GitHub check + ci-failed notifications).
+name: Menu merge monitor
+
+on:
+  schedule:
+    # Every 2 hours from 7am through 9pm Pacific (15:00-05:00 UTC in PST).
+    - cron: "0 15,17,19,21,23,1,3,5 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apple/ZotEatsKit/**"
+      - "android/app/src/main/java/com/atharvgupta/anteats/data/**"
+      - ".github/workflows/menu-merge-monitor.yml"
+
+concurrency:
+  group: menu-merge-monitor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-merge:
+    name: Live merge guardrail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      - name: Audit live Anteater + Hub merge
+        env:
+          ZOTEATS_LIVE_TESTS: "1"
+        run: swift test --package-path apple/ZotEatsKit --filter MenuMergeMonitor

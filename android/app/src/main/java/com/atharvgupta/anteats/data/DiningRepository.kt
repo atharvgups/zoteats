@@ -140,16 +140,7 @@ class DiningRepository(
             emptyList()
         }
         if (hub.isNotEmpty()) {
-            val onBoard = DiningLogic.droppingOffBoardAnteaterItems(menu, hub)
-            val extras = DiningLogic.hubExclusiveItems(onBoard, hub)
-            menu = DiningLogic.insertingHubExtras(extras, onBoard, stationNames)
-            if (DiningLogic.canonicalPill(menu.period) == "Breakfast") {
-                val midday = DiningLogic.hubMealStations("Lunch", hub)
-                val trimmed = DiningLogic.subtractingMiddayTwistedRootFromBreakfast(menu.stations, midday)
-                if (trimmed != menu.stations) {
-                    menu = menu.copy(stations = DiningLogic.pinTwistedRootFirst(trimmed))
-                }
-            }
+            menu = DiningLogic.mergeHubOntoAnteater(menu, hub, stationNames)
         }
         val period = today.values.firstOrNull { it.name.equals(resolved, true) }
         return applyOverrides(
