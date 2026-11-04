@@ -34,6 +34,8 @@
 # VALID (or still processing). Live 1.0.369 READY_FOR_SALE. No submit, no External.
 # Peek 2026-11-04 ~2:14 AM UTC — read-only. Expect Internal 1.0.371 build 377
 # VALID (or still processing). Live 1.0.369 READY_FOR_SALE. No submit, no External.
+# Peek 2026-11-04 ~6:54 PM UTC — read-only. Oasis Internal 1.0.373 tagged.
+# Expect 1.0.372 VALID or processing. Do not submit 373. No External.
 name: ASC Status
 
 on:
