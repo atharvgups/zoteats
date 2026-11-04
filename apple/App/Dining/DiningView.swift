@@ -808,7 +808,8 @@ struct DiningView: View {
                             compact: DiningService.isSpecialEventStation(
                                 stationName: station.name,
                                 stationID: station.stationID
-                            )
+                            ),
+                            serviceLabel: station.serviceLabel
                         )
                         groupedDishes(station.items)
                     }
@@ -869,7 +870,8 @@ struct DiningView: View {
         icon: String? = nil,
         tint: Color = Color.accent,
         chevron: String? = nil,
-        compact: Bool = false
+        compact: Bool = false,
+        serviceLabel: String? = nil
     ) -> some View {
         HStack(spacing: 8) {
             if let icon {
@@ -884,6 +886,9 @@ struct DiningView: View {
             Text(title)
                 .font(compact ? Font.system(size: 15, weight: .semibold) : ZotFont.sectionTitle)
                 .foregroundStyle(Color.ink)
+            if let serviceLabel, !serviceLabel.isEmpty {
+                TagChip(text: serviceLabel, color: Color.secondary)
+            }
             Spacer(minLength: 8)
             Text("\(count)")
                 .font(ZotFont.caption)
@@ -926,7 +931,7 @@ struct DiningView: View {
             let items = station.items.filter(matches)
             return items.isEmpty ? nil : station.withItems(items)
         }
-        return DiningService.pinTwistedRootFirst(stations)
+        return DiningService.orderedStations(stations, hallID: menu.locationId)
     }
 
     /// Favorited dishes served on this hall + meal + date board.

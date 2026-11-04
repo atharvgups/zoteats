@@ -41,23 +41,43 @@ struct OasisScheduleTests {
                 .contains("Closed today")
         )
         #expect(!OasisComingSoonCopy.openUnposted.contains("Coming Soon"))
+        #expect(!OasisComingSoonCopy.selectedLine(
+            on: "2026-10-22",
+            weekday: "Thursday",
+            nowMinutes: 9 * 60
+        ).contains("2:30"))
     }
 
-    @Test func weekdayHoursMatchHubStandardIncludingSnack() {
-        let windows = OasisSchedule.mealWindows(on: "2026-10-22", weekday: "Thursday")
-        #expect(windows.map(\.name) == ["Lunch", "Afternoon Snack", "Dinner"])
-        #expect(windows[0].startMinutes == 11 * 60)
-        #expect(windows[0].endMinutes == 14 * 60 + 30)
-        #expect(windows[1].startMinutes == 14 * 60 + 30)
-        #expect(windows[1].endMinutes == 16 * 60 + 30)
-        #expect(windows[2].startMinutes == 16 * 60 + 30)
-        #expect(windows[2].endMinutes == 20 * 60)
+    @Test func weekdayHoursMatchHubLunchAndDinner() {
+        let thursday = OasisSchedule.mealWindows(on: "2026-11-04", weekday: "Thursday")
+        #expect(thursday.map(\.name) == ["Lunch", "Dinner"])
+        #expect(thursday[0].startMinutes == 11 * 60)
+        #expect(thursday[0].endMinutes == 14 * 60)
+        #expect(thursday[1].startMinutes == 16 * 60 + 30)
+        #expect(thursday[1].endMinutes == 20 * 60)
+        #expect(
+            OasisSchedule.todayHours(on: "2026-11-04", weekday: "Thursday")
+                == "11:00 AM – 2:00 PM, 4:30 PM – 8:00 PM"
+        )
+
+        let friday = OasisSchedule.mealWindows(on: "2026-11-06", weekday: "Friday")
+        #expect(friday.map(\.name) == ["Lunch"])
+        #expect(friday[0].endMinutes == 14 * 60)
+        #expect(OasisSchedule.todayHours(on: "2026-11-06", weekday: "Friday") == "11:00 AM – 2:00 PM")
+        #expect(!OasisSchedule.servesDinner(on: "2026-11-06", weekday: "Friday"))
+
+        #expect(OasisSchedule.mealWindows(on: "2026-11-07", weekday: "Saturday").isEmpty)
+        #expect(OasisSchedule.mealWindows(on: "2026-11-08", weekday: "Sunday").isEmpty)
+        #expect(OasisSchedule.mealWindows(on: "2026-11-11", weekday: "Wednesday").isEmpty)
+        #expect(OasisSchedule.isClosedDate("2026-11-11"))
         #expect(OasisSchedule.mealWindows(on: "2026-10-03", weekday: "Saturday").isEmpty)
         #expect(OasisSchedule.mealWindows(on: "2026-09-21", weekday: "Monday").isEmpty)
-        #expect(OasisSchedule.todayHours(on: "2026-10-22", weekday: "Thursday") == "11:00 AM – 8:00 PM")
-        #expect(OasisSchedule.isOpen(on: "2026-10-22", weekday: "Thursday", nowMinutes: 16 * 60 + 56))
-        #expect(OasisSchedule.isOpen(on: "2026-10-22", weekday: "Thursday", nowMinutes: 15 * 60))
-        #expect(!OasisSchedule.isOpen(on: "2026-10-22", weekday: "Thursday", nowMinutes: 10 * 60))
+
+        #expect(OasisSchedule.isOpen(on: "2026-11-04", weekday: "Thursday", nowMinutes: 12 * 60))
+        #expect(!OasisSchedule.isOpen(on: "2026-11-04", weekday: "Thursday", nowMinutes: 15 * 60))
+        #expect(OasisSchedule.isOpen(on: "2026-11-04", weekday: "Thursday", nowMinutes: 16 * 60 + 56))
+        #expect(!OasisSchedule.isOpen(on: "2026-11-04", weekday: "Thursday", nowMinutes: 10 * 60))
+        #expect(!OasisSchedule.isOpen(on: "2026-11-11", weekday: "Wednesday", nowMinutes: 12 * 60))
     }
 
     @Test func nextServiceSkipsClosedDays() {
@@ -75,6 +95,10 @@ struct OasisScheduleTests {
         let beforeOpen = OasisSchedule.nextService(after: "2026-09-21")
         #expect(beforeOpen?.iso == "2026-10-05")
         #expect(beforeOpen?.weekday == "Monday")
+
+        let veteransEve = OasisSchedule.nextService(after: "2026-11-10")
+        #expect(veteransEve?.iso == "2026-11-12")
+        #expect(veteransEve?.weekday == "Thursday")
     }
 
     @Test func placeholderUsesHubHoursWithoutInventingDishes() {
@@ -84,8 +108,8 @@ struct OasisScheduleTests {
         #expect(oasis.comingSoonSubtitle == "Menu not posted")
         #expect(oasis.availablePeriods.isEmpty)
         #expect(oasis.openNow)
-        #expect(oasis.todayHours == "11:00 AM – 8:00 PM")
-        #expect(oasis.periods.map(\.name) == ["Lunch", "Afternoon Snack", "Dinner"])
+        #expect(oasis.todayHours == "11:00 AM – 2:00 PM, 4:30 PM – 8:00 PM")
+        #expect(oasis.periods.map(\.name) == ["Lunch", "Dinner"])
         let tile = EatHallCardChrome.status(
             comingSoon: true,
             state: oasis.openState(nowMinutes: PacificTime.nowMinutes(now: thursdayDinner)),
@@ -94,5 +118,29 @@ struct OasisScheduleTests {
         #expect(tile.primary == "Menu not posted")
         #expect(tile.tone == .open)
         #expect(tile.accessibilityLine == "Open, menu not posted")
+    }
+
+    @Test func fridayDinnerAndVeteransDayStayOffEvenIfHubCopiedSkus() {
+        #expect(
+            OasisSchedule.servingPeriods(
+                from: ["Lunch", "Dinner", "Brunch", "All Day"],
+                on: "2026-11-06",
+                weekday: "Friday"
+            ) == ["Lunch"]
+        )
+        #expect(
+            OasisSchedule.servingPeriods(
+                from: ["Lunch", "Dinner"],
+                on: "2026-11-11",
+                weekday: "Wednesday"
+            ).isEmpty
+        )
+        #expect(
+            OasisSchedule.servingPeriods(
+                from: ["Lunch", "Dinner"],
+                on: "2026-11-07",
+                weekday: "Saturday"
+            ).isEmpty
+        )
     }
 }

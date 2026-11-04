@@ -484,6 +484,9 @@ public struct MenuStation: Codable, Sendable, Identifiable, Equatable {
     /// Anteater station id when known. Keeps SwiftUI sections unique if two
     /// unknown stations would otherwise share the fallback name "Menu".
     public let stationID: String?
+    /// Oasis Hub service chip ("Kiosk order only" / "Grab and go"). Nil on
+    /// Anteatery and Brandywine so their headers stay unchanged.
+    public let serviceLabel: String?
 
     public var id: String {
         if let stationID, !stationID.isEmpty {
@@ -492,14 +495,25 @@ public struct MenuStation: Codable, Sendable, Identifiable, Equatable {
         return name
     }
 
-    public init(name: String, items: [MenuItem], stationID: String? = nil) {
+    public init(
+        name: String,
+        items: [MenuItem],
+        stationID: String? = nil,
+        serviceLabel: String? = nil
+    ) {
         self.name = name
         self.items = items
         self.stationID = stationID
+        self.serviceLabel = serviceLabel
     }
 
     public func withItems(_ items: [MenuItem]) -> MenuStation {
-        MenuStation(name: name, items: items, stationID: stationID)
+        MenuStation(
+            name: name,
+            items: items,
+            stationID: stationID,
+            serviceLabel: serviceLabel
+        )
     }
 }
 

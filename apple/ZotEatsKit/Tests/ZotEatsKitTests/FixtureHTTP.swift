@@ -33,10 +33,16 @@ struct FixtureHTTP: HTTPFetching {
                 let oasisKey = query.contains("the-oasis") || query.contains("oasis")
                 if oasisKey {
                     return Data(
-                        #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8
+                        #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[],"stationSkuMap":[]},"products":[]}}}"#.utf8
                     )
                 }
                 fixture = "campus_menu"
+            } else if query.contains("getLocations") {
+                fixture = "campus_locations"
+            } else if query.contains("getLocation") {
+                return Data(
+                    #"{"data":{"getLocation":{"commerceAttributes":{"children":[]}}}}"#.utf8
+                )
             } else {
                 fixture = "campus_locations"
             }
@@ -70,7 +76,17 @@ struct OasisEmptyLiveHubHTTP: HTTPFetching {
             let query = url.query ?? ""
             if query.contains("getLocationMealPeriodRecipes") {
                 return Data(
-                    #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[]},"products":[]}}}"#.utf8
+                    #"{"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[],"stationSkuMap":[]},"products":[]}}}"#.utf8
+                )
+            }
+            if query.contains("getLocations") {
+                return Data(
+                    #"{"data":{"getLocations":[{"commerceAttributes":{"url_key":"the-oasis-dining-hall","hasActiveMenus":true},"aemAttributes":{"name":"The Oasis"}}]}}"#.utf8
+                )
+            }
+            if query.contains("getLocation") {
+                return Data(
+                    #"{"data":{"getLocation":{"commerceAttributes":{"url_key":"the-oasis-dining-hall","children":[]}}}}"#.utf8
                 )
             }
             return Data(
@@ -89,7 +105,21 @@ struct OasisLiveHubHTTP: HTTPFetching {
             if query.contains("getLocationMealPeriodRecipes") {
                 return Data(
                     """
-                    {"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[{"name":"Lunch","skus":["1"]}]},"products":[{"name":"Rice Bowl","sku":"1","attributes":[]}]}}}
+                    {"data":{"getLocationMealPeriodRecipes":{"locationMealPeriodRecipesData":{"mealPeriodSkuMap":[{"name":"Lunch","skus":["1","2"]},{"name":"Dinner","skus":["1"]},{"name":"All Day","skus":["1","2"]},{"name":"Brunch","skus":["1","2"]}],"stationSkuMap":[{"id":306552,"skus":["1"]},{"id":306564,"skus":["2"]}]},"products":[{"name":"Rice Bowl","sku":"1","attributes":[{"name":"assigned_category_ids","value":"306552"}]},{"name":"Pepperoni Pizza","sku":"2","attributes":[{"name":"assigned_category_ids","value":"306564"}]}]}}}
+                    """.utf8
+                )
+            }
+            if query.contains("getLocations") {
+                return Data(
+                    """
+                    {"data":{"getLocations":[{"commerceAttributes":{"url_key":"the-oasis-dining-hall","hasActiveMenus":true},"aemAttributes":{"name":"The Oasis"}}]}}
+                    """.utf8
+                )
+            }
+            if query.contains("getLocation") {
+                return Data(
+                    """
+                    {"data":{"getLocation":{"commerceAttributes":{"url_key":"the-oasis-dining-hall","children":[{"id":306552,"name":"Main","position":1},{"id":306555,"name":"Salad & Soup","position":2},{"id":306558,"name":"Grill/Deli","position":3},{"id":306561,"name":"Desserts","position":4},{"id":306564,"name":"Pizza","position":5},{"id":306567,"name":"Saute","position":6}]}}}}
                     """.utf8
                 )
             }

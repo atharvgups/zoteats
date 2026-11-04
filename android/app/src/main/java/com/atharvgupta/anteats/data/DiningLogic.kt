@@ -5,8 +5,8 @@ object DiningLogic {
     val twistedRootStationIDs = setOf("1929", "1893")
     val emberStationIDs = setOf("1878")
     val standingBurgerStationIDs = setOf("1878", "1935")
-    val dessertStationIDs = setOf("1872", "1938")
-    val pizzaStationIDs = setOf("1941", "1884")
+    val dessertStationIDs = setOf("1872", "1938", "306561")
+    val pizzaStationIDs = setOf("1941", "1884", "306564")
     val stationHallIDs = mapOf(
         "1926" to "anteatery",
         "1929" to "anteatery",
@@ -30,6 +30,12 @@ object DiningLogic {
         "1899" to "brandywine",
         "2166" to "brandywine",
         "275501" to "brandywine",
+        "306552" to "oasis",
+        "306555" to "oasis",
+        "306558" to "oasis",
+        "306561" to "oasis",
+        "306564" to "oasis",
+        "306567" to "oasis",
     )
     val dishBatchChunkSizes = listOf(40, 8, 1)
 
@@ -287,6 +293,9 @@ object DiningLogic {
         stations.mapIndexed { index, station ->
             Triple(stationLane(station.name, station.stationID, station.items), index, station)
         }.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
+
+    fun orderedStations(stations: List<MenuStation>, hallID: String): List<MenuStation> =
+        if (HallDirectory.isOasis(hallID)) stations else pinTwistedRootFirst(stations)
 
     fun mergeKey(station: MenuStation): String? {
         val id = station.stationID?.trim().orEmpty()
@@ -740,7 +749,7 @@ object DiningLogic {
         stationNames: Map<String, String> = emptyMap(),
     ): DiningMenu {
         if (extras.isEmpty()) {
-            val pinned = pinTwistedRootFirst(menu.stations)
+            val pinned = orderedStations(menu.stations, menu.locationId)
             return if (pinned == menu.stations) menu else menu.copy(stations = pinned)
         }
         val stations = menu.stations.toMutableList()
@@ -790,7 +799,7 @@ object DiningLogic {
         if (leftover.isNotEmpty()) {
             insertBeforeAllDay(MenuStation("Also served", leftover))
         }
-        return menu.copy(stations = pinTwistedRootFirst(stations))
+        return menu.copy(stations = orderedStations(stations, menu.locationId))
     }
 
     fun mergeHubOntoAnteater(
@@ -810,7 +819,7 @@ object DiningLogic {
             val midday = hubMealStations("Lunch", hubStations)
             val trimmed = subtractingMiddayTwistedRootFromBreakfast(reconciled.stations, midday)
             if (trimmed != reconciled.stations) {
-                reconciled = reconciled.copy(stations = pinTwistedRootFirst(trimmed))
+                reconciled = reconciled.copy(stations = orderedStations(trimmed, reconciled.locationId))
             }
         }
         return reconciled
@@ -920,7 +929,7 @@ object DiningLogic {
         }
 
         if (!changed) return merged
-        return merged.copy(stations = pinTwistedRootFirst(stations))
+        return merged.copy(stations = orderedStations(stations, merged.locationId))
     }
 
     fun shouldAuditMergedStation(station: MenuStation, anteater: DiningMenu): Boolean {
@@ -1076,7 +1085,7 @@ object DiningLogic {
             }.let { if (it < 0) stations.size else it }
             stations.add(insertAt, MenuStation(name, emptyList(), sid))
         }
-        return menu.copy(stations = pinTwistedRootFirst(stations))
+        return menu.copy(stations = orderedStations(stations, menu.locationId))
     }
 
     fun droppingEmptyStations(menu: DiningMenu): DiningMenu {

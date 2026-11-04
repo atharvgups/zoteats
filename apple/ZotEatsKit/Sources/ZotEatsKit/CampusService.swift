@@ -89,11 +89,60 @@ public struct CampusService: Sendable {
 
     private struct RawMenuMaps: Decodable, Sendable {
         let mealPeriodSkuMap: [RawMealPeriodSkus]?
+        let stationSkuMap: [RawStationSkus]?
     }
 
     private struct RawMealPeriodSkus: Decodable, Sendable {
         let name: String?
         let skus: [String]?
+    }
+
+    private struct RawStationSkus: Decodable, Sendable {
+        let id: String
+        let skus: [String]?
+
+        private enum CodingKeys: String, CodingKey { case id, skus }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let int = try? container.decode(Int.self, forKey: .id) {
+                id = String(int)
+            } else {
+                id = try container.decode(String.self, forKey: .id)
+            }
+            skus = try container.decodeIfPresent([String].self, forKey: .skus)
+        }
+    }
+
+    private struct LocationData: Decodable, Sendable {
+        let getLocation: RawHubLocation?
+    }
+
+    private struct RawHubLocation: Decodable, Sendable {
+        let commerceAttributes: RawHubCommerce?
+    }
+
+    private struct RawHubCommerce: Decodable, Sendable {
+        let children: [RawHubChild]?
+    }
+
+    private struct RawHubChild: Decodable, Sendable {
+        let id: String
+        let name: String?
+        let position: Int?
+
+        private enum CodingKeys: String, CodingKey { case id, name, position }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let int = try? container.decode(Int.self, forKey: .id) {
+                id = String(int)
+            } else {
+                id = try container.decode(String.self, forKey: .id)
+            }
+            name = try container.decodeIfPresent(String.self, forKey: .name)
+            position = try container.decodeIfPresent(Int.self, forKey: .position)
+        }
     }
 
     private struct RawProduct: Decodable, Sendable {
@@ -304,7 +353,7 @@ public struct CampusService: Sendable {
             let query = """
             query($campusUrlKey:String!,$locationUrlKey:String!,$date:String!){\
             getLocationMealPeriodRecipes(campusUrlKey:$campusUrlKey,locationUrlKey:$locationUrlKey,date:$date){\
-            locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}}\
+            locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}stationSkuMap{id skus}}\
             products{name sku attributes{name value}}}}
             """
             let variables = #"{"campusUrlKey":"campus","locationUrlKey":"\#(placeID)","date":"\#(dateISO)"}"#
@@ -336,6 +385,129 @@ public struct CampusService: Sendable {
             guard allowTypicalFallback else { return [] }
             return CampusTypicalMenus.stations(forPlaceID: placeID, placeName: displayName) ?? []
         }
+    }
+
+    /// Hub Oasis board grouped by real stations (Main, Grill/Deli, Pizza, …).
+    /// Empty when Hub posted no Lunch/Dinner SKUs. Never uses typical packs.
+    public func oasisPostedBoard(
+        date: String? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> OasisBoard.PostedBoard {
+        let dateISO = date ?? PacificTime.todayISO(now: now())
+        let urlKey = HallDirectory.campusHubKey(for: HallDirectory.oasisComingSoonID)
+            ?? "the-oasis-dining-hall"
+        let key = "oasis:board:\(urlKey):\(dateISO)"
+        if forceRefresh {
+            await cache.invalidate(key)
+        }
+        return try await cache.remember(key, ttl: Self.menuTTL) {
+            let query = """
+            query($campusUrlKey:String!,$locationUrlKey:String!,$date:String!){\
+            getLocationMealPeriodRecipes(campusUrlKey:$campusUrlKey,locationUrlKey:$locationUrlKey,date:$date){\
+            locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}stationSkuMap{id skus}}\
+            products{name sku attributes{name value}}}}
+            """
+            let variables = #"{"campusUrlKey":"campus","locationUrlKey":"\#(urlKey)","date":"\#(dateISO)"}"#
+            let data = try await graphQL(MenuData.self, query: query, variables: variables)
+            guard let menu = data.getLocationMealPeriodRecipes else {
+                return OasisBoard.PostedBoard(stationsByPeriod: [:])
+            }
+            var products: [String: MenuItem] = [:]
+            for raw in menu.products ?? [] {
+                guard let sku = raw.sku,
+                      let item = Self.menuItem(from: raw, hallID: HallDirectory.oasisComingSoonID)
+                else { continue }
+                products[sku] = item
+            }
+            let mealPeriodSKUs = (menu.locationMealPeriodRecipesData?.mealPeriodSkuMap ?? [])
+                .compactMap { period -> (name: String, skus: [String])? in
+                    guard let name = period.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !name.isEmpty
+                    else { return nil }
+                    return (name, period.skus ?? [])
+                }
+            let stationSKUs = (menu.locationMealPeriodRecipesData?.stationSkuMap ?? [])
+                .map { (id: $0.id, skus: $0.skus ?? []) }
+            let directory = OasisBoard.directory(overlaying: await oasisStationDirectory(urlKey: urlKey))
+            return OasisBoard.postedBoard(
+                mealPeriodSKUs: mealPeriodSKUs,
+                stationSKUs: stationSKUs,
+                directory: directory,
+                products: products
+            )
+        }
+    }
+
+    /// Hub weekday Lunch/Dinner windows for Oasis. Nil when the listing fetch
+    /// fails so Eat can fall back to the published OasisSchedule.
+    public func oasisMealWindows(dateISO: String) async -> [MealPeriodWindow]? {
+        let weekday: String = {
+            let parser = DateFormatter()
+            parser.timeZone = PacificTime.timeZone
+            parser.locale = Locale(identifier: "en_US_POSIX")
+            parser.dateFormat = "yyyy-MM-dd"
+            let date = parser.date(from: dateISO) ?? now()
+            return PacificTime.weekdayName(now: date)
+        }()
+        do {
+            let rows = try await hubLocations()
+            guard let oasis = rows.first(where: {
+                HallDirectory.isOasis($0.commerceAttributes?.url_key ?? "")
+            }) else { return nil }
+            let schedules = oasis.aemAttributes?.hoursOfOperation?.schedule ?? []
+            guard !schedules.isEmpty else { return nil }
+            let active = schedules.first { schedule in
+                schedule.type == "special"
+                    && (schedule.start_date ?? "9999") <= dateISO
+                    && (schedule.end_date ?? "0000") >= dateISO
+            } ?? schedules.first { $0.type == "standard" }
+            guard let active else { return nil }
+            var windows: [MealPeriodWindow] = []
+            for period in active.meal_periods ?? [] {
+                let name = period.meal_period?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard OasisBoard.servedPeriodNames.contains(where: {
+                    $0.caseInsensitiveCompare(name) == .orderedSame
+                }) else { continue }
+                guard let window = Self.window(from: period.opening_hours, weekday: weekday)
+                else { continue }
+                let canonical = OasisBoard.servedPeriodNames.first {
+                    $0.caseInsensitiveCompare(name) == .orderedSame
+                } ?? name
+                windows.append(
+                    MealPeriodWindow(
+                        name: canonical,
+                        startMinutes: window.start,
+                        endMinutes: window.end
+                    )
+                )
+            }
+            return windows
+        } catch {
+            return nil
+        }
+    }
+
+    private func oasisStationDirectory(urlKey: String) async -> [OasisBoard.StationMeta] {
+        let key = "oasis:stations:\(urlKey)"
+        let rows: [OasisBoard.StationMeta] = (try? await cache.remember(key, ttl: Self.locationsTTL) {
+            let query = """
+            query($campusUrlKey:String!,$locationUrlKey:String!){\
+            getLocation(campusUrlKey:$campusUrlKey,locationUrlKey:$locationUrlKey){\
+            commerceAttributes{children{id name position}}}}
+            """
+            let variables = #"{"campusUrlKey":"campus","locationUrlKey":"\#(urlKey)"}"#
+            let data = try await graphQL(LocationData.self, query: query, variables: variables)
+            return (data.getLocation?.commerceAttributes?.children ?? []).compactMap { child in
+                let name = child.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !child.id.isEmpty, !name.isEmpty else { return nil }
+                return OasisBoard.StationMeta(
+                    id: child.id,
+                    name: name,
+                    position: child.position ?? 0
+                )
+            }
+        }) ?? []
+        return rows
     }
 
     // MARK: - Hours parsing

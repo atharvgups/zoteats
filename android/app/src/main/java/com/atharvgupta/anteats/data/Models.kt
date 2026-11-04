@@ -54,6 +54,7 @@ data class MenuStation(
     val name: String,
     val items: List<MenuItem>,
     val stationID: String? = null,
+    val serviceLabel: String? = null,
 ) {
     fun withItems(next: List<MenuItem>) = copy(items = next)
 }
@@ -166,13 +167,12 @@ object HallDirectory {
 object OasisSchedule {
     const val firstServiceISO = "2026-10-05"
     const val lunchStartMinutes = 11 * 60
-    const val lunchEndMinutes = 14 * 60 + 30
-    const val snackStartMinutes = 14 * 60 + 30
-    const val snackEndMinutes = 16 * 60 + 30
+    const val lunchEndMinutes = 14 * 60
     const val dinnerStartMinutes = 16 * 60 + 30
     const val dinnerEndMinutes = 20 * 60
     const val unpostedCard = "Menu not posted"
     const val openUnposted = "Open, menu not posted"
+    val closedISOs = setOf("2026-11-11")
 
     fun opensLine(iso: String = firstServiceISO): String {
         val stamp = PacificTime.opensStamp(iso) ?: "Mon Oct 5"
@@ -181,24 +181,54 @@ object OasisSchedule {
 
     fun hasOpened(iso: String): Boolean = iso >= firstServiceISO
 
-    fun isWeekday(weekday: String): Boolean = when (weekday.lowercase()) {
+    fun isClosedDate(iso: String): Boolean = iso in closedISOs
+
+    fun isLunchWeekday(weekday: String): Boolean = when (weekday.lowercase()) {
         "monday", "tuesday", "wednesday", "thursday", "friday" -> true
         else -> false
     }
 
+    fun isDinnerWeekday(weekday: String): Boolean = when (weekday.lowercase()) {
+        "monday", "tuesday", "wednesday", "thursday" -> true
+        else -> false
+    }
+
+    fun servesLunch(dateISO: String, weekday: String): Boolean =
+        hasOpened(dateISO) && !isClosedDate(dateISO) && isLunchWeekday(weekday)
+
+    fun servesDinner(dateISO: String, weekday: String): Boolean =
+        hasOpened(dateISO) && !isClosedDate(dateISO) && isDinnerWeekday(weekday)
+
     fun mealWindows(dateISO: String, weekday: String): List<MealPeriodWindow> {
-        if (!hasOpened(dateISO) || !isWeekday(weekday)) return emptyList()
-        return listOf(
-            MealPeriodWindow("Lunch", lunchStartMinutes, lunchEndMinutes),
-            MealPeriodWindow("Afternoon Snack", snackStartMinutes, snackEndMinutes),
-            MealPeriodWindow("Dinner", dinnerStartMinutes, dinnerEndMinutes),
-        )
+        val windows = mutableListOf<MealPeriodWindow>()
+        if (servesLunch(dateISO, weekday)) {
+            windows += MealPeriodWindow("Lunch", lunchStartMinutes, lunchEndMinutes)
+        }
+        if (servesDinner(dateISO, weekday)) {
+            windows += MealPeriodWindow("Dinner", dinnerStartMinutes, dinnerEndMinutes)
+        }
+        return windows
     }
 
     fun todayHours(dateISO: String, weekday: String): String? {
-        if (mealWindows(dateISO, weekday).isEmpty()) return null
-        return "${PacificTime.formatMinutes(lunchStartMinutes)} to ${PacificTime.formatMinutes(dinnerEndMinutes)}"
+        val windows = mealWindows(dateISO, weekday)
+        if (windows.isEmpty()) return null
+        return windows.mapNotNull { window ->
+            val start = window.startMinutes ?: return@mapNotNull null
+            val end = window.endMinutes ?: return@mapNotNull null
+            "${PacificTime.formatMinutes(start)} to ${PacificTime.formatMinutes(end)}"
+        }.joinToString(", ")
     }
+
+    fun servingPeriods(posted: List<String>, dateISO: String, weekday: String): List<String> =
+        posted.filter { name ->
+            if (isClosedDate(dateISO)) return@filter false
+            when {
+                name.equals("Lunch", true) -> isLunchWeekday(weekday)
+                name.equals("Dinner", true) -> isDinnerWeekday(weekday)
+                else -> false
+            }
+        }
 
     fun isOpen(dateISO: String, weekday: String, nowMinutes: Int): Boolean =
         mealWindows(dateISO, weekday).any { window ->
@@ -214,7 +244,7 @@ object OasisSchedule {
     ): String {
         if (isOpen(dateISO, weekday, nowMinutes)) return "Open, menu not posted."
         if (mealWindows(dateISO, weekday).isNotEmpty()) {
-            return "UCI has not posted a menu. Hours are lunch 11 AM to 2:30 PM, snack 2:30 to 4:30 PM, and dinner 4:30 to 8 PM, Monday to Friday."
+            return "UCI has not posted a menu. Hours are lunch 11 AM to 2 PM Monday to Friday, and dinner 4:30 to 8 PM Monday to Thursday."
         }
         return "Closed today. UCI has not posted a menu."
     }
@@ -239,9 +269,10 @@ object OasisSchedule {
     }
 
     fun locationFromHubRecipes(
-        recipes: List<MenuStation>,
+        postedPeriods: List<String>,
         dateISO: String = PacificTime.todayISO(),
         nowMinutes: Int = PacificTime.nowMinutes(),
+        windows: List<MealPeriodWindow> = mealWindows(dateISO, PacificTime.weekdayName(dateISO).orEmpty()),
     ): DiningLocation {
         val weekday = PacificTime.weekdayName(dateISO).orEmpty()
         return DiningLocation(
@@ -249,10 +280,18 @@ object OasisSchedule {
             name = HallDirectory.displayName(HallDirectory.OASIS),
             compactName = HallDirectory.compactName(HallDirectory.OASIS),
             area = HallDirectory.area(HallDirectory.OASIS),
-            openNow = isOpen(dateISO, weekday, nowMinutes),
-            todayHours = todayHours(dateISO, weekday),
-            availablePeriods = recipes.map { it.name }.filter { it.isNotBlank() },
-            periods = mealWindows(dateISO, weekday),
+            openNow = windows.any { window ->
+                val start = window.startMinutes ?: return@any false
+                val end = window.endMinutes ?: return@any false
+                nowMinutes >= start && nowMinutes < end
+            },
+            todayHours = windows.mapNotNull { window ->
+                val start = window.startMinutes ?: return@mapNotNull null
+                val end = window.endMinutes ?: return@mapNotNull null
+                "${PacificTime.formatMinutes(start)} to ${PacificTime.formatMinutes(end)}"
+            }.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: todayHours(dateISO, weekday),
+            availablePeriods = postedPeriods.filter { it.isNotBlank() },
+            periods = windows,
         )
     }
 }

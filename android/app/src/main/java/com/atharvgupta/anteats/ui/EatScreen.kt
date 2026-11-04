@@ -194,7 +194,11 @@ fun EatScreen(
                             )
                         }
                     } else {
-                        val stations = filteredStations(state.menu?.stations.orEmpty(), viewModel.prefs)
+                        val stations = filteredStations(
+                            state.menu?.stations.orEmpty(),
+                            viewModel.prefs,
+                            state.selectedHall,
+                        )
                         val favoriteItems = DiningLogic.favoriteItemsOnBoard(
                             stations,
                             favorites,
@@ -365,17 +369,20 @@ private fun whatsFor(period: String): String = when (DiningLogic.canonicalPill(p
     else -> "What's for $period"
 }
 
-private fun filteredStations(stations: List<MenuStation>, prefs: PreferencesStore): List<MenuStation> {
+private fun filteredStations(
+    stations: List<MenuStation>,
+    prefs: PreferencesStore,
+    hallID: String,
+): List<MenuStation> {
     val tagged = stations.map { station ->
         station.withItems(DiningLogic.applyStationTags(station.items, station.name, station.stationID))
     }
-    return DiningLogic.pinTwistedRootFirst(
-        tagged.mapNotNull { station ->
+        val filtered = tagged.mapNotNull { station ->
             val items = station.items.filter { prefs.matches(it) }
             if (items.isEmpty()) null else station.withItems(items)
-        },
-    )
-}
+        }
+        return DiningLogic.orderedStations(filtered, hallID)
+    }
 
 @Composable
 private fun HallRow(
@@ -396,7 +403,7 @@ private fun HallRow(
             listOf(
                 DiningLocation(HallDirectory.ANTEATERY, "The Anteatery", "Anteatery", "Mesa Court", false, null, emptyList(), emptyList()),
                 DiningLocation(HallDirectory.BRANDYWINE, "Brandywine", "Brandywine", "Middle Earth", false, null, emptyList(), emptyList()),
-                DiningLocation(HallDirectory.OASIS, "The Oasis", "Oasis", "Mesa Court", false, null, emptyList(), emptyList(), "Coming soon"),
+                DiningLocation(HallDirectory.OASIS, "The Oasis", "Oasis", "Mesa Court", false, null, emptyList(), emptyList()),
             )
         }.forEach { hall ->
             val active = hall.id == selected
@@ -614,6 +621,7 @@ private fun StationBlock(
                 station.name,
                 station.items.size,
                 compact = DiningLogic.isSpecialEventStation(station.name, station.stationID),
+                serviceLabel = station.serviceLabel,
             )
         }
         if (expanded) {

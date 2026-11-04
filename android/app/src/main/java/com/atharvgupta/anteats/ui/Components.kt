@@ -216,6 +216,7 @@ fun SectionHeader(
     goldBar: Boolean = true,
     icon: ImageVector? = null,
     compact: Boolean = false,
+    serviceLabel: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
@@ -239,8 +240,11 @@ fun SectionHeader(
             fontSize = if (compact) 15.sp else SectionSize,
             fontWeight = FontWeight.SemiBold,
             color = colors.onBackground,
-            modifier = Modifier.weight(1f),
         )
+        if (!serviceLabel.isNullOrBlank()) {
+            TagChip(serviceLabel, colors.onSurfaceVariant)
+        }
+        Spacer(Modifier.weight(1f))
         if (count != null) {
             Text("$count", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
         }

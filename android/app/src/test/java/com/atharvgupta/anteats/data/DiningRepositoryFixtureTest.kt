@@ -8,6 +8,7 @@ import org.junit.Test
 class DiningRepositoryFixtureTest {
     private fun fixtureRepo(): DiningRepository = DiningRepository(
         hubStations = { _, _ -> emptyList() },
+        oasisBoard = { OasisBoard.PostedBoard(emptyMap()) },
         menuOverrides = { MenuOverridePayload() },
     ) { path ->
         if ("/events" in path) {
@@ -57,6 +58,7 @@ class DiningRepositoryFixtureTest {
     fun unpublishedDayIsEmptyNotAnError() = runBlocking {
         val full = DiningRepository(
             hubStations = { _, _ -> emptyList() },
+            oasisBoard = { OasisBoard.PostedBoard(emptyMap()) },
             menuOverrides = { MenuOverridePayload() },
         ) { path ->
             when {
@@ -106,6 +108,7 @@ class DiningRepositoryFixtureTest {
         """.trimIndent()
         fun repo(today: String) = DiningRepository(
             hubStations = { _, _ -> emptyList() },
+            oasisBoard = { OasisBoard.PostedBoard(emptyMap()) },
             menuOverrides = { MenuOverridePayload() },
         ) { path ->
             when {
