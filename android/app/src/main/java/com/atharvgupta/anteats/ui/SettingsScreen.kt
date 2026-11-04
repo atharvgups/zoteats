@@ -164,7 +164,7 @@ fun SettingsScreen(
                 Text("SOURCES", fontSize = SectionSize, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
                 SourceRow(Icons.Outlined.Restaurant, "Anteater API", "Live hall menus, plus nutrition when a dish posts it.", "https://anteaterapi.com")
                 Hairline()
-                SourceRow(Icons.Outlined.LocalCafe, "Dining Hub", "Retail hours. Live cafe board only when Hub publishes; typical packs stay labeled, never as today. Oasis shows hours until UCI posts a menu.", "https://uci.campusdish.com")
+                SourceRow(Icons.Outlined.LocalCafe, "Dining Hub", "Retail hours. Live cafe board only when Hub publishes; typical packs stay labeled, never as today. Oasis menus come from Hub stations.", "https://uci.campusdish.com")
                 Hairline()
                 SourceRow(Icons.AutoMirrored.Outlined.ShowChart, "Waitz", "Live occupancy for Langson and Science - not Student Center.", "https://waitz.io/irvine")
                 Hairline()

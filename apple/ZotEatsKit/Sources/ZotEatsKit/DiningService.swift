@@ -467,6 +467,7 @@ public struct DiningService: Sendable {
     public static let dessertStationIDs: Set<String> = [
         "1872",
         "1938",
+        "306561", // Oasis Desserts
     ]
 
     /// Pizza boards that sit directly above the burger station. "Oven" / "Hearth"
@@ -475,6 +476,7 @@ public struct DiningService: Sendable {
     public static let pizzaStationIDs: Set<String> = [
         "1941", // The Anteatery Oven
         "1884", // Brandywine Hearth
+        "306564", // Oasis Pizza
     ]
 
     /// Eat / Campus station lanes. Twisted Root first, rotating hot stations,
@@ -519,6 +521,12 @@ public struct DiningService: Sendable {
         "1899": "brandywine", // Saute
         "2166": "brandywine", // The Farm Stand- Deli
         "275501": "brandywine", // Promotions
+        "306552": "oasis", // Main
+        "306555": "oasis", // Salad & Soup
+        "306558": "oasis", // Grill/Deli
+        "306561": "oasis", // Desserts
+        "306564": "oasis", // Pizza
+        "306567": "oasis", // Saute
     ]
 
     /// Known Twisted Root station → Eat hall. Shared brand, different kitchens.
@@ -739,6 +747,16 @@ public struct DiningService: Sendable {
             .map(\.element)
     }
 
+    /// Anteatery / Brandywine keep the shared lane ranker. Oasis keeps Hub
+    /// category order so Grill/Deli is not shoved into the sides lane.
+    public static func orderedStations(
+        _ stations: [MenuStation],
+        hallID: String
+    ) -> [MenuStation] {
+        if HallDirectory.isOasis(hallID) { return stations }
+        return pinTwistedRootFirst(stations)
+    }
+
     /// Marketing event from Anteater `/events` (title, hall, time; no dishes).
     public struct DiningEvent: Equatable, Sendable {
         public var title: String
@@ -839,7 +857,7 @@ public struct DiningService: Sendable {
             locationId: menu.locationId,
             date: menu.date,
             period: menu.period,
-            stations: pinTwistedRootFirst(stations)
+            stations: orderedStations(stations, hallID: menu.locationId)
         )
     }
 
@@ -903,41 +921,54 @@ public struct DiningService: Sendable {
         }
         var next = ordered.filter { !HallDirectory.isOasis($0.id) }
         let hub = CampusService(http: http, cache: cache, now: now)
-        let urlKey = HallDirectory.campusHubKey(for: HallDirectory.oasisComingSoonID)
-            ?? "the-oasis-dining-hall"
-        let recipes = (try? await hub.menu(
-            for: urlKey,
-            placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
-            date: dateISO,
-            allowTypicalFallback: false
-        )) ?? []
-        if !recipes.isEmpty {
-            next.append(Self.oasisLocationFromHubRecipes(recipes, dateISO: dateISO, now: now()))
+        let board = (try? await hub.oasisPostedBoard(date: dateISO)) ?? OasisBoard.PostedBoard(stationsByPeriod: [:])
+        let weekday = EatPostedDays.weekdayName(dateISO) ?? PacificTime.weekdayName(now: now())
+        let posted = OasisSchedule.servingPeriods(
+            from: board.availablePeriods,
+            on: dateISO,
+            weekday: weekday
+        )
+        if !posted.isEmpty {
+            let hubWindows = (await hub.oasisMealWindows(dateISO: dateISO) ?? []).filter {
+                OasisSchedule.postedMealIsServed($0.name, on: dateISO, weekday: weekday)
+            }
+            let windows = hubWindows.isEmpty
+                ? OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
+                : hubWindows
+            next.append(
+                Self.oasisLocationFromHubRecipes(
+                    postedPeriods: posted,
+                    windows: windows,
+                    dateISO: dateISO,
+                    now: now()
+                )
+            )
             return next
         }
         next.append(Self.oasisComingSoonLocation(dateISO: dateISO, now: now()))
         return next
     }
 
-    /// Hub posted SKUs. Meal-period names become available periods. Attach
-    /// Hub weekday hours so the tile can show until/opens like the other halls.
+    /// Hub posted SKUs. Lunch/Dinner become available periods. Attach Hub
+    /// weekday hours so the tile can show until/opens like the other halls.
     private static func oasisLocationFromHubRecipes(
-        _ recipes: [MenuStation],
+        postedPeriods: [String],
+        windows: [MealPeriodWindow],
         dateISO: String,
         now: Date
     ) -> DiningLocation {
-        let names = recipes.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        let weekday = PacificTime.weekdayName(now: now)
         let nowMinutes = PacificTime.nowMinutes(now: now)
-        let windows = OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
         let next = OasisSchedule.nextService(after: dateISO)
         return DiningLocation(
             id: HallDirectory.oasisComingSoonID,
             name: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
             area: HallDirectory.area(for: HallDirectory.oasisComingSoonID),
-            openNow: OasisSchedule.isOpen(on: dateISO, weekday: weekday, nowMinutes: nowMinutes),
-            todayHours: OasisSchedule.todayHours(on: dateISO, weekday: weekday),
-            availablePeriods: names,
+            openNow: windows.contains { window in
+                guard let start = window.startMinutes, let end = window.endMinutes else { return false }
+                return nowMinutes >= start && nowMinutes < end
+            },
+            todayHours: Self.formatOasisHours(windows),
+            availablePeriods: postedPeriods,
             periods: windows,
             hoursApproximate: true,
             opensTomorrowAtMinutes: next?.dayOffset == 1 ? next?.minutes : nil,
@@ -956,7 +987,7 @@ public struct DiningService: Sendable {
         dateISO: String = UCITime.todayISO(),
         now: Date = Date()
     ) -> DiningLocation {
-        let weekday = PacificTime.weekdayName(now: now)
+        let weekday = EatPostedDays.weekdayName(dateISO) ?? PacificTime.weekdayName(now: now)
         let nowMinutes = PacificTime.nowMinutes(now: now)
         let windows = OasisSchedule.mealWindows(on: dateISO, weekday: weekday)
         let next = OasisSchedule.nextService(after: dateISO)
@@ -978,6 +1009,14 @@ public struct DiningService: Sendable {
             opensNextDateISO: (next?.dayOffset ?? 0) >= 2 ? next?.iso : nil,
             comingSoonSubtitle: OasisComingSoonCopy.unpostedCard
         )
+    }
+
+    static func formatOasisHours(_ windows: [MealPeriodWindow]) -> String? {
+        let parts = windows.compactMap { window -> String? in
+            guard let start = window.startMinutes, let end = window.endMinutes else { return nil }
+            return "\(PacificTime.formatMinutes(start)) – \(PacificTime.formatMinutes(end))"
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     /// Meal-period windows for a hall on a specific Irvine ISO date.
@@ -1677,7 +1716,7 @@ public struct DiningService: Sendable {
         stationNames: [String: String] = [:]
     ) -> DiningMenu {
         guard !extras.isEmpty else {
-            let pinned = pinTwistedRootFirst(menu.stations)
+            let pinned = orderedStations(menu.stations, hallID: menu.locationId)
             guard pinned != menu.stations else { return menu }
             return DiningMenu(
                 locationId: menu.locationId,
@@ -1747,7 +1786,7 @@ public struct DiningService: Sendable {
             insertBeforeAllDay(MenuStation(name: "Also served", items: leftover))
         }
 
-        stations = pinTwistedRootFirst(stations)
+        stations = orderedStations(stations, hallID: menu.locationId)
 
         return DiningMenu(
             locationId: menu.locationId,
@@ -1784,7 +1823,7 @@ public struct DiningService: Sendable {
                     locationId: reconciled.locationId,
                     date: reconciled.date,
                     period: reconciled.period,
-                    stations: pinTwistedRootFirst(trimmed)
+                    stations: orderedStations(trimmed, hallID: reconciled.locationId)
                 )
             }
         }
@@ -1912,7 +1951,7 @@ public struct DiningService: Sendable {
             locationId: merged.locationId,
             date: merged.date,
             period: merged.period,
-            stations: pinTwistedRootFirst(stations)
+            stations: orderedStations(stations, hallID: merged.locationId)
         )
     }
 
@@ -2114,7 +2153,7 @@ public struct DiningService: Sendable {
                 locationId: hall,
                 date: dateISO,
                 period: resolved,
-                stations: Self.pinTwistedRootFirst(mealStations)
+                stations: Self.orderedStations(mealStations, hallID: hall)
             ),
             stationNames: stationNames,
             periodStartMinutes: PacificTime.parseMinutes(periodMatch?.startTime),
@@ -2177,24 +2216,26 @@ public struct DiningService: Sendable {
         forceRefresh: Bool
     ) async -> DiningMenu? {
         let hub = CampusService(http: http, cache: cache, now: now)
-        let urlKey = HallDirectory.campusHubKey(for: HallDirectory.oasisComingSoonID)
-            ?? "the-oasis-dining-hall"
-        let stations = (try? await hub.menu(
-            for: urlKey,
-            placeName: HallDirectory.displayName(for: HallDirectory.oasisComingSoonID),
+        let board = (try? await hub.oasisPostedBoard(
             date: dateISO,
-            forceRefresh: forceRefresh,
-            allowTypicalFallback: false
-        )) ?? []
-        guard !stations.isEmpty else { return nil }
-        let available = stations.map(\.name)
+            forceRefresh: forceRefresh
+        )) ?? OasisBoard.PostedBoard(stationsByPeriod: [:])
+        guard !board.availablePeriods.isEmpty else { return nil }
+        let weekday: String = {
+            let parser = DateFormatter()
+            parser.timeZone = PacificTime.timeZone
+            parser.locale = Locale(identifier: "en_US_POSIX")
+            parser.dateFormat = "yyyy-MM-dd"
+            let date = parser.date(from: dateISO) ?? now()
+            return PacificTime.weekdayName(now: date)
+        }()
+        let available = OasisSchedule.servingPeriods(
+            from: board.availablePeriods,
+            on: dateISO,
+            weekday: weekday
+        )
         let resolved = Self.resolvePeriod(period, available: available)
         let names = Self.menuPeriodNames(primary: period, available: available)
-        let matched = names.compactMap { name in
-            stations.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
-        }
-        // Empty names means this pill is not posted — do not dump every Hub
-        // station onto Lunch when the only morning board is Brunch.
         guard !names.isEmpty else {
             return DiningMenu(
                 locationId: HallDirectory.oasisComingSoonID,
@@ -2203,12 +2244,17 @@ public struct DiningService: Sendable {
                 stations: []
             )
         }
-        let board = matched.isEmpty ? stations : Self.mergeStationLists([matched])
+        let stations = names.flatMap { board.stations(for: $0) }
+        var seen = Set<String>()
+        let deduped = stations.filter { station in
+            let key = station.stationID ?? DiningService.collapsedStationName(station.name)
+            return seen.insert(key).inserted
+        }
         return DiningMenu(
             locationId: HallDirectory.oasisComingSoonID,
             date: dateISO,
             period: resolved,
-            stations: Self.pinTwistedRootFirst(board)
+            stations: deduped
         )
     }
 

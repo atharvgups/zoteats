@@ -245,7 +245,7 @@ object MenuOverrideFeed {
                 stations.add(insertAt, MenuStation(name, dishes, sid))
             }
         }
-        return menu.copy(stations = DiningLogic.pinTwistedRootFirst(stations))
+        return menu.copy(stations = DiningLogic.orderedStations(stations, menu.locationId))
     }
 
     fun applyingCorrections(corrections: List<MenuCorrection>, menu: DiningMenu): DiningMenu {
@@ -308,7 +308,7 @@ object MenuOverrideFeed {
                 stations.add(insertAt, MenuStation(stationName, listOf(dish), sid.ifEmpty { null }))
             }
         }
-        return menu.copy(stations = DiningLogic.pinTwistedRootFirst(stations))
+        return menu.copy(stations = DiningLogic.orderedStations(stations, menu.locationId))
     }
 
     @Volatile private var cachedAt = 0L

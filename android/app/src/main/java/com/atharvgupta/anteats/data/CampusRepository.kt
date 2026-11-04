@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -163,7 +164,7 @@ class CampusRepository {
 
     /// Official Hub SKUs for a hall/date. Empty when Coming Soon or unpublished.
     suspend fun postedMenu(locationUrlKey: String, dateISO: String): List<MenuStation> = withContext(Dispatchers.IO) {
-        val query = """query(${'$'}c:String!,${'$'}l:String!,${'$'}d:String!){getLocationMealPeriodRecipes(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l,date:${'$'}d){locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}}products{name sku attributes{name value}}}}"""
+        val query = """query(${'$'}c:String!,${'$'}l:String!,${'$'}d:String!){getLocationMealPeriodRecipes(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l,date:${'$'}d){locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}stationSkuMap{id skus}}products{name sku attributes{name value}}}}"""
         val variables = """{"c":"campus","l":"$locationUrlKey","d":"$dateISO"}"""
         val root = runCatching { graphQL(query, variables) }.getOrNull() ?: return@withContext emptyList()
         val menu = root["data"]?.jsonObject?.get("getLocationMealPeriodRecipes")?.jsonObject
@@ -187,6 +188,69 @@ class CampusRepository {
             val items = skus.mapNotNull { products[it] }.distinctBy { it.name.lowercase() }
             if (items.isEmpty()) null else MenuStation(period, items)
         }
+    }
+
+    suspend fun oasisPostedBoard(dateISO: String): OasisBoard.PostedBoard = withContext(Dispatchers.IO) {
+        val query = """query(${'$'}c:String!,${'$'}l:String!,${'$'}d:String!){getLocationMealPeriodRecipes(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l,date:${'$'}d){locationMealPeriodRecipesData{mealPeriodSkuMap{id name skus}stationSkuMap{id skus}}products{name sku attributes{name value}}}}"""
+        val variables = """{"c":"campus","l":"the-oasis-dining-hall","d":"$dateISO"}"""
+        val root = runCatching { graphQL(query, variables) }.getOrNull()
+            ?: return@withContext OasisBoard.PostedBoard(emptyMap())
+        val menu = root["data"]?.jsonObject?.get("getLocationMealPeriodRecipes")?.jsonObject
+            ?: return@withContext OasisBoard.PostedBoard(emptyMap())
+        val products = linkedMapOf<String, MenuItem>()
+        val productRows = menu["products"] as? JsonArray ?: JsonArray(emptyList())
+        productRows.forEach { el ->
+            val obj = el.jsonObject
+            val sku = obj.string("sku") ?: return@forEach
+            val item = hubProduct(obj, HallDirectory.OASIS) ?: return@forEach
+            products[sku] = item
+        }
+        val maps = menu["locationMealPeriodRecipesData"]?.jsonObject
+            ?.get("mealPeriodSkuMap") as? JsonArray ?: JsonArray(emptyList())
+        val mealPeriodSKUs = maps.mapNotNull { el ->
+            val obj = el.jsonObject
+            val period = obj.string("name")?.trim().orEmpty()
+            if (period.isEmpty()) return@mapNotNull null
+            val skus = (obj["skus"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+            period to skus
+        }
+        val stationRows = menu["locationMealPeriodRecipesData"]?.jsonObject
+            ?.get("stationSkuMap") as? JsonArray ?: JsonArray(emptyList())
+        val stationSKUs = stationRows.mapNotNull { el ->
+            val obj = el.jsonObject
+            val id = jsonId(obj["id"]) ?: return@mapNotNull null
+            val skus = (obj["skus"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+            id to skus
+        }
+        OasisBoard.postedBoard(
+            mealPeriodSKUs,
+            stationSKUs,
+            OasisBoard.directory(oasisStationDirectory()),
+            products,
+        )
+    }
+
+    private fun oasisStationDirectory(): List<OasisBoard.StationMeta> {
+        val query = """query(${'$'}c:String!,${'$'}l:String!){getLocation(campusUrlKey:${'$'}c,locationUrlKey:${'$'}l){commerceAttributes{children{id name position}}}}"""
+        val variables = """{"c":"campus","l":"the-oasis-dining-hall"}"""
+        val root = runCatching { graphQL(query, variables) }.getOrNull() ?: return emptyList()
+        val children = root["data"]?.jsonObject
+            ?.get("getLocation")?.jsonObject
+            ?.get("commerceAttributes")?.jsonObject
+            ?.get("children") as? JsonArray ?: return emptyList()
+        return children.mapNotNull { el ->
+            val obj = el.jsonObject
+            val id = jsonId(obj["id"]) ?: return@mapNotNull null
+            val name = obj.string("name")?.trim().orEmpty()
+            if (name.isEmpty()) return@mapNotNull null
+            val position = obj["position"]?.jsonPrimitive?.intOrNull ?: 0
+            OasisBoard.StationMeta(id, name, position)
+        }
+    }
+
+    private fun jsonId(value: JsonElement?): String? {
+        val prim = value?.jsonPrimitive ?: return null
+        return prim.intOrNull?.toString() ?: prim.contentOrNull
     }
 
     private fun hubProduct(obj: JsonObject, hallID: String?): MenuItem? {

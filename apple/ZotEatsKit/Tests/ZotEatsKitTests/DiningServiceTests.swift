@@ -150,7 +150,10 @@ struct DiningServiceTests {
         #expect(oasis?.isComingSoon == false)
         #expect(oasis?.availablePeriods.contains("Lunch") == true)
         let menu = try await service.menu(for: "oasis", period: "Lunch", date: "2026-07-09")
+        #expect(menu.stations.map(\.name) == ["Main", "Pizza"])
         #expect(menu.stations.contains { $0.items.contains { $0.name == "Rice Bowl" } })
+        #expect(!menu.stations.contains { $0.name == "Lunch" })
+        #expect(menu.stations.first { $0.name == "Pizza" }?.serviceLabel == "Kiosk order only")
     }
 
     @Test func hubRecipesAfterOpenShowHoursAndDishes() async {
@@ -160,7 +163,7 @@ struct DiningServiceTests {
         #expect(oasis?.isComingSoon == false)
         #expect(oasis?.availablePeriods.contains("Lunch") == true)
         #expect(oasis?.openNow == true)
-        #expect(oasis?.todayHours == "11:00 AM – 8:00 PM")
+        #expect(oasis?.todayHours == "11:00 AM – 2:00 PM, 4:30 PM – 8:00 PM")
     }
 
     @Test func anteaterAPIOasisShowsNormalHoursAndMenu() async throws {

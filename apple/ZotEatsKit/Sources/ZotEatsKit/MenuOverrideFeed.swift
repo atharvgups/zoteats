@@ -397,7 +397,7 @@ public enum MenuOverrideFeed {
                 )
             }
         }
-        let pinned = DiningService.pinTwistedRootFirst(stations)
+        let pinned = DiningService.orderedStations(stations, hallID: menu.locationId)
         return DiningMenu(
             locationId: menu.locationId,
             date: menu.date,
@@ -481,7 +481,7 @@ public enum MenuOverrideFeed {
                 )
             }
         }
-        let pinned = DiningService.pinTwistedRootFirst(stations)
+        let pinned = DiningService.orderedStations(stations, hallID: menu.locationId)
         return DiningMenu(
             locationId: menu.locationId,
             date: menu.date,

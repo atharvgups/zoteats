@@ -1,33 +1,39 @@
 import Foundation
 
-/// Official first service day for The Oasis (Mesa Court), from Dining Hub hours.
+/// Official Oasis hours from MyDiningHub `the-oasis-dining-hall`.
 ///
-/// Hub `the-oasis-dining-hall` specials are all-off through 2026-10-02
-/// (Summer, Welcome Week, then "9/28 - 10/2"). Standard hours are Mon–Fri
-/// Lunch 11:00–14:30, Afternoon Snack 14:30–16:30, Dinner 16:30–20:00.
-/// First serving day is Monday 5 October 2026 — not meal-plan start (Sept 21).
+/// Standard Hub schedule: Lunch Mo-Fr 11:00-14:00, Dinner Mo-Th 16:30-20:00,
+/// weekends off. Veteran's Day 2026-11-11 is a Hub special (all Wednesday off).
+/// First service was Monday 5 October 2026. Hub menus currently post through
+/// 17 December 2026. Never invent a menu.
 public enum OasisSchedule: Sendable {
     /// Single source of truth. Format every Eat / widget line from this ISO.
     public static let firstServiceISO = "2026-10-05"
 
     /// Hub standard Lunch window (Irvine minutes).
     public static let lunchStartMinutes = 11 * 60
-    public static let lunchEndMinutes = 14 * 60 + 30
-    /// Hub standard Afternoon Snack window (Irvine minutes).
-    public static let snackStartMinutes = 14 * 60 + 30
-    public static let snackEndMinutes = 16 * 60 + 30
+    public static let lunchEndMinutes = 14 * 60
     /// Hub standard Dinner window (Irvine minutes).
     public static let dinnerStartMinutes = 16 * 60 + 30
     public static let dinnerEndMinutes = 20 * 60
 
-    /// Compact tile: "Opens Mon Oct 5"
+    /// Dated Hub specials that close the hall.
+    public static let closedISOs: Set<String> = [
+        "2026-11-11",
+    ]
+
+    /// Compact tile leftover; live tiles use until/opens hours instead.
     public static let opensLine = formatOpensLine(iso: firstServiceISO)
 
     public static func hasOpened(on iso: String) -> Bool {
         iso >= firstServiceISO
     }
 
-    public static func isWeekday(_ weekday: String) -> Bool {
+    public static func isClosedDate(_ iso: String) -> Bool {
+        closedISOs.contains(iso)
+    }
+
+    public static func isLunchWeekday(_ weekday: String) -> Bool {
         switch weekday.lowercased() {
         case "monday", "tuesday", "wednesday", "thursday", "friday":
             return true
@@ -36,35 +42,72 @@ public enum OasisSchedule: Sendable {
         }
     }
 
-    /// Published Hub weekday windows after `firstServiceISO`. Empty before open
-    /// and on Sat/Sun — never a fake menu.
+    public static func isDinnerWeekday(_ weekday: String) -> Bool {
+        switch weekday.lowercased() {
+        case "monday", "tuesday", "wednesday", "thursday":
+            return true
+        default:
+            return false
+        }
+    }
+
+    public static func servesLunch(on iso: String, weekday: String) -> Bool {
+        !isClosedDate(iso) && isLunchWeekday(weekday) && (hasOpened(on: iso) || iso >= firstServiceISO)
+    }
+
+    public static func servesDinner(on iso: String, weekday: String) -> Bool {
+        !isClosedDate(iso) && isDinnerWeekday(weekday) && (hasOpened(on: iso) || iso >= firstServiceISO)
+    }
+
+    /// Hub-posted Lunch/Dinner that this weekday actually serves. Closed
+    /// specials and Friday dinner stay off even if Hub copied SKUs.
+    public static func postedMealIsServed(_ name: String, on iso: String, weekday: String) -> Bool {
+        if isClosedDate(iso) { return false }
+        if name.caseInsensitiveCompare("Lunch") == .orderedSame {
+            return isLunchWeekday(weekday)
+        }
+        if name.caseInsensitiveCompare("Dinner") == .orderedSame {
+            return isDinnerWeekday(weekday)
+        }
+        return false
+    }
+
+    /// Published Hub windows after `firstServiceISO`. Empty before open,
+    /// on Sat/Sun, Friday dinner, and dated closures — never a fake menu.
     public static func mealWindows(on iso: String, weekday: String) -> [MealPeriodWindow] {
-        guard hasOpened(on: iso), isWeekday(weekday) else { return [] }
-        return [
-            MealPeriodWindow(
-                name: "Lunch",
-                startMinutes: lunchStartMinutes,
-                endMinutes: lunchEndMinutes
-            ),
-            MealPeriodWindow(
-                name: "Afternoon Snack",
-                startMinutes: snackStartMinutes,
-                endMinutes: snackEndMinutes
-            ),
-            MealPeriodWindow(
-                name: "Dinner",
-                startMinutes: dinnerStartMinutes,
-                endMinutes: dinnerEndMinutes
-            ),
-        ]
+        var windows: [MealPeriodWindow] = []
+        if servesLunch(on: iso, weekday: weekday) {
+            windows.append(
+                MealPeriodWindow(
+                    name: "Lunch",
+                    startMinutes: lunchStartMinutes,
+                    endMinutes: lunchEndMinutes
+                )
+            )
+        }
+        if servesDinner(on: iso, weekday: weekday) {
+            windows.append(
+                MealPeriodWindow(
+                    name: "Dinner",
+                    startMinutes: dinnerStartMinutes,
+                    endMinutes: dinnerEndMinutes
+                )
+            )
+        }
+        return windows
     }
 
     public static func todayHours(on iso: String, weekday: String) -> String? {
-        guard !mealWindows(on: iso, weekday: weekday).isEmpty else { return nil }
-        return "\(PacificTime.formatMinutes(lunchStartMinutes)) – \(PacificTime.formatMinutes(dinnerEndMinutes))"
+        let windows = mealWindows(on: iso, weekday: weekday)
+        guard !windows.isEmpty else { return nil }
+        return windows.compactMap { window -> String? in
+            guard let start = window.startMinutes, let end = window.endMinutes else { return nil }
+            return "\(PacificTime.formatMinutes(start)) – \(PacificTime.formatMinutes(end))"
+        }
+        .joined(separator: ", ")
     }
 
-    /// Next Lunch after `iso` that Oasis actually serves.
+    /// Next Lunch (or Friday-after-Thursday, Monday after Friday) Oasis serves.
     public static func nextService(
         after iso: String
     ) -> (iso: String, weekday: String, dayOffset: Int, minutes: Int, period: String)? {
@@ -81,11 +124,11 @@ public enum OasisSchedule: Sendable {
                 )
             }
         }
-        for offset in 1...10 {
+        for offset in 1...12 {
             let day = PacificTime.calendar.date(byAdding: .day, value: offset, to: start) ?? start
             let dayISO = PacificTime.todayISO(now: day)
             let weekday = PacificTime.weekdayName(now: day)
-            if hasOpened(on: dayISO), isWeekday(weekday) {
+            if servesLunch(on: dayISO, weekday: weekday) {
                 return (dayISO, weekday, offset, lunchStartMinutes, "Lunch")
             }
         }
@@ -97,6 +140,15 @@ public enum OasisSchedule: Sendable {
             guard let start = window.startMinutes, let end = window.endMinutes else { return false }
             return nowMinutes >= start && nowMinutes < end
         }
+    }
+
+    /// Keep Hub Lunch/Dinner that this calendar day actually serves.
+    public static func servingPeriods(
+        from posted: [String],
+        on iso: String,
+        weekday: String
+    ) -> [String] {
+        posted.filter { postedMealIsServed($0, on: iso, weekday: weekday) }
     }
 
     static func formatOpensLine(iso: String) -> String {
@@ -133,10 +185,8 @@ public enum OasisComingSoonCopy: Sendable {
         weekday: String? = nil,
         nowMinutes: Int = UCITime.nowMinutes()
     ) -> String {
-        let day = weekday ?? PacificTime.weekdayName(now: date(fromISO: iso) ?? Date())
-        if OasisSchedule.isOpen(on: iso, weekday: day, nowMinutes: nowMinutes) {
-            return unpostedCard
-        }
+        _ = weekday
+        _ = nowMinutes
         return unpostedCard
     }
 
@@ -150,7 +200,7 @@ public enum OasisComingSoonCopy: Sendable {
             return "Open, menu not posted."
         }
         if !OasisSchedule.mealWindows(on: iso, weekday: day).isEmpty {
-            return "UCI has not posted a menu. Hours are lunch 11 AM to 2:30 PM, snack 2:30 to 4:30 PM, and dinner 4:30 to 8 PM, Monday to Friday."
+            return "UCI has not posted a menu. Hours are lunch 11 AM to 2 PM Monday to Friday, and dinner 4:30 to 8 PM Monday to Thursday."
         }
         return "Closed today. UCI has not posted a menu."
     }

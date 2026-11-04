@@ -48,7 +48,7 @@ class HallChromeTest {
         assertEquals(HallTone.Open, status.tone)
         assertEquals("Menu not posted", hall.comingSoonSubtitle)
         assertTrue(hall.openNow)
-        assertTrue(hall.periods.map { it.name }.containsAll(listOf("Lunch", "Afternoon Snack", "Dinner")))
+        assertEquals(listOf("Lunch", "Dinner"), hall.periods.map { it.name })
         assertFalse(status.primary.contains("Oct"))
         assertFalse(status.primary.contains("Coming Soon", ignoreCase = true))
         assertFalse(status.primary.contains("\u2014") || status.primary.contains("\u2013"))

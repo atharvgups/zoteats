@@ -24,6 +24,8 @@ class DiningRepository(
     private val base: String = "https://anteaterapi.com/v2/rest/dining",
     private val hubStations: suspend (locationUrlKey: String, dateISO: String) -> List<MenuStation> =
         { key, date -> runCatching { CampusRepository().postedMenu(key, date) }.getOrDefault(emptyList()) },
+    private val oasisBoard: suspend (String) -> OasisBoard.PostedBoard =
+        { date -> runCatching { CampusRepository().oasisPostedBoard(date) }.getOrDefault(OasisBoard.PostedBoard(emptyMap())) },
     private val menuOverrides: suspend () -> MenuOverridePayload =
         { runCatching { MenuOverrideFeed.fetch() }.getOrDefault(MenuOverrideFeed.bundled) },
     private val get: suspend (String) -> Pair<Int, String> = { path -> httpGet(base + path) },
@@ -393,34 +395,34 @@ class DiningRepository(
     }
 
     private suspend fun oasisFromHub(dateISO: String): DiningLocation? {
-        val recipes = oasisHubStations(dateISO)
-        if (recipes.isEmpty()) return null
-        return OasisSchedule.locationFromHubRecipes(recipes, dateISO)
+        val board = oasisPostedBoard(dateISO) ?: return null
+        val weekday = PacificTime.weekdayName(dateISO).orEmpty()
+        val posted = OasisSchedule.servingPeriods(board.availablePeriods, dateISO, weekday)
+        if (posted.isEmpty()) return null
+        return OasisSchedule.locationFromHubRecipes(posted, dateISO)
     }
 
     private suspend fun oasisHubMenu(period: String, dateISO: String): DiningMenu? {
-        val stations = oasisHubStations(dateISO)
-        if (stations.isEmpty()) return null
-        val available = stations.map { it.name }
+        val board = oasisPostedBoard(dateISO) ?: return null
+        val weekday = PacificTime.weekdayName(dateISO).orEmpty()
+        val available = OasisSchedule.servingPeriods(board.availablePeriods, dateISO, weekday)
         val resolved = DiningLogic.resolvePeriod(period, available)
         val names = DiningLogic.menuPeriodNames(period, available)
         if (names.isEmpty()) {
             return DiningMenu(HallDirectory.OASIS, dateISO, period, emptyList())
         }
-        val matched = names.mapNotNull { name ->
-            stations.firstOrNull { it.name.equals(name, true) }
+        val stations = names.flatMap { board.stations(it) }
+        val seen = mutableSetOf<String>()
+        val deduped = stations.filter { station ->
+            seen.add(station.stationID ?: DiningLogic.collapsedStationName(station.name))
         }
-        val board = if (matched.isEmpty()) stations else matched
-        return DiningMenu(
-            HallDirectory.OASIS,
-            dateISO,
-            resolved,
-            DiningLogic.pinTwistedRootFirst(board),
-        )
+        return DiningMenu(HallDirectory.OASIS, dateISO, resolved, deduped)
     }
 
-    private suspend fun oasisHubStations(dateISO: String): List<MenuStation> =
-        runCatching { hubStations("the-oasis-dining-hall", dateISO) }.getOrNull().orEmpty()
+    private suspend fun oasisPostedBoard(dateISO: String): OasisBoard.PostedBoard? {
+        val board = runCatching { oasisBoard(dateISO) }.getOrNull() ?: return null
+        return board.takeIf { it.availablePeriods.isNotEmpty() }
+    }
 
     private data class ApiPeriod(
         val name: String,
