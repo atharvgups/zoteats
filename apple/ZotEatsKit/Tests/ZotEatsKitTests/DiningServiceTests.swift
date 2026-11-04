@@ -1028,13 +1028,23 @@ struct DiningServiceTests {
         #expect(DiningService.isStationStaple("Alfredo Sauce"))
         #expect(DiningService.isStationStaple("Ranch Dressing"))
         #expect(DiningService.isStationStaple("Ketchup"))
+        #expect(DiningService.isStationStaple("Steamed Peas & Onions"))
+        #expect(DiningService.isStationStaple("Spring Salad Mix"))
+        #expect(DiningService.isStationStaple("Crispy Tater Tots"))
+        #expect(DiningService.isStationStaple("Diced Pineapple"))
+        #expect(DiningService.isStationStaple("Corn Tortilla"))
+        #expect(DiningService.isStationStaple("Roasted Red Potatoes"))
         #expect(!DiningService.isHubGrillStaple("Cajun Tofu and White Rice"))
         #expect(!DiningService.isStationStaple("Tofu in Peanut Sauce"))
+        #expect(!DiningService.isStationStaple("Chili Con Carne"))
+        #expect(!DiningService.isStationStaple("Sauteed Mushroom Ravioli"))
         #expect(!DiningService.isHubGrillStaple("Eggplant Parmesan"))
         #expect(!DiningService.isHubGrillStaple("Spicy Vegetable Gumbo"))
         #expect(!DiningService.isHubGrillStaple("Jackfruit Curry"))
         #expect(DiningService.isStationEntree("Eggplant Parmesan"))
+        #expect(DiningService.isStationEntree("Chili Con Carne"))
         #expect(!DiningService.isStationEntree("Basmati Rice"))
+        #expect(!DiningService.isStationEntree("Steamed Peas & Onions"))
     }
 
     @Test func dinnerKeepsAnteaterTwistedRootWhenHubOnlyTaggedRice() {
@@ -1265,6 +1275,120 @@ struct DiningServiceTests {
                 DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
             }
         )
+    }
+
+    @Test func auditIgnoresHubNoodleBarWhenAnteaterLunchOmittedIt() {
+        // 2026-11-03 live monitor miss: Hub lunch tagged ravioli on Noodle
+        // Bar 1953. Anteater lunch did not post that station. Merge must not
+        // invent it, and the audit must not call that a staples-only board.
+        let shepherd = MenuItem(
+            id: "pie", name: "Plant-Based Shepherd’s Pie", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let ravioli = MenuItem(
+            id: "ravioli", name: "Sauteed Mushroom Ravioli", description: nil, calories: 380,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegetarian"], stationID: "1953"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-03",
+            period: "Lunch",
+            stations: [MenuStation(name: "The Twisted Root", items: [shepherd], stationID: "1929")]
+        )
+        let hub = [MenuStation(name: "Lunch", items: [shepherd, ravioli])]
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        #expect(!merged.stations.contains { $0.stationID == "1953" })
+        #expect(merged.stations.flatMap(\.items).map(\.name).contains("Plant-Based Shepherd’s Pie"))
+        #expect(!DiningService.canOpenHubStation(stationID: "1953", on: menu))
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: merged).isEmpty)
+    }
+
+    @Test func auditIgnoresHubSaladBarWhenAnteaterMealOmittedIt() {
+        let stirFry = MenuItem(
+            id: "stir", name: "Sweet & Sour Plant-Based Chicken Stir Fry",
+            description: nil, calories: 320,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let salad = MenuItem(
+            id: "salad", name: "Spring Salad Mix", description: nil, calories: 15,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1875"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-11-03",
+            period: "Lunch",
+            stations: [MenuStation(name: "The Twisted Root", items: [stirFry], stationID: "1893")]
+        )
+        let hub = [MenuStation(name: "Lunch", items: [stirFry, salad])]
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        #expect(!merged.stations.contains { $0.stationID == "1875" })
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: merged).isEmpty)
+    }
+
+    @Test func hubTwistedRootChiliFillsOmittedAnteaterDinnerWithoutPeasOnlyBoard() {
+        // 2026-11-03 Brandywine dinner: Anteater omitted TR. Hub tagged rice,
+        // peas, and Chili Con Carne. Fill the real entree. Do not invent a
+        // peas-only station, and do not fail the audit on the side.
+        let chili = MenuItem(
+            id: "chili", name: "Chili Con Carne", description: nil, calories: 280,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1893"
+        )
+        let rice = MenuItem(
+            id: "rice", name: "Jasmine Rice", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let peas = MenuItem(
+            id: "peas", name: "Steamed Peas & Onions", description: nil, calories: 70,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let burger = MenuItem(
+            id: "burger", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1878"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-11-03",
+            period: "Dinner",
+            stations: [MenuStation(name: "Ember", items: [burger], stationID: "1878")]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [rice, peas, chili, burger])]
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        let twisted = merged.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(twisted?.items.map(\.name).contains("Chili Con Carne") == true)
+        #expect(!(twisted?.items.map(\.name).contains("Steamed Peas & Onions") ?? false))
+        #expect(!(twisted?.items.map(\.name).contains("Jasmine Rice") ?? false))
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: merged).isEmpty)
+    }
+
+    @Test func hubTwistedRootSidesDoNotInventPeasOnlyStation() {
+        let rice = MenuItem(
+            id: "rice", name: "Roasted Garlic Rice", description: nil, calories: 160,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let peas = MenuItem(
+            id: "peas", name: "Steamed Peas & Onions", description: nil, calories: 70,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1893"
+        )
+        let burger = MenuItem(
+            id: "burger", name: "Cheeseburger", description: nil, calories: 400,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1878"
+        )
+        let menu = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-11-03",
+            period: "Dinner",
+            stations: [MenuStation(name: "Ember", items: [burger], stationID: "1878")]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [rice, peas, burger])]
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        #expect(
+            !merged.stations.contains {
+                DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+            }
+        )
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: merged).isEmpty)
     }
 
     @Test func hubBoardKeepsAnteateryTwistedRootWhenHubAgrees() {

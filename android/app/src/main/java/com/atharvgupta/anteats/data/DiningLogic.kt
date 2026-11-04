@@ -555,19 +555,23 @@ object DiningLogic {
         val lower = collapsedStationName(name)
         if (lower.isEmpty()) return false
         if ("fries" in lower) return true
+        if ("tater" in lower || "tots" in lower) return true
+        if ("salad mix" in lower || lower.endsWith(" salad")) return true
         val words = Regex("[^a-z0-9]+").split(lower).filter { it.isNotEmpty() }
         val last = words.lastOrNull() ?: return false
         val entreeHints = setOf(
-            "and", "bowl", "burrito", "cauliflower", "chicken", "curry",
+            "bowl", "burrito", "cauliflower", "chicken", "chili", "curry",
             "eggplant", "fried", "gumbo", "hash", "jackfruit", "lentil",
-            "noodle", "pasta", "pork", "sandwich", "shrimp", "stew", "stir",
-            "taco", "tofu", "with", "wrap",
+            "noodle", "pasta", "pork", "ravioli", "sandwich", "shrimp", "stew",
+            "stir", "taco", "tofu", "with", "wrap",
         )
         if (words.any { it in entreeHints }) return false
         val stapleLast = setOf(
-            "bread", "bun", "buns", "condiment", "dressing", "gravy",
-            "ketchup", "mayo", "mayonnaise", "mustard", "relish", "rice",
-            "roll", "rolls", "sauce", "vinaigrette",
+            "bread", "broccoli", "bun", "buns", "carrots", "chips", "condiment",
+            "corn", "dressing", "gravy", "ketchup", "lettuce", "mayo",
+            "mayonnaise", "melon", "mustard", "onions", "peas", "pineapple",
+            "potato", "potatoes", "relish", "rice", "roll", "rolls", "sauce",
+            "tortilla", "vinaigrette",
         )
         return last in stapleLast
     }
@@ -919,6 +923,13 @@ object DiningLogic {
         return merged.copy(stations = pinTwistedRootFirst(stations))
     }
 
+    fun shouldAuditMergedStation(station: MenuStation, anteater: DiningMenu): Boolean {
+        if (isAvailableAllDayStation(station.name)) return false
+        if (matchingStation(anteater.stations, station) != null) return true
+        return isTwistedRoot(station.name, station.stationID) &&
+            canOpenHubStation(station.stationID, anteater)
+    }
+
     fun auditMergedMenu(
         anteater: DiningMenu,
         hubStations: List<MenuStation>,
@@ -946,7 +957,7 @@ object DiningLogic {
         }
         val checked = mutableSetOf<String>()
         fun consider(station: MenuStation) {
-            if (isAvailableAllDayStation(station.name)) return
+            if (!shouldAuditMergedStation(station, anteater)) return
             val key = (station.stationID ?: "") + "|" + collapsedStationName(station.name)
             if (!checked.add(key)) return
             val live = matchingStation(merged.stations, station) ?: station

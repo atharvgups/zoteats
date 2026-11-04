@@ -1493,26 +1493,31 @@ public struct DiningService: Sendable {
         isStationStaple(name)
     }
 
-    /// Rice, fries, bread, sauces, and condiments never count as a station's
-    /// entree and never displace one. Names with entree hints ("Cajun Tofu
-    /// and White Rice", "Tofu in Peanut Sauce") stay entrees.
+    /// Rice, fries, bread, sauces, condiments, and vegetable/salad sides
+    /// never count as a station's entree and never displace one. "And" is
+    /// not an entree hint: "Steamed Peas & Onions" is a side, while
+    /// "Cajun Tofu and White Rice" stays an entree via tofu.
     public static func isStationStaple(_ name: String) -> Bool {
         let lower = collapsedStationName(name)
         if lower.isEmpty { return false }
         if lower.contains("fries") { return true }
+        if lower.contains("tater") || lower.contains("tots") { return true }
+        if lower.contains("salad mix") || lower.hasSuffix(" salad") { return true }
         let words = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         guard let last = words.last else { return false }
         let entreeHints: Set<String> = [
-            "and", "bowl", "burrito", "cauliflower", "chicken", "curry",
+            "bowl", "burrito", "cauliflower", "chicken", "chili", "curry",
             "eggplant", "fried", "gumbo", "hash", "jackfruit", "lentil",
-            "noodle", "pasta", "pork", "sandwich", "shrimp", "stew", "stir",
-            "taco", "tofu", "with", "wrap",
+            "noodle", "pasta", "pork", "ravioli", "sandwich", "shrimp", "stew",
+            "stir", "taco", "tofu", "with", "wrap",
         ]
         if words.contains(where: { entreeHints.contains($0) }) { return false }
         let stapleLast: Set<String> = [
-            "bread", "bun", "buns", "condiment", "dressing", "gravy",
-            "ketchup", "mayo", "mayonnaise", "mustard", "relish", "rice",
-            "roll", "rolls", "sauce", "vinaigrette",
+            "bread", "broccoli", "bun", "buns", "carrots", "chips", "condiment",
+            "corn", "dressing", "gravy", "ketchup", "lettuce", "mayo",
+            "mayonnaise", "melon", "mustard", "onions", "peas", "pineapple",
+            "potato", "potatoes", "relish", "rice", "roll", "rolls", "sauce",
+            "tortilla", "vinaigrette",
         ]
         return stapleLast.contains(last)
     }
@@ -1911,6 +1916,19 @@ public struct DiningService: Sendable {
         )
     }
 
+    /// Hub may join a station Anteater already posted, and may recreate
+    /// Twisted Root. It must not invent Noodle Bar / Deli / salad bar on a
+    /// meal Anteater left off — those Hub-only boards are not merge failures.
+    public static func shouldAuditMergedStation(
+        _ station: MenuStation,
+        anteater: DiningMenu
+    ) -> Bool {
+        if CampusMenuNormalize.isAvailableAllDay(station.name) { return false }
+        if matchingStation(in: anteater.stations, like: station) != nil { return true }
+        return isTwistedRoot(stationName: station.name, stationID: station.stationID)
+            && canOpenHubStation(stationID: station.stationID, on: anteater)
+    }
+
     public static func auditMergedMenu(
         anteater: DiningMenu,
         hubStations: [MenuStation],
@@ -1939,7 +1957,7 @@ public struct DiningService: Sendable {
         }
         var checked = Set<String>()
         func consider(_ station: MenuStation) {
-            if CampusMenuNormalize.isAvailableAllDay(station.name) { return }
+            guard shouldAuditMergedStation(station, anteater: anteater) else { return }
             let key = (station.stationID ?? "") + "|" + collapsedStationName(station.name)
             if !checked.insert(key).inserted { return }
             let live = matchingStation(in: merged.stations, like: station) ?? station

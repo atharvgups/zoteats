@@ -521,13 +521,23 @@ class DiningLogicTest {
         assertTrue(DiningLogic.isStationStaple("Alfredo Sauce"))
         assertTrue(DiningLogic.isStationStaple("Ranch Dressing"))
         assertTrue(DiningLogic.isStationStaple("Ketchup"))
+        assertTrue(DiningLogic.isStationStaple("Steamed Peas & Onions"))
+        assertTrue(DiningLogic.isStationStaple("Spring Salad Mix"))
+        assertTrue(DiningLogic.isStationStaple("Crispy Tater Tots"))
+        assertTrue(DiningLogic.isStationStaple("Diced Pineapple"))
+        assertTrue(DiningLogic.isStationStaple("Corn Tortilla"))
+        assertTrue(DiningLogic.isStationStaple("Roasted Red Potatoes"))
         assertFalse(DiningLogic.isHubGrillStaple("Cajun Tofu and White Rice"))
         assertFalse(DiningLogic.isStationStaple("Tofu in Peanut Sauce"))
+        assertFalse(DiningLogic.isStationStaple("Chili Con Carne"))
+        assertFalse(DiningLogic.isStationStaple("Sauteed Mushroom Ravioli"))
         assertFalse(DiningLogic.isHubGrillStaple("Eggplant Parmesan"))
         assertFalse(DiningLogic.isHubGrillStaple("Spicy Vegetable Gumbo"))
         assertFalse(DiningLogic.isHubGrillStaple("Jackfruit Curry"))
         assertTrue(DiningLogic.isStationEntree("Eggplant Parmesan"))
+        assertTrue(DiningLogic.isStationEntree("Chili Con Carne"))
         assertFalse(DiningLogic.isStationEntree("Basmati Rice"))
+        assertFalse(DiningLogic.isStationEntree("Steamed Peas & Onions"))
     }
 
     @Test
@@ -754,6 +764,59 @@ class DiningLogicTest {
         val names = merged.stations.first { DiningLogic.isTwistedRoot(it.name, it.stationID) }.items.map { it.name }
         assertTrue(names.contains("Buffalo Cauliflower Wings"))
         assertTrue(names.contains("Tikka Masala Tofu"))
+        assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
+    }
+
+    @Test
+    fun auditIgnoresHubNoodleBarWhenAnteaterLunchOmittedIt() {
+        val shepherd = MenuItem("pie", "Plant-Based Shepherd’s Pie", null, 400, null, emptyList(), listOf("Vegan"), stationID = "1929")
+        val ravioli = MenuItem("ravioli", "Sauteed Mushroom Ravioli", null, 380, null, emptyList(), listOf("Vegetarian"), stationID = "1953")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-11-03",
+            "Lunch",
+            listOf(MenuStation("The Twisted Root", listOf(shepherd), "1929")),
+        )
+        val hub = listOf(MenuStation("Lunch", listOf(shepherd, ravioli)))
+        val merged = DiningLogic.mergeHubOntoAnteater(menu, hub)
+        assertFalse(merged.stations.any { it.stationID == "1953" })
+        assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
+    }
+
+    @Test
+    fun hubTwistedRootChiliFillsOmittedAnteaterDinnerWithoutPeasOnlyBoard() {
+        val chili = MenuItem("chili", "Chili Con Carne", null, 280, null, emptyList(), emptyList(), stationID = "1893")
+        val rice = MenuItem("rice", "Jasmine Rice", null, 160, null, emptyList(), listOf("Vegan"), stationID = "1893")
+        val peas = MenuItem("peas", "Steamed Peas & Onions", null, 70, null, emptyList(), listOf("Vegan"), stationID = "1893")
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1878")
+        val menu = DiningMenu(
+            "brandywine",
+            "2026-11-03",
+            "Dinner",
+            listOf(MenuStation("Ember", listOf(burger), "1878")),
+        )
+        val hub = listOf(MenuStation("Dinner", listOf(rice, peas, chili, burger)))
+        val merged = DiningLogic.mergeHubOntoAnteater(menu, hub)
+        val twisted = merged.stations.first { DiningLogic.isTwistedRoot(it.name, it.stationID) }
+        assertTrue(twisted.items.map { it.name }.contains("Chili Con Carne"))
+        assertFalse(twisted.items.map { it.name }.contains("Steamed Peas & Onions"))
+        assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
+    }
+
+    @Test
+    fun hubTwistedRootSidesDoNotInventPeasOnlyStation() {
+        val rice = MenuItem("rice", "Roasted Garlic Rice", null, 160, null, emptyList(), listOf("Vegan"), stationID = "1893")
+        val peas = MenuItem("peas", "Steamed Peas & Onions", null, 70, null, emptyList(), listOf("Vegan"), stationID = "1893")
+        val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1878")
+        val menu = DiningMenu(
+            "brandywine",
+            "2026-11-03",
+            "Dinner",
+            listOf(MenuStation("Ember", listOf(burger), "1878")),
+        )
+        val hub = listOf(MenuStation("Dinner", listOf(rice, peas, burger)))
+        val merged = DiningLogic.mergeHubOntoAnteater(menu, hub)
+        assertFalse(merged.stations.any { DiningLogic.isTwistedRoot(it.name, it.stationID) })
         assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
     }
 
