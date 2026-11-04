@@ -31,7 +31,7 @@ public enum OasisBoard: Sendable {
         /// Lunch and Dinner only. Hub also copies SKUs onto Brunch / All Day;
         /// Oasis does not serve those meals.
         public var availablePeriods: [String] {
-            Self.servedPeriodNames.filter { period in
+            OasisBoard.servedPeriodNames.filter { period in
                 !(stationsByPeriod[period] ?? []).isEmpty
             }
         }
@@ -185,7 +185,7 @@ public enum OasisBoard: Sendable {
                 ?? directory.keys.first { key in
                     item.stationID == key
                 }
-            guard let sid, let meta = directory[sid] else { continue }
+            guard let sid, directory[sid] != nil else { continue }
             if item.stationID != sid {
                 item = MenuItem(
                     id: item.id,
