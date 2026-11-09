@@ -219,29 +219,20 @@ public enum OasisBoard: Sendable {
     }
 
     private static func uniqueItems(items: [MenuItem], stationID: String) -> [MenuItem] {
-        var seen = Set<String>()
-        var out: [MenuItem] = []
-        for item in items {
-            let key = DiningService.collapsedStationName(item.name)
-            guard !key.isEmpty, seen.insert(key).inserted else { continue }
-            if item.stationID == stationID {
-                out.append(item)
-            } else {
-                out.append(
-                    MenuItem(
-                        id: item.id,
-                        name: item.name,
-                        description: item.description,
-                        calories: item.calories,
-                        servingSize: item.servingSize,
-                        allergens: item.allergens,
-                        dietaryTags: item.dietaryTags,
-                        nutrition: item.nutrition,
-                        stationID: stationID
-                    )
-                )
-            }
+        let tagged = items.map { item -> MenuItem in
+            if item.stationID == stationID { return item }
+            return MenuItem(
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                calories: item.calories,
+                servingSize: item.servingSize,
+                allergens: item.allergens,
+                dietaryTags: item.dietaryTags,
+                nutrition: item.nutrition,
+                stationID: stationID
+            )
         }
-        return out
+        return DiningService.dedupeStationItems(tagged)
     }
 }

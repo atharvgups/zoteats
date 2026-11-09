@@ -8,7 +8,6 @@ public enum CampusMenuNormalize {
     /// station ranker place that section before desserts and the burger board.
     public static func stations(_ raw: [MenuStation]) -> [MenuStation] {
         var allDayItems: [MenuItem] = []
-        var allDaySeen = Set<String>()
         var others: [MenuStation] = []
 
         for station in raw {
@@ -16,19 +15,15 @@ public enum CampusMenuNormalize {
                 .localizedCaseInsensitiveCompare("All Day") == .orderedSame
                 || station.name.localizedCaseInsensitiveCompare(availableAllDay) == .orderedSame
             if isAllDay {
-                for item in station.items {
-                    let key = item.name.lowercased()
-                    if allDaySeen.insert(key).inserted {
-                        allDayItems.append(item)
-                    }
-                }
+                allDayItems.append(contentsOf: station.items)
             } else {
-                others.append(station)
+                others.append(station.withItems(DiningService.dedupeStationItems(station.items)))
             }
         }
 
-        if !allDayItems.isEmpty {
-            others.append(MenuStation(name: availableAllDay, items: allDayItems))
+        let uniqueAllDay = DiningService.dedupeStationItems(allDayItems)
+        if !uniqueAllDay.isEmpty {
+            others.append(MenuStation(name: availableAllDay, items: uniqueAllDay))
         }
         return DiningService.pinTwistedRootFirst(others)
     }

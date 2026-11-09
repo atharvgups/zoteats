@@ -421,7 +421,7 @@ public struct DiningService: Sendable {
         }
         return MenuItem(
             id: dish.id,
-            name: Self.collapseWhitespace(dish.name) ?? dish.name,
+            name: Self.displayDishName(Self.collapseWhitespace(dish.name) ?? dish.name),
             description: description,
             calories: dish.nutritionInfo?.calories.map { Int($0.rounded()) },
             servingSize: serving,
@@ -749,12 +749,14 @@ public struct DiningService: Sendable {
 
     /// Anteatery / Brandywine keep the shared lane ranker. Oasis keeps Hub
     /// category order so Grill/Deli is not shoved into the sides lane.
+    /// Station counts always follow the deduped list.
     public static func orderedStations(
         _ stations: [MenuStation],
         hallID: String
     ) -> [MenuStation] {
-        if HallDirectory.isOasis(hallID) { return stations }
-        return pinTwistedRootFirst(stations)
+        let unique = stations.map { $0.withItems(dedupeStationItems($0.items)) }
+        if HallDirectory.isOasis(hallID) { return unique }
+        return pinTwistedRootFirst(unique)
     }
 
     /// Marketing event from Anteater `/events` (title, hall, time; no dishes).
@@ -1395,10 +1397,10 @@ public struct DiningService: Sendable {
                     ids[key] = stationID
                 }
                 for item in station.items {
-                    let nameKey = item.name.lowercased()
-                    if seen[key]!.insert(nameKey).inserted {
-                        items[key]!.append(item)
-                    }
+                    let keys = dietLookupKeys(for: item.name)
+                    if keys.contains(where: { seen[key]!.contains($0) }) { continue }
+                    for lookup in keys { seen[key]!.insert(lookup) }
+                    items[key]!.append(item)
                 }
             }
         }
@@ -1655,6 +1657,9 @@ public struct DiningService: Sendable {
         func consider(_ item: MenuItem) {
             let keys = dietLookupKeys(for: item.name)
             if keys.contains(where: { seen.contains($0) }) { return }
+            if menu.stations.flatMap(\.items).contains(where: { dishesShareIdentity($0, item) }) {
+                return
+            }
             if !stationBelongs(onHall: menu.locationId, stationID: item.stationID) { return }
             let twisted = isTwistedRoot(stationName: "", stationID: item.stationID)
             let onAllDay = appearsOnHubBoard(item, keys: allDayKeys)
@@ -1730,17 +1735,12 @@ public struct DiningService: Sendable {
 
         func merge(into index: Int, items: [MenuItem], stationID: String?) {
             let station = stations[index]
-            var seen = Set(station.items.map { $0.name.lowercased() })
-            var next = station.items
             let tagged = applyStationTags(
                 items,
                 station: station.name,
                 stationID: station.stationID ?? stationID
             )
-            for item in tagged where seen.insert(item.name.lowercased()).inserted {
-                next.append(item)
-            }
-            stations[index] = station.withItems(next)
+            stations[index] = station.withItems(unionMenuItems(station.items, tagged))
         }
 
         func insertBeforeAllDay(_ station: MenuStation) {
@@ -1836,6 +1836,7 @@ public struct DiningService: Sendable {
         for item in extra {
             let keys = dietLookupKeys(for: item.name)
             if keys.contains(where: { seen.contains($0) }) { continue }
+            if result.contains(where: { dishesShareIdentity($0, item) }) { continue }
             for key in keys { seen.insert(key) }
             result.append(item)
         }
@@ -2028,6 +2029,24 @@ public struct DiningService: Sendable {
                 stationID: sid
             ))
         }
+        for station in merged.stations {
+            var kept: [MenuItem] = []
+            for item in station.items {
+                if kept.contains(where: { dishesShareIdentity($0, item) }) {
+                    issues.append(MenuMergeIssue(
+                        hallID: merged.locationId,
+                        date: merged.date,
+                        period: merged.period,
+                        stationName: station.name,
+                        stationID: station.stationID,
+                        kind: .duplicateDishInStation,
+                        dishName: item.name
+                    ))
+                } else {
+                    kept.append(item)
+                }
+            }
+        }
         return issues
     }
 
@@ -2136,9 +2155,7 @@ public struct DiningService: Sendable {
                 for: allDayName, in: today, stationNames: stationNames
             )
             if !allDayStations.isEmpty {
-                let items = allDayStations.flatMap(\.items)
-                var seen = Set<String>()
-                let unique = items.filter { seen.insert($0.name.lowercased()).inserted }
+                let unique = Self.dedupeStationItems(allDayStations.flatMap(\.items))
                 if !unique.isEmpty {
                     mealStations.append(MenuStation(name: "Available all day", items: unique))
                 }
@@ -2254,7 +2271,7 @@ public struct DiningService: Sendable {
             locationId: HallDirectory.oasisComingSoonID,
             date: dateISO,
             period: resolved,
-            stations: deduped
+            stations: Self.orderedStations(deduped, hallID: HallDirectory.oasisComingSoonID)
         )
     }
 
@@ -2405,7 +2422,28 @@ public struct DiningService: Sendable {
         ).menu
     }
 
-    /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese").
+    /// Drop trailing campus suffixes (" - UCI", "-UCI", " UCI") for the board.
+    public static func displayDishName(_ name: String) -> String {
+        let collapsed = collapseWhitespace(name) ?? name
+        var current = collapsed
+        let pattern = #"[\s\-–—/]*uci$"#
+        while true {
+            let next = current.replacingOccurrences(
+                of: pattern,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-–—/"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            if next.isEmpty || next == current { break }
+            current = next
+        }
+        return current.isEmpty ? collapsed : current
+    }
+
+    /// Match Anteater names to hub names ("Vegan Mac & Cheese UCI" ↔ "Vegan Mac & Cheese",
+    /// "Chicken Gyoza - UCI" ↔ Hub marketing "Chicken Gyozas").
     static func dietLookupKeys(for name: String) -> [String] {
         let lower = (collapseWhitespace(name) ?? name)
             .lowercased()
@@ -2425,20 +2463,95 @@ public struct DiningService: Sendable {
             }
         }
 
-        let withoutUCI = stripped.replacingOccurrences(
-            of: #"\s+uci$"#, with: "", options: .regularExpression
-        )
+        let withoutUCI = strippingCampusDishSuffix(stripped)
         if withoutUCI != stripped { keys.append(withoutUCI) }
 
-        for variant in keys {
+        for variant in Array(keys) {
+            if let stem = singularDishKey(variant) { keys.append(stem) }
+        }
+
+        for variant in Array(keys) {
             let normalized = variant.replacingOccurrences(
                 of: #"[^a-z0-9]+"#, with: "", options: .regularExpression
             )
             if !normalized.isEmpty { keys.append(normalized) }
+            if let stem = singularDishKey(normalized) { keys.append(stem) }
         }
         // Preserve order, drop dupes.
         var seen = Set<String>()
         return keys.filter { seen.insert($0).inserted }
+    }
+
+    static func strippingCampusDishSuffix(_ lower: String) -> String {
+        var current = lower
+        let pattern = #"[\s\-–—/]*uci$"#
+        while true {
+            let next = current.replacingOccurrences(
+                of: pattern,
+                with: "",
+                options: .regularExpression
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-–—/"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            if next == current { return current }
+            current = next
+        }
+    }
+
+    static func singularDishKey(_ value: String) -> String? {
+        guard value.count >= 5, value.hasSuffix("s"), !value.hasSuffix("ss") else { return nil }
+        let stem = String(value.dropLast())
+        return stem.isEmpty ? nil : stem
+    }
+
+    static func collapsedDishDescription(_ text: String?) -> String? {
+        guard let value = collapseWhitespace(text)?.lowercased(), !value.isEmpty else { return nil }
+        return value
+    }
+
+    public static func dishesShareIdentity(_ lhs: MenuItem, _ rhs: MenuItem) -> Bool {
+        let left = Set(dietLookupKeys(for: lhs.name))
+        if dietLookupKeys(for: rhs.name).contains(where: { left.contains($0) }) {
+            return true
+        }
+        guard let leftCal = lhs.calories, let rightCal = rhs.calories, leftCal == rightCal else {
+            return false
+        }
+        guard let leftDesc = collapsedDishDescription(lhs.description),
+              let rightDesc = collapsedDishDescription(rhs.description)
+        else { return false }
+        return leftDesc == rightDesc
+    }
+
+    static func richerDish(_ lhs: MenuItem, _ rhs: MenuItem) -> MenuItem {
+        func score(_ item: MenuItem) -> (Int, Int, Int, Int, Int) {
+            (
+                item.nutrition != nil ? 1 : 0,
+                item.description?.count ?? 0,
+                item.calories != nil ? 1 : 0,
+                item.allergens.count,
+                item.dietaryTags.count
+            )
+        }
+        let winner = score(lhs) >= score(rhs) ? lhs : rhs
+        let cleaned = displayDishName(winner.name)
+        return cleaned == winner.name ? winner : winner.withName(cleaned)
+    }
+
+    /// Collapse Hub marketing-name / UCI-suffix copies inside one station.
+    /// Keeps the richer of two matches (nutrition, description, calories, tags).
+    public static func dedupeStationItems(_ items: [MenuItem]) -> [MenuItem] {
+        var result: [MenuItem] = []
+        for item in items {
+            let cleaned = item.withName(displayDishName(item.name))
+            if let index = result.firstIndex(where: { dishesShareIdentity($0, cleaned) }) {
+                result[index] = richerDish(result[index], cleaned)
+            } else {
+                result.append(cleaned)
+            }
+        }
+        return result
     }
 
     private static func mergeUnique(_ base: [String], _ extra: [String]) -> [String] {
@@ -2472,10 +2585,12 @@ public struct DiningService: Sendable {
         for (stationID, dishIDs) in stationToDishes.sorted(by: { $0.key < $1.key }) {
             var seenNames = Set<String>()
             let stationName = Self.displayStationName(stationNames[stationID], stationID: stationID)
-            let items = dishIDs
-                .compactMap { dishMap[$0] }
-                .map(Self.menuItem(from:))
-                .filter { seenNames.insert($0.name.lowercased()).inserted }
+            let items = Self.dedupeStationItems(
+                dishIDs
+                    .compactMap { dishMap[$0] }
+                    .map(Self.menuItem(from:))
+                    .filter { seenNames.insert($0.name.lowercased()).inserted }
+            )
             if !items.isEmpty {
                 stations.append(MenuStation(
                     name: stationName,

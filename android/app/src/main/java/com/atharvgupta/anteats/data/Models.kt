@@ -76,13 +76,15 @@ data class MenuMergeIssue(
     val kind: Kind,
     val dishName: String,
 ) {
-    enum class Kind { LOST_ANTEATER_ENTREE, STAPLES_ONLY_DESPITE_ENTREES }
+    enum class Kind { LOST_ANTEATER_ENTREE, STAPLES_ONLY_DESPITE_ENTREES, DUPLICATE_DISH_IN_STATION }
 
     override fun toString(): String = when (kind) {
         Kind.LOST_ANTEATER_ENTREE ->
             "$hallID $date $period $stationName lost Anteater entree $dishName"
         Kind.STAPLES_ONLY_DESPITE_ENTREES ->
             "$hallID $date $period $stationName is staples-only while a source still has $dishName"
+        Kind.DUPLICATE_DISH_IN_STATION ->
+            "$hallID $date $period $stationName lists $dishName more than once"
     }
 }
 

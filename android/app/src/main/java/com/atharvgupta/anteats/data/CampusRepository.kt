@@ -185,7 +185,7 @@ class CampusRepository {
             val period = obj.string("name")?.trim().orEmpty()
             if (period.isEmpty()) return@mapNotNull null
             val skus = (obj["skus"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
-            val items = skus.mapNotNull { products[it] }.distinctBy { it.name.lowercase() }
+            val items = DiningLogic.dedupeStationItems(skus.mapNotNull { products[it] })
             if (items.isEmpty()) null else MenuStation(period, items)
         }
     }
@@ -299,7 +299,7 @@ class CampusRepository {
         }
         return MenuItem(
             sku,
-            DiningLogic.collapseWhitespace(name) ?: name,
+            DiningLogic.displayDishName(DiningLogic.collapseWhitespace(name) ?: name),
             description,
             calories,
             serving,
