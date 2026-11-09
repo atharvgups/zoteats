@@ -534,11 +534,11 @@ object DiningLogic {
     fun displayDishName(name: String): String {
         val collapsed = collapseWhitespace(name) ?: name
         var current = collapsed
-        val pattern = Regex("""[\s\-–—/]*uci$""", RegexOption.IGNORE_CASE)
+        val pattern = Regex("[\\s\\-\\u2013\\u2014/]*uci$", RegexOption.IGNORE_CASE)
         while (true) {
             val next = current.replace(pattern, "")
                 .trim()
-                .trim('-', '–', '—', '/')
+                .trim { it == '-' || it == '\u2013' || it == '\u2014' || it == '/' }
                 .trim()
             if (next.isEmpty() || next == current) break
             current = next
@@ -576,11 +576,11 @@ object DiningLogic {
 
     fun strippingCampusDishSuffix(lower: String): String {
         var current = lower
-        val pattern = Regex("""[\s\-–—/]*uci$""")
+        val pattern = Regex("[\\s\\-\\u2013\\u2014/]*uci$")
         while (true) {
             val next = current.replace(pattern, "")
                 .trim()
-                .trim('-', '–', '—', '/')
+                .trim { it == '-' || it == '\u2013' || it == '\u2014' || it == '/' }
                 .trim()
             if (next == current) return current
             current = next
