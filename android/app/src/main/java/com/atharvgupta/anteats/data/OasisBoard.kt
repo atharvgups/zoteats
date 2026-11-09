@@ -112,13 +112,9 @@ object OasisBoard {
     }
 
     private fun uniqueItems(items: List<MenuItem>, stationID: String): List<MenuItem> {
-        val seen = mutableSetOf<String>()
-        val out = mutableListOf<MenuItem>()
-        for (item in items) {
-            val key = DiningLogic.collapsedStationName(item.name)
-            if (key.isEmpty() || !seen.add(key)) continue
-            out += if (item.stationID == stationID) item else item.copy(stationID = stationID)
+        val tagged = items.map { item ->
+            if (item.stationID == stationID) item else item.copy(stationID = stationID)
         }
-        return out
+        return DiningLogic.dedupeStationItems(tagged)
     }
 }

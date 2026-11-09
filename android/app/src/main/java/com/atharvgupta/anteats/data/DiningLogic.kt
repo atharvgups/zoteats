@@ -294,8 +294,10 @@ object DiningLogic {
             Triple(stationLane(station.name, station.stationID, station.items), index, station)
         }.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
 
-    fun orderedStations(stations: List<MenuStation>, hallID: String): List<MenuStation> =
-        if (HallDirectory.isOasis(hallID)) stations else pinTwistedRootFirst(stations)
+    fun orderedStations(stations: List<MenuStation>, hallID: String): List<MenuStation> {
+        val unique = stations.map { it.withItems(dedupeStationItems(it.items)) }
+        return if (HallDirectory.isOasis(hallID)) unique else pinTwistedRootFirst(unique)
+    }
 
     fun mergeKey(station: MenuStation): String? {
         val id = station.stationID?.trim().orEmpty()
@@ -383,9 +385,10 @@ object DiningLogic {
                 val sid = station.stationID?.trim().orEmpty()
                 if (key !in ids && sid.isNotEmpty()) ids[key] = sid
                 for (item in station.items) {
-                    if (seen.getValue(key).add(item.name.lowercase())) {
-                        items.getValue(key) += item
-                    }
+                    val keys = dietLookupKeys(item.name)
+                    if (keys.any { it in seen.getValue(key) }) continue
+                    seen.getValue(key) += keys
+                    items.getValue(key) += item
                 }
             }
         }
@@ -528,6 +531,21 @@ object DiningLogic {
         return pool.lastOrNull { it.length >= 4 && it.all { ch -> ch.isDigit() } }
     }
 
+    fun displayDishName(name: String): String {
+        val collapsed = collapseWhitespace(name) ?: name
+        var current = collapsed
+        val pattern = Regex("""[\s\-–—/]*uci$""", RegexOption.IGNORE_CASE)
+        while (true) {
+            val next = current.replace(pattern, "")
+                .trim()
+                .trim('-', '–', '—', '/')
+                .trim()
+            if (next.isEmpty() || next == current) break
+            current = next
+        }
+        return current.ifEmpty { collapsed }
+    }
+
     fun dietLookupKeys(name: String): List<String> {
         val lower = (collapseWhitespace(name) ?: name).lowercase().trim()
         val keys = mutableListOf(lower)
@@ -542,14 +560,86 @@ object DiningLogic {
                 if (base.isNotEmpty()) keys += base
             }
         }
-        val withoutUCI = stripped.replace(Regex("""\s+uci$"""), "")
+        val withoutUCI = strippingCampusDishSuffix(stripped)
         if (withoutUCI != stripped) keys += withoutUCI
+        for (variant in keys.toList()) {
+            singularDishKey(variant)?.let { keys += it }
+        }
         for (variant in keys.toList()) {
             val normalized = variant.replace(Regex("[^a-z0-9]+"), "")
             if (normalized.isNotEmpty()) keys += normalized
+            singularDishKey(normalized)?.let { keys += it }
         }
         val seen = mutableSetOf<String>()
         return keys.filter { seen.add(it) }
+    }
+
+    fun strippingCampusDishSuffix(lower: String): String {
+        var current = lower
+        val pattern = Regex("""[\s\-–—/]*uci$""")
+        while (true) {
+            val next = current.replace(pattern, "")
+                .trim()
+                .trim('-', '–', '—', '/')
+                .trim()
+            if (next == current) return current
+            current = next
+        }
+    }
+
+    fun singularDishKey(value: String): String? {
+        if (value.length < 5 || !value.endsWith("s") || value.endsWith("ss")) return null
+        val stem = value.dropLast(1)
+        return stem.ifEmpty { null }
+    }
+
+    fun collapsedDishDescription(text: String?): String? =
+        collapseWhitespace(text)?.lowercase()?.ifEmpty { null }
+
+    fun dishesShareIdentity(lhs: MenuItem, rhs: MenuItem): Boolean {
+        val left = dietLookupKeys(lhs.name).toSet()
+        if (dietLookupKeys(rhs.name).any { it in left }) return true
+        val leftCal = lhs.calories ?: return false
+        val rightCal = rhs.calories ?: return false
+        if (leftCal != rightCal) return false
+        val leftDesc = collapsedDishDescription(lhs.description) ?: return false
+        val rightDesc = collapsedDishDescription(rhs.description) ?: return false
+        return leftDesc == rightDesc
+    }
+
+    fun richerDish(lhs: MenuItem, rhs: MenuItem): MenuItem {
+        fun score(item: MenuItem) = intArrayOf(
+            if (item.nutrition != null) 1 else 0,
+            item.description?.length ?: 0,
+            if (item.calories != null) 1 else 0,
+            item.allergens.size,
+            item.dietaryTags.size,
+        )
+        val left = score(lhs)
+        val right = score(rhs)
+        var leftWins = true
+        for (index in left.indices) {
+            if (left[index] == right[index]) continue
+            leftWins = left[index] > right[index]
+            break
+        }
+        val winner = if (leftWins) lhs else rhs
+        val cleaned = displayDishName(winner.name)
+        return if (cleaned == winner.name) winner else winner.copy(name = cleaned)
+    }
+
+    fun dedupeStationItems(items: List<MenuItem>): List<MenuItem> {
+        val result = mutableListOf<MenuItem>()
+        for (item in items) {
+            val cleaned = item.copy(name = displayDishName(item.name))
+            val index = result.indexOfFirst { dishesShareIdentity(it, cleaned) }
+            if (index >= 0) {
+                result[index] = richerDish(result[index], cleaned)
+            } else {
+                result += cleaned
+            }
+        }
+        return result
     }
 
     fun hubBoardNameKeys(items: List<MenuItem>): Set<String> =
@@ -723,6 +813,7 @@ object DiningLogic {
         fun consider(item: MenuItem) {
             val keys = dietLookupKeys(item.name)
             if (keys.any { it in seen }) return
+            if (menu.stations.any { station -> station.items.any { dishesShareIdentity(it, item) } }) return
             if (!stationBelongs(menu.locationId, item.stationID)) return
             val twisted = isTwistedRoot("", item.stationID)
             val onAllDay = appearsOnHubBoard(item, allDayKeys)
@@ -757,13 +848,8 @@ object DiningLogic {
 
         fun merge(index: Int, items: List<MenuItem>, stationID: String?) {
             val station = stations[index]
-            val seen = station.items.map { it.name.lowercase() }.toMutableSet()
-            val next = station.items.toMutableList()
             val tagged = applyStationTags(items, station.name, station.stationID ?: stationID)
-            for (item in tagged) {
-                if (seen.add(item.name.lowercase())) next += item
-            }
-            stations[index] = station.withItems(next)
+            stations[index] = station.withItems(unionMenuItems(station.items, tagged))
         }
 
         fun insertBeforeAllDay(station: MenuStation) {
@@ -831,6 +917,7 @@ object DiningLogic {
         for (item in extra) {
             val keys = dietLookupKeys(item.name)
             if (keys.any { it in seen }) continue
+            if (result.any { dishesShareIdentity(it, item) }) continue
             seen += keys
             result += item
         }
@@ -993,6 +1080,24 @@ object DiningLogic {
             if (sid.isEmpty() || !seen.add(sid)) continue
             if (!stationBelongs(anteater.locationId, sid)) continue
             consider(MenuStation(displayStationName(null, sid), emptyList(), sid))
+        }
+        for (station in merged.stations) {
+            val kept = mutableListOf<MenuItem>()
+            for (item in station.items) {
+                if (kept.any { dishesShareIdentity(it, item) }) {
+                    issues += MenuMergeIssue(
+                        merged.locationId,
+                        merged.date,
+                        merged.period,
+                        station.name,
+                        station.stationID,
+                        MenuMergeIssue.Kind.DUPLICATE_DISH_IN_STATION,
+                        item.name,
+                    )
+                } else {
+                    kept += item
+                }
+            }
         }
         return issues
     }

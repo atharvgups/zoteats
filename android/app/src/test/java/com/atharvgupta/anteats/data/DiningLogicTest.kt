@@ -2,6 +2,7 @@ package com.atharvgupta.anteats.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -920,5 +921,119 @@ class DiningLogicTest {
         val attached = DiningLogic.attachingEvents(listOf(event), empty, 11 * 60, 14 * 60 + 30)
         assertEquals(listOf("Fable Station Takeover"), attached.stations.map { it.name })
         assertTrue(DiningLogic.droppingEmptyStations(attached).stations.isEmpty())
+    }
+
+    @Test
+    fun dietLookupKeysMatchGyozaMarketingPluralAndUCISuffix() {
+        val gyoza = DiningLogic.dietLookupKeys("Chicken Gyoza - UCI")
+        val gyozas = DiningLogic.dietLookupKeys("Chicken Gyozas")
+        assertTrue(gyoza.any { it in gyozas })
+        assertEquals("Chicken Gyoza", DiningLogic.displayDishName("Chicken Gyoza - UCI"))
+        assertEquals("Vegan Banana Bread", DiningLogic.displayDishName("Vegan Banana Bread- UCI"))
+        assertEquals("Hawaiian Mac Salad", DiningLogic.displayDishName("Hawaiian Mac Salad-UCI"))
+        assertEquals("Assorted Muffin", DiningLogic.displayDishName("Assorted Muffin UCI"))
+        assertEquals("Chicken Gyozas", DiningLogic.displayDishName("Chicken Gyozas"))
+    }
+
+    @Test
+    fun mergeDropsHubMarketingPluralGyozaDuplicate() {
+        val description = "Fried dumpling filled with a refreshing mix of chicken, lemongrass and scallions"
+        val anteaterGyoza = MenuItem(
+            "1923_101628_L404649_1_489088",
+            "Chicken Gyoza - UCI",
+            description,
+            158,
+            "3 each",
+            listOf("Fish", "Wheat"),
+            emptyList(),
+            nutrition = NutritionFacts(proteinG = 8.0, totalCarbsG = 18.0, totalFatG = 6.0),
+            stationID = "1926",
+        )
+        val hubGyoza = MenuItem(
+            "hub-gyozas",
+            "Chicken Gyozas",
+            description,
+            158,
+            null,
+            listOf("Wheat", "Fish"),
+            emptyList(),
+            stationID = "1926",
+        )
+        val rice = MenuItem(
+            "rice",
+            "Jasmine Rice",
+            "Thai long grain rice",
+            131,
+            null,
+            emptyList(),
+            listOf("Vegan"),
+            stationID = "1926",
+        )
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-11-09",
+            "Dinner",
+            listOf(MenuStation("Fire and Ice", listOf(anteaterGyoza), "1926")),
+        )
+        val hub = listOf(
+            MenuStation("Lunch", listOf(rice)),
+            MenuStation("Dinner", listOf(hubGyoza, rice)),
+            MenuStation("All Day", listOf(rice)),
+        )
+        val extras = DiningLogic.hubExclusiveItems(menu, hub)
+        assertTrue(extras.none { it.name.contains("gyoza", true) })
+        val merged = DiningLogic.mergeHubOntoAnteater(menu, hub)
+        val fire = merged.stations.first { it.stationID == "1926" }
+        assertEquals(1, fire.items.size)
+        assertEquals("Chicken Gyoza", fire.items.first().name)
+        assertEquals(158, fire.items.first().calories)
+        assertEquals(description, fire.items.first().description)
+        assertTrue(fire.items.first().allergens.contains("Fish"))
+        assertTrue(fire.items.first().allergens.contains("Wheat"))
+        assertNotNull(fire.items.first().nutrition)
+        assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
+    }
+
+    @Test
+    fun auditFlagsDuplicateDishesInStation() {
+        val description = "Fried dumpling filled with a refreshing mix of chicken, lemongrass and scallions"
+        val first = MenuItem(
+            "gyoza-1",
+            "Chicken Gyoza - UCI",
+            description,
+            158,
+            null,
+            listOf("Fish", "Wheat"),
+            emptyList(),
+            stationID = "1926",
+        )
+        val second = MenuItem(
+            "gyoza-2",
+            "Chicken Gyozas",
+            description,
+            158,
+            null,
+            listOf("Fish", "Wheat"),
+            emptyList(),
+            stationID = "1926",
+        )
+        val anteater = DiningMenu(
+            "anteatery",
+            "2026-11-09",
+            "Dinner",
+            listOf(MenuStation("Fire and Ice", listOf(first), "1926")),
+        )
+        val broken = DiningMenu(
+            "anteatery",
+            "2026-11-09",
+            "Dinner",
+            listOf(MenuStation("Fire and Ice", listOf(first, second), "1926")),
+        )
+        val issues = DiningLogic.auditMergedMenu(
+            anteater,
+            listOf(MenuStation("Dinner", listOf(second))),
+            broken,
+        )
+        assertTrue(issues.any { it.kind == MenuMergeIssue.Kind.DUPLICATE_DISH_IN_STATION })
     }
 }

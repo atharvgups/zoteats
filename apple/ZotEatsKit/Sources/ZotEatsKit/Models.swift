@@ -475,6 +475,20 @@ public struct MenuItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         self.nutrition = nutrition
         self.stationID = stationID
     }
+
+    public func withName(_ name: String) -> MenuItem {
+        MenuItem(
+            id: id,
+            name: name,
+            description: description,
+            calories: calories,
+            servingSize: servingSize,
+            allergens: allergens,
+            dietaryTags: dietaryTags,
+            nutrition: nutrition,
+            stationID: stationID
+        )
+    }
 }
 
 /// A station (e.g. "The Twisted Root") grouping menu items.
@@ -544,6 +558,7 @@ public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
     public enum Kind: String, Equatable, Sendable {
         case lostAnteaterEntree
         case staplesOnlyDespiteEntrees
+        case duplicateDishInStation
     }
 
     public let hallID: String
@@ -578,6 +593,8 @@ public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
             return "\(hallID) \(date) \(period) \(stationName) lost Anteater entree \(dishName)"
         case .staplesOnlyDespiteEntrees:
             return "\(hallID) \(date) \(period) \(stationName) is staples-only while a source still has \(dishName)"
+        case .duplicateDishInStation:
+            return "\(hallID) \(date) \(period) \(stationName) lists \(dishName) more than once"
         }
     }
 }

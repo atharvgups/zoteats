@@ -369,10 +369,9 @@ public struct CampusService: Sendable {
 
                 let raw = (menu.locationMealPeriodRecipesData?.mealPeriodSkuMap ?? []).compactMap { period -> MenuStation? in
                     guard let name = period.name else { return nil }
-                    var seen = Set<String>()
-                    let items = (period.skus ?? [])
-                        .compactMap { products[$0] }
-                        .filter { seen.insert($0.name.lowercased()).inserted }
+                    let items = DiningService.dedupeStationItems(
+                        (period.skus ?? []).compactMap { products[$0] }
+                    )
                     return items.isEmpty ? nil : MenuStation(name: name, items: items)
                 }
                 live = CampusMenuNormalize.stations(raw)
@@ -818,7 +817,7 @@ public struct CampusService: Sendable {
         }
 
         guard !name.isEmpty else { return nil }
-        let cleanName = DiningService.collapseWhitespace(name) ?? name
+        let cleanName = DiningService.displayDishName(DiningService.collapseWhitespace(name) ?? name)
         return MenuItem(
             id: sku,
             name: cleanName,

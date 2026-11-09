@@ -759,7 +759,7 @@ struct DiningServiceTests {
             .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
             .flatMap(\.items)
             .map(\.name)
-        #expect(names == ["Vegan Mac & Cheese UCI", "Buffalo Cauliflower Wings"])
+        #expect(names == ["Vegan Mac & Cheese", "Buffalo Cauliflower Wings"])
         #expect(!names.contains("Crispy Homestyle French Fries"))
         #expect(names.filter { $0.localizedCaseInsensitiveContains("mac") }.count == 1)
     }
@@ -1677,6 +1677,118 @@ struct DiningServiceTests {
             DiningService.dietLookupKeys(for: "Banana  Berry Smoothie")
                 .contains("banana berry smoothie")
         )
+        let gyoza = DiningService.dietLookupKeys(for: "Chicken Gyoza - UCI")
+        let gyozas = DiningService.dietLookupKeys(for: "Chicken Gyozas")
+        #expect(Set(gyoza).isDisjoint(with: gyozas) == false)
+        #expect(DiningService.displayDishName("Chicken Gyoza - UCI") == "Chicken Gyoza")
+        #expect(DiningService.displayDishName("Vegan Banana Bread- UCI") == "Vegan Banana Bread")
+        #expect(DiningService.displayDishName("Hawaiian Mac Salad-UCI") == "Hawaiian Mac Salad")
+        #expect(DiningService.displayDishName("Assorted Muffin UCI") == "Assorted Muffin")
+        #expect(DiningService.displayDishName("Chicken Gyozas") == "Chicken Gyozas")
+    }
+
+    @Test func mergeDropsHubMarketingPluralGyozaDuplicate() {
+        let description = "Fried dumpling filled with a refreshing mix of chicken, lemongrass and scallions"
+        let anteaterGyoza = MenuItem(
+            id: "1923_101628_L404649_1_489088",
+            name: "Chicken Gyoza - UCI",
+            description: description,
+            calories: 158,
+            servingSize: "3 each",
+            allergens: ["Fish", "Wheat"],
+            dietaryTags: [],
+            nutrition: NutritionFacts(proteinG: 8, totalCarbsG: 18, totalFatG: 6),
+            stationID: "1926"
+        )
+        let hubGyoza = MenuItem(
+            id: "hub-gyozas",
+            name: "Chicken Gyozas",
+            description: description,
+            calories: 158,
+            servingSize: nil,
+            allergens: ["Wheat", "Fish"],
+            dietaryTags: [],
+            stationID: "1926"
+        )
+        let rice = MenuItem(
+            id: "rice",
+            name: "Jasmine Rice",
+            description: "Thai long grain rice",
+            calories: 131,
+            servingSize: nil,
+            allergens: [],
+            dietaryTags: ["Vegan"],
+            stationID: "1926"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-09",
+            period: "Dinner",
+            stations: [MenuStation(
+                name: "Fire and Ice",
+                items: [anteaterGyoza],
+                stationID: "1926"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "Lunch", items: [rice]),
+            MenuStation(name: "Dinner", items: [hubGyoza, rice]),
+            MenuStation(name: "All Day", items: [rice]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
+        #expect(!extras.contains { $0.name.localizedCaseInsensitiveContains("gyoza") })
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        let fire = merged.stations.first { $0.stationID == "1926" }
+        #expect(fire?.items.count == 1)
+        #expect(fire?.items.first?.name == "Chicken Gyoza")
+        #expect(fire?.items.first?.calories == 158)
+        #expect(fire?.items.first?.description == description)
+        #expect(fire?.items.first?.allergens.contains("Fish") == true)
+        #expect(fire?.items.first?.allergens.contains("Wheat") == true)
+        #expect(fire?.items.first?.nutrition != nil)
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: merged).isEmpty)
+    }
+
+    @Test func auditFlagsDuplicateDishesInStation() {
+        let description = "Fried dumpling filled with a refreshing mix of chicken, lemongrass and scallions"
+        let first = MenuItem(
+            id: "gyoza-1",
+            name: "Chicken Gyoza - UCI",
+            description: description,
+            calories: 158,
+            servingSize: nil,
+            allergens: ["Fish", "Wheat"],
+            dietaryTags: [],
+            stationID: "1926"
+        )
+        let second = MenuItem(
+            id: "gyoza-2",
+            name: "Chicken Gyozas",
+            description: description,
+            calories: 158,
+            servingSize: nil,
+            allergens: ["Fish", "Wheat"],
+            dietaryTags: [],
+            stationID: "1926"
+        )
+        let anteater = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-09",
+            period: "Dinner",
+            stations: [MenuStation(name: "Fire and Ice", items: [first], stationID: "1926")]
+        )
+        let broken = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-09",
+            period: "Dinner",
+            stations: [MenuStation(name: "Fire and Ice", items: [first, second], stationID: "1926")]
+        )
+        let issues = DiningService.auditMergedMenu(
+            anteater: anteater,
+            hubStations: [MenuStation(name: "Dinner", items: [second])],
+            merged: broken
+        )
+        #expect(issues.contains { $0.kind == .duplicateDishInStation })
     }
 
     @Test func unpublishedFutureDayReadsAsNotPostedNotError() async throws {

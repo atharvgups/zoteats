@@ -115,15 +115,12 @@ class DiningRepository(
             allDayName != null
         ) {
             val allDay = stationsFor(allDayName, today, stationNames)
-            val unique = linkedMapOf<String, MenuItem>()
-            for (item in allDay.flatMap { it.items }) {
-                unique.putIfAbsent(item.name.lowercase(), item)
-            }
+            val unique = DiningLogic.dedupeStationItems(allDay.flatMap { it.items })
             if (unique.isNotEmpty()) {
-                mealStations = mealStations + MenuStation("Available all day", unique.values.toList())
+                mealStations = mealStations + MenuStation("Available all day", unique)
             }
         }
-        mealStations = DiningLogic.pinTwistedRootFirst(mealStations)
+        mealStations = DiningLogic.orderedStations(mealStations, hall)
         var menu = DiningMenu(
             locationId = hall,
             date = dateISO,
@@ -269,9 +266,7 @@ class DiningRepository(
         val dishMap = dishes(match.stationToDishes.values.flatten())
         return match.stationToDishes.entries.sortedBy { it.key }.mapNotNull { (stationID, dishIDs) ->
             val stationName = DiningLogic.displayStationName(stationNames[stationID], stationID)
-            val seen = mutableSetOf<String>()
-            val items = dishIDs.mapNotNull { dishMap[it] }
-                .filter { seen.add(it.name.lowercase()) }
+            val items = DiningLogic.dedupeStationItems(dishIDs.mapNotNull { dishMap[it] })
             if (items.isEmpty()) null
             else MenuStation(
                 name = stationName,
@@ -331,7 +326,7 @@ class DiningRepository(
         }
         return MenuItem(
             id = id,
-            name = name,
+            name = DiningLogic.displayDishName(name),
             description = DiningLogic.collapseWhitespace(obj.string("description")),
             calories = nutrition?.flexDouble("calories")?.let { Math.round(it).toInt() },
             servingSize = DiningLogic.servingSize(
@@ -416,7 +411,12 @@ class DiningRepository(
         val deduped = stations.filter { station ->
             seen.add(station.stationID ?: DiningLogic.collapsedStationName(station.name))
         }
-        return DiningMenu(HallDirectory.OASIS, dateISO, resolved, deduped)
+        return DiningMenu(
+            HallDirectory.OASIS,
+            dateISO,
+            resolved,
+            DiningLogic.orderedStations(deduped, HallDirectory.OASIS),
+        )
     }
 
     private suspend fun oasisPostedBoard(dateISO: String): OasisBoard.PostedBoard? {
