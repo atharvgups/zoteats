@@ -34,6 +34,8 @@
 # VALID (or still processing). Live 1.0.369 READY_FOR_SALE. No submit, no External.
 # Peek 2026-11-04 ~2:14 AM UTC — read-only. Expect Internal 1.0.371 build 377
 # VALID (or still processing). Live 1.0.369 READY_FOR_SALE. No submit, no External.
+# Peek 2026-11-09 ~1:14 PM PT — read-only. Expect Internal 1.0.374 build 380
+# VALID (or still processing). No submit, no External, no tag, no App Store.
 name: ASC Status
 
 on:
