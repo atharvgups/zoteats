@@ -1,8 +1,8 @@
-# Live merge guardrail: run the app's Hub+Anteater merge against today's
-# public sources. Fails if any station (Twisted Root or otherwise) is
-# rice/fries/bread/sauce-only while a source still has an entree, or if an
-# Anteater entree was dropped. A failure on main is the existing CI-failure
-# alert path (GitHub check + ci-failed notifications).
+# Live merge guardrail: run the app's Hub+Anteater merge against every hall,
+# meal, and posted day in the current Eat window. Fails if the merged board
+# lists a dish that is not on the live posted source, stacks a competing
+# Twisted Root Hub entree, drops an Anteater entree, or renders rice/fries
+# only. A failure on main is the existing CI-failure alert path.
 name: Menu merge monitor
 
 on:

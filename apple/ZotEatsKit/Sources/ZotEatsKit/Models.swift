@@ -559,6 +559,8 @@ public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
         case lostAnteaterEntree
         case staplesOnlyDespiteEntrees
         case duplicateDishInStation
+        case unpostedMergedDish
+        case hubCompetingTwistedRootEntree
     }
 
     public let hallID: String
@@ -595,6 +597,10 @@ public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
             return "\(hallID) \(date) \(period) \(stationName) is staples-only while a source still has \(dishName)"
         case .duplicateDishInStation:
             return "\(hallID) \(date) \(period) \(stationName) lists \(dishName) more than once"
+        case .unpostedMergedDish:
+            return "\(hallID) \(date) \(period) \(stationName) lists \(dishName) which is not on the posted menu"
+        case .hubCompetingTwistedRootEntree:
+            return "\(hallID) \(date) \(period) \(stationName) added Hub \(dishName) on top of an Anteater Twisted Root entree"
         }
     }
 }

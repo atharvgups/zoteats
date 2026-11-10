@@ -764,7 +764,7 @@ class DiningLogicTest {
         val merged = DiningLogic.mergeHubOntoAnteater(menu, hub)
         val names = merged.stations.first { DiningLogic.isTwistedRoot(it.name, it.stationID) }.items.map { it.name }
         assertTrue(names.contains("Buffalo Cauliflower Wings"))
-        assertTrue(names.contains("Tikka Masala Tofu"))
+        assertFalse(names.contains("Tikka Masala Tofu"))
         assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
     }
 
@@ -1035,5 +1035,166 @@ class DiningLogicTest {
             broken,
         )
         assertTrue(issues.any { it.kind == MenuMergeIssue.Kind.DUPLICATE_DISH_IN_STATION })
+    }
+
+    @Test
+    fun hubExclusiveDropsNov9CauliflowerTacoWhenAnteaterPostedCasserole() {
+        val casserole = MenuItem(
+            "1923_101628_M21047_1_42410",
+            "Plant-Based Sausage Mac Casserole",
+            "Macaroni casserole with plant-based sausage, veggies, herbs and spices",
+            181,
+            null,
+            listOf("Soy", "Wheat"),
+            listOf("Vegan", "Vegetarian"),
+            stationID = "1929",
+        )
+        val taco = MenuItem(
+            "1923_101628_A355_1_15143",
+            "Al Pastor Cauliflower Taco",
+            "Corn tortilla filled with al pastor cauliflower",
+            210,
+            null,
+            emptyList(),
+            listOf("Vegan", "Vegetarian", "Plant Forward"),
+            stationID = "1929",
+        )
+        val rice = MenuItem("rice", "Jasmine Rice", null, 131, null, emptyList(), listOf("Vegan"), stationID = "1929")
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-11-09",
+            "Dinner",
+            listOf(MenuStation("The Twisted Root", listOf(casserole), "1929")),
+        )
+        val hub = listOf(
+            MenuStation("Lunch", listOf(rice)),
+            MenuStation("Dinner", listOf(taco, rice)),
+            MenuStation("All Day", listOf(rice)),
+        )
+        assertTrue(DiningLogic.hubExclusiveItems(menu, hub).isEmpty())
+        val merged = DiningLogic.mergeHubOntoAnteater(menu, hub)
+        val names = merged.stations
+            .filter { DiningLogic.isTwistedRoot(it.name, it.stationID) }
+            .flatMap { it.items }
+            .map { it.name }
+        assertEquals(listOf("Plant-Based Sausage Mac Casserole"), names)
+        val favorites = DiningLogic.favoriteItemsOnBoard(
+            merged.stations,
+            listOf("Al Pastor Cauliflower Taco"),
+            "Dinner",
+        )
+        assertTrue(favorites.isEmpty())
+        assertTrue(DiningLogic.auditMergedMenu(menu, hub, merged).isEmpty())
+    }
+
+    @Test
+    fun postedAnteaterTofuTacoWinsOverHubCauliflowerVariant() {
+        val tofu = MenuItem(
+            "ae-tofu",
+            "Al Pastor Tofu Taco",
+            "Corn tortilla filled with al pastor tofu",
+            200,
+            null,
+            listOf("Soy"),
+            listOf("Vegan"),
+            stationID = "1929",
+        )
+        val cauliflower = MenuItem(
+            "hub-cauli",
+            "Al Pastor Cauliflower Taco",
+            "Corn tortilla filled with al pastor cauliflower",
+            210,
+            null,
+            emptyList(),
+            listOf("Vegan"),
+            stationID = "1929",
+        )
+        assertTrue(DiningLogic.dishesShareIdentity(tofu, cauliflower))
+        assertEquals("al pastor taco", DiningLogic.dishVariantKey(tofu.name))
+        val menu = DiningMenu(
+            "anteatery",
+            "2026-11-09",
+            "Dinner",
+            listOf(MenuStation("The Twisted Root", listOf(tofu), "1929")),
+        )
+        val merged = DiningLogic.mergeHubOntoAnteater(menu, listOf(MenuStation("Dinner", listOf(cauliflower))))
+        assertEquals(listOf("Al Pastor Tofu Taco"), merged.stations.flatMap { it.items }.map { it.name })
+    }
+
+    @Test
+    fun hubExclusiveDoesNotCopyLunchTwistedRootOntoDinner() {
+        val casserole = MenuItem(
+            "casserole",
+            "Plant-Based Sausage Mac Casserole",
+            null,
+            181,
+            null,
+            emptyList(),
+            listOf("Vegan"),
+            stationID = "1929",
+        )
+        val lunchTofu = MenuItem(
+            "lunch-tofu",
+            "Asian Seared Tofu",
+            null,
+            101,
+            null,
+            listOf("Soy"),
+            listOf("Vegan"),
+            stationID = "1929",
+        )
+        val dinnerMenu = DiningMenu(
+            "anteatery",
+            "2026-11-09",
+            "Dinner",
+            listOf(MenuStation("The Twisted Root", listOf(casserole), "1929")),
+        )
+        val hub = listOf(
+            MenuStation("Lunch", listOf(lunchTofu)),
+            MenuStation("Dinner", listOf(casserole)),
+        )
+        assertTrue(DiningLogic.hubExclusiveItems(dinnerMenu, hub).none { it.name.contains("Seared Tofu") })
+        val merged = DiningLogic.mergeHubOntoAnteater(dinnerMenu, hub)
+        assertTrue(merged.stations.flatMap { it.items }.none { it.name == "Asian Seared Tofu" })
+    }
+
+    @Test
+    fun auditFlagsStaleCacheDishNotOnPostedMenu() {
+        val today = MenuItem(
+            "today",
+            "Thai Tofu Noodle Bowl",
+            null,
+            862,
+            null,
+            listOf("Soy"),
+            listOf("Vegan"),
+            stationID = "1929",
+        )
+        val stale = MenuItem(
+            "stale",
+            "Al Pastor Cauliflower Taco",
+            null,
+            210,
+            null,
+            emptyList(),
+            listOf("Vegan"),
+            stationID = "1929",
+        )
+        val anteater = DiningMenu(
+            "anteatery",
+            "2026-11-10",
+            "Dinner",
+            listOf(MenuStation("The Twisted Root", listOf(today), "1929")),
+        )
+        val hub = listOf(MenuStation("Dinner", listOf(today)))
+        val leaked = DiningMenu(
+            "anteatery",
+            "2026-11-10",
+            "Dinner",
+            listOf(MenuStation("The Twisted Root", listOf(today, stale), "1929")),
+        )
+        val issues = DiningLogic.auditMergedMenu(anteater, hub, leaked)
+        assertTrue(issues.any { it.kind == MenuMergeIssue.Kind.UNPOSTED_MERGED_DISH && it.dishName == "Al Pastor Cauliflower Taco" })
+        assertTrue(issues.any { it.kind == MenuMergeIssue.Kind.HUB_COMPETING_TWISTED_ROOT_ENTREE && it.dishName == "Al Pastor Cauliflower Taco" })
     }
 }

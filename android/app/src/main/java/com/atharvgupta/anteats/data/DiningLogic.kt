@@ -593,12 +593,64 @@ object DiningLogic {
         return stem.ifEmpty { null }
     }
 
+    private val proteinVariantTokens = setOf(
+        "tofu", "cauliflower", "chicken", "beef", "pork", "shrimp", "fish",
+        "turkey", "jackfruit", "tempeh", "seitan", "egg", "eggs", "salmon",
+        "tuna", "carnitas",
+    )
+
+    private val genericDishFormTokens = setOf(
+        "taco", "tacos", "bowl", "burrito", "wrap", "sandwich", "burger",
+        "pizza", "salad", "soup", "stew", "chili", "curry", "casserole",
+        "nachos", "pasta", "noodle", "noodles",
+    )
+
+    fun dishVariantKey(name: String): String? {
+        val tokens = collapsedStationName(name)
+            .split(Regex("[^a-z0-9]+"))
+            .filter { it.isNotEmpty() }
+        val remaining = tokens.filter { it !in proteinVariantTokens }
+        val distinctive = remaining.filter { it !in genericDishFormTokens }
+        if (distinctive.isEmpty() || remaining.size < 2) return null
+        return remaining.joinToString(" ")
+    }
+
+    fun isVerifiedOverrideItem(item: MenuItem): Boolean = item.id.startsWith("override:")
+
+    fun postedMenuKeys(anteater: DiningMenu, hubStations: List<MenuStation>): Set<String> {
+        val keys = mutableSetOf<String>()
+        fun insert(item: MenuItem) {
+            keys += dietLookupKeys(item.name)
+            dishVariantKey(item.name)?.let { keys += "variant:$it" }
+        }
+        anteater.stations.flatMap { it.items }.forEach(::insert)
+        val board = hubBoardItems(anteater.period, hubStations)
+        val allDay = hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items }
+        (board + allDay).forEach(::insert)
+        return keys
+    }
+
+    fun appearsInPostedMenu(item: MenuItem, keys: Set<String>): Boolean {
+        if (dietLookupKeys(item.name).any { it in keys }) return true
+        val variant = dishVariantKey(item.name) ?: return false
+        return "variant:$variant" in keys
+    }
+
+    fun anteaterTwistedRootHasEntree(menu: DiningMenu): Boolean =
+        menu.stations.any { station ->
+            isTwistedRoot(station.name, station.stationID) &&
+                station.items.any { isStationEntree(it.name) }
+        }
+
     fun collapsedDishDescription(text: String?): String? =
         collapseWhitespace(text)?.lowercase()?.ifEmpty { null }
 
     fun dishesShareIdentity(lhs: MenuItem, rhs: MenuItem): Boolean {
         val left = dietLookupKeys(lhs.name).toSet()
         if (dietLookupKeys(rhs.name).any { it in left }) return true
+        val leftVariant = dishVariantKey(lhs.name)
+        val rightVariant = dishVariantKey(rhs.name)
+        if (leftVariant != null && leftVariant == rightVariant) return true
         val leftCal = lhs.calories ?: return false
         val rightCal = rhs.calories ?: return false
         if (leftCal != rightCal) return false
@@ -808,6 +860,7 @@ object DiningLogic {
         )
         val allDayItems = hubStations.filter { "all day" in it.name.lowercase() }.flatMap { it.items }
         val allDayKeys = hubBoardNameKeys(allDayItems)
+        val twistedRootHasAnteaterEntree = anteaterTwistedRootHasEntree(menu)
         val seen = menu.stations.flatMap { it.items }.flatMap { dietLookupKeys(it.name) }.toMutableSet()
         val extras = mutableListOf<MenuItem>()
         fun consider(item: MenuItem) {
@@ -820,6 +873,11 @@ object DiningLogic {
             val onOtherMeal = appearsOnOtherHubMealFamily(item, menu.period, hubStations)
             if (onAllDay && onOtherMeal) return
             if (twisted && isHubGrillStaple(item.name)) return
+            if (twisted && isStationEntree(item.name) && twistedRootHasAnteaterEntree &&
+                canonicalPill(menu.period) != "Breakfast"
+            ) {
+                return
+            }
             if (twisted && canonicalPill(menu.period) == "Breakfast") {
                 val middayKeys = middayTwistedRootKeys(hubStations)
                 if (!shouldKeepTwistedRootOnBreakfast(item, middayKeys)) return
@@ -1096,6 +1154,44 @@ object DiningLogic {
                     )
                 } else {
                     kept += item
+                }
+            }
+        }
+        val posted = postedMenuKeys(anteater, hubStations)
+        for (station in merged.stations) {
+            for (item in station.items) {
+                if (isVerifiedOverrideItem(item)) continue
+                if (appearsInPostedMenu(item, posted)) continue
+                issues += MenuMergeIssue(
+                    merged.locationId,
+                    merged.date,
+                    merged.period,
+                    station.name,
+                    station.stationID,
+                    MenuMergeIssue.Kind.UNPOSTED_MERGED_DISH,
+                    item.name,
+                )
+            }
+        }
+        if (anteaterTwistedRootHasEntree(anteater) && canonicalPill(anteater.period) != "Breakfast") {
+            val anteaterTR = anteater.stations
+                .filter { isTwistedRoot(it.name, it.stationID) }
+                .flatMap { it.items }
+                .filter { isStationEntree(it.name) }
+            for (station in merged.stations) {
+                if (!isTwistedRoot(station.name, station.stationID)) continue
+                for (item in station.items) {
+                    if (!isStationEntree(item.name)) continue
+                    if (anteaterTR.any { dishesShareIdentity(it, item) }) continue
+                    issues += MenuMergeIssue(
+                        merged.locationId,
+                        merged.date,
+                        merged.period,
+                        station.name,
+                        station.stationID,
+                        MenuMergeIssue.Kind.HUB_COMPETING_TWISTED_ROOT_ENTREE,
+                        item.name,
+                    )
                 }
             }
         }

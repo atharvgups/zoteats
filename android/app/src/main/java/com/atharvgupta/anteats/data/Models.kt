@@ -76,7 +76,13 @@ data class MenuMergeIssue(
     val kind: Kind,
     val dishName: String,
 ) {
-    enum class Kind { LOST_ANTEATER_ENTREE, STAPLES_ONLY_DESPITE_ENTREES, DUPLICATE_DISH_IN_STATION }
+    enum class Kind {
+        LOST_ANTEATER_ENTREE,
+        STAPLES_ONLY_DESPITE_ENTREES,
+        DUPLICATE_DISH_IN_STATION,
+        UNPOSTED_MERGED_DISH,
+        HUB_COMPETING_TWISTED_ROOT_ENTREE,
+    }
 
     override fun toString(): String = when (kind) {
         Kind.LOST_ANTEATER_ENTREE ->
@@ -85,6 +91,10 @@ data class MenuMergeIssue(
             "$hallID $date $period $stationName is staples-only while a source still has $dishName"
         Kind.DUPLICATE_DISH_IN_STATION ->
             "$hallID $date $period $stationName lists $dishName more than once"
+        Kind.UNPOSTED_MERGED_DISH ->
+            "$hallID $date $period $stationName lists $dishName which is not on the posted menu"
+        Kind.HUB_COMPETING_TWISTED_ROOT_ENTREE ->
+            "$hallID $date $period $stationName added Hub $dishName on top of an Anteater Twisted Root entree"
     }
 }
 
