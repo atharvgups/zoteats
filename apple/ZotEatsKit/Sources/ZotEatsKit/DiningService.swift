@@ -1652,6 +1652,7 @@ public struct DiningService: Sendable {
             .filter { $0.name.localizedCaseInsensitiveContains("all day") }
             .flatMap(\.items)
         let allDayKeys = hubBoardNameKeys(from: allDayItems)
+        let twistedRootHasAnteaterEntree = anteaterTwistedRootHasEntree(on: menu)
         var seen = Set(menu.stations.flatMap(\.items).flatMap { dietLookupKeys(for: $0.name) })
         var extras: [MenuItem] = []
         func consider(_ item: MenuItem) {
@@ -1667,11 +1668,22 @@ public struct DiningService: Sendable {
                 item, period: menu.period, hubStations: hubStations
             )
             // Grill fries / rice Hub dumps on All Day plus every meal are not
-            // tonight's Twisted Root entrees. Meal-tagged TR food (tofu) still
-            // unions even when Hub also lists it on All Day. Plain rice Hub
-            // files only on dinner still is not a TR entree.
+            // tonight's Twisted Root entrees. Meal-tagged TR food still fills
+            // when Anteater omitted the station. Plain rice Hub files only on
+            // dinner still is not a TR entree.
             if onAllDay, onOtherMeal { return }
             if twisted, isHubGrillStaple(item.name) { return }
+            // Anteater already posted a TR entree for this meal. Hub may not
+            // stack a different rotating dish (Nov 9 cauliflower taco on top
+            // of casserole). Breakfast still accepts Hub eggs/scramble when
+            // Anteater leaked brunch shawarma. Gap-fill still runs when
+            // Anteater omitted TR or posted only rice/fries.
+            if twisted,
+               isStationEntree(item.name),
+               twistedRootHasAnteaterEntree,
+               MealPeriodPill.canonical(menu.period) != "Breakfast" {
+                return
+            }
             if twisted, MealPeriodPill.canonical(menu.period) == "Breakfast" {
                 let middayKeys = middayTwistedRootKeys(hubStations: hubStations)
                 if !shouldKeepTwistedRootOnBreakfast(item, middayKeys: middayKeys) { return }
@@ -1686,6 +1698,14 @@ public struct DiningService: Sendable {
         }
         for item in matching { consider(item) }
         return extras
+    }
+
+    /// True when Anteater already posted a real TR entree for this meal.
+    public static func anteaterTwistedRootHasEntree(on menu: DiningMenu) -> Bool {
+        menu.stations.contains { station in
+            isTwistedRoot(stationName: station.name, stationID: station.stationID)
+                && station.items.contains { isStationEntree($0.name) }
+        }
     }
 
     /// Hub may join a station Anteater already posted, and may recreate
@@ -2044,6 +2064,43 @@ public struct DiningService: Sendable {
                     ))
                 } else {
                     kept.append(item)
+                }
+            }
+        }
+        let posted = postedMenuKeys(anteater: anteater, hubStations: hubStations)
+        for station in merged.stations {
+            for item in station.items {
+                if isVerifiedOverrideItem(item) { continue }
+                if appearsInPostedMenu(item, keys: posted) { continue }
+                issues.append(MenuMergeIssue(
+                    hallID: merged.locationId,
+                    date: merged.date,
+                    period: merged.period,
+                    stationName: station.name,
+                    stationID: station.stationID,
+                    kind: .unpostedMergedDish,
+                    dishName: item.name
+                ))
+            }
+        }
+        if anteaterTwistedRootHasEntree(on: anteater),
+           MealPeriodPill.canonical(anteater.period) != "Breakfast" {
+            let anteaterTR = anteater.stations
+                .filter { isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+                .flatMap(\.items)
+                .filter { isStationEntree($0.name) }
+            for station in merged.stations where isTwistedRoot(stationName: station.name, stationID: station.stationID) {
+                for item in station.items where isStationEntree(item.name) {
+                    if anteaterTR.contains(where: { dishesShareIdentity($0, item) }) { continue }
+                    issues.append(MenuMergeIssue(
+                        hallID: merged.locationId,
+                        date: merged.date,
+                        period: merged.period,
+                        stationName: station.name,
+                        stationID: station.stationID,
+                        kind: .hubCompetingTwistedRootEntree,
+                        dishName: item.name
+                    ))
                 }
             }
         }
@@ -2505,6 +2562,68 @@ public struct DiningService: Sendable {
         return stem.isEmpty ? nil : stem
     }
 
+    /// Proteins that swap on the same posted dish ("Al Pastor Tofu Taco" vs
+    /// "Al Pastor Cauliflower Taco"). Generic "chicken taco" / "tofu taco"
+    /// do not collapse to each other.
+    static let proteinVariantTokens: Set<String> = [
+        "tofu", "cauliflower", "chicken", "beef", "pork", "shrimp", "fish",
+        "turkey", "jackfruit", "tempeh", "seitan", "egg", "eggs", "salmon",
+        "tuna", "carnitas",
+    ]
+
+    static let genericDishFormTokens: Set<String> = [
+        "taco", "tacos", "bowl", "burrito", "wrap", "sandwich", "burger",
+        "pizza", "salad", "soup", "stew", "chili", "curry", "casserole",
+        "nachos", "pasta", "noodle", "noodles",
+    ]
+
+    public static func dishVariantKey(for name: String) -> String? {
+        let tokens = collapsedStationName(name)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        let remaining = tokens.filter { !proteinVariantTokens.contains($0) }
+        let distinctive = remaining.filter { !genericDishFormTokens.contains($0) }
+        guard distinctive.count >= 1, remaining.count >= 2 else { return nil }
+        return remaining.joined(separator: " ")
+    }
+
+    public static func isVerifiedOverrideItem(_ item: MenuItem) -> Bool {
+        item.id.hasPrefix("override:")
+    }
+
+    /// Name keys from Anteater's meal board plus Hub's matching meal (and All
+    /// Day). A merged dish outside this set is stale, wrong-date, or invented.
+    public static func postedMenuKeys(
+        anteater: DiningMenu,
+        hubStations: [MenuStation]
+    ) -> Set<String> {
+        var keys = Set<String>()
+        func insert(_ item: MenuItem) {
+            for key in dietLookupKeys(for: item.name) { keys.insert(key) }
+            if let variant = dishVariantKey(for: item.name) {
+                keys.insert("variant:\(variant)")
+            }
+        }
+        for item in anteater.stations.flatMap(\.items) { insert(item) }
+        let board = hubBoardItems(matchingPeriod: anteater.period, hubStations: hubStations)
+        let allDay = hubStations
+            .filter { $0.name.localizedCaseInsensitiveContains("all day") }
+            .flatMap(\.items)
+        for item in board + allDay { insert(item) }
+        return keys
+    }
+
+    public static func appearsInPostedMenu(_ item: MenuItem, keys: Set<String>) -> Bool {
+        if dietLookupKeys(for: item.name).contains(where: { keys.contains($0) }) {
+            return true
+        }
+        if let variant = dishVariantKey(for: item.name), keys.contains("variant:\(variant)") {
+            return true
+        }
+        return false
+    }
+
     static func collapsedDishDescription(_ text: String?) -> String? {
         guard let value = collapseWhitespace(text)?.lowercased(), !value.isEmpty else { return nil }
         return value
@@ -2513,6 +2632,14 @@ public struct DiningService: Sendable {
     public static func dishesShareIdentity(_ lhs: MenuItem, _ rhs: MenuItem) -> Bool {
         let left = Set(dietLookupKeys(for: lhs.name))
         if dietLookupKeys(for: rhs.name).contains(where: { left.contains($0) }) {
+            return true
+        }
+        // Protein swap of the same dish (Al Pastor tofu taco vs cauliflower
+        // taco). Posted Anteater name wins because Hub extras that share this
+        // key are skipped.
+        if let leftVariant = dishVariantKey(for: lhs.name),
+           let rightVariant = dishVariantKey(for: rhs.name),
+           leftVariant == rightVariant {
             return true
         }
         guard let leftCal = lhs.calories, let rightCal = rhs.calories, leftCal == rightCal else {

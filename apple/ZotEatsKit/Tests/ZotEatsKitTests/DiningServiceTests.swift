@@ -764,7 +764,7 @@ struct DiningServiceTests {
         #expect(names.filter { $0.localizedCaseInsensitiveContains("mac") }.count == 1)
     }
 
-    @Test func hubExclusiveTwistedRootTofuJoinsTheStation() {
+    @Test func hubExclusiveDoesNotStackCompetingTwistedRootEntree() {
         let sausage = MenuItem(
             id: "1", name: "Incogmeato™ Sausage Patty", description: nil, calories: 145,
             servingSize: nil, allergens: [], dietaryTags: ["Vegan"]
@@ -781,22 +781,174 @@ struct DiningServiceTests {
         let menu = DiningMenu(
             locationId: "brandywine",
             date: "2026-09-21",
-            period: "Breakfast",
+            period: "Dinner",
             stations: [MenuStation(name: "The Twisted Root", items: [sausage], stationID: "1893")]
         )
         let hub = [
             MenuStation(name: "All Day", items: [lettuce, tofu]),
-            MenuStation(name: "Breakfast", items: [lettuce, sausage, tofu]),
+            MenuStation(name: "Dinner", items: [lettuce, sausage, tofu]),
         ]
         let extras = DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub)
-        #expect(extras.map(\.name) == ["Turmeric Tofu Scramble"])
-        let combined = DiningService.insertingHubExtras(extras, into: menu)
+        #expect(extras.isEmpty)
+        let combined = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
         let twisted = combined.stations.first { $0.name.contains("Twisted Root") }
-        #expect(twisted?.items.map(\.name).contains("Turmeric Tofu Scramble") == true)
-        #expect(twisted?.items.contains { $0.name == "Incogmeato™ Sausage Patty" } == true)
-        #expect(twisted?.items.allSatisfy { $0.dietaryTags.contains("Vegan") } == true)
+        #expect(twisted?.items.map(\.name) == ["Incogmeato™ Sausage Patty"])
         #expect(!combined.stations.contains { $0.name == "Also served" })
         #expect(combined.stations.first?.name.contains("Twisted Root") == true)
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: combined).isEmpty)
+    }
+
+    @Test func hubExclusiveDropsNov9CauliflowerTacoWhenAnteaterPostedCasserole() {
+        let casserole = MenuItem(
+            id: "1923_101628_M21047_1_42410",
+            name: "Plant-Based Sausage Mac Casserole",
+            description: "Macaroni casserole with plant-based sausage, veggies, herbs and spices",
+            calories: 181,
+            servingSize: nil, allergens: ["Soy", "Wheat"], dietaryTags: ["Vegan", "Vegetarian"],
+            stationID: "1929"
+        )
+        let taco = MenuItem(
+            id: "1923_101628_A355_1_15143",
+            name: "Al Pastor Cauliflower Taco",
+            description: "Corn tortilla filled with al pastor cauliflower",
+            calories: 210,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan", "Vegetarian", "Plant Forward"],
+            stationID: "1929"
+        )
+        let rice = MenuItem(
+            id: "rice", name: "Jasmine Rice", description: nil, calories: 131,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-09",
+            period: "Dinner",
+            stations: [MenuStation(
+                name: "The Twisted Root",
+                items: [casserole],
+                stationID: "1929"
+            )]
+        )
+        let hub = [
+            MenuStation(name: "Lunch", items: [rice]),
+            MenuStation(name: "Dinner", items: [taco, rice]),
+            MenuStation(name: "All Day", items: [rice]),
+        ]
+        #expect(DiningService.hubExclusiveItems(onMenu: menu, hubStations: hub).isEmpty)
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        let names = merged.stations
+            .filter { DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID) }
+            .flatMap(\.items)
+            .map(\.name)
+        #expect(names == ["Plant-Based Sausage Mac Casserole"])
+        #expect(!names.contains("Al Pastor Cauliflower Taco"))
+        let favorites = FavoritesOnMenuPick.servedItems(
+            favorites: ["Al Pastor Cauliflower Taco"],
+            stations: merged.stations,
+            period: "Dinner"
+        )
+        #expect(favorites.isEmpty)
+        #expect(DiningService.auditMergedMenu(anteater: menu, hubStations: hub, merged: merged).isEmpty)
+    }
+
+    @Test func postedAnteaterTofuTacoWinsOverHubCauliflowerVariant() {
+        let tofu = MenuItem(
+            id: "ae-tofu",
+            name: "Al Pastor Tofu Taco",
+            description: "Corn tortilla filled with al pastor tofu",
+            calories: 200,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        let cauliflower = MenuItem(
+            id: "hub-cauli",
+            name: "Al Pastor Cauliflower Taco",
+            description: "Corn tortilla filled with al pastor cauliflower",
+            calories: 210,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"],
+            stationID: "1929"
+        )
+        #expect(DiningService.dishesShareIdentity(tofu, cauliflower))
+        #expect(DiningService.dishVariantKey(for: tofu.name) == "al pastor taco")
+        #expect(DiningService.dishVariantKey(for: cauliflower.name) == "al pastor taco")
+        let menu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-09",
+            period: "Dinner",
+            stations: [MenuStation(name: "The Twisted Root", items: [tofu], stationID: "1929")]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [cauliflower])]
+        let merged = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
+        let names = merged.stations.flatMap(\.items).map(\.name)
+        #expect(names == ["Al Pastor Tofu Taco"])
+        #expect(!names.contains("Al Pastor Cauliflower Taco"))
+    }
+
+    @Test func hubExclusiveDoesNotCopyLunchTwistedRootOntoDinner() {
+        let casserole = MenuItem(
+            id: "casserole", name: "Plant-Based Sausage Mac Casserole",
+            description: nil, calories: 181, servingSize: nil, allergens: [],
+            dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let lunchTofu = MenuItem(
+            id: "lunch-tofu", name: "Asian Seared Tofu",
+            description: nil, calories: 101, servingSize: nil, allergens: ["Soy"],
+            dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let dinnerMenu = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-09",
+            period: "Dinner",
+            stations: [MenuStation(name: "The Twisted Root", items: [casserole], stationID: "1929")]
+        )
+        let hub = [
+            MenuStation(name: "Lunch", items: [lunchTofu]),
+            MenuStation(name: "Dinner", items: [casserole]),
+        ]
+        let extras = DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: hub)
+        #expect(!extras.map(\.name).contains("Asian Seared Tofu"))
+        let merged = DiningService.mergeHubOntoAnteater(dinnerMenu, hubStations: hub)
+        #expect(!merged.stations.flatMap(\.items).map(\.name).contains("Asian Seared Tofu"))
+    }
+
+    @Test func auditFlagsStaleCacheDishNotOnPostedMenu() {
+        let today = MenuItem(
+            id: "today", name: "Thai Tofu Noodle Bowl", description: nil, calories: 862,
+            servingSize: nil, allergens: ["Soy"], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let stale = MenuItem(
+            id: "stale", name: "Al Pastor Cauliflower Taco", description: nil, calories: 210,
+            servingSize: nil, allergens: [], dietaryTags: ["Vegan"], stationID: "1929"
+        )
+        let anteater = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-10",
+            period: "Dinner",
+            stations: [MenuStation(name: "The Twisted Root", items: [today], stationID: "1929")]
+        )
+        let hub = [MenuStation(name: "Dinner", items: [today])]
+        let leaked = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-10",
+            period: "Dinner",
+            stations: [MenuStation(name: "The Twisted Root", items: [today, stale], stationID: "1929")]
+        )
+        let issues = DiningService.auditMergedMenu(anteater: anteater, hubStations: hub, merged: leaked)
+        #expect(issues.contains { $0.kind == .unpostedMergedDish && $0.dishName == "Al Pastor Cauliflower Taco" })
+        #expect(issues.contains { $0.kind == .hubCompetingTwistedRootEntree && $0.dishName == "Al Pastor Cauliflower Taco" })
+    }
+
+    @Test func ttlCacheDoesNotReuseAnotherDateKey() async {
+        let cache = TTLCache()
+        await cache.set("dining:today:anteatery:2026-11-08", value: "casserole", ttl: 600)
+        await cache.set("dining:today:anteatery:2026-11-09", value: "quinoa", ttl: 600)
+        let eighth = await cache.get("dining:today:anteatery:2026-11-08", as: String.self)
+        let ninth = await cache.get("dining:today:anteatery:2026-11-09", as: String.self)
+        #expect(eighth == "casserole")
+        #expect(ninth == "quinoa")
+        await cache.invalidate("dining:today:anteatery:2026-11-08")
+        #expect(await cache.get("dining:today:anteatery:2026-11-08", as: String.self) == nil)
+        #expect(await cache.get("dining:today:anteatery:2026-11-09", as: String.self) == "quinoa")
     }
 
     @Test func hubExclusiveAllDayTwistedRootOnlyWhenNotTaggedToOneMeal() {
@@ -846,9 +998,14 @@ struct DiningServiceTests {
             MenuStation(name: "Dinner", items: [sausage, shawarma]),
         ]
         #expect(DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name) == ["Turmeric Tofu Scramble"])
-        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name) == ["Tofu Shawarma"])
-        #expect(!DiningService.hubExclusiveItems(onMenu: breakfastMenu, hubStations: tagged).map(\.name).contains("Tofu Shawarma"))
-        #expect(!DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).map(\.name).contains("Turmeric Tofu Scramble"))
+        #expect(DiningService.hubExclusiveItems(onMenu: dinnerMenu, hubStations: tagged).isEmpty)
+        let omitted = DiningMenu(
+            locationId: "brandywine",
+            date: "2026-09-21",
+            period: "Dinner",
+            stations: []
+        )
+        #expect(DiningService.hubExclusiveItems(onMenu: omitted, hubStations: tagged).map(\.name) == ["Tofu Shawarma"])
     }
 
     @Test func hubMealStationsMatchByPillNameNotPosition() {
@@ -956,8 +1113,8 @@ struct DiningServiceTests {
 
     @Test func hubBoardUnionsTikkaWithoutDroppingAnteaterBuffalo() {
         // 2026-09-23: Anteater copied Buffalo Cauliflower onto Brandywine TR.
-        // Hub lunch is Tikka Masala Tofu + rice. Hub may add tikka, never
-        // drop the Anteater entree.
+        // Hub lunch is Tikka Masala Tofu + rice. Keep the Anteater entree;
+        // do not stack Hub's competing TR dish.
         let buffalo = MenuItem(
             id: "1821_122168_M34960_1_17232",
             name: "Buffalo Cauliflower Wings",
@@ -1013,7 +1170,7 @@ struct DiningServiceTests {
         let combined = DiningService.mergeHubOntoAnteater(menu, hubStations: hub)
         let twisted = combined.stations.first { $0.name.contains("Twisted Root") }
         let names = twisted?.items.map(\.name) ?? []
-        #expect(names.contains("Tikka Masala Tofu"))
+        #expect(!names.contains("Tikka Masala Tofu"))
         #expect(names.contains("Buffalo Cauliflower Wings"))
         #expect(names.contains("White Rice"))
         #expect(twisted?.stationID == "1893")
