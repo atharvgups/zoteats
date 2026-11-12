@@ -29,8 +29,13 @@ jobs:
         working-directory: android
     env:
       ZOTEATS_REVIEWS_TOKEN: ${{ secrets.ZOTEATS_REVIEWS_TOKEN }}
+      ZOTEATS_REQUIRE_REVIEWS_TOKEN: ${{ vars.ZOTEATS_REQUIRE_REVIEWS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check reviews ingest token
+        working-directory: ${{ github.workspace }}
+        run: python3 apple/scripts/require_reviews_token.py
 
       - uses: actions/setup-java@v4
         with:

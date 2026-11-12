@@ -175,12 +175,14 @@ struct RootTabView: View {
                     applyDeepLink(link)
                 }
                 feedbackPrompt.noteBecameActive()
+                Task { await preferences.flushOutboundIngest() }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     feedbackPrompt.noteBecameActive()
                     plate.ensureCurrentDay()
                     preferences.reloadMenuFiltersFromSharedDefaults()
+                    Task { await preferences.flushOutboundIngest() }
                     // Recompute Campus open/close from cached schedules (not a full network wait).
                     Task { await campusStore.loadPlaces() }
                     // Study is an app-lifetime store — refresh Waitz on warm resume.

@@ -61,6 +61,11 @@ class PreferencesStore(context: Context) {
         prefs.edit().putStringSet("dishFeedbackNoted", next).apply()
     }
 
+    fun outboundQueue(): OutboundIngestQueue = OutboundIngestQueue(
+        load = { OutboundIngestQueue.decode(prefs.getString("outboundIngest", "{\"items\":[]}") ?: "{\"items\":[]}") },
+        save = { items -> prefs.edit().putString("outboundIngest", OutboundIngestQueue.encode(items)).apply() },
+    )
+
     fun isFavorite(name: String) = _favorites.value.any { it.equals(name, true) }
     fun stars(name: String) = _reviews.value.entries.firstOrNull { it.key.equals(name, true) }?.value ?: 0
 

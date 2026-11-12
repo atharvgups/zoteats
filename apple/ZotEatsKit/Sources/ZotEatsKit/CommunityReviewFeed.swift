@@ -12,13 +12,7 @@ public enum CommunityReviewFeed {
     public static let liveURL = URL(
         string: "https://raw.githubusercontent.com/atharvgups/zoteats/main/apple/community-reviews.json"
     )!
-    /// GitHub Contents API for the same community-reviews.json document.
-    public static let githubContentsURL = URL(
-        string: "https://api.github.com/repos/atharvgups/zoteats/contents/apple/community-reviews.json"
-    )!
-    public static let ingestURL = URL(
-        string: "https://api.github.com/repos/atharvgups/zoteats/dispatches"
-    )!
+    public static let ingestURL = GitHubIngest.dispatchURL
 
     public static var writeToken: String {
         if let env = ProcessInfo.processInfo.environment["ZOTEATS_REVIEWS_TOKEN"], !env.isEmpty {
@@ -102,6 +96,9 @@ public enum CommunityReviewFeed {
     }
 
     /// Upsert or remove this author's review on the shared feed, then cache others.
+    /// Returns the public cache (this author excluded). `published` is true only
+    /// after GitHub accepted the event; otherwise the rating is queued.
+    @discardableResult
     public static func submit(
         http: any HTTPFetching,
         dishName: String,
@@ -111,8 +108,11 @@ public enum CommunityReviewFeed {
         authorLabel: String,
         excludingAuthorID: String,
         now: Date = Date(),
-        url: URL = liveURL
-    ) async -> [MealReview] {
+        url: URL = liveURL,
+        writeToken: String = CommunityReviewFeed.writeToken,
+        defaults: UserDefaults = SharedDefaults.suite,
+        enqueueOnFailure: Bool = true
+    ) async -> (reviews: [MealReview], published: Bool) {
         let cached = cachedReviews()
         let loaded = await load(http: http, url: url)
         let remote = loaded ?? cached
@@ -134,38 +134,40 @@ public enum CommunityReviewFeed {
                 authorLabel: authorLabel
             )
         }
-        do {
-            _ = try await http.send(
-                method: "PUT",
-                url: url,
-                headers: ["Content-Type": "application/json", "Accept": "application/json"],
-                body: encode(next)
-            )
-        } catch {
-            var ingested = await postIfPutRejected(http: http, url: url, body: encode(next))
-            if !ingested {
-                ingested = await submitGitHubContents(http: http, reviews: next)
-            }
-            if !ingested {
-                ingested = await dispatchGitHubIngest(
-                    http: http,
+        let published = await GitHubIngest.dispatch(
+            http: http,
+            eventType: "meal-review",
+            payload: OutboundIngestQueue.MealReviewPayload(
+                dishName: dishName,
+                stars: stars,
+                note: note,
+                authorID: authorID,
+                authorLabel: authorLabel,
+                updatedAt: iso8601(now)
+            ),
+            writeToken: writeToken
+        )
+        if published {
+            let merged = merge(cached: cached, remote: next, excludingAuthorID: excludingAuthorID)
+            persist(merged)
+            return (merged, true)
+        }
+        if enqueueOnFailure {
+            OutboundIngestQueue.enqueue(
+                OutboundIngestQueue.mealReviewItem(
                     dishName: dishName,
                     stars: stars,
                     note: note,
                     authorID: authorID,
                     authorLabel: authorLabel,
                     updatedAt: now
-                )
-            }
-            if !ingested {
-                let merged = merge(cached: cached, remote: remote, excludingAuthorID: excludingAuthorID)
-                persist(merged)
-                return merged
-            }
+                ),
+                defaults: defaults
+            )
         }
-        let merged = merge(cached: cached, remote: next, excludingAuthorID: excludingAuthorID)
+        let merged = merge(cached: cached, remote: remote, excludingAuthorID: excludingAuthorID)
         persist(merged)
-        return merged
+        return (merged, false)
     }
 
     private static func load(http: any HTTPFetching, url: URL) async -> [MealReview]? {
@@ -177,134 +179,10 @@ public enum CommunityReviewFeed {
         }
     }
 
-    private static func postIfPutRejected(http: any HTTPFetching, url: URL, body: Data) async -> Bool {
-        do {
-            _ = try await http.send(
-                method: "POST",
-                url: url,
-                headers: ["Content-Type": "application/json", "Accept": "application/json"],
-                body: body
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private static func submitGitHubContents(
-        http: any HTTPFetching,
-        reviews: [MealReview]
-    ) async -> Bool {
-        let token = writeToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return false }
-        let auth = [
-            "Accept": "application/vnd.github+json",
-            "Authorization": "Bearer \(token)",
-            "X-GitHub-Api-Version": "2022-11-28",
-        ]
-        var sha: String?
-        if let data = try? await http.data(from: githubContentsURL, headers: auth),
-           let meta = try? JSONDecoder().decode(GitHubContentsMeta.self, from: data) {
-            sha = meta.sha
-        }
-        let body = GitHubContentsPut(
-            message: "chore(reviews): publish community dish rating",
-            content: encode(reviews).base64EncodedString(),
-            sha: sha,
-            branch: "main"
-        )
-        guard let payload = try? JSONEncoder().encode(body) else { return false }
-        do {
-            _ = try await http.send(
-                method: "PUT",
-                url: githubContentsURL,
-                headers: auth.merging(["Content-Type": "application/json"]) { _, new in new },
-                body: payload
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private static func dispatchGitHubIngest(
-        http: any HTTPFetching,
-        dishName: String,
-        stars: Int,
-        note: String,
-        authorID: String,
-        authorLabel: String,
-        updatedAt: Date
-    ) async -> Bool {
-        let token = writeToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return false }
+    private static func iso8601(_ date: Date) -> String {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        let envelope = IngestEnvelope(
-            event_type: "meal-review",
-            client_payload: IngestPayload(
-                dishName: dishName,
-                stars: stars,
-                note: note,
-                authorID: authorID,
-                authorLabel: authorLabel,
-                updatedAt: iso.string(from: updatedAt)
-            )
-        )
-        guard let body = try? JSONEncoder().encode(envelope) else { return false }
-        do {
-            _ = try await http.send(
-                method: "POST",
-                url: ingestURL,
-                headers: [
-                    "Accept": "application/vnd.github+json",
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer \(token)",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                ],
-                body: body
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private struct GitHubContentsMeta: Decodable, Sendable {
-        var sha: String?
-    }
-
-    private struct GitHubContentsPut: Encodable, Sendable {
-        var message: String
-        var content: String
-        var sha: String?
-        var branch: String
-
-        enum CodingKeys: String, CodingKey {
-            case message, content, sha, branch
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(message, forKey: .message)
-            try container.encode(content, forKey: .content)
-            try container.encode(branch, forKey: .branch)
-            try container.encodeIfPresent(sha, forKey: .sha)
-        }
-    }
-
-    private struct IngestEnvelope: Encodable, Sendable {
-        var event_type: String
-        var client_payload: IngestPayload
-    }
-
-    private struct IngestPayload: Encodable, Sendable {
-        var dishName: String
-        var stars: Int
-        var note: String
-        var authorID: String
-        var authorLabel: String
-        var updatedAt: String
+        return iso.string(from: date)
     }
 }
 

@@ -38,6 +38,7 @@ class ForwardDishFeedbackTests(unittest.TestCase):
             body,
             {
                 "text": "x" * 500,
+                "reason": "",
                 "dish": "Jasmine Rice",
                 "hall": "anteatery",
                 "meal": "Lunch",
@@ -45,7 +46,21 @@ class ForwardDishFeedbackTests(unittest.TestCase):
             },
         )
 
-    def test_missing_url_is_inert(self) -> None:
+    def test_structured_reason_fills_text(self) -> None:
+        body = forward.webhook_body(
+            {
+                "reason": "notServed",
+                "dishName": "Red Curry Tofu Rice Bowl",
+                "hall": "anteatery",
+                "meal": "Lunch",
+                "date": "2026-11-12",
+            }
+        )
+        self.assertEqual(body["text"], "Not being served")
+        self.assertEqual(body["reason"], "notServed")
+        self.assertEqual(body["dish"], "Red Curry Tofu Rice Bowl")
+
+    def test_missing_url_fails(self) -> None:
         called = {"n": 0}
 
         def opener(_request, timeout=20):
@@ -58,7 +73,7 @@ class ForwardDishFeedbackTests(unittest.TestCase):
             payload={"text": "Sauce is cold", "dishName": "Rice", "hall": "anteatery", "meal": "Lunch", "date": "2026-10-29"},
             opener=opener,
         )
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 1)
         self.assertEqual(called["n"], 0)
 
     def test_posts_json_and_authorization_header(self) -> None:
@@ -92,6 +107,7 @@ class ForwardDishFeedbackTests(unittest.TestCase):
             captured["body"],
             {
                 "text": "Wrong sauce",
+                "reason": "",
                 "dish": "Linguine",
                 "hall": "brandywine",
                 "meal": "Dinner",

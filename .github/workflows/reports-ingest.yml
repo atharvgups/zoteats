@@ -34,3 +34,10 @@ jobs:
           fi
           git commit -m "chore(reports): ingest community dish flag"
           git push
+
+      - name: Ping Atharv
+        env:
+          FEEDBACK_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          ANTEATS_FEEDBACK_WEBHOOK_URL: ${{ vars.ANTEATS_FEEDBACK_WEBHOOK_URL || secrets.ANTEATS_FEEDBACK_WEBHOOK_URL }}
+          ANTEATS_FEEDBACK_WEBHOOK_KEY: ${{ secrets.ANTEATS_FEEDBACK_WEBHOOK_KEY }}
+        run: python3 apple/scripts/forward_dish_feedback.py

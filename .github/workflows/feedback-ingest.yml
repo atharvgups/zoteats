@@ -1,29 +1,56 @@
-# Forward an Other dish note to the feedback webhook.
+# Forward a dish report note to the feedback webhook.
 # Trigger: repository_dispatch type "dish-feedback" with client_payload
-# {date, hall, meal, dishID, dishName, text, authorID, updatedAt}.
+# {date, hall, meal, dishID, dishName, reason, text, authorID, updatedAt}
+# or workflow_dispatch for a smoke test.
 #
 # Config (repo Settings -> Secrets and variables -> Actions):
 #   Variable or secret  ANTEATS_FEEDBACK_WEBHOOK_URL
 #   Secret              ANTEATS_FEEDBACK_WEBHOOK_KEY
-# The key is sent as the Authorization header. If the URL is missing the
-# job succeeds without posting so the app can still show Thanks, noted.
+# The key is sent as the Authorization header. The URL and key never ship
+# in the iOS or Android binary. Structured reasons use the reason title
+# when text is empty so Atharv is pinged for all four report choices.
 name: Forward dish feedback
 
 on:
   repository_dispatch:
     types: [dish-feedback]
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Note to forward"
+        required: true
+        default: "ZotEats ingest smoke test"
+      dishName:
+        description: "Dish name"
+        required: false
+        default: "Smoke Test Dish"
+      hall:
+        description: "Hall id"
+        required: false
+        default: "anteatery"
+      meal:
+        description: "Meal"
+        required: false
+        default: "Lunch"
+      date:
+        description: "Irvine date"
+        required: false
+        default: "2026-11-12"
+      reason:
+        description: "notAtHall | notServed | wrongStation | other"
+        required: false
+        default: "other"
 
 jobs:
   forward:
-    name: POST Other note to webhook
+    name: POST report to webhook
     runs-on: ubuntu-latest
-    if: github.event.client_payload.text != ''
     steps:
       - uses: actions/checkout@v4
 
       - name: POST webhook
         env:
-          FEEDBACK_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          FEEDBACK_PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && toJson(github.event.inputs) || toJson(github.event.client_payload) }}
           ANTEATS_FEEDBACK_WEBHOOK_URL: ${{ vars.ANTEATS_FEEDBACK_WEBHOOK_URL || secrets.ANTEATS_FEEDBACK_WEBHOOK_URL }}
           ANTEATS_FEEDBACK_WEBHOOK_KEY: ${{ secrets.ANTEATS_FEEDBACK_WEBHOOK_KEY }}
         run: python3 apple/scripts/forward_dish_feedback.py

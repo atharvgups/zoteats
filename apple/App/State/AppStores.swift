@@ -625,20 +625,8 @@ final class Preferences {
         dishName: String,
         reason: DishReportReason,
         http: any HTTPFetching = HTTPClient()
-    ) async {
-        communityDishReports = DishReportLogic.upsert(
-            existing: communityDishReports,
-            date: date,
-            hall: hall,
-            meal: meal,
-            dishID: dishID,
-            dishName: dishName,
-            reason: reason,
-            authorID: reviewerID
-        )
-        CommunityDishReportFeed.persist(communityDishReports)
-        Haptics.light()
-        let next = await CommunityDishReportFeed.submit(
+    ) async -> Bool {
+        let result = await CommunityDishReportFeed.submit(
             http: http,
             date: date,
             hall: hall,
@@ -648,9 +636,13 @@ final class Preferences {
             reason: reason,
             authorID: reviewerID
         )
-        if next != communityDishReports {
-            communityDishReports = next
+        if result.reports != communityDishReports {
+            communityDishReports = result.reports
         }
+        if result.published {
+            Haptics.light()
+        }
+        return result.published
     }
 
     func submitDishFeedback(
@@ -661,22 +653,14 @@ final class Preferences {
         dishName: String,
         text: String,
         http: any HTTPFetching = HTTPClient()
-    ) async {
-        DishFeedbackLogic.markNoted(
-            date: date,
-            hall: hall,
-            meal: meal,
-            dishID: dishID,
-            dishName: dishName
-        )
-        Haptics.light()
+    ) async -> Bool {
         let clipped = DishFeedbackLogic.clipped(text)
         let history = DishFeedbackLogic.loadHistory()
         let now = Date()
-        guard !clipped.isEmpty else { return }
-        guard DishFeedbackLogic.canSend(history: history, now: now) else { return }
+        guard !clipped.isEmpty else { return false }
+        guard DishFeedbackLogic.canSend(history: history, now: now) else { return false }
         DishFeedbackLogic.saveHistory(DishFeedbackLogic.recordedHistory(history, now: now))
-        _ = await CommunityDishReportFeed.submitFeedback(
+        let sent = await CommunityDishReportFeed.submitFeedback(
             http: http,
             date: date,
             hall: hall,
@@ -687,6 +671,19 @@ final class Preferences {
             authorID: reviewerID,
             now: now
         )
+        if sent {
+            Haptics.light()
+        }
+        return sent
+    }
+
+    func flushOutboundIngest(http: any HTTPFetching = HTTPClient()) async {
+        let result = await OutboundIngestQueue.flush(http: http)
+        guard result.sent > 0 else { return }
+        let next = CommunityDishReportFeed.cachedReports()
+        if next != communityDishReports {
+            communityDishReports = next
+        }
     }
 
     private func schedulePublish(dishName: String, delay: Duration) {
@@ -700,7 +697,7 @@ final class Preferences {
 
     func publishReview(dishName: String, http: any HTTPFetching = HTTPClient()) async {
         let mine = review(for: dishName)
-        let next = await CommunityReviewFeed.submit(
+        let result = await CommunityReviewFeed.submit(
             http: http,
             dishName: dishName,
             stars: mine?.stars ?? 0,
@@ -709,8 +706,8 @@ final class Preferences {
             authorLabel: MealReview.communityAuthorLabel,
             excludingAuthorID: reviewerID
         )
-        if next != communityReviews {
-            communityReviews = next
+        if result.reviews != communityReviews {
+            communityReviews = result.reviews
         }
     }
 }

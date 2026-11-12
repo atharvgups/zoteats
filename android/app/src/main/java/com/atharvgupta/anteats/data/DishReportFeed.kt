@@ -15,7 +15,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.time.Instant
-import java.util.Base64
 
 class DishReportFeed(
     private val token: String = System.getenv("ZOTEATS_REVIEWS_TOKEN").orEmpty(),
@@ -23,12 +22,21 @@ class DishReportFeed(
         { url, headers -> http(url, "GET", headers, null) },
     private val send: suspend (method: String, url: String, headers: Map<String, String>, body: String?) -> Pair<Int, String> =
         { method, url, headers, body -> http(url, method, headers, body) },
+    private var cache: List<DishReport> = emptyList(),
 ) {
+    fun cached(): List<DishReport> = cache
+
+    fun replaceCache(reports: List<DishReport>) {
+        cache = reports
+    }
+
     suspend fun fetch(): List<DishReport> {
         val (code, body) = get(FEED_URL, emptyMap())
-        if (code == 404 || body.isBlank()) return emptyList()
-        if (code !in 200..299) return emptyList()
-        return decode(body)
+        if (code == 404 || body.isBlank()) return cache
+        if (code !in 200..299) return cache
+        val remote = decode(body)
+        cache = merge(cache, remote)
+        return cache
     }
 
     suspend fun submit(
@@ -41,10 +49,10 @@ class DishReportFeed(
         authorID: String,
         existing: List<DishReport>,
         updatedAt: String = Instant.now().toString(),
-    ): List<DishReport> {
-        val remote = runCatching { fetch() }.getOrDefault(existing)
-        val next = DishReportLogic.upsert(
-            existing = remote.ifEmpty { existing },
+        queue: OutboundIngestQueue? = null,
+    ): DishReportSubmitResult {
+        val remote = runCatching { fetch() }.getOrDefault(existing.ifEmpty { cache })
+        val published = dispatchReport(
             date = date,
             hall = hall,
             meal = meal,
@@ -54,42 +62,80 @@ class DishReportFeed(
             authorID = authorID,
             updatedAt = updatedAt,
         )
-        val payload = encode(next)
-        val putLive = send(
-            "PUT",
-            FEED_URL,
-            mapOf("Content-Type" to "application/json", "Accept" to "application/json"),
-            payload,
-        )
-        if (putLive.first in 200..299) return next
-        if (putGitHubContents(payload)) return next
-        if (dispatchIngest(date, hall, meal, dishID, dishName, reason, authorID, updatedAt)) return next
-        return existing
-    }
-
-    private suspend fun putGitHubContents(payload: String): Boolean {
-        val authToken = token.trim()
-        if (authToken.isEmpty()) return false
-        val auth = githubHeaders(authToken)
-        val meta = get(GITHUB_CONTENTS_URL, auth)
-        val sha = if (meta.first in 200..299) {
-            runCatching {
-                Json.parseToJsonElement(meta.second).jsonObject["sha"]?.jsonPrimitive?.contentOrNull
-            }.getOrNull()
-        } else {
-            null
+        if (published) {
+            val next = DishReportLogic.upsert(
+                existing = remote.ifEmpty { existing },
+                date = date,
+                hall = hall,
+                meal = meal,
+                dishID = dishID,
+                dishName = dishName,
+                reason = reason,
+                authorID = authorID,
+                updatedAt = updatedAt,
+            )
+            cache = next
+            return DishReportSubmitResult(next, true)
         }
-        val body = buildJsonObject {
-            put("message", JsonPrimitive("chore(reports): publish community dish flag"))
-            put("content", JsonPrimitive(Base64.getEncoder().encodeToString(payload.toByteArray(StandardCharsets.UTF_8))))
-            put("branch", JsonPrimitive("main"))
-            if (!sha.isNullOrBlank()) put("sha", JsonPrimitive(sha))
-        }.toString()
-        val result = send("PUT", GITHUB_CONTENTS_URL, auth + ("Content-Type" to "application/json"), body)
-        return result.first in 200..299
+        queue?.enqueue(
+            OutboundIngestItem(
+                kind = OutboundIngestItem.KIND_REPORT,
+                date = date,
+                hall = hall,
+                meal = meal,
+                dishID = dishID,
+                dishName = dishName,
+                reason = reason,
+                authorID = authorID,
+                updatedAt = updatedAt,
+            ),
+        )
+        cache = remote.ifEmpty { existing }
+        return DishReportSubmitResult(cache, false)
     }
 
-    private suspend fun dispatchIngest(
+    suspend fun submitFeedback(
+        date: String,
+        hall: String,
+        meal: String,
+        dishID: String,
+        dishName: String,
+        text: String,
+        authorID: String,
+        updatedAt: String = Instant.now().toString(),
+        queue: OutboundIngestQueue? = null,
+    ): Boolean {
+        val clipped = DishFeedbackLogic.clipped(text)
+        if (clipped.isEmpty()) return false
+        val published = dispatchFeedback(
+            date = date,
+            hall = hall,
+            meal = meal,
+            dishID = dishID,
+            dishName = dishName,
+            text = clipped,
+            authorID = authorID,
+            updatedAt = updatedAt,
+        )
+        if (published) return true
+        queue?.enqueue(
+            OutboundIngestItem(
+                kind = OutboundIngestItem.KIND_FEEDBACK,
+                date = date,
+                hall = hall,
+                meal = meal,
+                dishID = dishID,
+                dishName = dishName,
+                reason = DishReportReason.OTHER,
+                text = clipped,
+                authorID = authorID,
+                updatedAt = updatedAt,
+            ),
+        )
+        return false
+    }
+
+    suspend fun dispatchReport(
         date: String,
         hall: String,
         meal: String,
@@ -121,7 +167,7 @@ class DishReportFeed(
         return result.first in 200..299
     }
 
-    suspend fun submitFeedback(
+    suspend fun dispatchFeedback(
         date: String,
         hall: String,
         meal: String,
@@ -129,10 +175,8 @@ class DishReportFeed(
         dishName: String,
         text: String,
         authorID: String,
-        updatedAt: String = Instant.now().toString(),
+        updatedAt: String,
     ): Boolean {
-        val clipped = DishFeedbackLogic.clipped(text)
-        if (clipped.isEmpty()) return false
         val authToken = token.trim()
         if (authToken.isEmpty()) return false
         val body = buildJsonObject {
@@ -145,7 +189,8 @@ class DishReportFeed(
                     put("meal", JsonPrimitive(meal))
                     put("dishID", JsonPrimitive(dishID))
                     put("dishName", JsonPrimitive(dishName))
-                    put("text", JsonPrimitive(clipped))
+                    put("reason", JsonPrimitive(DishReportReason.OTHER))
+                    put("text", JsonPrimitive(text))
                     put("authorID", JsonPrimitive(authorID))
                     put("updatedAt", JsonPrimitive(updatedAt))
                 },
@@ -158,8 +203,6 @@ class DishReportFeed(
     companion object {
         const val FEED_URL =
             "https://raw.githubusercontent.com/atharvgups/zoteats/main/apple/community-dish-reports.json"
-        const val GITHUB_CONTENTS_URL =
-            "https://api.github.com/repos/atharvgups/zoteats/contents/apple/community-dish-reports.json"
         const val INGEST_URL = "https://api.github.com/repos/atharvgups/zoteats/dispatches"
 
         fun encode(reports: List<DishReport>): String {

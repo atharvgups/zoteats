@@ -41,6 +41,10 @@ jobs:
       - name: Refuse em dashes in App Store listing copy
         run: python3 apple/scripts/check_appstore_copy.py
 
+      - name: Ingest helper tests
+        working-directory: apple/scripts
+        run: python3 -m unittest test_forward_dish_feedback.py test_require_reviews_token.py
+
   app-build:
     name: App build + screenshots (macOS)
     # macOS runners bill at 10x — run only on manual dispatch or when a commit

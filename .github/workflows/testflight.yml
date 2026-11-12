@@ -18,6 +18,12 @@
 #   TESTFLIGHT_EXTERNAL_GROUP_NAME - External Testing group name in App Store Connect
 #                                    (default: "Zot Eats Testers!")
 #
+# Reports ingest (student Report an issue / ratings):
+#   Secret   ZOTEATS_REVIEWS_TOKEN - fine-grained PAT, this repo only, Contents: Read and write
+#                                    (GitHub's minimum for repository_dispatch). Baked into the IPA.
+#   Variable ZOTEATS_REQUIRE_REVIEWS_TOKEN=true  - fail this workflow if the token is empty.
+#                                    Leave unset until the secret exists so TestFlight still uploads.
+#
 # App Store Connect setup (one-time):
 #   1. TestFlight → External Testing → create a group (default name above).
 #   2. Add your external testers to that group.
@@ -66,6 +72,7 @@ jobs:
       TESTFLIGHT_EXTERNAL_GROUP_NAME: ${{ vars.TESTFLIGHT_EXTERNAL_GROUP_NAME || 'Zot Eats Testers!' }}
       PROMOTE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_only }}
       ZOTEATS_REVIEWS_TOKEN: ${{ secrets.ZOTEATS_REVIEWS_TOKEN }}
+      ZOTEATS_REQUIRE_REVIEWS_TOKEN: ${{ vars.ZOTEATS_REQUIRE_REVIEWS_TOKEN }}
     steps:
       # Fail fast with an explicit list of missing secrets instead of a cryptic
       # xcodebuild signing error 20 minutes in.
@@ -88,6 +95,9 @@ jobs:
           fi
 
       - uses: actions/checkout@v4
+
+      - name: Check reviews ingest token
+        run: python3 apple/scripts/require_reviews_token.py
 
       - uses: maxim-lobanov/setup-xcode@v1
         if: env.PROMOTE_ONLY != 'true'
