@@ -1992,11 +1992,25 @@ public struct DiningService: Sendable {
     public static func auditMergedMenu(
         anteater: DiningMenu,
         hubStations: [MenuStation],
-        merged: DiningMenu
+        merged: DiningMenu,
+        overrides: [MenuOverrideFeed.Override] = []
     ) -> [MenuMergeIssue] {
         var issues: [MenuMergeIssue] = []
+        let replaceOverrides = overrides.filter {
+            $0.isReplace
+                && MenuOverrideFeed.hallMatches($0.hall, menuHall: anteater.locationId)
+                && MenuOverrideFeed.periodMatches($0.period, menuPeriod: anteater.period)
+                && $0.date == anteater.date
+        }
+        func isReplacedStation(_ station: MenuStation) -> Bool {
+            replaceOverrides.contains {
+                canMergeHubExtra(into: station, extraStationID: $0.stationID)
+                    || MenuOverrideFeed.namesMatch(station.name, $0.stationName)
+            }
+        }
         for original in anteater.stations {
             if CampusMenuNormalize.isAvailableAllDay(original.name) { continue }
+            if isReplacedStation(original) { continue }
             let live = matchingStation(in: merged.stations, like: original)
             for item in original.items where isStationEntree(item.name) {
                 let present = live.map {
@@ -2099,6 +2113,65 @@ public struct DiningService: Sendable {
                         stationName: station.name,
                         stationID: station.stationID,
                         kind: .hubCompetingTwistedRootEntree,
+                        dishName: item.name
+                    ))
+                }
+            }
+        }
+        for entry in replaceOverrides {
+            let probe = MenuStation(
+                name: displayStationName(entry.stationName, stationID: entry.stationID),
+                items: [],
+                stationID: entry.stationID
+            )
+            let live = matchingStation(in: merged.stations, like: probe)
+            let liveItems = live?.items ?? []
+            for dish in entry.items {
+                let present = liveItems.contains {
+                    dishesShareIdentity($0, MenuItem(
+                        id: dish.id,
+                        name: dish.name,
+                        description: dish.description,
+                        calories: dish.calories,
+                        servingSize: nil,
+                        allergens: dish.allergens,
+                        dietaryTags: dish.dietaryTags,
+                        stationID: entry.stationID
+                    ))
+                }
+                if !present {
+                    issues.append(MenuMergeIssue(
+                        hallID: merged.locationId,
+                        date: merged.date,
+                        period: merged.period,
+                        stationName: probe.name,
+                        stationID: entry.stationID,
+                        kind: .boardVerifiedStationMismatch,
+                        dishName: dish.name
+                    ))
+                }
+            }
+            for item in liveItems where isStationEntree(item.name) {
+                let allowed = entry.items.contains {
+                    dishesShareIdentity(item, MenuItem(
+                        id: $0.id,
+                        name: $0.name,
+                        description: $0.description,
+                        calories: $0.calories,
+                        servingSize: nil,
+                        allergens: $0.allergens,
+                        dietaryTags: $0.dietaryTags,
+                        stationID: entry.stationID
+                    ))
+                }
+                if !allowed {
+                    issues.append(MenuMergeIssue(
+                        hallID: merged.locationId,
+                        date: merged.date,
+                        period: merged.period,
+                        stationName: live?.name ?? probe.name,
+                        stationID: live?.stationID ?? entry.stationID,
+                        kind: .boardVerifiedStationMismatch,
                         dishName: item.name
                     ))
                 }

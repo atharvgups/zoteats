@@ -13,8 +13,8 @@ android {
         applicationId = "com.atharvgupta.anteats"
         minSdk = 26
         targetSdk = 35
-        versionCode = 371
-        versionName = "1.0.375"
+        versionCode = 372
+        versionName = "1.0.376"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         val reviewsToken = (System.getenv("ZOTEATS_REVIEWS_TOKEN") ?: "").replace("\"", "\\\"")

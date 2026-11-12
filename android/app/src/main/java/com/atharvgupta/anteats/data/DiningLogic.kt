@@ -1088,10 +1088,23 @@ object DiningLogic {
         anteater: DiningMenu,
         hubStations: List<MenuStation>,
         merged: DiningMenu,
+        overrides: List<MenuOverride> = emptyList(),
     ): List<MenuMergeIssue> {
         val issues = mutableListOf<MenuMergeIssue>()
+        val replaceOverrides = overrides.filter {
+            it.isReplace &&
+                MenuOverrideFeed.hallMatches(it.hall, anteater.locationId) &&
+                MenuOverrideFeed.periodMatches(it.period, anteater.period) &&
+                it.date == anteater.date
+        }
+        fun isReplacedStation(station: MenuStation): Boolean =
+            replaceOverrides.any {
+                canMergeHubExtra(station, it.stationID) ||
+                    MenuOverrideFeed.namesMatch(station.name, it.stationName)
+            }
         for (original in anteater.stations) {
             if (isAvailableAllDayStation(original.name)) continue
+            if (isReplacedStation(original)) continue
             val live = matchingStation(merged.stations, original)
             for (item in original.items) {
                 if (!isStationEntree(item.name)) continue
@@ -1190,6 +1203,72 @@ object DiningLogic {
                         station.name,
                         station.stationID,
                         MenuMergeIssue.Kind.HUB_COMPETING_TWISTED_ROOT_ENTREE,
+                        item.name,
+                    )
+                }
+            }
+        }
+        for (entry in replaceOverrides) {
+            val probe = MenuStation(
+                displayStationName(entry.stationName, entry.stationID),
+                emptyList(),
+                entry.stationID,
+            )
+            val live = matchingStation(merged.stations, probe)
+            val liveItems = live?.items.orEmpty()
+            for (dish in entry.items) {
+                val present = liveItems.any {
+                    dishesShareIdentity(
+                        it,
+                        MenuItem(
+                            dish.id,
+                            dish.name,
+                            dish.description,
+                            dish.calories,
+                            null,
+                            dish.allergens,
+                            dish.dietaryTags,
+                            stationID = entry.stationID,
+                        ),
+                    )
+                }
+                if (!present) {
+                    issues += MenuMergeIssue(
+                        merged.locationId,
+                        merged.date,
+                        merged.period,
+                        probe.name,
+                        entry.stationID,
+                        MenuMergeIssue.Kind.BOARD_VERIFIED_STATION_MISMATCH,
+                        dish.name,
+                    )
+                }
+            }
+            for (item in liveItems) {
+                if (!isStationEntree(item.name)) continue
+                val allowed = entry.items.any {
+                    dishesShareIdentity(
+                        item,
+                        MenuItem(
+                            it.id,
+                            it.name,
+                            it.description,
+                            it.calories,
+                            null,
+                            it.allergens,
+                            it.dietaryTags,
+                            stationID = entry.stationID,
+                        ),
+                    )
+                }
+                if (!allowed) {
+                    issues += MenuMergeIssue(
+                        merged.locationId,
+                        merged.date,
+                        merged.period,
+                        live?.name ?: probe.name,
+                        live?.stationID ?: entry.stationID,
+                        MenuMergeIssue.Kind.BOARD_VERIFIED_STATION_MISMATCH,
                         item.name,
                     )
                 }

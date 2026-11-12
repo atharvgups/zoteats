@@ -199,6 +199,79 @@ struct MenuOverrideFeedTests {
         #expect(combined.stations.map(\.stationID) != ["1929", "1932", "1938", "1941", "1935"])
     }
 
+    @Test func nov12ReplaceDropsHubTofuTikkaForPhotographedRedCurry() {
+        let tikka = MenuItem(
+            id: "1923_101628_M40401_1_387856",
+            name: "Tofu Tikka Bowl",
+            description: "Tofu tikka masala served with pickled red onions and basmati rice",
+            calories: 269,
+            servingSize: nil,
+            allergens: ["Soy"],
+            dietaryTags: ["Vegan", "Vegetarian"],
+            stationID: "1929"
+        )
+        let home = MenuItem(
+            id: "cod", name: "Crispy Battered Cod", description: nil, calories: 118,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1932"
+        )
+        let lunch = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-12",
+            period: "Lunch",
+            stations: [
+                MenuStation(name: "The Twisted Root", items: [tikka], stationID: "1929"),
+                MenuStation(name: "Home", items: [home], stationID: "1932"),
+            ]
+        )
+        let combined = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, to: lunch)
+        let twisted = combined.stations.first { $0.stationID == "1929" }
+        #expect(twisted?.items.map(\.name) == ["Red Curry Tofu Rice Bowl"])
+        #expect(twisted?.items.first?.calories == 270)
+        #expect(twisted?.items.first?.allergens == ["Sesame"])
+        #expect(twisted?.items.first?.dietaryTags.contains("Vegan") == true)
+        #expect(twisted?.items.first?.dietaryTags.contains("Plant Forward") == true)
+        #expect(twisted?.items.first?.id.hasPrefix("override:") == true)
+        #expect(combined.stations.contains { $0.stationID == "1932" })
+
+        let dinner = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-12",
+            period: "Dinner",
+            stations: [MenuStation(name: "The Twisted Root", items: [tikka], stationID: "1929")]
+        )
+        #expect(
+            MenuOverrideFeed.applying(MenuOverrideFeed.bundled, to: dinner)
+                .stations.first?.items.map(\.name) == ["Tofu Tikka Bowl"]
+        )
+    }
+
+    @Test func combiningKeepsLiveRowsAndAddsBundledBoardReplace() {
+        let live = MenuOverrideFeed.Feed(
+            overrides: [
+                MenuOverrideFeed.Override(
+                    date: "2026-10-28",
+                    hall: "anteatery",
+                    period: "Dinner",
+                    stationID: "1929",
+                    stationName: "The Twisted Root",
+                    kind: "insert",
+                    items: [
+                        MenuOverrideFeed.Item(
+                            id: "override:anteatery-dinner-1929-cajun-tofu-2026-10-28",
+                            name: "Cajun Tofu and White Rice",
+                            dietaryTags: ["Vegan", "Vegetarian"]
+                        ),
+                    ]
+                ),
+            ]
+        )
+        let combined = MenuOverrideFeed.combining(live, bundled: MenuOverrideFeed.bundled)
+        #expect(combined.overrides.contains { $0.date == "2026-10-28" && $0.stationID == "1929" })
+        #expect(combined.overrides.contains {
+            $0.date == "2026-11-12" && $0.isReplace && $0.items.first?.name == "Red Curry Tofu Rice Bowl"
+        })
+    }
+
     @Test func decodeReadsCorrectionsAndSpecialStations() {
         let json = Data(
             """

@@ -911,6 +911,63 @@ struct DiningServiceTests {
         #expect(!merged.stations.flatMap(\.items).map(\.name).contains("Asian Seared Tofu"))
     }
 
+    @Test func nov12HubTikkaIsReplacedByPhotographedRedCurryAndAuditPasses() {
+        let tikka = MenuItem(
+            id: "1923_101628_M40401_1_387856",
+            name: "Tofu Tikka Bowl",
+            description: "Tofu tikka masala served with pickled red onions and basmati rice",
+            calories: 269,
+            servingSize: nil,
+            allergens: ["Soy"],
+            dietaryTags: ["Vegan", "Vegetarian"],
+            stationID: "1929"
+        )
+        let cod = MenuItem(
+            id: "cod", name: "Crispy Battered Cod", description: nil, calories: 118,
+            servingSize: nil, allergens: [], dietaryTags: [], stationID: "1932"
+        )
+        let anteater = DiningMenu(
+            locationId: "anteatery",
+            date: "2026-11-12",
+            period: "Lunch",
+            stations: [MenuStation(name: "Home", items: [cod], stationID: "1932")]
+        )
+        let hub = [MenuStation(name: "Lunch", items: [tikka, cod])]
+        let merged = DiningService.mergeHubOntoAnteater(anteater, hubStations: hub)
+        #expect(merged.stations.contains { station in
+            DiningService.isTwistedRoot(stationName: station.name, stationID: station.stationID)
+                && station.items.map(\.name).contains("Tofu Tikka Bowl")
+        })
+        let leftover = DiningService.auditMergedMenu(
+            anteater: anteater,
+            hubStations: hub,
+            merged: merged,
+            overrides: MenuOverrideFeed.bundled.overrides
+        )
+        #expect(leftover.contains {
+            $0.kind == .boardVerifiedStationMismatch && $0.dishName == "Tofu Tikka Bowl"
+        })
+        #expect(leftover.contains {
+            $0.kind == .boardVerifiedStationMismatch && $0.dishName == "Red Curry Tofu Rice Bowl"
+        })
+
+        let boarded = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, to: merged)
+        let twisted = boarded.stations.first {
+            DiningService.isTwistedRoot(stationName: $0.name, stationID: $0.stationID)
+        }
+        #expect(twisted?.items.map(\.name) == ["Red Curry Tofu Rice Bowl"])
+        #expect(twisted?.items.first?.calories == 270)
+        #expect(twisted?.items.first?.allergens == ["Sesame"])
+        #expect(
+            DiningService.auditMergedMenu(
+                anteater: anteater,
+                hubStations: hub,
+                merged: boarded,
+                overrides: MenuOverrideFeed.bundled.overrides
+            ).isEmpty
+        )
+    }
+
     @Test func auditFlagsStaleCacheDishNotOnPostedMenu() {
         let today = MenuItem(
             id: "today", name: "Thai Tofu Noodle Bowl", description: nil, calories: 862,

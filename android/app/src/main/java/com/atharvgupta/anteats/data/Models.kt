@@ -82,6 +82,7 @@ data class MenuMergeIssue(
         DUPLICATE_DISH_IN_STATION,
         UNPOSTED_MERGED_DISH,
         HUB_COMPETING_TWISTED_ROOT_ENTREE,
+        BOARD_VERIFIED_STATION_MISMATCH,
     }
 
     override fun toString(): String = when (kind) {
@@ -95,6 +96,8 @@ data class MenuMergeIssue(
             "$hallID $date $period $stationName lists $dishName which is not on the posted menu"
         Kind.HUB_COMPETING_TWISTED_ROOT_ENTREE ->
             "$hallID $date $period $stationName added Hub $dishName on top of an Anteater Twisted Root entree"
+        Kind.BOARD_VERIFIED_STATION_MISMATCH ->
+            "$hallID $date $period $stationName does not match the photographed board for $dishName"
     }
 }
 
