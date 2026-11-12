@@ -561,6 +561,7 @@ public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
         case duplicateDishInStation
         case unpostedMergedDish
         case hubCompetingTwistedRootEntree
+        case boardVerifiedStationMismatch
     }
 
     public let hallID: String
@@ -601,6 +602,8 @@ public struct MenuMergeIssue: Equatable, Sendable, CustomStringConvertible {
             return "\(hallID) \(date) \(period) \(stationName) lists \(dishName) which is not on the posted menu"
         case .hubCompetingTwistedRootEntree:
             return "\(hallID) \(date) \(period) \(stationName) added Hub \(dishName) on top of an Anteater Twisted Root entree"
+        case .boardVerifiedStationMismatch:
+            return "\(hallID) \(date) \(period) \(stationName) does not match the photographed board for \(dishName)"
         }
     }
 }

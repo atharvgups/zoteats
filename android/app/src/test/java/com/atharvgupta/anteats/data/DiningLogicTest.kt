@@ -822,6 +822,56 @@ class DiningLogicTest {
     }
 
     @Test
+    fun nov12ReplaceDropsHubTofuTikkaForPhotographedRedCurry() {
+        val tikka = MenuItem(
+            "1923_101628_M40401_1_387856",
+            "Tofu Tikka Bowl",
+            "Tofu tikka masala served with pickled red onions and basmati rice",
+            269,
+            null,
+            listOf("Soy"),
+            listOf("Vegan", "Vegetarian"),
+            stationID = "1929",
+        )
+        val home = MenuItem("cod", "Crispy Battered Cod", null, 118, null, emptyList(), emptyList(), stationID = "1932")
+        val lunch = DiningMenu(
+            "anteatery",
+            "2026-11-12",
+            "Lunch",
+            listOf(
+                MenuStation("The Twisted Root", listOf(tikka), "1929"),
+                MenuStation("Home", listOf(home), "1932"),
+            ),
+        )
+        val combined = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, lunch)
+        val twisted = combined.stations.first { it.stationID == "1929" }
+        assertEquals(listOf("Red Curry Tofu Rice Bowl"), twisted.items.map { it.name })
+        assertEquals(270, twisted.items.first().calories)
+        assertEquals(listOf("Sesame"), twisted.items.first().allergens)
+        assertTrue(twisted.items.first().dietaryTags.contains("Vegan"))
+        assertTrue(twisted.items.first().dietaryTags.contains("Plant Forward"))
+        assertTrue(combined.stations.any { it.stationID == "1932" })
+
+        val anteater = DiningMenu(
+            "anteatery",
+            "2026-11-12",
+            "Lunch",
+            listOf(MenuStation("Home", listOf(home), "1932")),
+        )
+        val hub = listOf(MenuStation("Lunch", listOf(tikka, home)))
+        val merged = DiningLogic.mergeHubOntoAnteater(anteater, hub)
+        val leftover = DiningLogic.auditMergedMenu(anteater, hub, merged, MenuOverrideFeed.bundled.overrides)
+        assertTrue(leftover.any { it.kind == MenuMergeIssue.Kind.BOARD_VERIFIED_STATION_MISMATCH && it.dishName == "Tofu Tikka Bowl" })
+        assertTrue(leftover.any { it.kind == MenuMergeIssue.Kind.BOARD_VERIFIED_STATION_MISMATCH && it.dishName == "Red Curry Tofu Rice Bowl" })
+        val boarded = MenuOverrideFeed.applying(MenuOverrideFeed.bundled, merged)
+        assertEquals(
+            listOf("Red Curry Tofu Rice Bowl"),
+            boarded.stations.first { DiningLogic.isTwistedRoot(it.name, it.stationID) }.items.map { it.name },
+        )
+        assertTrue(DiningLogic.auditMergedMenu(anteater, hub, boarded, MenuOverrideFeed.bundled.overrides).isEmpty())
+    }
+
+    @Test
     fun bundledOverrideInsertsCajunTofuWithoutReorderingOtherStations() {
         val home = MenuItem("pork", "Cajun Roasted Pork Loin", null, 320, null, emptyList(), emptyList(), stationID = "1932")
         val burger = MenuItem("burger", "Cheeseburger", null, 400, null, emptyList(), emptyList(), stationID = "1935")

@@ -15,6 +15,7 @@ struct MenuMergeMonitorTests {
         let dates = EatPostedDays.isoDates(from: today, through: through)
         let halls = ["anteatery", "brandywine", HallDirectory.oasisComingSoonID]
         let periods = ["Breakfast", "Lunch", "Dinner", "Afternoon Snack", "Late Night"]
+        let feed = await MenuOverrideFeed.fetch(http: HTTPClient())
         var issues: [MenuMergeIssue] = []
         var checked = 0
         var refreshed = Set<String>()
@@ -69,11 +70,15 @@ struct MenuMergeMonitorTests {
                         !CampusMenuNormalize.isAvailableAllDay($0.name) && !$0.items.isEmpty
                     }
                     if timed.isEmpty, hub.isEmpty { continue }
-                    let merged = DiningService.mergeHubOntoAnteater(anteater, hubStations: hub)
+                    let merged = MenuOverrideFeed.applying(
+                        feed,
+                        to: DiningService.mergeHubOntoAnteater(anteater, hubStations: hub)
+                    )
                     issues.append(contentsOf: DiningService.auditMergedMenu(
                         anteater: anteater,
                         hubStations: hub,
-                        merged: merged
+                        merged: merged,
+                        overrides: feed.overrides
                     ))
                     checked += 1
                 }
@@ -86,7 +91,7 @@ struct MenuMergeMonitorTests {
         }
         #expect(
             issues.isEmpty,
-            "Merged menu listed a dish not on the posted source, dropped an Anteater entree, or stacked a competing Twisted Root dish"
+            "Merged menu listed a dish not on the posted source, dropped an Anteater entree, stacked a competing Twisted Root dish, or drifted from a photographed board"
         )
     }
 }

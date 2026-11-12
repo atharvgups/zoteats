@@ -38,6 +38,12 @@ data class MenuOverride(
             if (kind == "special" || kind == "event" || kind == "takeover") return true
             return DiningLogic.isSpecialEventStation(stationName)
         }
+
+    val isReplace: Boolean
+        get() {
+            val kind = kind?.trim()?.lowercase().orEmpty()
+            return kind == "replace" || kind == "board"
+        }
 }
 
 data class MenuCorrection(
@@ -142,6 +148,25 @@ object MenuOverrideFeed {
                     ),
                 ),
             ),
+            MenuOverride(
+                date = "2026-11-12",
+                hall = "anteatery",
+                period = "Lunch",
+                stationID = "1929",
+                stationName = "The Twisted Root",
+                kind = "replace",
+                verified = true,
+                note = "Atharv photographed the Anteatery Twisted Root lunch board: Red Curry Tofu Rice Bowl, 270 cal, Vegan, Contains Sesame.",
+                items = listOf(
+                    MenuOverrideItem(
+                        id = "override:anteatery-lunch-1929-red-curry-tofu-rice-bowl-2026-11-12",
+                        name = "Red Curry Tofu Rice Bowl",
+                        calories = 270,
+                        dietaryTags = listOf("Vegan", "Vegetarian", "Plant Forward"),
+                        allergens = listOf("Sesame"),
+                    ),
+                ),
+            ),
         ),
         corrections = listOf(
             MenuCorrection(
@@ -197,6 +222,30 @@ object MenuOverrideFeed {
         return applyingCorrections(feed.corrections, inserted)
     }
 
+    fun combining(live: MenuOverridePayload, bundled: MenuOverridePayload): MenuOverridePayload {
+        val overrides = live.overrides.toMutableList()
+        for (entry in bundled.overrides) {
+            val exists = overrides.any {
+                it.date == entry.date &&
+                    hallMatches(it.hall, entry.hall) &&
+                    periodMatches(it.period, entry.period) &&
+                    it.stationID == entry.stationID
+            }
+            if (!exists) overrides += entry
+        }
+        val corrections = live.corrections.toMutableList()
+        for (entry in bundled.corrections) {
+            val exists = corrections.any {
+                it.date == entry.date &&
+                    hallMatches(it.hall, entry.hall) &&
+                    periodMatches(it.period, entry.period) &&
+                    namesMatch(it.matchName, entry.matchName)
+            }
+            if (!exists) corrections += entry
+        }
+        return MenuOverridePayload(overrides, corrections)
+    }
+
     fun applyingInserts(overrides: List<MenuOverride>, menu: DiningMenu): DiningMenu {
         val matching = overrides.filter {
             it.date == menu.date &&
@@ -227,12 +276,16 @@ object MenuOverrideFeed {
             )
             val idx = stations.indexOfFirst { canJoin(it, sid, name) }
             if (idx >= 0) {
-                val seen = stations[idx].items.map { it.name.lowercase() }.toMutableSet()
-                val next = stations[idx].items.toMutableList()
-                for (dish in dishes) {
-                    if (seen.add(dish.name.lowercase())) next += dish
+                if (entry.isReplace) {
+                    stations[idx] = stations[idx].withItems(dishes)
+                } else {
+                    val seen = stations[idx].items.map { it.name.lowercase() }.toMutableSet()
+                    val next = stations[idx].items.toMutableList()
+                    for (dish in dishes) {
+                        if (seen.add(dish.name.lowercase())) next += dish
+                    }
+                    stations[idx] = stations[idx].withItems(next)
                 }
-                stations[idx] = stations[idx].withItems(next)
             } else {
                 val lane = if (entry.isSpecial) {
                     DiningLogic.StationLane.HOT_ENTREE
@@ -320,7 +373,7 @@ object MenuOverrideFeed {
         val (code, body) = runCatching { get(FEED_URL) }.getOrNull() ?: return bundled
         val next = if (code in 200..299 && body.isNotBlank()) {
             val decoded = decode(body)
-            if (decoded.isEmpty) bundled else decoded
+            if (decoded.isEmpty) bundled else combining(decoded, bundled)
         } else {
             bundled
         }

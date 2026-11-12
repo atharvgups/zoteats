@@ -88,6 +88,13 @@ public enum MenuOverrideFeed {
             if kind == "special" || kind == "event" || kind == "takeover" { return true }
             return DiningService.isSpecialEventStation(stationName: stationName)
         }
+
+        /// Photographed board replaces other entrees on that station. Hub may
+        /// still fill a gap, but it must not keep a competing name.
+        public var isReplace: Bool {
+            let kind = kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+            return kind == "replace" || kind == "board"
+        }
     }
 
     /// Patch a dish already on the board (wrong diet tags, missing allergen).
@@ -273,6 +280,25 @@ public enum MenuOverrideFeed {
                     ),
                 ]
             ),
+            Override(
+                date: "2026-11-12",
+                hall: "anteatery",
+                period: "Lunch",
+                stationID: "1929",
+                stationName: "The Twisted Root",
+                kind: "replace",
+                verified: true,
+                note: "Atharv photographed the Anteatery Twisted Root lunch board: Red Curry Tofu Rice Bowl, 270 cal, Vegan, Contains Sesame.",
+                items: [
+                    Item(
+                        id: "override:anteatery-lunch-1929-red-curry-tofu-rice-bowl-2026-11-12",
+                        name: "Red Curry Tofu Rice Bowl",
+                        calories: 270,
+                        dietaryTags: ["Vegan", "Vegetarian", "Plant Forward"],
+                        allergens: ["Sesame"]
+                    ),
+                ]
+            ),
         ],
         corrections: [
             Correction(
@@ -306,10 +332,36 @@ public enum MenuOverrideFeed {
         do {
             let data = try await http.data(from: url)
             let feed = decode(data)
-            return feed.isEmpty ? bundled : feed
+            return feed.isEmpty ? bundled : combining(feed, bundled: bundled)
         } catch {
             return bundled
         }
+    }
+
+    /// GitHub `main` can lag this binary. Keep bundled dates that live omitted
+    /// so Internal TestFlight still shows today's photographed board.
+    public static func combining(_ live: Feed, bundled: Feed) -> Feed {
+        var overrides = live.overrides
+        for entry in bundled.overrides {
+            let exists = overrides.contains {
+                $0.date == entry.date
+                    && hallMatches($0.hall, menuHall: entry.hall)
+                    && periodMatches($0.period, menuPeriod: entry.period)
+                    && $0.stationID == entry.stationID
+            }
+            if !exists { overrides.append(entry) }
+        }
+        var corrections = live.corrections
+        for entry in bundled.corrections {
+            let exists = corrections.contains {
+                $0.date == entry.date
+                    && hallMatches($0.hall, menuHall: entry.hall)
+                    && periodMatches($0.period, menuPeriod: entry.period)
+                    && namesMatch($0.matchName, entry.matchName)
+            }
+            if !exists { corrections.append(entry) }
+        }
+        return Feed(overrides: overrides, corrections: corrections)
     }
 
     public static func hallMatches(_ overrideHall: String, menuHall: String) -> Bool {
@@ -374,12 +426,16 @@ public enum MenuOverrideFeed {
             if let idx = stations.firstIndex(where: {
                 canJoin(station: $0, stationID: sid, stationName: name)
             }) {
-                var seen = Set(stations[idx].items.map { $0.name.lowercased() })
-                var next = stations[idx].items
-                for dish in dishes where seen.insert(dish.name.lowercased()).inserted {
-                    next.append(dish)
+                if entry.isReplace {
+                    stations[idx] = stations[idx].withItems(dishes)
+                } else {
+                    var seen = Set(stations[idx].items.map { $0.name.lowercased() })
+                    var next = stations[idx].items
+                    for dish in dishes where seen.insert(dish.name.lowercased()).inserted {
+                        next.append(dish)
+                    }
+                    stations[idx] = stations[idx].withItems(next)
                 }
-                stations[idx] = stations[idx].withItems(next)
             } else {
                 let lane = entry.isSpecial
                     ? DiningService.StationLane.hotEntree

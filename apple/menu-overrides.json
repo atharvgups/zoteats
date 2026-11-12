@@ -71,6 +71,25 @@
           "dietaryTags": ["Vegan", "Vegetarian"]
         }
       ]
+    },
+    {
+      "date": "2026-11-12",
+      "hall": "anteatery",
+      "period": "Lunch",
+      "stationID": "1929",
+      "stationName": "The Twisted Root",
+      "kind": "replace",
+      "verified": true,
+      "note": "Atharv photographed the Anteatery Twisted Root lunch board: Red Curry Tofu Rice Bowl, 270 cal, Vegan, Contains Sesame. Anteater API omitted the station. Hub posted Tofu Tikka Bowl (269 cal, soy). No public catalog, CampusDish GetMenus, or Elevate signage API lists Red Curry Tofu Rice Bowl. The photographed board is the authority.",
+      "items": [
+        {
+          "id": "override:anteatery-lunch-1929-red-curry-tofu-rice-bowl-2026-11-12",
+          "name": "Red Curry Tofu Rice Bowl",
+          "calories": 270,
+          "dietaryTags": ["Vegan", "Vegetarian", "Plant Forward"],
+          "allergens": ["Sesame"]
+        }
+      ]
     }
   ],
   "corrections": [
