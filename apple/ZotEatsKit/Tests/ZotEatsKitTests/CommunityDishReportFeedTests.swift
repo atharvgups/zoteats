@@ -101,20 +101,21 @@ struct CommunityDishReportFeedTests {
         let http = ReviewingHTTP()
         await http.failWrites(true)
         let defaults = isolatedDefaults()
+        let author = "queue-fail-\(UUID().uuidString)"
         let result = await CommunityDishReportFeed.submit(
             http: http,
             date: "2026-11-12",
             hall: "anteatery",
             meal: "Lunch",
-            dishID: "rice",
+            dishID: "rice-fail",
             dishName: "Jasmine Rice",
             reason: .notServed,
-            authorID: "me",
+            authorID: author,
             writeToken: "test-token",
             defaults: defaults
         )
         #expect(!result.published)
-        #expect(!result.reports.contains { $0.authorID == "me" })
+        #expect(!result.reports.contains { $0.authorID == author })
         let queued = OutboundIngestQueue.load(defaults: defaults)
         #expect(queued.count == 1)
         #expect(queued.first?.kind == .dishReport)
@@ -124,7 +125,7 @@ struct CommunityDishReportFeedTests {
                 date: "2026-11-12",
                 hall: "anteatery",
                 meal: "Lunch",
-                dishID: "rice",
+                dishID: "rice-fail",
                 dishName: "Jasmine Rice",
                 defaults: defaults
             )
@@ -191,10 +192,10 @@ struct CommunityDishReportFeedTests {
             date: "2026-11-12",
             hall: "anteatery",
             meal: "Lunch",
-            dishID: "rice",
+            dishID: "rice-empty",
             dishName: "Jasmine Rice",
             text: "Board says red curry",
-            authorID: "me",
+            authorID: "empty-\(UUID().uuidString)",
             writeToken: "",
             defaults: defaults
         )
@@ -205,7 +206,7 @@ struct CommunityDishReportFeedTests {
                 date: "2026-11-12",
                 hall: "anteatery",
                 meal: "Lunch",
-                dishID: "rice",
+                dishID: "rice-empty",
                 dishName: "Jasmine Rice",
                 defaults: defaults
             )

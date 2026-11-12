@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ZotEatsKit
 
-@Suite("OutboundIngestQueue")
+@Suite("OutboundIngestQueue", .serialized)
 struct OutboundIngestQueueTests {
     @Test func failedSendRetriesOnFlushThenMarksNoted() async {
         let defaults = isolatedDefaults()

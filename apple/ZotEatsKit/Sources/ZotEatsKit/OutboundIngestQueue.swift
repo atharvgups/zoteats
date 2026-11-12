@@ -83,9 +83,8 @@ public enum OutboundIngestQueue {
     public static let storageKey = "zoteats.outboundIngestQueue"
 
     public static func load(defaults: UserDefaults = SharedDefaults.suite) -> [OutboundIngestItem] {
-        guard let data = defaults.data(forKey: storageKey)
-            ?? UserDefaults.standard.data(forKey: storageKey)
-        else { return [] }
+        let data = defaults.data(forKey: storageKey) ?? mirroredStandardData(for: defaults)
+        guard let data else { return [] }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return (try? decoder.decode([OutboundIngestItem].self, from: data)) ?? []
@@ -97,7 +96,18 @@ public enum OutboundIngestQueue {
         encoder.outputFormatting = [.sortedKeys]
         let data = (try? encoder.encode(items)) ?? Data("[]".utf8)
         defaults.set(data, forKey: storageKey)
-        UserDefaults.standard.set(data, forKey: storageKey)
+        if mirrorsStandard(defaults) {
+            UserDefaults.standard.set(data, forKey: storageKey)
+        }
+    }
+
+    private static func mirrorsStandard(_ defaults: UserDefaults) -> Bool {
+        defaults === SharedDefaults.suite || defaults === UserDefaults.standard
+    }
+
+    private static func mirroredStandardData(for defaults: UserDefaults) -> Data? {
+        guard mirrorsStandard(defaults), defaults !== UserDefaults.standard else { return nil }
+        return UserDefaults.standard.data(forKey: storageKey)
     }
 
     public static func enqueue(

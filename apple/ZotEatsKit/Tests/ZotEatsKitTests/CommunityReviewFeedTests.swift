@@ -132,20 +132,23 @@ struct CommunityReviewFeedTests {
     @Test func submitQueuesWhenTokenMissing() async {
         let http = ReviewingHTTP()
         let defaults = isolatedDefaults()
+        let author = "review-empty-\(UUID().uuidString)"
         let result = await CommunityReviewFeed.submit(
             http: http,
             dishName: "Soup",
             stars: 4,
             note: "Nice",
-            authorID: "me",
+            authorID: author,
             authorLabel: MealReview.communityAuthorLabel,
-            excludingAuthorID: "me",
+            excludingAuthorID: author,
             writeToken: "",
             defaults: defaults
         )
         #expect(!result.published)
-        #expect(OutboundIngestQueue.load(defaults: defaults).count == 1)
-        #expect(OutboundIngestQueue.load(defaults: defaults).first?.kind == .mealReview)
+        let queued = OutboundIngestQueue.load(defaults: defaults)
+        #expect(queued.count == 1)
+        #expect(queued.first?.kind == .mealReview)
+        #expect(queued.first?.authorID == author)
     }
 }
 
