@@ -88,12 +88,17 @@ struct DishDetailSheet: View {
             DishReportPickerSheet(
                 onChoose: { reason in
                     showReportOptions = false
-                    Task { await submitReport(reason) }
+                    Task {
+                        let sent = await submitReport(reason)
+                        if sent { notedLocally = true }
+                    }
                 },
                 onSendOther: { text in
                     showReportOptions = false
-                    notedLocally = true
-                    Task { await submitOther(text) }
+                    Task {
+                        let sent = await submitOther(text)
+                        if sent { notedLocally = true }
+                    }
                 }
             )
         }
@@ -362,10 +367,10 @@ struct DishDetailSheet: View {
         )
     }
 
-    private func submitReport(_ reason: DishReportReason) async {
-        guard reason.countsTowardMissing else { return }
-        guard let hallID, let period, let dateISO else { return }
-        await prefs.submitDishReport(
+    private func submitReport(_ reason: DishReportReason) async -> Bool {
+        guard reason.countsTowardMissing else { return false }
+        guard let hallID, let period, let dateISO else { return false }
+        return await prefs.submitDishReport(
             date: dateISO,
             hall: hallID,
             meal: period,
@@ -375,9 +380,9 @@ struct DishDetailSheet: View {
         )
     }
 
-    private func submitOther(_ text: String) async {
-        guard let hallID, let period, let dateISO else { return }
-        await prefs.submitDishFeedback(
+    private func submitOther(_ text: String) async -> Bool {
+        guard let hallID, let period, let dateISO else { return false }
+        return await prefs.submitDishFeedback(
             date: dateISO,
             hall: hallID,
             meal: period,

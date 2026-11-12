@@ -37,9 +37,10 @@ struct CommunityDishReportFeedTests {
         #expect(merged.first { $0.authorID == "a" }?.reason == .notAtHall)
     }
 
-    @Test func submitPublishesWithoutDroppingOthers() async {
+    @Test func submitDispatchesWithoutDroppingOthers() async {
         CommunityDishReportFeed.persist([])
         let http = ReviewingHTTP()
+        let defaults = isolatedDefaults()
         let url = URL(string: "https://example.test/reports")!
         await http.seed(CommunityDishReportFeed.encode([
             DishReport(
@@ -52,7 +53,7 @@ struct CommunityDishReportFeedTests {
                 authorID: "other"
             ),
         ]))
-        let next = await CommunityDishReportFeed.submit(
+        let result = await CommunityDishReportFeed.submit(
             http: http,
             date: "2026-10-28",
             hall: "anteatery",
@@ -61,26 +62,78 @@ struct CommunityDishReportFeedTests {
             dishName: "Jasmine Rice",
             reason: .notAtHall,
             authorID: "me",
-            url: url
+            url: url,
+            writeToken: "test-token",
+            defaults: defaults,
+            enqueueOnFailure: false
         )
-        #expect(next.count == 2)
-        let stored = CommunityDishReportFeed.decode(await http.payload())
-        #expect(stored.count == 2)
-        #expect(stored.contains { $0.authorID == "me" && $0.reason == .notAtHall })
-        #expect(stored.contains { $0.authorID == "other" })
+        #expect(result.published)
+        #expect(result.reports.count == 2)
+        #expect(result.reports.contains { $0.authorID == "me" && $0.reason == .notAtHall })
+        #expect(result.reports.contains { $0.authorID == "other" })
+        struct Envelope: Decodable {
+            var event_type: String
+            var client_payload: Payload
+            struct Payload: Decodable {
+                var dishName: String
+                var reason: String
+                var authorID: String
+            }
+        }
+        let envelope = try? JSONDecoder().decode(Envelope.self, from: await http.payload())
+        #expect(envelope?.event_type == "dish-report")
+        #expect(envelope?.client_payload.reason == "notAtHall")
+        #expect(envelope?.client_payload.authorID == "me")
+        #expect(OutboundIngestQueue.load(defaults: defaults).isEmpty)
         #expect(
-            DishReportLogic.isReportedMissing(
-                in: stored,
+            DishFeedbackLogic.wasNoted(
                 date: "2026-10-28",
                 hall: "anteatery",
                 meal: "Lunch",
-                dishID: "rice"
+                dishID: "rice",
+                dishName: "Jasmine Rice",
+                defaults: defaults
+            )
+        )
+    }
+
+    @Test func submitQueuesWhenDispatchFails() async {
+        let http = ReviewingHTTP()
+        await http.failWrites(true)
+        let defaults = isolatedDefaults()
+        let result = await CommunityDishReportFeed.submit(
+            http: http,
+            date: "2026-11-12",
+            hall: "anteatery",
+            meal: "Lunch",
+            dishID: "rice",
+            dishName: "Jasmine Rice",
+            reason: .notServed,
+            authorID: "me",
+            writeToken: "test-token",
+            defaults: defaults
+        )
+        #expect(!result.published)
+        #expect(!result.reports.contains { $0.authorID == "me" })
+        let queued = OutboundIngestQueue.load(defaults: defaults)
+        #expect(queued.count == 1)
+        #expect(queued.first?.kind == .dishReport)
+        #expect(queued.first?.reason == "notServed")
+        #expect(
+            !DishFeedbackLogic.wasNoted(
+                date: "2026-11-12",
+                hall: "anteatery",
+                meal: "Lunch",
+                dishID: "rice",
+                dishName: "Jasmine Rice",
+                defaults: defaults
             )
         )
     }
 
     @Test func submitFeedbackDispatchesOtherNote() async {
         let http = ReviewingHTTP()
+        let defaults = isolatedDefaults()
         let sent = await CommunityDishReportFeed.submitFeedback(
             http: http,
             date: "2026-10-29",
@@ -90,7 +143,8 @@ struct CommunityDishReportFeedTests {
             dishName: "Jasmine Rice",
             text: "  Sauce is cold  ",
             authorID: "me",
-            writeToken: "test-token"
+            writeToken: "test-token",
+            defaults: defaults
         )
         #expect(sent)
         struct Envelope: Decodable {
@@ -102,11 +156,13 @@ struct CommunityDishReportFeedTests {
                 var meal: String
                 var dishName: String
                 var text: String
+                var reason: String
             }
         }
         let envelope = try? JSONDecoder().decode(Envelope.self, from: await http.payload())
         #expect(envelope?.event_type == "dish-feedback")
         #expect(envelope?.client_payload.text == "Sauce is cold")
+        #expect(envelope?.client_payload.reason == "other")
         #expect(envelope?.client_payload.dishName == "Jasmine Rice")
         #expect(envelope?.client_payload.hall == "anteatery")
         #expect(envelope?.client_payload.meal == "Lunch")
@@ -120,8 +176,39 @@ struct CommunityDishReportFeedTests {
             dishName: "Jasmine Rice",
             text: "Nope",
             authorID: "me",
-            writeToken: ""
+            writeToken: "",
+            defaults: defaults,
+            enqueueOnFailure: false
         )
         #expect(!skipped)
+    }
+
+    @Test func emptyTokenDoesNotShowThanksAndQueues() async {
+        let http = ReviewingHTTP()
+        let defaults = isolatedDefaults()
+        let sent = await CommunityDishReportFeed.submitFeedback(
+            http: http,
+            date: "2026-11-12",
+            hall: "anteatery",
+            meal: "Lunch",
+            dishID: "rice",
+            dishName: "Jasmine Rice",
+            text: "Board says red curry",
+            authorID: "me",
+            writeToken: "",
+            defaults: defaults
+        )
+        #expect(!sent)
+        #expect(OutboundIngestQueue.load(defaults: defaults).count == 1)
+        #expect(
+            !DishFeedbackLogic.wasNoted(
+                date: "2026-11-12",
+                hall: "anteatery",
+                meal: "Lunch",
+                dishID: "rice",
+                dishName: "Jasmine Rice",
+                defaults: defaults
+            )
+        )
     }
 }

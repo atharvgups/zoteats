@@ -6,8 +6,10 @@ Used by .github/workflows/feedback-ingest.yml. Reads:
   ANTEATS_FEEDBACK_WEBHOOK_URL   webhook URL (repo variable or secret)
   ANTEATS_FEEDBACK_WEBHOOK_KEY   sent as the Authorization header (repo secret)
 
-If the URL is missing, exits 0 without posting so the app can still show
-Thanks, noted. The URL and key never ship in the iOS or Android binary.
+If the URL is missing, exits 1 so a misconfigured secret is visible in
+Actions. The URL and key never ship in the iOS or Android binary.
+Structured reasons (Not at this hall / Not being served / Wrong station)
+use the reason title as text when the free-text note is empty.
 """
 
 from __future__ import annotations
@@ -20,14 +22,31 @@ import urllib.request
 
 MAX_CHARACTERS = 500
 
+REASON_TITLES = {
+    "notAtHall": "Not at this hall",
+    "notServed": "Not being served",
+    "wrongStation": "Wrong station",
+    "other": "Other",
+}
+
 
 def clipped(text: str) -> str:
     return text.strip()[:MAX_CHARACTERS]
 
 
+def reason_title(reason: str) -> str:
+    key = reason.strip()
+    return REASON_TITLES.get(key, key)
+
+
 def webhook_body(payload: dict) -> dict:
+    reason = str(payload.get("reason") or "").strip()
+    text = clipped(str(payload.get("text") or ""))
+    if not text:
+        text = reason_title(reason)
     return {
-        "text": clipped(str(payload.get("text") or "")),
+        "text": text,
+        "reason": reason,
         "dish": str(payload.get("dishName") or payload.get("dish") or "").strip(),
         "hall": str(payload.get("hall") or "").strip(),
         "meal": str(payload.get("meal") or "").strip(),
@@ -47,8 +66,8 @@ def post_feedback(
         return 0
     trimmed_url = url.strip()
     if not trimmed_url:
-        print("ANTEATS_FEEDBACK_WEBHOOK_URL missing; skipping")
-        return 0
+        print("ANTEATS_FEEDBACK_WEBHOOK_URL missing", file=sys.stderr)
+        return 1
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(trimmed_url, data=data, method="POST")
     request.add_header("Content-Type", "application/json")

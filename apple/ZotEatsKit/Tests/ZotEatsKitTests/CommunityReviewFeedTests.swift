@@ -56,11 +56,12 @@ struct CommunityReviewFeedTests {
 
     @Test func submitPublishesAndHidesOwnReview() async {
         let http = ReviewingHTTP()
+        let defaults = isolatedDefaults()
         let url = URL(string: "https://example.test/reviews")!
         await http.seed(CommunityReviewFeed.encode([
             MealReview(dishName: "Soup", stars: 4, note: "Nice", authorID: "other", authorLabel: "Anteater"),
         ]))
-        let next = await CommunityReviewFeed.submit(
+        let result = await CommunityReviewFeed.submit(
             http: http,
             dishName: "Soup",
             stars: 5,
@@ -68,24 +69,41 @@ struct CommunityReviewFeedTests {
             authorID: "me",
             authorLabel: MealReview.communityAuthorLabel,
             excludingAuthorID: "me",
-            url: url
+            url: url,
+            writeToken: "test-token",
+            defaults: defaults,
+            enqueueOnFailure: false
         )
-        #expect(next.count == 1)
-        #expect(next[0].resolvedAuthorID == "other")
-        let stored = CommunityReviewFeed.decode(await http.payload())
-        #expect(stored.count == 2)
-        #expect(stored.contains { $0.resolvedAuthorID == "me" && $0.stars == 5 && $0.note == "Best" })
-        #expect(stored.contains { $0.resolvedAuthorID == "other" })
+        #expect(result.published)
+        #expect(result.reviews.count == 1)
+        #expect(result.reviews[0].resolvedAuthorID == "other")
+        struct Envelope: Decodable {
+            var event_type: String
+            var client_payload: Payload
+            struct Payload: Decodable {
+                var dishName: String
+                var stars: Int
+                var note: String
+                var authorID: String
+            }
+        }
+        let envelope = try? JSONDecoder().decode(Envelope.self, from: await http.payload())
+        #expect(envelope?.event_type == "meal-review")
+        #expect(envelope?.client_payload.stars == 5)
+        #expect(envelope?.client_payload.note == "Best")
+        #expect(envelope?.client_payload.authorID == "me")
+        #expect(OutboundIngestQueue.load(defaults: defaults).isEmpty)
     }
 
     @Test func submitZeroStarsRemovesOwnReview() async {
         let http = ReviewingHTTP()
+        let defaults = isolatedDefaults()
         let url = URL(string: "https://example.test/reviews")!
         await http.seed(CommunityReviewFeed.encode([
             MealReview(dishName: "Soup", stars: 5, note: "Mine", authorID: "me", authorLabel: "Anteater"),
             MealReview(dishName: "Soup", stars: 3, note: "Theirs", authorID: "other", authorLabel: "Anteater"),
         ]))
-        let next = await CommunityReviewFeed.submit(
+        let result = await CommunityReviewFeed.submit(
             http: http,
             dishName: "Soup",
             stars: 0,
@@ -93,29 +111,67 @@ struct CommunityReviewFeedTests {
             authorID: "me",
             authorLabel: MealReview.communityAuthorLabel,
             excludingAuthorID: "me",
-            url: url
+            url: url,
+            writeToken: "test-token",
+            defaults: defaults,
+            enqueueOnFailure: false
         )
-        #expect(next.count == 1)
-        #expect(next[0].resolvedAuthorID == "other")
-        let stored = CommunityReviewFeed.decode(await http.payload())
-        #expect(stored.map(\.resolvedAuthorID) == ["other"])
+        #expect(result.published)
+        #expect(result.reviews.count == 1)
+        #expect(result.reviews[0].resolvedAuthorID == "other")
+        struct Envelope: Decodable {
+            var event_type: String
+            var client_payload: Payload
+            struct Payload: Decodable { var stars: Int }
+        }
+        let envelope = try? JSONDecoder().decode(Envelope.self, from: await http.payload())
+        #expect(envelope?.event_type == "meal-review")
+        #expect(envelope?.client_payload.stars == 0)
+    }
+
+    @Test func submitQueuesWhenTokenMissing() async {
+        let http = ReviewingHTTP()
+        let defaults = isolatedDefaults()
+        let result = await CommunityReviewFeed.submit(
+            http: http,
+            dishName: "Soup",
+            stars: 4,
+            note: "Nice",
+            authorID: "me",
+            authorLabel: MealReview.communityAuthorLabel,
+            excludingAuthorID: "me",
+            writeToken: "",
+            defaults: defaults
+        )
+        #expect(!result.published)
+        #expect(OutboundIngestQueue.load(defaults: defaults).count == 1)
+        #expect(OutboundIngestQueue.load(defaults: defaults).first?.kind == .mealReview)
     }
 }
 
 actor ReviewingHTTP: HTTPFetching {
     private var stored = Data("{}".utf8)
+    private var lastPosted = Data()
+    private var writesFail = false
 
     func seed(_ data: Data) {
         stored = data
     }
 
-    func payload() -> Data { stored }
+    func failWrites(_ value: Bool) {
+        writesFail = value
+    }
+
+    func payload() -> Data { lastPosted.isEmpty ? stored : lastPosted }
 
     func data(from url: URL) async throws -> Data { stored }
 
     func send(method: String, url: URL, headers: [String: String], body: Data?) async throws -> Data {
         if method.uppercased() == "GET" { return stored }
-        if let body { stored = body }
-        return stored
+        if writesFail {
+            throw HTTPError.badStatus(code: 503, url: url)
+        }
+        if let body { lastPosted = body }
+        return Data()
     }
 }

@@ -318,15 +318,17 @@ fun EatScreen(
                 onClose = viewModel::closeDish,
                 onReport = { viewModel.submitReport(dish, it) },
                 onFeedback = { viewModel.submitFeedback(dish, it) },
-                noted = viewModel.prefs.wasFeedbackNoted(
-                    DishReportLogic.listingKey(
-                        state.selectedDate,
-                        state.selectedHall,
-                        state.selectedPeriod,
-                        dish.id,
-                        dish.name,
-                    ),
-                ),
+                noted = state.notedRevision.let {
+                    viewModel.prefs.wasFeedbackNoted(
+                        DishReportLogic.listingKey(
+                            state.selectedDate,
+                            state.selectedHall,
+                            state.selectedPeriod,
+                            dish.id,
+                            dish.name,
+                        ),
+                    )
+                },
             )
         }
     }
@@ -1009,7 +1011,7 @@ private fun DishDetail(
     val favorite = prefs.isFavorite(dish.name)
     val stars = prefs.stars(dish.name)
     var showReport by remember(dish.id) { mutableStateOf(false) }
-    var notedLocally by remember(dish.id) { mutableStateOf(noted) }
+    var notedLocally by remember(dish.id, noted) { mutableStateOf(noted) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -1092,7 +1094,7 @@ private fun DishDetail(
                 modifier = Modifier.testTag("dish-reported-missing"),
             )
         }
-        if (myReport != null || notedLocally) {
+        if (myReport != null || notedLocally || noted) {
             Text(
                 DishReportCopy.thanks,
                 fontSize = 13.sp,
@@ -1130,7 +1132,6 @@ private fun DishDetail(
                     showReport = false
                 },
                 onSendOther = { text ->
-                    notedLocally = true
                     onFeedback(text)
                     showReport = false
                 },

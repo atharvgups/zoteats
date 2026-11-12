@@ -301,4 +301,96 @@ class DishReportTest {
         )
         assertFalse(skipped)
     }
+
+    @Test
+    fun submitDispatchesListingReportAndDoesNotThankOnFailure() = runBlocking {
+        var posted = ""
+        val feed = DishReportFeed(
+            token = "test-token",
+            get = { _, _ -> 200 to DishReportFeed.encode(emptyList()) },
+            send = { _, _, _, body ->
+                posted = body.orEmpty()
+                204 to ""
+            },
+        )
+        val result = feed.submit(
+            date = "2026-11-12",
+            hall = "anteatery",
+            meal = "Lunch",
+            dishID = "rice",
+            dishName = "Red Curry Tofu Rice Bowl",
+            reason = DishReportReason.NOT_SERVED,
+            authorID = "me",
+            existing = emptyList(),
+        )
+        assertTrue(result.published)
+        assertTrue(posted.contains("\"event_type\":\"dish-report\""))
+        assertTrue(posted.contains("notServed"))
+        assertEquals(1, result.reports.size)
+
+        val queued = mutableListOf<OutboundIngestItem>()
+        val queue = OutboundIngestQueue(load = { queued.toList() }, save = { queued.clear(); queued.addAll(it) })
+        val failed = DishReportFeed(
+            token = "",
+            get = { _, _ -> 200 to DishReportFeed.encode(emptyList()) },
+            send = { _, _, _, _ -> 401 to "" },
+        ).submit(
+            date = "2026-11-12",
+            hall = "anteatery",
+            meal = "Lunch",
+            dishID = "rice",
+            dishName = "Red Curry Tofu Rice Bowl",
+            reason = DishReportReason.NOT_SERVED,
+            authorID = "me",
+            existing = emptyList(),
+            queue = queue,
+        )
+        assertFalse(failed.published)
+        assertTrue(failed.reports.none { it.authorID == "me" })
+        assertEquals(1, queued.size)
+        assertEquals(OutboundIngestItem.KIND_REPORT, queued.first().kind)
+    }
+
+    @Test
+    fun outboundQueueRetriesUntilDispatchSucceeds() = runBlocking {
+        val stored = mutableListOf<OutboundIngestItem>()
+        val queue = OutboundIngestQueue(load = { stored.toList() }, save = { stored.clear(); stored.addAll(it) })
+        queue.enqueue(
+            OutboundIngestItem(
+                kind = OutboundIngestItem.KIND_FEEDBACK,
+                date = "2026-11-12",
+                hall = "anteatery",
+                meal = "Lunch",
+                dishID = "rice",
+                dishName = "Red Curry Tofu Rice Bowl",
+                text = "Board says sesame",
+                authorID = "me",
+            ),
+        )
+        val failing = DishReportFeed(
+            token = "test-token",
+            get = { _, _ -> 200 to "{}" },
+            send = { _, _, _, _ -> 503 to "" },
+        )
+        val still = queue.flush(failing)
+        assertEquals(0, still.sent)
+        assertEquals(1, still.remaining)
+        assertEquals(1, stored.first().attempts)
+
+        var posted = ""
+        val ok = DishReportFeed(
+            token = "test-token",
+            get = { _, _ -> 200 to "{}" },
+            send = { _, _, _, body ->
+                posted = body.orEmpty()
+                204 to ""
+            },
+        )
+        val flushed = queue.flush(ok)
+        assertEquals(1, flushed.sent)
+        assertEquals(0, flushed.remaining)
+        assertTrue(stored.isEmpty())
+        assertTrue(posted.contains("\"event_type\":\"dish-feedback\""))
+        assertTrue(posted.contains("Board says sesame"))
+    }
 }

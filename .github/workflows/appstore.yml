@@ -49,6 +49,8 @@ jobs:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       REVIEW_CONTACT_PHONE: ${{ secrets.REVIEW_CONTACT_PHONE }}
+      ZOTEATS_REVIEWS_TOKEN: ${{ secrets.ZOTEATS_REVIEWS_TOKEN }}
+      ZOTEATS_REQUIRE_REVIEWS_TOKEN: ${{ vars.ZOTEATS_REQUIRE_REVIEWS_TOKEN }}
       SUBMIT_ONLY: ${{ github.event_name == 'push' || inputs.submit_only }}
       # Tag pushes always submit; workflow_dispatch honors the checkbox (default true).
       SUBMIT_FOR_REVIEW: ${{ github.event_name == 'push' && 'true' || inputs.submit_for_review }}
@@ -67,6 +69,10 @@ jobs:
           fi
 
       - uses: actions/checkout@v4
+
+      - name: Check reviews ingest token
+        if: env.SUBMIT_ONLY != 'true'
+        run: python3 apple/scripts/require_reviews_token.py
 
       - uses: maxim-lobanov/setup-xcode@v1
         if: env.SUBMIT_ONLY != 'true'
@@ -128,6 +134,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            ZOTEATS_REVIEWS_TOKEN="${ZOTEATS_REVIEWS_TOKEN:-}" \
             archive
 
       - name: Export and upload to App Store Connect

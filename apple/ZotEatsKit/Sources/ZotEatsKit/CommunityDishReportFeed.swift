@@ -1,18 +1,15 @@
 import Foundation
 
-/// Shared dish-wrong reports. Same GitHub backend as community ratings
-/// (`ZOTEATS_REVIEWS_TOKEN`, Contents API, repository_dispatch), separate
-/// document so a 1.0.361 rating publish cannot wipe flags.
+/// Shared dish-wrong reports. The phone POSTs `repository_dispatch` only
+/// (`dish-report` / `dish-feedback`). GitHub Actions merges the JSON and
+/// forwards Atharv's webhook. The write token never calls Contents.
 public enum CommunityDishReportFeed {
     public static let cacheKey = "zoteats.communityDishReports"
     public static let feedURL = URL(
         string: "https://raw.githubusercontent.com/atharvgups/zoteats/main/apple/community-dish-reports.json"
     )!
     public static let liveURL = feedURL
-    public static let githubContentsURL = URL(
-        string: "https://api.github.com/repos/atharvgups/zoteats/contents/apple/community-dish-reports.json"
-    )!
-    public static let ingestURL = CommunityReviewFeed.ingestURL
+    public static let ingestURL = GitHubIngest.dispatchURL
 
     public struct Payload: Codable, Equatable, Sendable {
         public var reports: [DishReport]
@@ -78,6 +75,8 @@ public enum CommunityDishReportFeed {
         return merged
     }
 
+    /// Dispatches a listing flag. Returns the merged cache. `published` is true
+    /// only after GitHub accepted the event; otherwise the row is queued.
     public static func submit(
         http: any HTTPFetching,
         date: String,
@@ -88,37 +87,56 @@ public enum CommunityDishReportFeed {
         reason: DishReportReason,
         authorID: String,
         now: Date = Date(),
-        url: URL = liveURL
-    ) async -> [DishReport] {
+        url: URL = liveURL,
+        writeToken: String = CommunityReviewFeed.writeToken,
+        defaults: UserDefaults = SharedDefaults.suite,
+        enqueueOnFailure: Bool = true
+    ) async -> (reports: [DishReport], published: Bool) {
         let cached = cachedReports()
         let loaded = await load(http: http, url: url)
         let remote = loaded ?? cached
-        let next = DishReportLogic.upsert(
-            existing: remote,
-            date: date,
-            hall: hall,
-            meal: meal,
-            dishID: dishID,
-            dishName: dishName,
-            reason: reason,
-            authorID: authorID,
-            now: now
+        let published = await GitHubIngest.dispatch(
+            http: http,
+            eventType: "dish-report",
+            payload: OutboundIngestQueue.DishReportPayload(
+                date: date,
+                hall: hall,
+                meal: meal,
+                dishID: dishID,
+                dishName: dishName,
+                reason: reason.rawValue,
+                authorID: authorID,
+                updatedAt: iso8601(now)
+            ),
+            writeToken: writeToken
         )
-        let body = encode(next)
-        var published = false
-        do {
-            _ = try await http.send(
-                method: "PUT",
-                url: url,
-                headers: ["Content-Type": "application/json", "Accept": "application/json"],
-                body: body
+        if published {
+            let next = DishReportLogic.upsert(
+                existing: remote,
+                date: date,
+                hall: hall,
+                meal: meal,
+                dishID: dishID,
+                dishName: dishName,
+                reason: reason,
+                authorID: authorID,
+                now: now
             )
-            published = true
-        } catch {
-            published = await submitGitHubContents(http: http, reports: next)
-            if !published {
-                published = await dispatchGitHubIngest(
-                    http: http,
+            let merged = merge(cached: cached, remote: next)
+            persist(merged)
+            DishFeedbackLogic.markNoted(
+                date: date,
+                hall: hall,
+                meal: meal,
+                dishID: dishID,
+                dishName: dishName,
+                defaults: defaults
+            )
+            return (merged, true)
+        }
+        if enqueueOnFailure {
+            OutboundIngestQueue.enqueue(
+                OutboundIngestQueue.dishReportItem(
                     date: date,
                     hall: hall,
                     meal: meal,
@@ -127,17 +145,16 @@ public enum CommunityDishReportFeed {
                     reason: reason,
                     authorID: authorID,
                     updatedAt: now
-                )
-            }
+                ),
+                defaults: defaults
+            )
         }
-        let merged = merge(cached: cached, remote: published ? next : remote)
+        let merged = merge(cached: cached, remote: remote)
         persist(merged)
-        return merged
+        return (merged, false)
     }
 
-    /// Forwards an Other note to the reports ingest workflow. The webhook
-    /// URL and key never leave GitHub Actions config.
-    @discardableResult
+    /// Forwards an Other note. The webhook URL and key never leave Actions.
     public static func submitFeedback(
         http: any HTTPFetching,
         date: String,
@@ -148,22 +165,55 @@ public enum CommunityDishReportFeed {
         text: String,
         authorID: String,
         now: Date = Date(),
-        writeToken: String = CommunityReviewFeed.writeToken
+        writeToken: String = CommunityReviewFeed.writeToken,
+        defaults: UserDefaults = SharedDefaults.suite,
+        enqueueOnFailure: Bool = true
     ) async -> Bool {
         let clipped = DishFeedbackLogic.clipped(text)
         guard !clipped.isEmpty else { return false }
-        return await dispatchGitHubFeedback(
+        let published = await GitHubIngest.dispatch(
             http: http,
-            date: date,
-            hall: hall,
-            meal: meal,
-            dishID: dishID,
-            dishName: dishName,
-            text: clipped,
-            authorID: authorID,
-            updatedAt: now,
+            eventType: "dish-feedback",
+            payload: OutboundIngestQueue.DishFeedbackPayload(
+                date: date,
+                hall: hall,
+                meal: meal,
+                dishID: dishID,
+                dishName: dishName,
+                reason: DishReportReason.other.rawValue,
+                text: clipped,
+                authorID: authorID,
+                updatedAt: iso8601(now)
+            ),
             writeToken: writeToken
         )
+        if published {
+            DishFeedbackLogic.markNoted(
+                date: date,
+                hall: hall,
+                meal: meal,
+                dishID: dishID,
+                dishName: dishName,
+                defaults: defaults
+            )
+            return true
+        }
+        if enqueueOnFailure {
+            OutboundIngestQueue.enqueue(
+                OutboundIngestQueue.dishFeedbackItem(
+                    date: date,
+                    hall: hall,
+                    meal: meal,
+                    dishID: dishID,
+                    dishName: dishName,
+                    text: clipped,
+                    authorID: authorID,
+                    updatedAt: now
+                ),
+                defaults: defaults
+            )
+        }
+        return false
     }
 
     private static func load(http: any HTTPFetching, url: URL) async -> [DishReport]? {
@@ -175,189 +225,9 @@ public enum CommunityDishReportFeed {
         }
     }
 
-    private static func submitGitHubContents(
-        http: any HTTPFetching,
-        reports: [DishReport]
-    ) async -> Bool {
-        let token = CommunityReviewFeed.writeToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return false }
-        let auth = [
-            "Accept": "application/vnd.github+json",
-            "Authorization": "Bearer \(token)",
-            "X-GitHub-Api-Version": "2022-11-28",
-        ]
-        var sha: String?
-        if let data = try? await http.data(from: githubContentsURL, headers: auth),
-           let meta = try? JSONDecoder().decode(GitHubContentsMeta.self, from: data) {
-            sha = meta.sha
-        }
-        let body = GitHubContentsPut(
-            message: "chore(reports): publish community dish flag",
-            content: encode(reports).base64EncodedString(),
-            sha: sha,
-            branch: "main"
-        )
-        guard let payload = try? JSONEncoder().encode(body) else { return false }
-        do {
-            _ = try await http.send(
-                method: "PUT",
-                url: githubContentsURL,
-                headers: auth.merging(["Content-Type": "application/json"]) { _, new in new },
-                body: payload
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private static func dispatchGitHubIngest(
-        http: any HTTPFetching,
-        date: String,
-        hall: String,
-        meal: String,
-        dishID: String,
-        dishName: String,
-        reason: DishReportReason,
-        authorID: String,
-        updatedAt: Date
-    ) async -> Bool {
-        let token = CommunityReviewFeed.writeToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return false }
+    private static func iso8601(_ date: Date) -> String {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        let envelope = IngestEnvelope(
-            event_type: "dish-report",
-            client_payload: IngestPayload(
-                date: date,
-                hall: hall,
-                meal: meal,
-                dishID: dishID,
-                dishName: dishName,
-                reason: reason.rawValue,
-                authorID: authorID,
-                updatedAt: iso.string(from: updatedAt)
-            )
-        )
-        guard let body = try? JSONEncoder().encode(envelope) else { return false }
-        do {
-            _ = try await http.send(
-                method: "POST",
-                url: ingestURL,
-                headers: [
-                    "Accept": "application/vnd.github+json",
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer \(token)",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                ],
-                body: body
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private static func dispatchGitHubFeedback(
-        http: any HTTPFetching,
-        date: String,
-        hall: String,
-        meal: String,
-        dishID: String,
-        dishName: String,
-        text: String,
-        authorID: String,
-        updatedAt: Date,
-        writeToken: String
-    ) async -> Bool {
-        let token = writeToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return false }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        let envelope = FeedbackEnvelope(
-            event_type: "dish-feedback",
-            client_payload: FeedbackPayload(
-                date: date,
-                hall: hall,
-                meal: meal,
-                dishID: dishID,
-                dishName: dishName,
-                text: text,
-                authorID: authorID,
-                updatedAt: iso.string(from: updatedAt)
-            )
-        )
-        guard let body = try? JSONEncoder().encode(envelope) else { return false }
-        do {
-            _ = try await http.send(
-                method: "POST",
-                url: ingestURL,
-                headers: [
-                    "Accept": "application/vnd.github+json",
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer \(token)",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                ],
-                body: body
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private struct GitHubContentsMeta: Decodable, Sendable {
-        var sha: String?
-    }
-
-    private struct GitHubContentsPut: Encodable, Sendable {
-        var message: String
-        var content: String
-        var sha: String?
-        var branch: String
-
-        enum CodingKeys: String, CodingKey {
-            case message, content, sha, branch
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(message, forKey: .message)
-            try container.encode(content, forKey: .content)
-            try container.encode(branch, forKey: .branch)
-            try container.encodeIfPresent(sha, forKey: .sha)
-        }
-    }
-
-    private struct IngestEnvelope: Encodable, Sendable {
-        var event_type: String
-        var client_payload: IngestPayload
-    }
-
-    private struct IngestPayload: Encodable, Sendable {
-        var date: String
-        var hall: String
-        var meal: String
-        var dishID: String
-        var dishName: String
-        var reason: String
-        var authorID: String
-        var updatedAt: String
-    }
-
-    private struct FeedbackEnvelope: Encodable, Sendable {
-        var event_type: String
-        var client_payload: FeedbackPayload
-    }
-
-    private struct FeedbackPayload: Encodable, Sendable {
-        var date: String
-        var hall: String
-        var meal: String
-        var dishID: String
-        var dishName: String
-        var text: String
-        var authorID: String
-        var updatedAt: String
+        return iso.string(from: date)
     }
 }

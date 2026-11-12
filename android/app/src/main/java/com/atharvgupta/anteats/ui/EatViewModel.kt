@@ -18,6 +18,7 @@ import com.atharvgupta.anteats.data.MenuItem
 import com.atharvgupta.anteats.data.PacificTime
 import com.atharvgupta.anteats.data.PlateStore
 import com.atharvgupta.anteats.BuildConfig
+import com.atharvgupta.anteats.data.OutboundIngestQueue
 import com.atharvgupta.anteats.data.PreferencesStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ data class EatUiState(
     val showFilters: Boolean = false,
     val screenshotReady: Boolean = false,
     val dishReports: List<DishReport> = emptyList(),
+    val notedRevision: Int = 0,
 )
 
 class EatViewModel(
@@ -49,12 +51,14 @@ class EatViewModel(
     private val reportFeed: DishReportFeed = DishReportFeed(
         token = BuildConfig.REVIEWS_TOKEN,
     ),
+    private val outboundQueue: OutboundIngestQueue = prefs.outboundQueue(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(EatUiState(dishReports = prefs.cachedDishReports()))
     val state: StateFlow<EatUiState> = _state.asStateFlow()
     private var menuJob: Job? = null
 
     init {
+        reportFeed.replaceCache(prefs.cachedDishReports())
         refresh()
         loadReports()
     }
@@ -84,57 +88,54 @@ class EatViewModel(
         )
     }
 
-    fun submitReport(item: MenuItem, reason: String) {
+    fun submitReport(item: MenuItem, reason: String, onPublished: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             val snapshot = _state.value
-            val optimistic = DishReportLogic.upsert(
+            val result = reportFeed.submit(
+                date = snapshot.selectedDate,
+                hall = snapshot.selectedHall,
+                meal = snapshot.selectedPeriod,
+                dishID = item.id,
+                dishName = item.name,
+                reason = reason,
+                authorID = prefs.reviewerID,
                 existing = snapshot.dishReports,
-                date = snapshot.selectedDate,
-                hall = snapshot.selectedHall,
-                meal = snapshot.selectedPeriod,
-                dishID = item.id,
-                dishName = item.name,
-                reason = reason,
-                authorID = prefs.reviewerID,
-                updatedAt = java.time.Instant.now().toString(),
+                queue = outboundQueue,
             )
-            _state.update { it.copy(dishReports = optimistic) }
-            prefs.saveDishReports(optimistic)
-            val next = reportFeed.submit(
-                date = snapshot.selectedDate,
-                hall = snapshot.selectedHall,
-                meal = snapshot.selectedPeriod,
-                dishID = item.id,
-                dishName = item.name,
-                reason = reason,
-                authorID = prefs.reviewerID,
-                existing = optimistic,
-            )
-            val merged = DishReportFeed.merge(optimistic, next)
-            _state.update { it.copy(dishReports = merged) }
-            prefs.saveDishReports(merged)
+            _state.update { it.copy(dishReports = result.reports) }
+            prefs.saveDishReports(result.reports)
+            if (result.published) {
+                prefs.markFeedbackNoted(
+                    DishReportLogic.listingKey(
+                        snapshot.selectedDate,
+                        snapshot.selectedHall,
+                        snapshot.selectedPeriod,
+                        item.id,
+                        item.name,
+                    ),
+                )
+                _state.update { it.copy(notedRevision = it.notedRevision + 1) }
+            }
+            onPublished(result.published)
         }
     }
 
-    fun submitFeedback(item: MenuItem, text: String) {
+    fun submitFeedback(item: MenuItem, text: String, onPublished: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             val snapshot = _state.value
-            prefs.markFeedbackNoted(
-                DishReportLogic.listingKey(
-                    snapshot.selectedDate,
-                    snapshot.selectedHall,
-                    snapshot.selectedPeriod,
-                    item.id,
-                    item.name,
-                ),
-            )
             val clipped = DishFeedbackLogic.clipped(text)
-            if (clipped.isEmpty()) return@launch
+            if (clipped.isEmpty()) {
+                onPublished(false)
+                return@launch
+            }
             val now = System.currentTimeMillis()
             val history = prefs.feedbackHistoryMs()
-            if (!DishFeedbackLogic.canSend(history, now)) return@launch
+            if (!DishFeedbackLogic.canSend(history, now)) {
+                onPublished(false)
+                return@launch
+            }
             prefs.saveFeedbackHistoryMs(DishFeedbackLogic.recordedHistory(history, now))
-            reportFeed.submitFeedback(
+            val sent = reportFeed.submitFeedback(
                 date = snapshot.selectedDate,
                 hall = snapshot.selectedHall,
                 meal = snapshot.selectedPeriod,
@@ -142,7 +143,39 @@ class EatViewModel(
                 dishName = item.name,
                 text = clipped,
                 authorID = prefs.reviewerID,
+                queue = outboundQueue,
             )
+            if (sent) {
+                prefs.markFeedbackNoted(
+                    DishReportLogic.listingKey(
+                        snapshot.selectedDate,
+                        snapshot.selectedHall,
+                        snapshot.selectedPeriod,
+                        item.id,
+                        item.name,
+                    ),
+                )
+                _state.update { it.copy(notedRevision = it.notedRevision + 1) }
+            }
+            onPublished(sent)
+        }
+    }
+
+    fun flushOutbound() {
+        viewModelScope.launch {
+            val pending = outboundQueue.pending()
+            if (pending.isEmpty()) return@launch
+            val result = outboundQueue.flush(reportFeed)
+            if (result.sent == 0) return@launch
+            val still = outboundQueue.pending().map { it.dedupeKey }.toSet()
+            pending.filter { it.dedupeKey !in still }.forEach { item ->
+                prefs.markFeedbackNoted(
+                    DishReportLogic.listingKey(item.date, item.hall, item.meal, item.dishID, item.dishName),
+                )
+            }
+            val reports = reportFeed.cached()
+            _state.update { it.copy(dishReports = reports, notedRevision = it.notedRevision + 1) }
+            prefs.saveDishReports(reports)
         }
     }
 
@@ -156,6 +189,7 @@ class EatViewModel(
     }
 
     fun refresh() {
+        flushOutbound()
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, screenshotReady = false) }
             runCatching {
