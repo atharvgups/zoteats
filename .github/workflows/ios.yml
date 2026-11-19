@@ -23,7 +23,8 @@ concurrency:
 jobs:
   kit-tests:
     name: ZotEatsKit tests (Linux)
-    runs-on: ubuntu-latest
+    # setup-swift@v2 does not support Ubuntu 26.04, which ubuntu-latest is rolling to.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
